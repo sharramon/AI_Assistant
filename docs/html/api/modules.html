@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules</title>
+<!-- Generated from docs/api/modules.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html" aria-current="page">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul></nav>
+<main>
+<h1 id="modules">Modules</h1>
+<p>Writing a module. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>.</p>
+<h2 id="module"><code>Module</code></h2>
+<p><code>class Module(ABC)</code></p>
+<p>Base class for every module. Set the <code>manifest</code> class attribute and implement <code>init</code>.</p>
+<p>The core calls <code>init</code> for every module in dependency order, then <code>start</code> for each, and on shutdown <code>stop</code> in reverse order. <code>stop</code> is called for every module whose <code>init</code> succeeded, even if <code>start</code> never ran. If <code>init</code> or <code>start</code> raises, the module is skipped (see <a href="../architecture/core.html#lifecycle">lifecycle</a>).</p>
+<p><strong>Attributes</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>manifest</code></td>
+<td><code>ClassVar[Manifest]</code></td>
+<td>Required. Identifies the module and its dependencies</td>
+</tr>
+</tbody>
+</table>
+<h3 id="moduleinit"><code>Module.init</code></h3>
+<p><code>async init(self, ctx: ModuleContext) -&gt; None</code></p>
+<p>Abstract. Subscribe to events, register command handlers, and provide contracts here. Keep <code>ctx</code> if the module needs it later. Don't start background work yet.</p>
+<h3 id="modulestart"><code>Module.start</code></h3>
+<p><code>async start(self) -&gt; None</code></p>
+<p>Begin active work: listening for input, background loops. Default does nothing.</p>
+<h3 id="modulestop"><code>Module.stop</code></h3>
+<p><code>async stop(self) -&gt; None</code></p>
+<p>Stop work and release resources. Default does nothing. Has <code>core.module_stop_timeout</code> seconds. Subscriptions, handlers, and provided contracts are removed by the core afterwards, so there's no need to undo them here.</p>
+<p><strong>Example</strong></p>
+<pre><code>class EchoOrchestrator(Module):
+    manifest = Manifest(id="echo_orchestrator", optional=(ToolProvider,))
+
+    async def init(self, ctx: ModuleContext) -&gt; None:
+        self._ctx = ctx
+        ctx.subscribe(InputReceived, self._on_input)
+
+    async def _on_input(self, event: InputReceived) -&gt; None:
+        self._ctx.publish(ResponseReady(text=f"Echo: {event.text}", correlation_id=event.id))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code>
+<strong>See also:</strong> <a href="#manifest"><code>Manifest</code></a>, <a href="#modulecontext"><code>ModuleContext</code></a>, <a href="../architecture/core.html#adding-replacing-or-removing-a-module">adding a module</a></p>
+<h2 id="manifest"><code>Manifest</code></h2>
+<p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = ())</code></p>
+<p>Frozen dataclass describing a module. Dependencies are on contracts, never on other modules.</p>
+<p><strong>Fields</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>str</code></td>
+<td>yes</td>
+<td>Unique id, used in <code>modules.enabled</code> and as the config section name</td>
+</tr>
+<tr>
+<td><code>provides</code></td>
+<td><code>tuple[type[Contract], ...]</code></td>
+<td>no</td>
+<td>Contracts this module provides via <code>ctx.provide</code></td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td><code>tuple[type[Contract], ...]</code></td>
+<td>no</td>
+<td>Contracts that must be provided by an enabled module, or startup fails</td>
+</tr>
+<tr>
+<td><code>optional</code></td>
+<td><code>tuple[type[Contract], ...]</code></td>
+<td>no</td>
+<td>Contracts used if present; only affects start order</td>
+</tr>
+</tbody>
+</table>
+<p>Every type listed must be a <a href="#contract"><code>Contract</code></a> from <code>assistant.contracts</code>, or startup fails.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code></p>
+<h2 id="modulecontext"><code>ModuleContext</code></h2>
+<p><code>class ModuleContext(ABC)</code></p>
+<p>A module's only access to the rest of the app, passed to <code>init</code>. Everything registered through it is removed automatically when the module stops.</p>
+<p><strong>Attributes</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>module_id</code></td>
+<td><code>str</code></td>
+<td>This module's id</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td><code>dict[str, Any]</code></td>
+<td>The <code>[modules.&lt;id&gt;]</code> config section, or <code>{}</code></td>
+</tr>
+<tr>
+<td><code>log</code></td>
+<td><code>logging.Logger</code></td>
+<td>Logger named <code>assistant.modules.&lt;id&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="modulecontextsubscribe"><code>ModuleContext.subscribe</code></h3>
+<p><code>subscribe(event_type: type[E], handler: Callable[[E], Awaitable[None]]) -&gt; None</code></p>
+<p>Receive every published event that is an instance of <code>event_type</code> (subclasses included). The handler runs on this subscription's own worker, one event at a time, in order. It is cancelled after <code>core.event_handler_timeout</code>; exceptions are logged.</p>
+<h3 id="modulecontextpublish"><code>ModuleContext.publish</code></h3>
+<p><code>publish(event: Event) -&gt; None</code></p>
+<p>Publish an event. Returns immediately and never waits on subscribers. Events are dropped for a subscriber whose queue is full.</p>
+<h3 id="modulecontexthandle"><code>ModuleContext.handle</code></h3>
+<p><code>handle(command_type: type[K], handler: Callable[[K], Awaitable[Result]]) -&gt; None</code></p>
+<p>Become the single handler for <code>command_type</code>. The handler must return a <a href="messaging.html#result"><code>Result</code></a>.</p>
+<p><strong>Raises:</strong> <code>ValueError</code> if the command type already has a handler.</p>
+<h3 id="modulecontextsend"><code>ModuleContext.send</code></h3>
+<p><code>async send(command: Command, timeout: float | None = None) -&gt; Result</code></p>
+<p>Send a command to its handler and wait for the result. Never raises for handler problems; see <a href="messaging.html#result"><code>Result</code></a> for the outcomes.</p>
+<p><strong>Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command</code></td>
+<td><code>Command</code></td>
+<td>yes</td>
+<td>The command to send</td>
+</tr>
+<tr>
+<td><code>timeout</code></td>
+<td><code>float | None</code></td>
+<td>no</td>
+<td>Seconds. Defaults to <code>core.command_timeouts.&lt;Class&gt;</code>, then <code>core.command_timeout</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(InvokeTool(name="add", args={"a": 1, "b": 2}))
+if result.is_ok:
+    print(result.value)
+</code></pre>
+<h3 id="modulecontextcancel"><code>ModuleContext.cancel</code></h3>
+<p><code>cancel(correlation_id: str) -&gt; int</code></p>
+<p>Cancel in-flight commands whose <code>id</code> or <code>correlation_id</code> matches. Returns how many were cancelled. Their senders get <code>Status.CANCELLED</code>.</p>
+<h3 id="modulecontextprovide"><code>ModuleContext.provide</code></h3>
+<p><code>provide(contract: type[C], impl: C) -&gt; None</code></p>
+<p>Offer <code>impl</code> as a provider of <code>contract</code>.</p>
+<p><strong>Raises:</strong> <code>ValueError</code> if <code>contract</code> isn't in <code>manifest.provides</code>, or if it is a single-provider contract that already has a provider. <code>TypeError</code> if <code>impl</code> doesn't implement <code>contract</code>.</p>
+<h3 id="modulecontextget_all"><code>ModuleContext.get_all</code></h3>
+<p><code>get_all(contract: type[C]) -&gt; list[C]</code></p>
+<p>All current providers of <code>contract</code>, possibly empty. Call it when needed rather than caching, since providers can change.</p>
+<h3 id="modulecontextget_one"><code>ModuleContext.get_one</code></h3>
+<p><code>get_one(contract: type[C]) -&gt; C | None</code></p>
+<p>The provider of a single-provider contract, or <code>None</code>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code> (interface), <code>src/assistant/core/context.py</code> (implementation)</p>
+<h2 id="contract"><code>Contract</code></h2>
+<p><code>class Contract(ABC)</code></p>
+<p>Base for capability interfaces that modules provide and resolve. Subclasses must be defined under <code>assistant.contracts</code>; the core rejects any other type.</p>
+<p><strong>Attributes</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>multiple</code></td>
+<td><code>ClassVar[bool]</code></td>
+<td>Whether several modules may provide it at once. Default <code>False</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code>
+<strong>See also:</strong> <a href="tools.html#toolprovider"><code>ToolProvider</code></a></p>
+<footer>Generated from <code>docs/api/modules.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

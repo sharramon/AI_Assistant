@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Messaging</title>
+<!-- Generated from docs/api/messaging.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html" aria-current="page">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul></nav>
+<main>
+<h1 id="messaging">Messaging</h1>
+<p>Commands, events, and results. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>.</p>
+<p>All messages are frozen pydantic models, so they're immutable and serialize to JSON (<code>model_dump_json()</code>), which lets them cross to remote clients later.</p>
+<h2 id="message"><code>Message</code></h2>
+<p><code>class Message(BaseModel)</code></p>
+<p>Base for commands and events.</p>
+<p><strong>Fields</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>str</code></td>
+<td>new uuid hex</td>
+<td>Unique per message</td>
+</tr>
+<tr>
+<td><code>correlation_id</code></td>
+<td><code>str | None</code></td>
+<td><code>None</code></td>
+<td>Links related messages: a reply to its request, progress to its job</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td><code>datetime</code></td>
+<td>now (UTC)</td>
+<td>When it was created</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="command"><code>Command</code></h2>
+<p><code>class Command(Message)</code></p>
+<p>Base for requests that exactly one handler carries out. Subclass it and add fields. Send with <a href="modules.html#modulecontextsend"><code>ModuleContext.send</code></a>; handle with <a href="modules.html#modulecontexthandle"><code>ModuleContext.handle</code></a>.</p>
+<p><strong>Example</strong></p>
+<pre><code>class OpenUrl(Command):
+    url: str
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="event"><code>Event</code></h2>
+<p><code>class Event(Message)</code></p>
+<p>Base for notifications that any number of modules may receive. Subclass it and add fields. Publish with <a href="modules.html#modulecontextpublish"><code>ModuleContext.publish</code></a>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="result"><code>Result</code></h2>
+<p><code>class Result(BaseModel)</code></p>
+<p>Outcome of a command. Every command returns exactly one. Build with the class methods below.</p>
+<p><strong>Fields</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td><code>Status</code></td>
+<td>Which outcome</td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td><code>Any</code></td>
+<td>Payload when <code>ok</code></td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td><code>str | None</code></td>
+<td>What went wrong otherwise</td>
+</tr>
+<tr>
+<td><code>retryable</code></td>
+<td><code>bool</code></td>
+<td>Whether retrying might help</td>
+</tr>
+<tr>
+<td><code>is_ok</code></td>
+<td><code>bool</code> (property)</td>
+<td><code>status is Status.OK</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Constructors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Status</th>
+<th><code>retryable</code></th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Result.ok(value=None)</code></td>
+<td><code>ok</code></td>
+<td><code>False</code></td>
+<td>It worked</td>
+</tr>
+<tr>
+<td><code>Result.invalid_arguments(error)</code></td>
+<td><code>invalid_arguments</code></td>
+<td><code>False</code></td>
+<td>Input was wrong; the caller can fix and retry</td>
+</tr>
+<tr>
+<td><code>Result.not_available(error)</code></td>
+<td><code>not_available</code></td>
+<td><code>False</code></td>
+<td>No handler, or the capability is off</td>
+</tr>
+<tr>
+<td><code>Result.failed(error, retryable=False)</code></td>
+<td><code>failed</code></td>
+<td>as given</td>
+<td>The handler ran and hit an error</td>
+</tr>
+<tr>
+<td><code>Result.timed_out(error)</code></td>
+<td><code>timed_out</code></td>
+<td><code>True</code></td>
+<td>Took too long (produced by the router)</td>
+</tr>
+<tr>
+<td><code>Result.cancelled(error="Cancelled")</code></td>
+<td><code>cancelled</code></td>
+<td><code>False</code></td>
+<td>Cancelled (produced by the router)</td>
+</tr>
+</tbody>
+</table>
+<p>Handlers normally return only <code>ok</code>, <code>invalid_arguments</code>, <code>not_available</code>, or <code>failed</code>. The router produces <code>timed_out</code> and <code>cancelled</code>, and turns handler exceptions into <code>failed</code>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="status"><code>Status</code></h2>
+<p><code>class Status(StrEnum)</code>: <code>OK</code>, <code>INVALID_ARGUMENTS</code>, <code>NOT_AVAILABLE</code>, <code>FAILED</code>, <code>TIMED_OUT</code>, <code>CANCELLED</code>. Values are the lowercase names (<code>"ok"</code>, ...). Suggested agent reactions are in the <a href="../architecture/communication.html#command-results">communication architecture</a>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="inputreceived"><code>InputReceived</code></h2>
+<p><code>InputReceived(text: str, source: str, conversation_id: str | None = None)</code> (event)</p>
+<p>User input from any source.</p>
+<p><strong>Fields</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td><code>str</code></td>
+<td>What the user said or typed</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td><code>str</code></td>
+<td>Id of the module (or client) it came from</td>
+</tr>
+<tr>
+<td><code>conversation_id</code></td>
+<td><code>str | None</code></td>
+<td>Groups inputs into a conversation, if the source tracks one</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="responseready"><code>ResponseReady</code></h2>
+<p><code>ResponseReady(text: str, conversation_id: str | None = None, correlation_id=...)</code> (event)</p>
+<p>A reply to present. Set <code>correlation_id</code> to the <code>id</code> of the <code>InputReceived</code> it answers, so the source can tell which replies are its own.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="shutdownrequested"><code>ShutdownRequested</code></h2>
+<p><code>ShutdownRequested(reason: str = "")</code> (event)</p>
+<p>Asks the host to shut down cleanly. Any module may publish it.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<footer>Generated from <code>docs/api/messaging.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

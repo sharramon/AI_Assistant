@@ -71,7 +71,7 @@ Handlers normally return only `ok`, `invalid_arguments`, `not_available`, or `fa
 
 ## `Status`
 
-`class Status(StrEnum)`: `OK`, `INVALID_ARGUMENTS`, `NOT_AVAILABLE`, `FAILED`, `TIMED_OUT`, `CANCELLED`. Values are the lowercase names (`"ok"`, ...). Suggested agent reactions are in the [architecture overview](../architecture/README.md#command-results).
+`class Status(StrEnum)`: `OK`, `INVALID_ARGUMENTS`, `NOT_AVAILABLE`, `FAILED`, `TIMED_OUT`, `CANCELLED`. Values are the lowercase names (`"ok"`, ...). Suggested agent reactions are in the [communication architecture](../architecture/communication.md#command-results).
 
 **Defined in:** `src/assistant/contracts/messages.py`
 

@@ -2,6 +2,47 @@
 
 In-depth architecture of the application core (`src/assistant/core/`). For where it sits in the whole system, see the [overview](README.md). For signatures, see the API pages for [modules](../api/modules.md), [messaging](../api/messaging.md), [tools](../api/tools.md), and the [core host](../api/core.md).
 
+## Where the core sits
+
+```mermaid
+flowchart TB
+    subgraph Core["Application Core (stable)"]
+        Registry[Module Registry]
+        Lifecycle[Lifecycle Manager]
+        DI[DI Container]
+        Router[Command Router]
+        Bus[Event Bus]
+    end
+
+    subgraph Contracts["Contracts (stable)"]
+        IModule["Module, ModuleContext"]
+        Caps["Capability interfaces<br/>today: ToolProvider<br/>later as needed: input, output,<br/>view, background worker"]
+        Msgs[Command & event types]
+    end
+
+    subgraph Modules["Modules (experimental / disposable)"]
+        Inputs["Inputs<br/>e.g. voice, keyboard"]
+        Orch["Orchestrator<br/>LLM + agent logic"]
+        Tools["Tools<br/>e.g. browser, Drive, calendar"]
+        Views["Views / outputs<br/>e.g. desktop UI, XR, speech"]
+        Workers[Background workers]
+    end
+
+    subgraph Infra["Shared Infrastructure"]
+        Config[Configuration]
+        Logging[Logging]
+        Persist[Persistence]
+        Secrets[Auth / secrets]
+    end
+
+    Core -- depends on --> Contracts
+    Modules -- implement --> Contracts
+    Core -. uses .-> Infra
+    Modules -. use .-> Infra
+```
+
+Dependency direction: the core and modules both depend on contracts; contracts depend on nothing. The core never references a concrete module, and modules never reference each other.
+
 ## Responsibility
 
 The core controls communication and lifecycle: it validates which modules can run together, starts and stops them in dependency order, routes commands, delivers events, and resolves contracts.
@@ -163,6 +204,15 @@ Config comes from `config/default.toml`, with `config/local.toml` deep-merged ov
 
 ## Adding, replacing, or removing a module
 
+Each module:
+
+- lives in its own folder and depends only on Contracts and Shared Infrastructure
+- has a manifest: id, the capabilities it provides, and what it requires (required vs optional)
+- implements `Module` for lifecycle, plus any number of small capability interfaces
+- owns its own state, config section, and storage
+
+Contracts grow as needed. Add a new capability interface when a real module needs it, not in anticipation. The interfaces named above are a starting point, not a fixed list.
+
 1. Create `src/assistant/modules/<name>/` with a `Module` subclass. Import only from `assistant.contracts` and `assistant.infra`.
 2. Add the class to `MODULES` in `src/assistant/__main__.py`.
 3. Add its id to `modules.enabled` in config.
@@ -176,4 +226,5 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
 .\.venv\Scripts\python -m assistant      # type a line; `exit` to quit
 .\.venv\Scripts\python -m pytest
+.\.venv\Scripts\python scripts\build_docs.py   # regenerate docs/html/ after editing docs
 ```

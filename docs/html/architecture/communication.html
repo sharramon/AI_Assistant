@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Communication</title>
+<!-- Generated from docs/architecture/communication.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html" aria-current="page">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<main>
+<h1 id="communication">Communication</h1>
+<p>How modules talk to each other through the core. Internals are in <a href="core.html#communication-internals">core</a>. Back to the <a href="index.html">overview</a>.</p>
+<h2 id="runtime-flow-typical-request">Runtime flow (typical request)</h2>
+<pre><code class="language-mermaid">flowchart LR
+    In[Input module] -- &quot;event: InputReceived&quot; --&gt; Bus[Event Bus]
+    Bus --&gt; Orch[Orchestrator module]
+    Orch -- &quot;command: invoke tool&quot; --&gt; Router[Command Router]
+    Router --&gt; Tool[Tool module]
+    Tool -- result --&gt; Orch
+    Orch -- &quot;event: ResponseReady&quot; --&gt; Bus
+    Bus --&gt; Out[View / output modules]
+</code></pre>
+<p>The orchestrator discovers available tools by asking the DI container for every <code>ToolProvider</code>, so adding a tool module makes it available to the AI without touching the orchestrator.</p>
+<h2 id="mechanisms">Mechanisms</h2>
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Shape</th>
+<th>Use for</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interface (via DI)</td>
+<td>Direct call through a shared contract</td>
+<td>Querying a capability another module provides</td>
+<td>Orchestrator lists all <code>ToolProvider</code>s</td>
+</tr>
+<tr>
+<td>Command</td>
+<td>Exactly one handler, returns a typed result, has a timeout, cancellable</td>
+<td>An explicit action someone wants done</td>
+<td><code>OpenUrl</code>, <code>CreateCalendarEvent</code></td>
+</tr>
+<tr>
+<td>Event</td>
+<td>Zero or more subscribers, no result</td>
+<td>Notifying that something happened</td>
+<td><code>InputReceived</code>, <code>ResponseReady</code></td>
+</tr>
+</tbody>
+</table>
+<p>Commands and events are plain data records defined in Contracts, not objects with behavior.</p>
+<h2 id="how-modules-reach-each-other">How modules reach each other</h2>
+<p>A module never holds a reference to another module. Its only access to the app is the <code>ModuleContext</code> the core passes to <code>init</code>, which wraps the <strong>Command Router</strong>, <strong>Event Bus</strong>, and <strong>DI container</strong> and removes everything the module registered when it stops. Contracts only define shapes (interfaces and message types). The core does the delivery.</p>
+<ul>
+<li><strong>Interface call:</strong> the module asks DI for a contract (e.g. all <code>ToolProvider</code>s) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or none), so it must handle absence.</li>
+<li><strong>Command (request/response):</strong> <code>result = await ctx.send(command, timeout=None)</code>. The router finds the one module registered as that command's handler, calls it, and returns a typed result (see <a href="#command-results">Command results</a>) to the sender. If no handler is registered, the sender gets <code>NotAvailable</code> instead of a crash.</li>
+<li><strong>Event (one-way):</strong> <code>ctx.publish(event)</code>. Every subscriber gets a copy; the publisher gets nothing back. When a reply is needed for long-running work (transcription, a multi-step browser task), the event carries a <strong>correlation id</strong>, and the replying module publishes its own event (progress, completed, failed) with the same id.</li>
+</ul>
+<p>Choosing between them:</p>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An answer now, from a capability that may have zero or many providers</td>
+<td>Interface</td>
+</tr>
+<tr>
+<td>Something done by one owner, with a result back</td>
+<td>Command</td>
+</tr>
+<tr>
+<td>Tell whoever cares that something happened</td>
+<td>Event</td>
+</tr>
+<tr>
+<td>Long-running work with progress or a delayed result</td>
+<td>Command to start it, then events with a correlation id</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant V as Voice module
+    participant Bus as Event Bus
+    participant O as Orchestrator module
+    participant R as Command Router
+    participant B as Browser module
+    participant UI as UI module
+
+    V-&gt;&gt;Bus: publish InputReceived(&quot;open my calendar&quot;)
+    Bus-&gt;&gt;O: InputReceived
+    O-&gt;&gt;R: send InvokeTool(&quot;browser.open&quot;, url)
+    R-&gt;&gt;B: handle InvokeTool
+    B--&gt;&gt;R: Result(ok, page title)
+    R--&gt;&gt;O: Result(ok, page title)
+    O-&gt;&gt;Bus: publish ResponseReady(&quot;Opened your calendar&quot;)
+    Bus-&gt;&gt;UI: ResponseReady
+</code></pre>
+<p><strong>Where message types live:</strong> shared commands and events (<code>InputReceived</code>, <code>ResponseReady</code>, <code>InvokeTool</code>) are defined in Contracts. The AI calls tools through the single generic <code>InvokeTool(name, args)</code> command, using the name and argument schema each <code>ToolProvider</code> advertises, so the orchestrator needs no per-tool code. A typed command such as <code>CreateCalendarEvent</code> is added to Contracts only when one module needs to call another directly.</p>
+<h2 id="command-results">Command results</h2>
+<p>Every command returns exactly one of these statuses. They mean different things, especially to an AI agent deciding what to do next:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Typical agent reaction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ok</code></td>
+<td>Succeeded; carries the result payload</td>
+<td>Continue</td>
+</tr>
+<tr>
+<td><code>InvalidArguments</code></td>
+<td>Handler rejected the input; carries what was wrong</td>
+<td>Fix the arguments and retry</td>
+</tr>
+<tr>
+<td><code>NotAvailable</code></td>
+<td>No handler registered, or the module is disabled or suspended</td>
+<td>Use another approach or tell the user</td>
+</tr>
+<tr>
+<td><code>Failed</code></td>
+<td>Handler ran and hit an error; carries the error and whether a retry might help</td>
+<td>Retry if retryable, else report</td>
+</tr>
+<tr>
+<td><code>TimedOut</code></td>
+<td>No result within the timeout</td>
+<td>Retry, or ask the user whether to wait longer</td>
+</tr>
+<tr>
+<td><code>Cancelled</code></td>
+<td>Cancelled by the sender, the user, or shutdown</td>
+<td>Stop; don't retry automatically</td>
+</tr>
+</tbody>
+</table>
+<p>Handler exceptions never propagate to the sender. The router catches them and returns <code>Failed</code>.</p>
+<h2 id="timeouts-and-cancellation">Timeouts and cancellation</h2>
+<ul>
+<li>Every command has a timeout: a default from config, overridable per command type or per call. When it expires, the router returns <code>TimedOut</code> and signals cancellation to the handler.</li>
+<li>Cancellation is cooperative asyncio task cancellation: the handler gets <code>CancelledError</code> at its next <code>await</code>. Long-running work is identified by its correlation id and can be cancelled with <code>ctx.cancel(correlation_id)</code>, from the sender, the UI, or shutdown. Handlers that start external processes clean those up themselves for now.</li>
+<li>Handlers for long-running work (browser, 3D, remote desktop) must check the cancellation signal and stop promptly.</li>
+<li>On shutdown, the lifecycle manager cancels all in-flight commands before stopping modules.</li>
+</ul>
+<h2 id="event-delivery">Event delivery</h2>
+<ul>
+<li><code>publish</code> returns immediately. It never waits on subscribers.</li>
+<li>Each subscriber is delivered to independently, so one slow or failing subscriber can't block the bus or other subscribers.</li>
+<li>Subscriber exceptions are caught and logged, never passed back to the publisher.</li>
+<li>Each subscriber has one worker and a bounded queue, so background tasks never grow with traffic. When a subscriber's queue is full, new events are dropped for it and logged.</li>
+<li>A handler that exceeds its time budget is cancelled and logged. Heavy work belongs in a command or background worker, not inside an event handler.</li>
+</ul>
+<footer>Generated from <code>docs/architecture/communication.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

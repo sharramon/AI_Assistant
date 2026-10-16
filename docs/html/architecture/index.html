@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture</title>
+<!-- Generated from docs/architecture/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<main>
+<h1 id="architecture">Architecture</h1>
+<p>The whole project at a glance. Each part links to its own page; the public interface is in the <a href="../api/index.html">API reference</a>.</p>
+<h2 id="birds-eye-view">Bird's-eye view</h2>
+<p>Each block is one part, named with what it does. Arrows show what flows between parts. Every arrow actually travels through the app's core; the core isn't drawn because everything connects to it.</p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;speak · type · listen&quot;])
+    VoiceIn[&quot;&lt;b&gt;Voice in&lt;/b&gt;&lt;br/&gt;speech → text&quot;]
+    Window[&quot;&lt;b&gt;Chat window&lt;/b&gt;&lt;br/&gt;see both Claudes · type&quot;]
+    Convo[&quot;&lt;b&gt;Convo Claude&lt;/b&gt;&lt;br/&gt;talks with you&quot;]
+    Worker[&quot;&lt;b&gt;Worker Claude&lt;/b&gt;&lt;br/&gt;does the work&quot;]
+    VoiceOut[&quot;&lt;b&gt;Voice out&lt;/b&gt;&lt;br/&gt;text → speech&quot;]
+    Quest[&quot;&lt;b&gt;Quest 3 / glasses&lt;/b&gt;&lt;br/&gt;remote screen + mic&quot;]
+
+    You -- speak --&gt; VoiceIn
+    You -- type --&gt; Window
+    VoiceIn -- text --&gt; Convo
+    Window -- text --&gt; Convo
+    Convo -- tasks --&gt; Worker
+    Worker -- progress --&gt; Convo
+    Convo -- reply --&gt; VoiceOut
+    VoiceOut -- audio --&gt; You
+    Worker -- transcript --&gt; Window
+    Convo -- conversation --&gt; Window
+    Quest -. later .-&gt; Convo
+
+    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    class VoiceIn,Window,Convo,Worker,VoiceOut planned
+    class You person
+    class Quest later
+</code></pre>
+<p><strong>Built today:</strong> a single app (the core, plus a terminal input and an echo stand-in in place of Convo Claude). <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later.</p>
+<h2 id="summary">Summary</h2>
+<p>A highly modular personal AI assistant that serves as a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (inputs, outputs, views, tools, background workers, and the AI orchestration itself) that can be added, replaced, or discarded with minimal changes elsewhere.</p>
+<p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. Everything runs in one process and is rebuilt and restarted when modules change. Hot-swapping and independent deployment are explicitly not goals.</p>
+<p>The core runs on a PC today and will later move to a server, so it must not assume a local desktop: configuration, secrets, and data paths come from config files and environment variables, and user-facing interfaces are modules or remote clients. Headsets (Quest 3) and smartglasses are <a href="remote-clients.html">remote clients</a> that connect over the network.</p>
+<h2 id="pages">Pages</h2>
+<ul>
+<li><a href="principles.html">Principles</a>: the rules behind every decision</li>
+<li><a href="core.html">Core</a>: the host, lifecycle, and how modules are added or swapped</li>
+<li><a href="communication.html">Communication</a>: commands, events, results, timeouts</li>
+<li><a href="remote-clients.html">Remote clients</a>: Quest, glasses, the gateway</li>
+<li><a href="decisions.html">Decisions</a>: decided, open, and deferred</li>
+</ul>
+<h2 id="parts">Parts</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Responsibility</th>
+<th>Location</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Module Registry</td>
+<td>Selects enabled modules from their manifests; validates the dependency graph</td>
+<td><code>src/assistant/core/registry.py</code></td>
+<td><a href="core.html">core</a></td>
+</tr>
+<tr>
+<td>Lifecycle Manager</td>
+<td>Initializes, starts, and stops modules in dependency order (suspend deferred until needed)</td>
+<td><code>src/assistant/core/lifecycle.py</code></td>
+<td><a href="core.html#lifecycle">core</a></td>
+</tr>
+<tr>
+<td>DI Container</td>
+<td>Resolves shared contracts to the implementations modules provide</td>
+<td><code>src/assistant/core/container.py</code></td>
+<td><a href="core.html#communication-internals">core</a></td>
+</tr>
+<tr>
+<td>Command Router</td>
+<td>Routes each command to its single handler and returns the result</td>
+<td><code>src/assistant/core/router.py</code></td>
+<td><a href="core.html#communication-internals">core</a></td>
+</tr>
+<tr>
+<td>Event Bus</td>
+<td>In-process publish/subscribe for events</td>
+<td><code>src/assistant/core/bus.py</code></td>
+<td><a href="core.html#communication-internals">core</a></td>
+</tr>
+<tr>
+<td>Contracts</td>
+<td><code>Module</code>, <code>ModuleContext</code>, capability interfaces, command and event types</td>
+<td><code>src/assistant/contracts/</code></td>
+<td><a href="../api/index.html">API</a></td>
+</tr>
+<tr>
+<td>Shared Infrastructure</td>
+<td>Configuration and logging today; persistence and auth/secrets later</td>
+<td><code>src/assistant/infra/</code></td>
+<td><a href="../api/infra.html">API</a></td>
+</tr>
+<tr>
+<td>Modules</td>
+<td>All capabilities, including the AI orchestrator. Today: <code>console_io</code>, <code>echo_orchestrator</code></td>
+<td><code>src/assistant/modules/</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Gateway module</td>
+<td>Relays messages to and from remote clients over WebSocket</td>
+<td><em>TBD</em></td>
+<td></td>
+</tr>
+<tr>
+<td>Remote clients</td>
+<td>Device apps with their own UI logic (Quest 3 first)</td>
+<td><code>clients/</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<footer>Generated from <code>docs/architecture/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

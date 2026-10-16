@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core host (internal)</title>
+<!-- Generated from docs/api/core.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html" aria-current="page">Core host (internal)</a></li></ul></nav>
+<main>
+<h1 id="core-host-internal">Core host (internal)</h1>
+<p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
+<h2 id="app"><code>App</code></h2>
+<p><code>App(available: Sequence[type[Module]], config: dict[str, Any])</code></p>
+<p>Wires the core together and runs the enabled modules. Construction validates the module selection.</p>
+<p><strong>Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>available</code></td>
+<td><code>Sequence[type[Module]]</code></td>
+<td>yes</td>
+<td>Every module the app can run (<code>MODULES</code> in <code>__main__.py</code>)</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td><code>dict</code></td>
+<td>yes</td>
+<td>From <a href="infra.html#load_config"><code>load_config</code></a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Raises:</strong> <a href="#startuperror"><code>StartupError</code></a> if the enabled modules can't run together.</p>
+<p><strong>Attributes:</strong> <code>router: CommandRouter</code>, <code>bus: EventBus</code>, <code>container: Container</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async run()</code></td>
+<td><code>start()</code>, wait for shutdown (or task cancellation), then <code>stop()</code></td>
+</tr>
+<tr>
+<td><code>async start()</code></td>
+<td>Register the <code>InvokeTool</code> handler, subscribe to <code>ShutdownRequested</code>, init and start modules. May raise <code>StartupError</code></td>
+</tr>
+<tr>
+<td><code>async stop()</code></td>
+<td>Cancel in-flight commands, stop modules in reverse order, close the bus</td>
+</tr>
+<tr>
+<td><code>request_shutdown()</code></td>
+<td>Make <code>run()</code> proceed to <code>stop()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/app.py</code></p>
+<h2 id="startuperror"><code>StartupError</code></h2>
+<p><code>class StartupError(Exception)</code></p>
+<p>The configured modules can't run together: raised by <a href="#resolve_modules"><code>resolve_modules</code></a> or by <a href="#lifecyclemanager"><code>LifecycleManager.start</code></a> when a required provider fails.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/registry.py</code></p>
+<h2 id="resolve_modules"><code>resolve_modules</code></h2>
+<p><code>resolve_modules(available: Sequence[type[Module]], enabled: Sequence[str]) -&gt; list[type[Module]]</code></p>
+<p>Select the <code>enabled</code> modules and return them in start order: providers before the modules that require or optionally use them, otherwise in <code>enabled</code> order.</p>
+<p><strong>Raises:</strong> <code>StartupError</code> for unknown or duplicate ids, non-shared contracts in a manifest, a missing required contract, more than one provider of a single-provider contract, or a circular dependency.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/registry.py</code></p>
+<h2 id="lifecyclemanager"><code>LifecycleManager</code></h2>
+<p><code>LifecycleManager(modules: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0)</code></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async start()</code></td>
+<td>Instantiate and <code>init</code> each module, then <code>start</code> each, in order. A failing module is closed and skipped; raises <code>StartupError</code> if another module requires a contract only it provides</td>
+</tr>
+<tr>
+<td><code>async stop()</code></td>
+<td><code>stop</code> each active module in reverse order (with <code>stop_timeout</code>), then close its context</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/lifecycle.py</code></p>
+<h2 id="scopedcontext"><code>ScopedContext</code></h2>
+<p><code>ScopedContext(manifest, router, bus, container, config, log)</code></p>
+<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>close()</code></td>
+<td>Remove everything this module registered</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/context.py</code></p>
+<h2 id="commandrouter"><code>CommandRouter</code></h2>
+<p><code>CommandRouter(default_timeout: float = 30.0, timeouts: dict[str, float] | None = None)</code></p>
+<p><code>timeouts</code> maps command class names to per-type timeouts.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>register(command_type, handler)</code></td>
+<td>Set the single handler. Raises <code>ValueError</code> if one exists</td>
+</tr>
+<tr>
+<td><code>unregister(command_type, handler)</code></td>
+<td>Remove it, only if it's still the registered handler</td>
+</tr>
+<tr>
+<td><code>async send(command, timeout=None) -&gt; Result</code></td>
+<td>Run the handler as a task; map every outcome to a <code>Result</code> (see <a href="../architecture/core.html#communication-internals">internals</a>)</td>
+</tr>
+<tr>
+<td><code>cancel(correlation_id) -&gt; int</code></td>
+<td>Cancel in-flight commands whose <code>id</code> or <code>correlation_id</code> matches</td>
+</tr>
+<tr>
+<td><code>cancel_all() -&gt; int</code></td>
+<td>Cancel every in-flight command</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/router.py</code></p>
+<h2 id="eventbus"><code>EventBus</code></h2>
+<p><code>EventBus(queue_size: int = 100, handler_timeout: float | None = 10.0)</code></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>subscribe(event_type, handler, owner="core") -&gt; Subscription</code></td>
+<td>Start a worker delivering matching events (subclasses included) from a bounded queue</td>
+</tr>
+<tr>
+<td><code>unsubscribe(sub)</code></td>
+<td>Stop delivery; queued events are dropped</td>
+</tr>
+<tr>
+<td><code>publish(event)</code></td>
+<td>Enqueue for each matching subscriber; never blocks. Drops and logs when a queue is full</td>
+</tr>
+<tr>
+<td><code>async close()</code></td>
+<td>Cancel and await all workers</td>
+</tr>
+</tbody>
+</table>
+<p><code>Subscription</code> has <code>event_type</code>, <code>owner</code>, <code>task</code>, and <code>offer(event) -&gt; bool</code>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/bus.py</code></p>
+<h2 id="container"><code>Container</code></h2>
+<p><code>Container()</code></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>provide(contract, impl, owner)</code></td>
+<td>Register a provider. <code>TypeError</code> if <code>contract</code> isn't shared or <code>impl</code> doesn't implement it; <code>ValueError</code> if a single-provider contract already has one</td>
+</tr>
+<tr>
+<td><code>remove_owner(owner)</code></td>
+<td>Remove everything <code>owner</code> provided</td>
+</tr>
+<tr>
+<td><code>get_all(contract) -&gt; list</code></td>
+<td>All providers, possibly empty</td>
+</tr>
+<tr>
+<td><code>get_one(contract)</code></td>
+<td>First provider or <code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/container.py</code></p>
+<h2 id="is_shared_contract"><code>is_shared_contract</code></h2>
+<p><code>is_shared_contract(t: object) -&gt; bool</code></p>
+<p>True for <code>Contract</code> subclasses defined under <code>assistant.contracts</code> (excluding <code>Contract</code> itself).</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/container.py</code></p>
+<h2 id="dispatch_tool"><code>dispatch_tool</code></h2>
+<p><code>async dispatch_tool(container: Container, command: InvokeTool) -&gt; Result</code></p>
+<p>The <code>InvokeTool</code> handler. Looks up providers at call time; returns <code>not_available</code> for an unknown tool, <code>failed</code> for a name offered twice, else the provider's result.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code></p>
+<footer>Generated from <code>docs/api/core.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

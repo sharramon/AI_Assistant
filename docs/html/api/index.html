@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Reference</title>
+<!-- Generated from docs/api/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul></nav>
+<main>
+<h1 id="api-reference">API Reference</h1>
+<p>Every public class and function, grouped by area. Check here before writing something new. If it already exists, reuse or extend it.</p>
+<p>Each group links to a page with full signatures, parameters, return values, errors and examples. For how the pieces fit together, see the <a href="../architecture/index.html">architecture overview</a>.</p>
+<p>Modules may use <strong>Modules</strong>, <strong>Messaging</strong>, <strong>Tools</strong>, and <strong>Infrastructure</strong>. <strong>Core host</strong> is internal to <code>assistant.core</code>; it's listed so nothing gets duplicated.</p>
+<h2 id="groups">Groups</h2>
+<h3 id="modules"><a href="modules.html">Modules</a></h3>
+<p>Writing a module: lifecycle, manifest, and its context. <code>from assistant.contracts import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="modules.html#module"><code>Module</code></a></td>
+<td>base class</td>
+<td>Base for every module: <code>init</code>, <code>start</code>, <code>stop</code></td>
+</tr>
+<tr>
+<td><a href="modules.html#manifest"><code>Manifest</code></a></td>
+<td>data</td>
+<td>Module id and the contracts it provides, requires, and optionally uses</td>
+</tr>
+<tr>
+<td><a href="modules.html#modulecontext"><code>ModuleContext</code></a></td>
+<td>interface</td>
+<td>A module's only access to the app: events, commands, contracts, config, logging</td>
+</tr>
+<tr>
+<td><a href="modules.html#contract"><code>Contract</code></a></td>
+<td>base class</td>
+<td>Base for capability interfaces resolvable through DI</td>
+</tr>
+</tbody>
+</table>
+<h3 id="messaging"><a href="messaging.html">Messaging</a></h3>
+<p>Commands, events, and results. <code>from assistant.contracts import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="messaging.html#message"><code>Message</code></a></td>
+<td>data</td>
+<td>Base with <code>id</code>, <code>correlation_id</code>, <code>timestamp</code></td>
+</tr>
+<tr>
+<td><a href="messaging.html#command"><code>Command</code></a></td>
+<td>data</td>
+<td>Base for requests with exactly one handler</td>
+</tr>
+<tr>
+<td><a href="messaging.html#event"><code>Event</code></a></td>
+<td>data</td>
+<td>Base for notifications with any number of subscribers</td>
+</tr>
+<tr>
+<td><a href="messaging.html#result"><code>Result</code></a></td>
+<td>data</td>
+<td>Outcome of every command</td>
+</tr>
+<tr>
+<td><a href="messaging.html#status"><code>Status</code></a></td>
+<td>enum</td>
+<td><code>ok</code>, <code>invalid_arguments</code>, <code>not_available</code>, <code>failed</code>, <code>timed_out</code>, <code>cancelled</code></td>
+</tr>
+<tr>
+<td><a href="messaging.html#inputreceived"><code>InputReceived</code></a></td>
+<td>event</td>
+<td>User input from any source</td>
+</tr>
+<tr>
+<td><a href="messaging.html#responseready"><code>ResponseReady</code></a></td>
+<td>event</td>
+<td>A reply to present, correlated to its input</td>
+</tr>
+<tr>
+<td><a href="messaging.html#shutdownrequested"><code>ShutdownRequested</code></a></td>
+<td>event</td>
+<td>Asks the host to shut down</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tools"><a href="tools.html">Tools</a></h3>
+<p>Capabilities invocable by name. <code>from assistant.contracts import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="tools.html#toolprovider"><code>ToolProvider</code></a></td>
+<td>contract</td>
+<td>A module that offers tools (any number of providers)</td>
+</tr>
+<tr>
+<td><a href="tools.html#toolspec"><code>ToolSpec</code></a></td>
+<td>data</td>
+<td>Tool name, description, and JSON Schema for its arguments</td>
+</tr>
+<tr>
+<td><a href="tools.html#invoketool"><code>InvokeTool</code></a></td>
+<td>command</td>
+<td>Run a tool by name; routed to its provider</td>
+</tr>
+</tbody>
+</table>
+<h3 id="infrastructure"><a href="infra.html">Infrastructure</a></h3>
+<p>Shared services. <code>from assistant.infra import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="infra.html#load_config"><code>load_config</code></a></td>
+<td>function</td>
+<td>Load TOML config with local overrides</td>
+</tr>
+<tr>
+<td><a href="infra.html#setup_logging"><code>setup_logging</code></a></td>
+<td>function</td>
+<td>Configure logging from the <code>[logging]</code> section</td>
+</tr>
+</tbody>
+</table>
+<h3 id="core-host-internal"><a href="core.html">Core host</a> (internal)</h3>
+<p>The stable host. Modules never use these directly. <code>from assistant.core import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="core.html#app"><code>App</code></a></td>
+<td>class</td>
+<td>Wires the core together and runs the enabled modules</td>
+</tr>
+<tr>
+<td><a href="core.html#startuperror"><code>StartupError</code></a></td>
+<td>exception</td>
+<td>The configured modules can't start together</td>
+</tr>
+<tr>
+<td><a href="core.html#resolve_modules"><code>resolve_modules</code></a></td>
+<td>function</td>
+<td>Select enabled modules, validate dependencies, return start order</td>
+</tr>
+<tr>
+<td><a href="core.html#lifecyclemanager"><code>LifecycleManager</code></a></td>
+<td>class</td>
+<td>Init, start, and stop modules in dependency order</td>
+</tr>
+<tr>
+<td><a href="core.html#scopedcontext"><code>ScopedContext</code></a></td>
+<td>class</td>
+<td>The <code>ModuleContext</code> implementation; undoes registrations on close</td>
+</tr>
+<tr>
+<td><a href="core.html#commandrouter"><code>CommandRouter</code></a></td>
+<td>class</td>
+<td>One handler per command; timeouts, cancellation, <code>Result</code>s</td>
+</tr>
+<tr>
+<td><a href="core.html#eventbus"><code>EventBus</code></a></td>
+<td>class</td>
+<td>Non-blocking publish with isolated, bounded subscribers</td>
+</tr>
+<tr>
+<td><a href="core.html#container"><code>Container</code></a></td>
+<td>class</td>
+<td>DI restricted to shared contracts</td>
+</tr>
+<tr>
+<td><a href="core.html#is_shared_contract"><code>is_shared_contract</code></a></td>
+<td>function</td>
+<td>Whether a type is a contract from <code>assistant.contracts</code></td>
+</tr>
+<tr>
+<td><a href="core.html#dispatch_tool"><code>dispatch_tool</code></a></td>
+<td>function</td>
+<td>The <code>InvokeTool</code> handler</td>
+</tr>
+</tbody>
+</table>
+<footer>Generated from <code>docs/api/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>
