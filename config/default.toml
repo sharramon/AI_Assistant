@@ -1,0 +1,26 @@
+# Committed defaults. Put machine-specific overrides in config/local.toml
+# (gitignored), or point ASSISTANT_CONFIG_DIR at another directory.
+
+[modules]
+# Which of the modules listed in src/assistant/__main__.py actually run.
+# Swap the orchestrator by changing this list.
+enabled = ["console_io", "echo_orchestrator"]
+
+# Per-module settings go in [modules.<module id>].
+[modules.console_io]
+prompt = "> "
+
+[core]
+command_timeout = 30.0        # seconds; default for every command
+module_stop_timeout = 5.0     # seconds each module gets to stop
+event_queue_size = 100        # per subscriber; events beyond this are dropped
+event_handler_timeout = 10.0  # seconds before a stuck event handler is cancelled
+
+[core.command_timeouts]
+# Per command type, by class name, e.g.
+# InvokeTool = 60.0
+
+[logging]
+level = "INFO"
+file = "logs/assistant.log"
+stderr = false  # keep false while console_io is enabled
