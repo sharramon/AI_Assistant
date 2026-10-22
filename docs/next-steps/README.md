@@ -19,6 +19,8 @@ What we're working on now. This page changes as the work moves on.
 
 ## Now: the two-terminal setup
 
+**Start next session with:** review the [Agent runtime](../agents/runtime.md) page together (launch from the main app, messaging through the core, each agent's loop, prompts, the `NEED:` convention, the tags). If it looks right, build.
+
 Build the real modules, in this order, each with the `architecture-first` skill:
 
 | # | Build | What it does | Test without the rest |
