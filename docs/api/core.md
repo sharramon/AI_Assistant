@@ -47,12 +47,17 @@ Select the `enabled` modules and return them in start order: providers before th
 
 ## `LifecycleManager`
 
-`LifecycleManager(modules: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0)`
+`LifecycleManager(available: Sequence[type[Module]], start_order: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0, on_change: Callable[[str, ModuleState], None] | None = None)`
+
+`available` is every module that may run; `start_order` is the validated list active at startup (from `resolve_modules`). `on_change` is called on every state transition; `App` publishes it as `ModuleStateChanged`. Transitions are serialized by a lock.
 
 | Method | Description |
 |--------|-------------|
-| `async start()` | Instantiate and `init` each module, then `start` each, in order. A failing module is closed and skipped; raises `StartupError` if another module requires a contract only it provides |
-| `async stop()` | `stop` each active module in reverse order (with `stop_timeout`), then close its context |
+| `async start()` | Instantiate and `init` each startup module, then `start` each, in order. A failing module is closed and marked `failed`; raises `StartupError` if another module requires a contract only it provides |
+| `async stop()` | `stop` each active module in reverse activation order (with `stop_timeout`), then close its context |
+| `modules() -> list[ModuleInfo]` | Every available module and its state |
+| `async activate(module_id) -> Result` | Runtime activation; see [`ActivateModule`](control.md#activatemodule) |
+| `async deactivate(module_id, with_dependents=False) -> Result` | Runtime deactivation; see [`DeactivateModule`](control.md#deactivatemodule) |
 
 **Defined in:** `src/assistant/core/lifecycle.py`
 

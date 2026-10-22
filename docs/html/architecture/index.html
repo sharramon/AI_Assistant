@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="architecture">Architecture</h1>
 <p>The whole project at a glance. Each part links to its own page; the public interface is in the <a href="../api/index.html">API reference</a>.</p>
@@ -73,41 +73,52 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <pre><code class="language-mermaid">flowchart LR
     You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;speak · type · listen&quot;])
     VoiceIn[&quot;&lt;b&gt;Voice in&lt;/b&gt;&lt;br/&gt;speech → text&quot;]
-    Window[&quot;&lt;b&gt;Chat window&lt;/b&gt;&lt;br/&gt;see both Claudes · type&quot;]
-    Convo[&quot;&lt;b&gt;Convo Claude&lt;/b&gt;&lt;br/&gt;talks with you&quot;]
-    Worker[&quot;&lt;b&gt;Worker Claude&lt;/b&gt;&lt;br/&gt;does the work&quot;]
+    Term[&quot;&lt;b&gt;Terminals&lt;/b&gt;&lt;br/&gt;talk · watch the assistant&quot;]
+    Window[&quot;&lt;b&gt;Chat window&lt;/b&gt;&lt;br/&gt;nicer UI for the same&quot;]
     VoiceOut[&quot;&lt;b&gt;Voice out&lt;/b&gt;&lt;br/&gt;text → speech&quot;]
     Quest[&quot;&lt;b&gt;Quest 3 / glasses&lt;/b&gt;&lt;br/&gt;remote screen + mic&quot;]
+    Control[&quot;&lt;b&gt;Control panel&lt;/b&gt;&lt;br/&gt;turn features on / off&quot;]
+
+    subgraph Hub[&quot;Agent Hub: coordinates the agents&quot;]
+        Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;talks with you&quot;]
+        Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;does the work&quot;]
+        Subs[&quot;&lt;b&gt;Subagents&lt;/b&gt;&lt;br/&gt;specialized work&quot;]
+        Talker -- work · questions --&gt; Main
+        Main -- progress · clarifications --&gt; Talker
+        Main -. delegates .-&gt; Subs
+    end
 
     You -- speak --&gt; VoiceIn
-    You -- type --&gt; Window
-    VoiceIn -- text --&gt; Convo
-    Window -- text --&gt; Convo
-    Convo -- tasks --&gt; Worker
-    Worker -- progress --&gt; Convo
-    Convo -- reply --&gt; VoiceOut
+    You -- type --&gt; Term
+    VoiceIn -- text --&gt; Talker
+    Term -- text --&gt; Talker
+    Talker -- reply --&gt; VoiceOut
     VoiceOut -- audio --&gt; You
-    Worker -- transcript --&gt; Window
-    Convo -- conversation --&gt; Window
-    Quest -. later .-&gt; Convo
+    Main -- activity --&gt; Term
+    Talker -- conversation --&gt; Term
+    Window -. later .-&gt; Talker
+    Quest -. later .-&gt; Talker
+    You -. on / off .-&gt; Control
+    Talker -. &quot;enable X&quot; .-&gt; Control
 
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class VoiceIn,Window,Convo,Worker,VoiceOut planned
+    class VoiceIn,Term,Talker,Main,VoiceOut planned
     class You person
-    class Quest later
+    class Window,Quest,Subs,Control later
 </code></pre>
-<p><strong>Built today:</strong> a single app (the core, plus a terminal input and an echo stand-in in place of Convo Claude). <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later.</p>
+<p><strong>Built today:</strong> a single app (the core, plus a terminal input and an echo stand-in in place of the agents). <strong>Terminals:</strong> one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later. The <a href="agents.html">Agent Hub</a> is a module, not part of the core.</p>
 <h2 id="summary">Summary</h2>
 <p>A highly modular personal AI assistant that serves as a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (inputs, outputs, views, tools, background workers, and the AI orchestration itself) that can be added, replaced, or discarded with minimal changes elsewhere.</p>
-<p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. Everything runs in one process and is rebuilt and restarted when modules change. Hot-swapping and independent deployment are explicitly not goals.</p>
+<p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. Everything runs in one process. Changing code means a rebuild and restart; turning existing modules on and off happens while the app runs (<a href="core.html#runtime-module-control">runtime module control</a>: built in the core; a control panel and asking the Talker come later). Loading new code without a restart and independent deployment are not goals.</p>
 <p>The core runs on a PC today and will later move to a server, so it must not assume a local desktop: configuration, secrets, and data paths come from config files and environment variables, and user-facing interfaces are modules or remote clients. Headsets (Quest 3) and smartglasses are <a href="remote-clients.html">remote clients</a> that connect over the network.</p>
 <h2 id="pages">Pages</h2>
 <ul>
 <li><a href="principles.html">Principles</a>: the rules behind every decision</li>
 <li><a href="core.html">Core</a>: the host, lifecycle, and how modules are added or swapped</li>
 <li><a href="communication.html">Communication</a>: commands, events, results, timeouts</li>
+<li><a href="agents.html">Agents</a>: the Agent Hub, Talker, Main Assistant, subagents</li>
 <li><a href="remote-clients.html">Remote clients</a>: Quest, glasses, the gateway</li>
 <li><a href="decisions.html">Decisions</a>: decided, open, and deferred</li>
 </ul>
@@ -130,7 +141,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 <tr>
 <td>Lifecycle Manager</td>
-<td>Initializes, starts, and stops modules in dependency order (suspend deferred until needed)</td>
+<td>Initializes, starts, and stops modules in dependency order; turns modules on and off at runtime</td>
 <td><code>src/assistant/core/lifecycle.py</code></td>
 <td><a href="core.html#lifecycle">core</a></td>
 </tr>
@@ -169,6 +180,18 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <td>All capabilities, including the AI orchestrator. Today: <code>console_io</code>, <code>echo_orchestrator</code></td>
 <td><code>src/assistant/modules/</code></td>
 <td></td>
+</tr>
+<tr>
+<td>Agent Hub</td>
+<td>Coordinates the agents: who is doing what, task state, routing, clarifications (planned)</td>
+<td><em>TBD</em> module</td>
+<td><a href="agents.html">agents</a></td>
+</tr>
+<tr>
+<td>Control panel</td>
+<td>UI module to turn modules on and off while running, through the core's control interface (planned)</td>
+<td><em>TBD</em> module</td>
+<td><a href="core.html#runtime-module-control">core</a></td>
 </tr>
 <tr>
 <td>Gateway module</td>

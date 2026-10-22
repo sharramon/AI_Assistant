@@ -15,13 +15,13 @@ flowchart LR
     Bus --> Out[View / output modules]
 ```
 
-The orchestrator discovers available tools by asking the DI container for every `ToolProvider`, so adding a tool module makes it available to the AI without touching the orchestrator.
+The orchestrator discovers available tools by asking the DI container for every `IToolProvider`, so adding a tool module makes it available to the AI without touching the orchestrator.
 
 ## Mechanisms
 
 | Mechanism | Shape | Use for | Example |
 |-----------|-------|---------|---------|
-| Interface (via DI) | Direct call through a shared contract | Querying a capability another module provides | Orchestrator lists all `ToolProvider`s |
+| Interface (via DI) | Direct call through a shared contract | Querying a capability another module provides | Orchestrator lists all `IToolProvider`s |
 | Command | Exactly one handler, returns a typed result, has a timeout, cancellable | An explicit action someone wants done | `OpenUrl`, `CreateCalendarEvent` |
 | Event | Zero or more subscribers, no result | Notifying that something happened | `InputReceived`, `ResponseReady` |
 
@@ -31,7 +31,7 @@ Commands and events are plain data records defined in Contracts, not objects wit
 
 A module never holds a reference to another module. Its only access to the app is the `ModuleContext` the core passes to `init`, which wraps the **Command Router**, **Event Bus**, and **DI container** and removes everything the module registered when it stops. Contracts only define shapes (interfaces and message types). The core does the delivery.
 
-- **Interface call:** the module asks DI for a contract (e.g. all `ToolProvider`s) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or none), so it must handle absence.
+- **Interface call:** the module asks DI for a contract (e.g. all `IToolProvider`s) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or none), so it must handle absence.
 - **Command (request/response):** `result = await ctx.send(command, timeout=None)`. The router finds the one module registered as that command's handler, calls it, and returns a typed result (see [Command results](#command-results)) to the sender. If no handler is registered, the sender gets `NotAvailable` instead of a crash.
 - **Event (one-way):** `ctx.publish(event)`. Every subscriber gets a copy; the publisher gets nothing back. When a reply is needed for long-running work (transcription, a multi-step browser task), the event carries a **correlation id**, and the replying module publishes its own event (progress, completed, failed) with the same id.
 
@@ -63,7 +63,7 @@ sequenceDiagram
     Bus->>UI: ResponseReady
 ```
 
-**Where message types live:** shared commands and events (`InputReceived`, `ResponseReady`, `InvokeTool`) are defined in Contracts. The AI calls tools through the single generic `InvokeTool(name, args)` command, using the name and argument schema each `ToolProvider` advertises, so the orchestrator needs no per-tool code. A typed command such as `CreateCalendarEvent` is added to Contracts only when one module needs to call another directly.
+**Where message types live:** shared commands and events (`InputReceived`, `ResponseReady`, `InvokeTool`) are defined in Contracts. The AI calls tools through the single generic `InvokeTool(name, args)` command, using the name and argument schema each `IToolProvider` advertises, so the orchestrator needs no per-tool code. A typed command such as `CreateCalendarEvent` is added to Contracts only when one module needs to call another directly.
 
 ## Command results
 

@@ -2,19 +2,19 @@
 
 Capabilities invocable by name, by the AI or any module. All items: `from assistant.contracts import ...`. Back to the [API index](README.md).
 
-## `ToolProvider`
+## `IToolProvider`
 
-`class ToolProvider(Contract)`
+`class IToolProvider(Contract)`
 
-A contract for modules that offer tools. Any number of modules may provide it (`multiple = True`). Declare it in `manifest.provides` and call `ctx.provide(ToolProvider, self)` in `init`.
+A contract for modules that offer tools. Any number of modules may provide it (`multiple = True`). Declare it in `manifest.provides` and call `ctx.provide(IToolProvider, self)` in `init`.
 
-### `ToolProvider.tools`
+### `IToolProvider.tools`
 
 `tools(self) -> list[ToolSpec]`
 
 Abstract. The tools currently offered. Called on every lookup, never cached, so the list may change at runtime.
 
-### `ToolProvider.invoke`
+### `IToolProvider.invoke`
 
 `async invoke(self, name: str, args: dict[str, Any]) -> Result`
 
@@ -24,11 +24,11 @@ Abstract. Run tool `name`. Called by the core when an [`InvokeTool`](#invoketool
 
 **Example**
 
-    class Calculator(Module, ToolProvider):
-        manifest = Manifest(id="calculator", provides=(ToolProvider,))
+    class Calculator(Module, IToolProvider):
+        manifest = Manifest(id="calculator", provides=(IToolProvider,))
 
         async def init(self, ctx):
-            ctx.provide(ToolProvider, self)
+            ctx.provide(IToolProvider, self)
 
         def tools(self):
             return [ToolSpec(

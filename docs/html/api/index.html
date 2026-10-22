@@ -64,12 +64,12 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="control.html">Module control</a></li><li><a href="agents.html">Agents</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="api-reference">API Reference</h1>
 <p>Every public class and function, grouped by area. Check here before writing something new. If it already exists, reuse or extend it.</p>
 <p>Each group links to a page with full signatures, parameters, return values, errors and examples. For how the pieces fit together, see the <a href="../architecture/index.html">architecture overview</a>.</p>
-<p>Modules may use <strong>Modules</strong>, <strong>Messaging</strong>, <strong>Tools</strong>, and <strong>Infrastructure</strong>. <strong>Core host</strong> is internal to <code>assistant.core</code>; it's listed so nothing gets duplicated.</p>
+<p>Modules may use <strong>Modules</strong>, <strong>Messaging</strong>, <strong>Tools</strong>, <strong>Module control</strong>, <strong>Agents</strong>, and <strong>Infrastructure</strong>. <strong>Core host</strong> is internal to <code>assistant.core</code>; it's listed so nothing gets duplicated.</p>
 <h2 id="groups">Groups</h2>
 <h3 id="modules"><a href="modules.html">Modules</a></h3>
 <p>Writing a module: lifecycle, manifest, and its context. <code>from assistant.contracts import ...</code></p>
@@ -169,7 +169,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </thead>
 <tbody>
 <tr>
-<td><a href="tools.html#toolprovider"><code>ToolProvider</code></a></td>
+<td><a href="tools.html#itoolprovider"><code>IToolProvider</code></a></td>
 <td>contract</td>
 <td>A module that offers tools (any number of providers)</td>
 </tr>
@@ -182,6 +182,132 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <td><a href="tools.html#invoketool"><code>InvokeTool</code></a></td>
 <td>command</td>
 <td>Run a tool by name; routed to its provider</td>
+</tr>
+</tbody>
+</table>
+<h3 id="module-control"><a href="control.html">Module control</a></h3>
+<p>Turning modules on and off while the app runs. Handled by the core. <code>from assistant.contracts import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="control.html#listmodules"><code>ListModules</code></a></td>
+<td>command</td>
+<td>Every available module and its state</td>
+</tr>
+<tr>
+<td><a href="control.html#activatemodule"><code>ActivateModule</code></a></td>
+<td>command</td>
+<td>Turn a module on, with the providers it requires</td>
+</tr>
+<tr>
+<td><a href="control.html#deactivatemodule"><code>DeactivateModule</code></a></td>
+<td>command</td>
+<td>Turn a module off, respecting dependents</td>
+</tr>
+<tr>
+<td><a href="control.html#moduleinfo"><code>ModuleInfo</code></a></td>
+<td>data</td>
+<td>A module's id, state, and contracts</td>
+</tr>
+<tr>
+<td><a href="control.html#modulestate"><code>ModuleState</code></a></td>
+<td>enum</td>
+<td><code>inactive</code>, <code>starting</code>, <code>active</code>, <code>stopping</code>, <code>failed</code></td>
+</tr>
+<tr>
+<td><a href="control.html#modulestatechanged"><code>ModuleStateChanged</code></a></td>
+<td>event</td>
+<td>A module moved to a new state</td>
+</tr>
+</tbody>
+</table>
+<h3 id="agents-planned"><a href="agents.html">Agents</a> (planned)</h3>
+<p>Task agents and the Agent Hub. Designed, not built. <code>from assistant.contracts import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="agents.html#itaskagent"><code>ITaskAgent</code></a></td>
+<td>contract</td>
+<td>An agent that takes tasks: <code>info</code>, <code>assign</code>, <code>message</code>, <code>cancel</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#task"><code>Task</code></a></td>
+<td>data</td>
+<td>A unit of work: id, text, context</td>
+</tr>
+<tr>
+<td><a href="agents.html#agentinfo"><code>AgentInfo</code></a></td>
+<td>data</td>
+<td>An agent's id, description, capabilities, <code>busy</code> (has a task), <code>working</code> (in a turn now)</td>
+</tr>
+<tr>
+<td><a href="agents.html#taskinfo"><code>TaskInfo</code></a></td>
+<td>data</td>
+<td>A task as the Hub knows it</td>
+</tr>
+<tr>
+<td><a href="agents.html#taskstate"><code>TaskState</code></a></td>
+<td>enum</td>
+<td><code>running</code>, <code>paused</code>, <code>waiting_for_input</code>, <code>done</code>, <code>failed</code>, <code>cancelled</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#listagents"><code>ListAgents</code></a></td>
+<td>command</td>
+<td>Every agent and whether it's busy or working</td>
+</tr>
+<tr>
+<td><a href="agents.html#starttask"><code>StartTask</code></a></td>
+<td>command</td>
+<td>Give work to a free agent</td>
+</tr>
+<tr>
+<td><a href="agents.html#gettaskstatus"><code>GetTaskStatus</code></a></td>
+<td>command</td>
+<td>Task status without disturbing the agent</td>
+</tr>
+<tr>
+<td><a href="agents.html#sendtotask"><code>SendToTask</code></a></td>
+<td>command</td>
+<td>Question, instruction, or answer; interrupts, then continues unless paused</td>
+</tr>
+<tr>
+<td><a href="agents.html#canceltask"><code>CancelTask</code></a></td>
+<td>command</td>
+<td>Stop a task, like Esc</td>
+</tr>
+<tr>
+<td><a href="agents.html#reporttask"><code>ReportTask</code></a></td>
+<td>command</td>
+<td>Agent → Hub: <code>progress</code>, <code>reply</code>, <code>need</code>, <code>done</code>, <code>failed</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#taskupdated"><code>TaskUpdated</code></a></td>
+<td>event</td>
+<td>A task's report or state changed (for the Talker)</td>
+</tr>
+<tr>
+<td><a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a></td>
+<td>event</td>
+<td>An agent's <code>busy</code> or <code>working</code> changed (for UIs)</td>
+</tr>
+<tr>
+<td><a href="agents.html#agentactivity"><code>AgentActivity</code></a></td>
+<td>event</td>
+<td>An agent's raw activity (for terminal 2)</td>
 </tr>
 </tbody>
 </table>
@@ -237,7 +363,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tr>
 <td><a href="core.html#lifecyclemanager"><code>LifecycleManager</code></a></td>
 <td>class</td>
-<td>Init, start, and stop modules in dependency order</td>
+<td>Init, start, and stop modules in dependency order; activate and deactivate at runtime</td>
 </tr>
 <tr>
 <td><a href="core.html#scopedcontext"><code>ScopedContext</code></a></td>

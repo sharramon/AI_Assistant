@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents</title>
+<!-- Generated from docs/api/agents.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="control.html">Module control</a></li><li><a href="agents.html" aria-current="page">Agents</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<main>
+<h1 id="agents">Agents</h1>
+<blockquote>
+<p><strong>Status: planned.</strong> Designed, not built yet. Nothing here exists in the code.</p>
+</blockquote>
+<p>Task agents and the Agent Hub's commands and events. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>. How it works: <a href="../architecture/agents.html#task-agents">task agents</a>.</p>
+<h2 id="itaskagent"><code>ITaskAgent</code></h2>
+<p><code>class ITaskAgent(Contract)</code></p>
+<p>A contract for agents that take tasks: the Main Assistant now, subagents later. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and provide a composed object in <code>init</code>: <code>ctx.provide(ITaskAgent, self._agent)</code>. Only the Agent Hub calls these methods.</p>
+<p>In v1 an agent runs one task at a time.</p>
+<h3 id="itaskagentinfo"><code>ITaskAgent.info</code></h3>
+<p><code>info(self) -&gt; AgentInfo</code></p>
+<p>Abstract. Who this agent is and whether it's busy. Called on every lookup, never cached.</p>
+<h3 id="itaskagentassign"><code>ITaskAgent.assign</code></h3>
+<p><code>async assign(self, task: Task) -&gt; Result</code></p>
+<p>Abstract. Accept or refuse a task. <strong>Returns at once and never waits for the work</strong>; the agent reports back with <a href="#reporttask"><code>ReportTask</code></a>. Starts the agent's process first if it isn't running.</p>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>Accepted; the work has started</td>
+</tr>
+<tr>
+<td><code>not_available</code></td>
+<td>Busy with another task</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>The agent couldn't start (e.g. its process didn't launch)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="itaskagentmessage"><code>ITaskAgent.message</code></h3>
+<p><code>async message(self, task_id: str, text: str, resume: bool = True) -&gt; Result</code></p>
+<p>Abstract. Like typing into Claude Code while it works. If the task is running, interrupt the current turn and send <code>text</code>; the answer comes back as <code>ReportTask(kind="reply")</code>. Then, if <code>resume</code> is true, continue the task; if false, stay paused. If the task is waiting for input or paused, <code>text</code> is simply the next message (your answer, or "carry on"). Returns once the message is delivered, not when it's answered.</p>
+<p><strong>Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task_id</code></td>
+<td><code>str</code></td>
+<td>yes</td>
+<td>The task</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td><code>str</code></td>
+<td>yes</td>
+<td>A question, extra instruction, or your answer</td>
+</tr>
+<tr>
+<td><code>resume</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>Continue the task after replying. False means stop or pause</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>Delivered</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td>Not this agent's current task</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>The session couldn't be interrupted or written to</td>
+</tr>
+</tbody>
+</table>
+<h3 id="itaskagentcancel"><code>ITaskAgent.cancel</code></h3>
+<p><code>async cancel(self, task_id: str) -&gt; Result</code></p>
+<p>Abstract. Like pressing Esc: interrupt the turn and drop the task. The session and its memory stay for the next task. If the interrupt doesn't stop it, the agent kills its process instead.</p>
+<p><strong>Returns:</strong> <code>ok</code> once stopped, <code>invalid_arguments</code> if it's not this agent's current task.</p>
+<p><strong>Example</strong></p>
+<pre><code>class MainAssistantModule(Module):
+    manifest = Manifest(id="main_assistant", provides=(ITaskAgent,))
+
+    async def init(self, ctx):
+        self._session = ClaudeSession(...)
+        self._agent = SessionTaskAgent(self._session, ctx)
+        ctx.provide(ITaskAgent, self._agent)
+
+    async def stop(self):
+        await self._session.close()
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/agents.py</code> (planned)</p>
+<h2 id="task"><code>Task</code></h2>
+<p><code>Task(id: str, text: str, context: str = "")</code></p>
+<p>A unit of work the Hub assigns. Frozen.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>str</code></td>
+<td>Set by the Hub</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td><code>str</code></td>
+<td>What to do</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td><code>str</code></td>
+<td>Relevant conversation context from the Talker</td>
+</tr>
+</tbody>
+</table>
+<h2 id="agentinfo"><code>AgentInfo</code></h2>
+<p><code>AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), busy: bool = False, working: bool = False)</code></p>
+<p>Frozen. What <a href="#itaskagentinfo"><code>ITaskAgent.info</code></a> returns.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_id</code></td>
+<td><code>str</code></td>
+<td>Unique id</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td><code>str</code></td>
+<td>What it does</td>
+</tr>
+<tr>
+<td><code>capabilities</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>What kinds of tasks it takes</td>
+</tr>
+<tr>
+<td><code>busy</code></td>
+<td><code>bool</code></td>
+<td>It has an unfinished task: running, paused, or waiting for input</td>
+</tr>
+<tr>
+<td><code>working</code></td>
+<td><code>bool</code></td>
+<td>Its session is in a turn right now (generating or running tools). True from sending a message until the turn's <code>result</code> arrives. Always false when <code>busy</code> is false</td>
+</tr>
+</tbody>
+</table>
+<h2 id="taskstate"><code>TaskState</code></h2>
+<p><code>class TaskState(StrEnum)</code>: <code>RUNNING</code>, <code>PAUSED</code>, <code>WAITING_FOR_INPUT</code>, <code>DONE</code>, <code>FAILED</code>, <code>CANCELLED</code>. Values are the lowercase names. <code>PAUSED</code> means you stopped it on purpose; <code>WAITING_FOR_INPUT</code> means it asked you something. The last three are final. Transitions: <a href="../architecture/agents.html#task-state">task state</a>.</p>
+<h2 id="taskinfo"><code>TaskInfo</code></h2>
+<p><code>TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), question: str | None = None, result: str | None = None)</code></p>
+<p>Frozen. A task as the Hub knows it.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>str</code></td>
+<td>Task id</td>
+</tr>
+<tr>
+<td><code>agent_id</code></td>
+<td><code>str</code></td>
+<td>Who's doing it</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td><code>str</code></td>
+<td>What was asked</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td><code>TaskState</code></td>
+<td>Authoritative state</td>
+</tr>
+<tr>
+<td><code>recent</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>Latest reports, newest last</td>
+</tr>
+<tr>
+<td><code>question</code></td>
+<td><code>str | None</code></td>
+<td>The open question while <code>WAITING_FOR_INPUT</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>str | None</code></td>
+<td>Final text when <code>DONE</code> or <code>FAILED</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="listagents"><code>ListAgents</code></h2>
+<p><code>ListAgents()</code> (command)</p>
+<p>Every registered agent and whether it's busy or working. Handled by the Agent Hub, which reads <a href="#itaskagentinfo"><code>ITaskAgent.info</code></a> from each provider. For UIs and the Talker.</p>
+<p><strong>Returns:</strong> <code>Result.ok(list[AgentInfo])</code>.</p>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(ListAgents())
+working = [a.agent_id for a in result.value if a.working]
+</code></pre>
+<h2 id="starttask"><code>StartTask</code></h2>
+<p><code>StartTask(text: str, context: str = "")</code> (command)</p>
+<p>Give work to a free agent. Handled by the Agent Hub.</p>
+<p><strong>Returns:</strong> <code>Result.ok(task_id)</code>, or <code>not_available</code> if no agent is free.</p>
+<h2 id="gettaskstatus"><code>GetTaskStatus</code></h2>
+<p><code>GetTaskStatus(task_id: str | None = None)</code> (command)</p>
+<p>Task status from the Hub, without disturbing the agent.</p>
+<p><strong>Returns:</strong> <code>Result.ok(list[TaskInfo])</code>: that task, or with no <code>task_id</code>, the active and recent ones. <code>invalid_arguments</code> for an unknown id.</p>
+<h2 id="sendtotask"><code>SendToTask</code></h2>
+<p><code>SendToTask(task_id: str, text: str, resume: bool = True)</code> (command)</p>
+<p>A question, extra instruction, or your answer for a task. The Hub calls <a href="#itaskagentmessage"><code>ITaskAgent.message</code></a> and updates the state: <code>resume=False</code> makes it <code>PAUSED</code>, otherwise <code>RUNNING</code>.</p>
+<p><strong>Returns:</strong> the agent's <code>Result</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
+<h2 id="canceltask"><code>CancelTask</code></h2>
+<p><code>CancelTask(task_id: str)</code> (command)</p>
+<p>Stop a task, like Esc. The Hub calls <a href="#itaskagentcancel"><code>ITaskAgent.cancel</code></a> and marks it <code>CANCELLED</code>.</p>
+<p><strong>Returns:</strong> the agent's <code>Result</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
+<h2 id="reporttask"><code>ReportTask</code></h2>
+<p><code>ReportTask(task_id: str, kind: ReportKind, text: str)</code> (command)</p>
+<p>Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it.</p>
+<table>
+<thead>
+<tr>
+<th><code>kind</code></th>
+<th>Means</th>
+<th>State becomes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>progress</code></td>
+<td>What it's doing</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>reply</code></td>
+<td>Answer to a <code>message</code></td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>need</code></td>
+<td>A question for you; the turn has ended</td>
+<td><code>WAITING_FOR_INPUT</code></td>
+</tr>
+<tr>
+<td><code>done</code></td>
+<td>Finished; <code>text</code> is the result</td>
+<td><code>DONE</code></td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>Gave up; <code>text</code> says why</td>
+<td><code>FAILED</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>ReportKind</code> is a <code>StrEnum</code> with these values.</p>
+<p><strong>Returns:</strong> <code>ok</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
+<h2 id="taskupdated"><code>TaskUpdated</code></h2>
+<p><code>TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None, text: str)</code> (event)</p>
+<p>Published by the Hub on every report and state change; the Talker listens. <code>kind</code> is <code>None</code> for changes the Hub made itself (e.g. cancel). May be dropped; <code>GetTaskStatus</code> is authoritative.</p>
+<h2 id="agentstatechanged"><code>AgentStateChanged</code></h2>
+<p><code>AgentStateChanged(agent_id: str, busy: bool, working: bool)</code> (event)</p>
+<p>Published by the agent module whenever <code>busy</code> or <code>working</code> changes, so a UI can show it live without polling. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
+<h2 id="agentactivity"><code>AgentActivity</code></h2>
+<p><code>AgentActivity(agent_id: str, task_id: str | None, text: str)</code> (event)</p>
+<p>An agent's raw activity (its text and tool calls), published by the agent module itself for viewers such as terminal 2. High-volume and view-only.</p>
+<footer>Generated from <code>docs/api/agents.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

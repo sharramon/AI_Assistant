@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module control</title>
+<!-- Generated from docs/api/control.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="control.html" aria-current="page">Module control</a></li><li><a href="agents.html">Agents</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<main>
+<h1 id="module-control">Module control</h1>
+<p>Turning modules on and off while the app runs. The core handles these commands; any module may send them (a control panel, or an agent asked to "enable the browser module"). All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>. How it works: <a href="../architecture/core.html#runtime-module-control">runtime module control</a>.</p>
+<p>Every module listed in <code>src/assistant/__main__.py</code> is <strong>available</strong>; <code>modules.enabled</code> in config only sets which are active at startup.</p>
+<h2 id="listmodules"><code>ListModules</code></h2>
+<p><code>ListModules()</code> (command)</p>
+<p>Every available module and its current state.</p>
+<p><strong>Returns:</strong> <code>Result.ok(list[ModuleInfo])</code>, in the order the modules are listed in <code>__main__.py</code>.</p>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(ListModules())
+active = [m.id for m in result.value if m.state is ModuleState.ACTIVE]
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="activatemodule"><code>ActivateModule</code></h2>
+<p><code>ActivateModule(module_id: str)</code> (command)</p>
+<p>Turn a module on: a fresh instance, then <code>init</code> and <code>start</code>.</p>
+<p><strong>Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>module_id</code></td>
+<td><code>str</code></td>
+<td>yes</td>
+<td>The module's manifest id</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>It's active (or already was). Any sole provider of a contract it <code>requires</code> was activated first</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td>No module has that id</td>
+</tr>
+<tr>
+<td><code>not_available</code></td>
+<td>It requires a contract that no available module provides</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>Several modules could provide a required contract (the error lists them; activate one first), it would be a second provider of a single-provider contract, a required provider failed, or its own <code>init</code>/<code>start</code> raised. In the last case its state is <code>failed</code> and it can be retried</td>
+</tr>
+<tr>
+<td><code>timed_out</code></td>
+<td>The command timed out; the activation still finishes, and <code>ModuleStateChanged</code> reports the outcome</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(ActivateModule(module_id="voice_output"))
+if not result.is_ok:
+    ctx.log.warning("Couldn't enable voice output: %s", result.error)
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="deactivatemodule"><code>DeactivateModule</code></h2>
+<p><code>DeactivateModule(module_id: str, with_dependents: bool = False)</code> (command)</p>
+<p>Turn a module off: <code>stop</code>, then everything it registered is removed. Its tools, handlers, and contracts disappear.</p>
+<p><strong>Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>module_id</code></td>
+<td><code>str</code></td>
+<td>yes</td>
+<td>The module's manifest id</td>
+</tr>
+<tr>
+<td><code>with_dependents</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>Also deactivate active modules that require something only this one provides (they go first)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>It's inactive (or already was)</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td>No module has that id</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>Active modules require it and <code>with_dependents</code> is false; the error names them</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="moduleinfo"><code>ModuleInfo</code></h2>
+<p><code>class ModuleInfo(BaseModel)</code> (frozen)</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>str</code></td>
+<td>Manifest id</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td><code>ModuleState</code></td>
+<td>Current state</td>
+</tr>
+<tr>
+<td><code>provides</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>Contract class names it provides</td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>Contract class names it requires</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="modulestate"><code>ModuleState</code></h2>
+<p><code>class ModuleState(StrEnum)</code>: <code>INACTIVE</code>, <code>STARTING</code>, <code>ACTIVE</code>, <code>STOPPING</code>, <code>FAILED</code>. Values are the lowercase names. <code>FAILED</code> modules can be activated again.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="modulestatechanged"><code>ModuleStateChanged</code></h2>
+<p><code>ModuleStateChanged(module_id: str, state: ModuleState)</code> (event)</p>
+<p>Published by the core on every transition, including at startup and shutdown. Like any event it may be dropped; <code>ListModules</code> is the authoritative state.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<footer>Generated from <code>docs/api/control.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

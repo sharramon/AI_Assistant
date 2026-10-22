@@ -64,26 +64,26 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html" aria-current="page">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html" aria-current="page">Tools</a></li><li><a href="control.html">Module control</a></li><li><a href="agents.html">Agents</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="tools">Tools</h1>
 <p>Capabilities invocable by name, by the AI or any module. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>.</p>
-<h2 id="toolprovider"><code>ToolProvider</code></h2>
-<p><code>class ToolProvider(Contract)</code></p>
-<p>A contract for modules that offer tools. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and call <code>ctx.provide(ToolProvider, self)</code> in <code>init</code>.</p>
-<h3 id="toolprovidertools"><code>ToolProvider.tools</code></h3>
+<h2 id="itoolprovider"><code>IToolProvider</code></h2>
+<p><code>class IToolProvider(Contract)</code></p>
+<p>A contract for modules that offer tools. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and call <code>ctx.provide(IToolProvider, self)</code> in <code>init</code>.</p>
+<h3 id="itoolprovidertools"><code>IToolProvider.tools</code></h3>
 <p><code>tools(self) -&gt; list[ToolSpec]</code></p>
 <p>Abstract. The tools currently offered. Called on every lookup, never cached, so the list may change at runtime.</p>
-<h3 id="toolproviderinvoke"><code>ToolProvider.invoke</code></h3>
+<h3 id="itoolproviderinvoke"><code>IToolProvider.invoke</code></h3>
 <p><code>async invoke(self, name: str, args: dict[str, Any]) -&gt; Result</code></p>
 <p>Abstract. Run tool <code>name</code>. Called by the core when an <a href="#invoketool"><code>InvokeTool</code></a> command arrives for one of this provider's tools, with the command's timeout and cancellation applying.</p>
 <p><strong>Returns:</strong> a <a href="messaging.html#result"><code>Result</code></a>. Use <code>Result.invalid_arguments</code> for bad <code>args</code>.</p>
 <p><strong>Example</strong></p>
-<pre><code>class Calculator(Module, ToolProvider):
-    manifest = Manifest(id="calculator", provides=(ToolProvider,))
+<pre><code>class Calculator(Module, IToolProvider):
+    manifest = Manifest(id="calculator", provides=(IToolProvider,))
 
     async def init(self, ctx):
-        ctx.provide(ToolProvider, self)
+        ctx.provide(IToolProvider, self)
 
     def tools(self):
         return [ToolSpec(

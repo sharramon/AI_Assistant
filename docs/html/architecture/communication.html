@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html" aria-current="page">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html" aria-current="page">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="communication">Communication</h1>
 <p>How modules talk to each other through the core. Internals are in <a href="core.html#communication-internals">core</a>. Back to the <a href="index.html">overview</a>.</p>
@@ -78,7 +78,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     Orch -- &quot;event: ResponseReady&quot; --&gt; Bus
     Bus --&gt; Out[View / output modules]
 </code></pre>
-<p>The orchestrator discovers available tools by asking the DI container for every <code>ToolProvider</code>, so adding a tool module makes it available to the AI without touching the orchestrator.</p>
+<p>The orchestrator discovers available tools by asking the DI container for every <code>IToolProvider</code>, so adding a tool module makes it available to the AI without touching the orchestrator.</p>
 <h2 id="mechanisms">Mechanisms</h2>
 <table>
 <thead>
@@ -94,7 +94,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <td>Interface (via DI)</td>
 <td>Direct call through a shared contract</td>
 <td>Querying a capability another module provides</td>
-<td>Orchestrator lists all <code>ToolProvider</code>s</td>
+<td>Orchestrator lists all <code>IToolProvider</code>s</td>
 </tr>
 <tr>
 <td>Command</td>
@@ -114,7 +114,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <h2 id="how-modules-reach-each-other">How modules reach each other</h2>
 <p>A module never holds a reference to another module. Its only access to the app is the <code>ModuleContext</code> the core passes to <code>init</code>, which wraps the <strong>Command Router</strong>, <strong>Event Bus</strong>, and <strong>DI container</strong> and removes everything the module registered when it stops. Contracts only define shapes (interfaces and message types). The core does the delivery.</p>
 <ul>
-<li><strong>Interface call:</strong> the module asks DI for a contract (e.g. all <code>ToolProvider</code>s) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or none), so it must handle absence.</li>
+<li><strong>Interface call:</strong> the module asks DI for a contract (e.g. all <code>IToolProvider</code>s) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or none), so it must handle absence.</li>
 <li><strong>Command (request/response):</strong> <code>result = await ctx.send(command, timeout=None)</code>. The router finds the one module registered as that command's handler, calls it, and returns a typed result (see <a href="#command-results">Command results</a>) to the sender. If no handler is registered, the sender gets <code>NotAvailable</code> instead of a crash.</li>
 <li><strong>Event (one-way):</strong> <code>ctx.publish(event)</code>. Every subscriber gets a copy; the publisher gets nothing back. When a reply is needed for long-running work (transcription, a multi-step browser task), the event carries a <strong>correlation id</strong>, and the replying module publishes its own event (progress, completed, failed) with the same id.</li>
 </ul>
@@ -162,7 +162,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     O-&gt;&gt;Bus: publish ResponseReady(&quot;Opened your calendar&quot;)
     Bus-&gt;&gt;UI: ResponseReady
 </code></pre>
-<p><strong>Where message types live:</strong> shared commands and events (<code>InputReceived</code>, <code>ResponseReady</code>, <code>InvokeTool</code>) are defined in Contracts. The AI calls tools through the single generic <code>InvokeTool(name, args)</code> command, using the name and argument schema each <code>ToolProvider</code> advertises, so the orchestrator needs no per-tool code. A typed command such as <code>CreateCalendarEvent</code> is added to Contracts only when one module needs to call another directly.</p>
+<p><strong>Where message types live:</strong> shared commands and events (<code>InputReceived</code>, <code>ResponseReady</code>, <code>InvokeTool</code>) are defined in Contracts. The AI calls tools through the single generic <code>InvokeTool(name, args)</code> command, using the name and argument schema each <code>IToolProvider</code> advertises, so the orchestrator needs no per-tool code. A typed command such as <code>CreateCalendarEvent</code> is added to Contracts only when one module needs to call another directly.</p>
 <h2 id="command-results">Command results</h2>
 <p>Every command returns exactly one of these statuses. They mean different things, especially to an AI agent deciding what to do next:</p>
 <table>

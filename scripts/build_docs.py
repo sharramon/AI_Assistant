@@ -17,7 +17,12 @@ import markdown
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 OUT = DOCS / "html"
-SECTIONS = {"architecture": "Architecture", "api": "API Reference"}
+SECTIONS = {
+    "architecture": "Architecture",
+    "agents": "Agents",
+    "api": "API Reference",
+    "next-steps": "Next steps",
+}
 MERMAID_JS = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
 
 MD_LINK = re.compile(r'href="(?![a-z]+:)([^"#]*?\.md)(#[^"]*)?"')
@@ -57,9 +62,11 @@ def nav_html(current: Path) -> str:
     parts = []
     for section, label in SECTIONS.items():
         items = []
-        for page in section_pages(section):
+        pages = section_pages(section)
+        for page in pages:
             href = Path(os.path.relpath(out_path(page), here)).as_posix()
-            name = "Overview" if page.stem == "README" else title_of(page)
+            # A one-page section shows its own title instead of "Overview".
+            name = "Overview" if page.stem == "README" and len(pages) > 1 else title_of(page)
             active = ' aria-current="page"' if page == current else ""
             items.append(f'<li><a href="{href}"{active}>{html.escape(name)}</a></li>')
         parts.append(f"<h2>{label}</h2><ul>{''.join(items)}</ul>")

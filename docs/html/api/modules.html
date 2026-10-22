@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html" aria-current="page">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html" aria-current="page">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="control.html">Module control</a></li><li><a href="agents.html">Agents</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="modules">Modules</h1>
 <p>Writing a module. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>.</p>
@@ -72,6 +72,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <p><code>class Module(ABC)</code></p>
 <p>Base class for every module. Set the <code>manifest</code> class attribute and implement <code>init</code>.</p>
 <p>The core calls <code>init</code> for every module in dependency order, then <code>start</code> for each, and on shutdown <code>stop</code> in reverse order. <code>stop</code> is called for every module whose <code>init</code> succeeded, even if <code>start</code> never ran. If <code>init</code> or <code>start</code> raises, the module is skipped (see <a href="../architecture/core.html#lifecycle">lifecycle</a>).</p>
+<p><strong>Modules must be restartable.</strong> A module can be <a href="control.html">deactivated and activated</a> while the app runs. Each activation creates a <strong>fresh instance</strong> and calls <code>init</code> and <code>start</code> again, so <code>stop</code> must release everything the module started (processes, threads, windows, devices), and in-memory state doesn't survive deactivation. Load expensive resources in <code>start</code> or on first use. After <code>stop</code>, the old context drops <code>publish</code> and refuses <code>send</code>. A resource that can't be stopped (like a blocking <code>input()</code> thread) should be shared across instances, as <code>console_io</code> does.</p>
 <p><strong>Attributes</strong></p>
 <table>
 <thead>
@@ -100,7 +101,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <p>Stop work and release resources. Default does nothing. Has <code>core.module_stop_timeout</code> seconds. Subscriptions, handlers, and provided contracts are removed by the core afterwards, so there's no need to undo them here.</p>
 <p><strong>Example</strong></p>
 <pre><code>class EchoOrchestrator(Module):
-    manifest = Manifest(id="echo_orchestrator", optional=(ToolProvider,))
+    manifest = Manifest(id="echo_orchestrator", optional=(IToolProvider,))
 
     async def init(self, ctx: ModuleContext) -&gt; None:
         self._ctx = ctx
@@ -261,7 +262,7 @@ if result.is_ok:
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code>
-<strong>See also:</strong> <a href="tools.html#toolprovider"><code>ToolProvider</code></a></p>
+<strong>See also:</strong> <a href="tools.html#itoolprovider"><code>IToolProvider</code></a></p>
 <footer>Generated from <code>docs/api/modules.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

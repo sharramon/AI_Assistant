@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html" aria-current="page">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html" aria-current="page">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="decisions">Decisions</h1>
 <p>What's decided, what's still open, and what's deliberately deferred. Back to the <a href="index.html">overview</a>.</p>
@@ -73,11 +73,19 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <li><strong>Core and PC-side modules:</strong> Python.</li>
 <li><strong>Quest 3 client:</strong> separate Unity (C#) app, connecting through the gateway module.</li>
 <li><strong>Deployment:</strong> runs on a PC for now, a server later.</li>
+<li>
+<p><strong>Agents:</strong> an <a href="agents.html">Agent Hub</a> module coordinates a Talker, a Main Assistant, and subagents. The core doesn't know agents exist.</p>
+</li>
+<li>
+<p><strong>Runtime module control:</strong> modules can be turned on and off while the app runs, through a core control interface; a control panel UI module and the Talker use it. Code changes still need a restart. See <a href="core.html#runtime-module-control">core</a>.</p>
+</li>
+<li><strong>Views:</strong> two terminals for now (talk, and a view-only window on the Main Assistant). The chat window comes later as nicer UX for the same thing.</li>
 </ul>
 <h2 id="open-decisions">Open decisions</h2>
 <ul>
 <li><strong>Persistence technology</strong></li>
-<li><strong>Initial orchestrator</strong> (model and agent framework)</li>
+<li><strong>Agent runtime:</strong> <code>claude -p</code> sessions on the subscription (provisional, pending a terms check and the <a href="../agents/spike.html">spike</a>)</li>
+<li><strong>Agent Hub contracts:</strong> designed after the spike</li>
 </ul>
 <h2 id="deliberately-deferred">Deliberately deferred</h2>
 <p>Don't add more architectural machinery until two or three very different modules (e.g. a text input, a browser tool, and a view) are built and we've checked that each can be replaced independently. Let those real modules show which abstractions are actually missing.</p>

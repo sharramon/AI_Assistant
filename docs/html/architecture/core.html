@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html" aria-current="page">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html" aria-current="page">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="core-host">Core host</h1>
 <p>In-depth architecture of the application core (<code>src/assistant/core/</code>). For where it sits in the whole system, see the <a href="index.html">overview</a>. For signatures, see the API pages for <a href="../api/modules.html">modules</a>, <a href="../api/messaging.html">messaging</a>, <a href="../api/tools.html">tools</a>, and the <a href="../api/core.html">core host</a>.</p>
@@ -80,7 +80,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 
     subgraph Contracts[&quot;Contracts (stable)&quot;]
         IModule[&quot;Module, ModuleContext&quot;]
-        Caps[&quot;Capability interfaces&lt;br/&gt;today: ToolProvider&lt;br/&gt;later as needed: input, output,&lt;br/&gt;view, background worker&quot;]
+        Caps[&quot;Capability interfaces&lt;br/&gt;today: IToolProvider&lt;br/&gt;later as needed: input, output,&lt;br/&gt;view, background worker&quot;]
         Msgs[Command &amp; event types]
     end
 
@@ -123,6 +123,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     class LifecycleManager {
         +start()
         +stop()
+        +modules() list~ModuleInfo~
+        +activate(module_id) Result
+        +deactivate(module_id, with_dependents) Result
     }
     class CommandRouter {
         +register(type, handler)
@@ -165,6 +168,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     App *-- EventBus
     App *-- Container
     App ..&gt; dispatch_tool : handles InvokeTool
+    App ..&gt; LifecycleManager : handles ListModules, ActivateModule, DeactivateModule
     LifecycleManager --&gt; ScopedContext : one per module
     ScopedContext --&gt; CommandRouter
     ScopedContext --&gt; EventBus
@@ -189,7 +193,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 <tr>
 <td><code>lifecycle.py</code></td>
-<td><code>LifecycleManager</code>: init / start / stop, failure handling</td>
+<td><code>LifecycleManager</code>: init / start / stop at startup and shutdown, runtime activate / deactivate, module states, failure handling</td>
 </tr>
 <tr>
 <td><code>context.py</code></td>
@@ -244,8 +248,35 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <p><strong>Shutdown:</strong></p>
 <ul>
 <li>Each module gets <code>module_stop_timeout</code> seconds to stop. Errors and timeouts are logged and shutdown continues.</li>
-<li>Cleanup doesn't depend on modules behaving: <code>ScopedContext.close()</code> removes every subscription, command handler, and provided contract the module registered.</li>
+<li>Cleanup doesn't depend on modules behaving: <code>ScopedContext.close()</code> removes every subscription, command handler, and provided contract the module registered. After that, the context drops <code>publish</code>, refuses <code>send</code> with <code>not_available</code>, and raises on new registrations, so a leftover thread or callback can't keep talking to the app.</li>
 <li>Events still queued for a stopped module are dropped.</li>
+</ul>
+<h3 id="runtime-module-control">Runtime module control</h3>
+<blockquote>
+<p><strong>Built in the core.</strong> The control panel UI module that uses it comes later.</p>
+</blockquote>
+<p>Turning modules on and off while the app runs. <strong>The core owns the transitions; each module owns its resources.</strong> Every module listed in <code>__main__.py</code> is <em>available</em>; <code>modules.enabled</code> only says which are active at startup. The lifecycle manager tracks every available module's state:</p>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; Inactive
+    Inactive --&gt; Starting: activate
+    Starting --&gt; Active
+    Starting --&gt; Failed
+    Active --&gt; Stopping: deactivate
+    Stopping --&gt; Inactive
+    Failed --&gt; Starting: retry
+</code></pre>
+<ul>
+<li><strong>Control interface:</strong> three core commands, <a href="../api/control.html"><code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code></a>, plus a <code>ModuleStateChanged</code> event on every transition. The core stays generic: it doesn't know what any module does.</li>
+<li><strong>Who calls it:</strong> a <strong>control panel</strong> UI module, or the Talker when you say "enable the browser module". Both send the same request.</li>
+<li><strong>Activating</strong> a module first activates the provider of each contract it <code>requires</code>, if exactly one module could provide it; if several could, it refuses and asks which. It refuses if the module would be a second provider of a single-provider contract.</li>
+<li><strong>Deactivating</strong> is refused while an active module requires something only this one provides, and the error names them. With <code>with_dependents</code>, those are deactivated first.</li>
+<li><strong>Fresh instance per activation.</strong> Deactivating stops the module and removes everything it registered; activating creates a new instance and runs <code>init</code> and <code>start</code> again. So <code>stop</code> must release everything, and in-memory state doesn't survive (persist it if it must).</li>
+<li><strong>Failures:</strong> a module that fails to activate is marked <code>failed</code> and can be retried; nothing else is affected.</li>
+<li><strong>Transitions finish:</strong> one at a time, and a transition finishes even if the command that asked for it times out. Shutdown waits for it, then stops everything.</li>
+<li><strong>Modules load expensive things lazily:</strong> a <code>claude</code> process, a speech model, or a window starts when the module is activated or first used, not at app start.</li>
+<li><strong>Agents adapt automatically:</strong> tools are looked up at call time, so a deactivated module's tools disappear from what the agents can use.</li>
+<li><strong>What needs a restart:</strong> adding or changing code. Enabling, disabling, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.</li>
+<li><strong>Not the Agent Hub's job:</strong> the Hub coordinates agents through their contracts. It never starts or stops modules itself.</li>
 </ul>
 <h2 id="communication-internals">Communication internals</h2>
 <p><strong>Commands</strong> (<code>CommandRouter.send</code>):</p>
@@ -271,7 +302,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </ul>
 <p><strong>Tools</strong> (<code>dispatch_tool</code>):</p>
 <ul>
-<li>Handles <code>InvokeTool</code> by asking every <code>ToolProvider</code> for its tools <em>at call time</em>, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).</li>
+<li>Handles <code>InvokeTool</code> by asking every <code>IToolProvider</code> for its tools <em>at call time</em>, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).</li>
 <li>Unknown name → <code>NotAvailable</code>; a name offered by more than one provider → <code>Failed</code>.</li>
 <li>A future <code>ToolsChanged</code> event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.</li>
 </ul>

@@ -14,6 +14,9 @@ docs/
 ├── architecture/
 │   ├── README.md          # Conceptual architecture: the whole project in one diagram
 │   └── <area>.md          # In-depth architecture for an area: actual classes & functions
+├── agents/
+│   ├── README.md          # How we run the agents: roles, sessions, permissions
+│   └── <topic>.md         # Experiments (spikes) and findings, prompts, each subagent
 ├── api/
 │   ├── README.md          # API index: groups -> classes/functions, one line each
 │   └── <group>.md         # Full reference for one group

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Next steps</title>
+<!-- Generated from docs/next-steps/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="index.html" aria-current="page">Next steps</a></li></ul></nav>
+<main>
+<h1 id="next-steps">Next steps</h1>
+<p>What we're working on now. This page changes as the work moves on.</p>
+<h2 id="where-we-are">Where we are</h2>
+<p><strong>Decided earlier:</strong></p>
+<ul>
+<li><strong>Agent Hub</strong> (<a href="../architecture/agents.html">agents</a>): one module coordinating a Talker, a Main Assistant, and later subagents. Not an AI, not part of the core, launches nothing.</li>
+<li><strong>Two terminals for now:</strong> terminal 1 to talk to the Talker, terminal 2 view-only on the Main Assistant. The chat window comes later as nicer UX for the same thing.</li>
+<li><strong>Modules own their resources</strong> and start expensive things (a <code>claude</code> process, a model, a window) lazily.</li>
+<li><a href="../architecture/core.html#runtime-module-control">Runtime module control</a> is built (<code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>).</li>
+<li><strong>Interfaces by inheritance, functionality by composition</strong> (<a href="../architecture/principles.html">principle 12</a>), with the <code>I</code> prefix for <code>Contract</code> subclasses only.</li>
+<li><strong>Subscription terms</strong> (checked): runs on your subscription (personal use, official unmodified <code>claude</code> binary). Revisit subscription vs API key when the Hub becomes an always-on service. Sources: <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> §3, <a href="https://code.claude.com/docs/en/legal-and-compliance">Claude Code legal page</a>.</li>
+</ul>
+<p><strong>Done 2026-10-22:</strong></p>
+<ul>
+<li><strong>The task-agent design</strong> is written: <a href="../architecture/agents.html#task-agents">agents</a> and the <a href="../api/agents.html">Agents API page</a> (planned). <code>message</code> = typing into Claude Code while it works (interrupt, quick reply, continue unless you meant stop or pause; the Talker infers which). <code>cancel</code> = Esc. Minimal Hub in v1. <code>AgentInfo</code> has <code>busy</code> and <code>working</code>, with <code>ListAgents</code> and <code>AgentStateChanged</code> for UIs.</li>
+<li><strong>The spike is done</strong> and confirmed the design: interrupt → reply → continue works, and a session survives a cancel with its memory. Details on the <a href="../agents/spike.html#findings">spike page</a>. The relay script was never built.</li>
+<li><strong>CI:</strong> GitHub Actions runs the tests on Windows and Linux, <code>ruff</code>, and checks that <code>docs/html</code> matches the Markdown. See <a href="#testing-and-ci">Testing and CI</a>.</li>
+</ul>
+<h2 id="now-the-two-terminal-setup">Now: the two-terminal setup</h2>
+<p>Build the real modules, in this order, each with the <code>architecture-first</code> skill:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Build</th>
+<th>What it does</th>
+<th>Test without the rest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>infra/ClaudeSession</code></td>
+<td>One <code>claude -p</code> stream-json process: start, send, interrupt, read events, track <code>working</code></td>
+<td>Unit tests replay the spike's recorded events; one <code>claude</code>-marked test against a real session</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>main_assistant</code></td>
+<td>Provides <code>ITaskAgent</code> through <code>SessionTaskAgent</code>; reports with <code>ReportTask</code>; publishes <code>AgentActivity</code> and <code>AgentStateChanged</code></td>
+<td>Against a fake Hub</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>agent_hub</code></td>
+<td>Task state; handles <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>ListAgents</code></td>
+<td>Against a fake <code>ITaskAgent</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>talker</code></td>
+<td>A fast <code>claude</code> session for conversation; turns its tags into Hub commands; tells you about task updates</td>
+<td>Terminal 1 works from here</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>assistant_view</code></td>
+<td>Opens terminal 2 and shows <code>AgentActivity</code></td>
+<td>Terminal 2 works from here</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Gaps found in the current code</strong> (fix while building; no core changes):</p>
+<ul>
+<li><strong>The Talker can't speak first:</strong> <code>console_io</code> only prints a <code>ResponseReady</code> that answers one of its own inputs, once. It must also print uncorrelated ones (e.g. "the task is done").</li>
+<li><strong>Event handler timeout (10 s):</strong> the Talker must not wait for its <code>claude</code> reply inside the <code>InputReceived</code> handler; it hands the input to its own loop and returns.</li>
+<li><strong>Terminal 2 has no mechanism yet:</strong> to decide with <code>assistant_view</code> (simplest: open a new console running a small viewer, fed over a local pipe).</li>
+<li><strong>Interrupted turns end with <code>is_error: true</code>:</strong> <code>SessionTaskAgent</code> must know it sent the interrupt and not report the task as failed.</li>
+</ul>
+<p>After this: speech-to-text (voice in) and voice out.</p>
+<h2 id="testing-and-ci">Testing and CI</h2>
+<ul>
+<li><code>pytest</code> runs the unit tests (fast, no <code>claude</code>). Tests that run a real <code>claude</code> process are marked <code>@pytest.mark.claude</code>, skipped by default and in CI; run them locally with <code>pytest -m claude</code>.</li>
+<li>Code that wraps <code>claude</code> is tested against fakes: a fake process replaying recorded events, a fake <code>ITaskAgent</code>.</li>
+<li><code>ruff check src tests scripts</code> lints (config in <code>pyproject.toml</code>).</li>
+<li><strong>CI</strong> (<code>.github/workflows/ci.yml</code>), on every push and pull request: tests on Windows and Linux (Python 3.12), then <code>ruff</code> and a docs check that fails if <code>docs/html</code> wasn't rebuilt after a Markdown change.</li>
+<li>Real <code>claude</code> calls stay out of CI: they'd need your login on GitHub's machines. Use an API key as a GitHub secret if that's ever wanted.</li>
+<li>No CD yet: nothing is deployed while it runs on your PC.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

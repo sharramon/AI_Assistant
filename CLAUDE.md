@@ -10,6 +10,10 @@ The architecture overview and the API index are loaded below. Use them to unders
 
 Before writing a new function, check the API reference for one that already does the job.
 
+What we're working on now is in `docs/next-steps/README.md`.
+
+For agent work (Talker, Main Assistant, Agent Hub, subagents), also read `docs/architecture/agents.md` and `docs/agents/README.md`, including spike findings.
+
 ## Workflow
 
 - Making a change that touches more than one function or file: use the `architecture-first` skill.

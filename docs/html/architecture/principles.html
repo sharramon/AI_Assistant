@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html" aria-current="page">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html" aria-current="page">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="principles">Principles</h1>
 <p>The rules every design and implementation decision follows. If a change conflicts with one, raise it before proceeding. Back to the <a href="index.html">overview</a>.</p>
@@ -80,6 +80,12 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <li><strong>Graceful removal.</strong> Removing an optional module must not break unrelated modules or require widespread changes.</li>
 <li><strong>Technology independence.</strong> Modules may later run out of process in other languages, so messages crossing module boundaries are plain, serializable data.</li>
 <li><strong>Avoid premature complexity.</strong> No distributed infrastructure, elaborate plugin systems, or speculative abstractions without an actual requirement.</li>
+<li><strong>Runtime module control.</strong> Every eligible module can be activated and deactivated independently through a central control interface while the app runs. The core owns lifecycle transitions; each module owns its resources and loads expensive ones only when needed. Dependencies are respected. Code changes may need a restart; runtime configuration changes never need a rebuild.</li>
+<li><strong>Interfaces by inheritance, functionality by composition.</strong> Classes inherit only interfaces (<code>Module</code>, <code>Contract</code> subclasses) to establish contracts, and are assembled from composed parts to get behavior. No deep inheritance hierarchies: no intermediate base classes that carry implementation. Shared behavior is a shared part, not a shared parent. A module can provide a contract through a composed object: <code>ctx.provide(ITaskAgent, self._agent)</code>.<ul>
+<li><strong>Naming:</strong> <code>I</code> prefix if and only if the class subclasses <code>Contract</code> (<code>IToolProvider</code>, <code>ITaskAgent</code>). <code>Module</code>, <code>ModuleContext</code>, <code>Contract</code>, and concrete classes get no prefix.</li>
+<li><strong>Mechanism:</strong> contracts are <code>ABC</code>s, not <code>Protocol</code>s, because the core checks providers with <code>isinstance</code>.</li>
+</ul>
+</li>
 </ol>
 <footer>Generated from <code>docs/architecture/principles.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-Claude spike</title>
+<!-- Generated from docs/agents/spike.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="index.html">Overview</a></li><li><a href="spike.html" aria-current="page">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<main>
+<h1 id="two-claude-spike">Two-Claude spike</h1>
+<p>A disposable terminal experiment: does a Talker and a Main Assistant work in tandem as two <code>claude -p</code> sessions? Back to <a href="index.html">Agents</a>.</p>
+<blockquote>
+<p><strong>Status: done, cut short (2026-10-22).</strong> Steps 0–2 ran as single-session scripts; the relay below was <strong>never built</strong>. Once the <a href="../architecture/agents.html#task-agents">task-agent design</a> was decided, only the interrupt needed checking, and we build the real modules instead. The setup and scenarios below are kept for reference; the results are under <a href="#findings">Findings</a>.</p>
+</blockquote>
+<h2 id="setup">Setup</h2>
+<p>One script, <code>spikes/two_claude.py</code> (standard library, <code>asyncio</code>), outside <code>src/</code>. It starts both sessions and plays a temporary Hub, passing messages between them.</p>
+<p>Two terminals: you talk to the Talker in one, and watch the Main Assistant in the other.</p>
+<pre><code class="language-mermaid">flowchart TB
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+    T1[&quot;&lt;b&gt;Terminal 1: talk&lt;/b&gt;&lt;br/&gt;runs the relay script&quot;]
+    T2[&quot;&lt;b&gt;Terminal 2: watch&lt;/b&gt;&lt;br/&gt;view only, follows the activity log&quot;]
+    Relay[&quot;&lt;b&gt;Relay script&lt;/b&gt;&lt;br/&gt;temporary Hub: passes messages, writes the activity log&quot;]
+    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;sonnet, no tools&quot;]
+    Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;file tools, own folder&quot;]
+
+    You -- type --&gt; T1
+    T1 -- talker replies --&gt; You
+    T2 -- assistant activity --&gt; You
+    T1 --- Relay
+    Relay &lt;-- JSON lines --&gt; Talker
+    Relay &lt;-- JSON lines --&gt; Main
+    Relay -- activity log --&gt; T2
+</code></pre>
+<ul>
+<li><strong>Terminal 1:</strong> <code>.\.venv\Scripts\python spikes\two_claude.py</code>. You chat with the Talker here; only its replies and short status lines show.</li>
+<li>
+<p><strong>Terminal 2:</strong> <code>Get-Content spikes\logs\assistant.log -Wait</code>. Shows live what the Main Assistant does: its text, tool calls, files touched, TELL and NEED messages. Never type here.</p>
+</li>
+<li>
+<p><strong>Both:</strong> <code>claude -p --input-format stream-json --output-format stream-json --verbose --strict-mcp-config</code>, started once and kept alive. <code>--strict-mcp-config</code> is needed because <code>--tools</code> alone still loads your claude.ai MCP connectors.</p>
+</li>
+<li><strong>Talker:</strong> <code>--model sonnet --tools ""</code>, plus a system prompt teaching it the tags below.</li>
+<li><strong>Main Assistant:</strong> working folder <code>spikes/workspace/</code>, with <code>--restricted</code> (file tools confined there, no shell), <code>--tools Read,Edit,Write,Glob,Grep</code>, <code>--permission-mode dontAsk</code>.</li>
+<li>Raw JSON lines are also saved to <code>spikes/logs/</code> so we see the real event shapes.</li>
+<li>Commands: plain text goes to the Talker; <code>/status</code>, <code>/stop</code> (interrupt the Main Assistant), <code>/quit</code>.</li>
+</ul>
+<h2 id="communication-paths">Communication paths</h2>
+<p>Tags in the agents' text stand in for the Hub's future tools; the relay spots them and acts.</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>From → to</th>
+<th>Stands in for</th>
+<th>Relay does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;&lt;WORK: task&gt;&gt;</code></td>
+<td>Talker → Main</td>
+<td>request work</td>
+<td>Starts the task, or answers "busy"</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;LOOK&gt;&gt;</code></td>
+<td>Talker → log</td>
+<td>get task status</td>
+<td>Gives the Talker recent activity and status; the Main Assistant isn't disturbed</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;ASK: …&gt;&gt;</code></td>
+<td>Talker → Main</td>
+<td>question or extra instructions</td>
+<td>Sends it to the busy Main Assistant; relays the answer back. Talker LOOKs first</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;TELL: …&gt;&gt;</code></td>
+<td>Main → Talker</td>
+<td>progress or findings</td>
+<td>Gives it to the Talker as context, without interrupting you</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;NEED: …&gt;&gt;</code></td>
+<td>Main → Talker → you</td>
+<td>clarification</td>
+<td>Talker asks you; your answer goes back to the waiting Main Assistant</td>
+</tr>
+<tr>
+<td>finish</td>
+<td>Main → Talker</td>
+<td>task completed</td>
+<td>Talker gets "[finished: summary]" and tells you</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-it-should-answer">What it should answer</h2>
+<ol>
+<li>Both sessions stay alive across turns, on subscription auth.</li>
+<li>The Talker stays responsive while the Main Assistant works.</li>
+<li>The agents use the tags reliably (LOOK before ASK; TELL vs NEED).</li>
+<li><strong>ASK:</strong> can the busy Main Assistant take a question or new instructions mid-turn, or only after its turn ends?</li>
+<li><strong>NEED:</strong> the Main Assistant waits for your answer and continues, and <strong>the Talker stays responsive while it waits</strong>.</li>
+<li>The event stream is easy to parse, for the chat window later.</li>
+<li>Interruption and resumption work, for both agents.</li>
+<li>The Talker's time to first reply feels OK for voice later.</li>
+</ol>
+<p>If the Main Assistant can't take messages mid-turn, the Hub must hold pending messages until it's free, or interrupt it.</p>
+<h2 id="test-scenarios">Test scenarios</h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Try</th>
+<th>Expect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Delegation + parallel</td>
+<td>"Have the assistant write three short poems about Seoul into poems.txt, and meanwhile tell me a joke"</td>
+<td>Joke arrives in terminal 1 while activity streams in terminal 2; then a finish notice; <code>spikes/workspace/poems.txt</code> exists</td>
+</tr>
+<tr>
+<td>Progress</td>
+<td>During a task: "what's it doing?"</td>
+<td>Answered from the log; no ASK sent</td>
+</tr>
+<tr>
+<td>ASK</td>
+<td>"Make the third poem about the Han river instead" mid-task</td>
+<td>Note when it's picked up, and the delay</td>
+</tr>
+<tr>
+<td>NEED</td>
+<td>A task with a built-in choice ("…ask me which style first")</td>
+<td>You're asked; your answer goes back; work continues; the Talker still chats while waiting</td>
+</tr>
+<tr>
+<td>Interrupt</td>
+<td><code>/stop</code> during a longer task</td>
+<td>It stops cleanly; can be resumed</td>
+</tr>
+<tr>
+<td>Limits</td>
+<td>Ask it to write outside its folder</td>
+<td>Refused</td>
+</tr>
+</tbody>
+</table>
+<h2 id="findings">Findings</h2>
+<p>Scripts and raw events: <code>spikes/01_session.py</code>, <code>spikes/02_interrupt.py</code>, <code>spikes/logs/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Question</th>
+<th>Finding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Sessions stay alive, on subscription</td>
+<td><strong>Yes.</strong> One process keeps its session id and memory across turns; replies in ~1–2.5 s (cold start ~6.6 s). <code>apiKeySource=none</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Messages while busy</td>
+<td><strong>Not needed.</strong> We always interrupt first (design decision); not tested</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Event stream easy to parse</td>
+<td><strong>Yes.</strong> Each turn: <code>system/init</code> → <code>assistant</code> / <code>user</code> (tool results) → <code>rate_limit_event</code> → <code>result</code>. <code>system/init</code> repeats every turn</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Interrupt and resume</td>
+<td><strong>Works.</strong> Details below</td>
+</tr>
+<tr>
+<td>2, 3, 5, 8</td>
+<td>Talker responsiveness, tag use, NEED, voice latency</td>
+<td>Not tested; we see them in the real modules</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interrupt</strong> (<code>02_interrupt.py</code>), sent as <code>{"type": "control_request", "request_id": …, "request": {"subtype": "interrupt"}}</code> on stdin:</p>
+<ul>
+<li><strong>Stops immediately</strong> and the process stays alive. Reply: <code>control_response</code> with <code>subtype: success</code>.</li>
+<li><strong>Like Esc in Claude Code:</strong> a tool call in flight is not run (its <code>tool_result</code> says it was rejected and to wait), followed by a <code>[Request interrupted by user]</code> message.</li>
+<li><strong>The turn ends with <code>result</code>, <code>subtype: error_during_execution</code>, <code>is_error: true</code>.</strong> So the agent must remember that <em>it</em> interrupted, and not report the task as failed.</li>
+<li><strong>Reply, then continue:</strong> after the interrupt it answered a quick question, then "Continue the task from where you left off" finished all 8 files.</li>
+<li><strong>Cancel keeps memory:</strong> after interrupting a new task, it still remembered the first task and checked the files correctly.</li>
+<li><strong><code>result</code> reliably ends every turn</strong>; no events arrived between turns. <code>working</code> can be tracked as "message sent → <code>result</code>".</li>
+<li>The worker writes short progress notes on its own mid-turn ("I've written poems 1 to 5…"): natural <code>AgentActivity</code> / <code>progress</code> content.</li>
+<li>Not tested: interrupting in the middle of a long text reply (the interrupt came before any text).</li>
+</ul>
+<footer>Generated from <code>docs/agents/spike.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

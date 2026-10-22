@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents</title>
+<!-- Generated from docs/architecture/agents.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html" aria-current="page">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<main>
+<h1 id="agents">Agents</h1>
+<p>How the AI side fits the system: an <strong>Agent Hub</strong> coordinates a <strong>Talker</strong>, a <strong>Main Assistant</strong>, and <strong>subagents</strong>. Back to the <a href="index.html">overview</a>. How we actually run and test the agents is in the <a href="../agents/index.html">Agents tab</a>.</p>
+<blockquote>
+<p><strong>Status: designed, not built.</strong> The <a href="#task-agents">task-agent design</a> below is decided; a small <a href="../agents/spike.html">spike</a> checks that interrupting a <code>claude</code> session works the way it assumes. API: <a href="../api/agents.html">Agents</a> (planned).</p>
+</blockquote>
+<h2 id="the-idea">The idea</h2>
+<p>Separate <strong>communication</strong> (Talker), <strong>coordination</strong> (Hub), <strong>intelligence</strong> (Main Assistant), and <strong>execution</strong> (subagents), each a replaceable module.</p>
+<pre><code class="language-mermaid">flowchart TB
+    Human([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+    IO[&quot;&lt;b&gt;Voice / text / XR&lt;/b&gt;&lt;br/&gt;input + output modules&quot;]
+
+    subgraph Hub[&quot;Agent Hub: who is doing what (not an AI)&quot;]
+        direction TB
+        Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;fast, conversational&quot;]
+        Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;reasons, plans, executes, delegates&quot;]
+        Coding[&quot;Coding agent&quot;]
+        Research[&quot;Research agent&quot;]
+        XR[&quot;3D/XR agent&quot;]
+        Talker -- work · questions --&gt; Main
+        Main -- progress · clarifications --&gt; Talker
+        Main -. delegates .-&gt; Coding
+        Main -. delegates .-&gt; Research
+        Main -. delegates .-&gt; XR
+    end
+
+    Core[&quot;&lt;b&gt;Application core&lt;/b&gt;&lt;br/&gt;commands · events · contracts · DI&quot;]
+
+    Human &lt;--&gt; IO
+    IO &lt;--&gt; Talker
+    Hub --- Core
+
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    class Human person
+    class Coding,Research,XR later
+</code></pre>
+<p>The picture shows <strong>logical relationships, not containment or mandatory paths</strong>. Every agent is its own module, and all messages travel through the core's <a href="communication.html">commands, events, and <code>InvokeTool</code></a>. Not every request passes every level: the Talker reads task status straight from the Hub.</p>
+<h2 id="responsibilities">Responsibilities</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Does</th>
+<th>Doesn't</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Application core</strong></td>
+<td>Generic module communication and lifecycle, including turning modules on and off</td>
+<td>Know that the Hub, agents, or Claude exist</td>
+</tr>
+<tr>
+<td><strong>Agent Hub</strong> (module)</td>
+<td>Agent registry and capabilities, availability, task ids and parent/child links, routing requests and results, progress and failures, task history, clarification and cancellation flows</td>
+<td>Reason or decide how to solve anything; duplicate the core's registry, lifecycle, DI, router, bus, or tool dispatch</td>
+</tr>
+<tr>
+<td><strong>Talker</strong></td>
+<td>Converse, answer simple things directly, hand substantial work to the Main Assistant, report progress and results, relay clarification questions, stay responsive and interruptible</td>
+<td>Do substantial work itself</td>
+</tr>
+<tr>
+<td><strong>Main Assistant</strong></td>
+<td>The central intelligence: reasoning, planning, executing, choosing tools, splitting work, delegating to subagents (through the Hub), combining results</td>
+<td>Own bookkeeping or talk to the human directly</td>
+</tr>
+<tr>
+<td><strong>Subagents</strong></td>
+<td>Specialized execution (coding, research, 3D, browser, robotics…), possibly in parallel, reporting progress</td>
+<td>Plan the overall task</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The Hub manages who is doing what, not how the work is done.</strong> Not every capability needs to be an agent: browser, file, or 3D services can stay ordinary tool modules.</p>
+<p>A Claude Code session can also spawn its own internal subagents. Those are its own business; <strong>Hub subagents</strong> are separate, registered modules.</p>
+<h2 id="startup">Startup</h2>
+<p>The core's lifecycle manager starts every module, agents included; the Hub launches nothing. Each agent module owns its <code>claude</code> process, and the terminals belong to view modules, not to the agents:</p>
+<pre><code>python -m assistant
+ └─ core lifecycle activates the enabled modules, in dependency order:
+     ├─ agent_hub        coordinates; launches nothing
+     ├─ talker           its own hidden `claude -p` process
+     ├─ main_assistant   its own hidden `claude -p` process
+     ├─ console_io       terminal 1, the app's own: you talk here
+     └─ assistant_view   opens terminal 2: the Main Assistant's activity, view only
+</code></pre>
+<p>Each module decides when to start its expensive part (<a href="core.html#runtime-module-control">runtime module control</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Process starts</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Talker</td>
+<td>When activated, kept warm</td>
+<td>You expect an instant reply</td>
+</tr>
+<tr>
+<td>Main Assistant</td>
+<td>When activated, or on the first task</td>
+<td>A few seconds' startup is fine before a long task</td>
+</tr>
+<tr>
+<td>Subagents</td>
+<td>When the Hub first delegates to one; stop when idle</td>
+<td>Most aren't used most of the time</td>
+</tr>
+<tr>
+<td>Assistant view</td>
+<td>When activated</td>
+<td>Terminal 2 should be there when you look</td>
+</tr>
+</tbody>
+</table>
+<p>The Hub "taps" an agent by sending it a task through its contract; if that agent's process isn't running, the agent module starts it. Swapping terminal 2 for the chat window later is a config change.</p>
+<h2 id="flows">Flows</h2>
+<h3 id="task-assignment">Task assignment</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant T as Talker
+    participant H as Hub
+    participant M as Main Assistant
+    participant S as Subagent
+    You-&gt;&gt;T: &quot;Build a 3D environment&quot;
+    T-&gt;&gt;H: request work
+    H-&gt;&gt;M: assign task
+    M-&gt;&gt;H: delegate subtask
+    H-&gt;&gt;S: assign subtask
+    S--&gt;&gt;H: progress, done
+    M--&gt;&gt;H: progress, done
+    H--&gt;&gt;T: relevant updates
+    T-&gt;&gt;You: &quot;The environment is ready&quot;
+</code></pre>
+<h3 id="progress-request">Progress request</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant T as Talker
+    participant H as Hub
+    You-&gt;&gt;T: &quot;How's it going?&quot;
+    T-&gt;&gt;H: get task status
+    H--&gt;&gt;T: status + recent activity
+    T-&gt;&gt;You: &quot;The coding agent is on the renderer&quot;
+</code></pre>
+<p>The Main Assistant isn't interrupted or asked for routine status.</p>
+<h3 id="clarification">Clarification</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant T as Talker
+    participant H as Hub
+    participant A as Waiting agent
+    A-&gt;&gt;H: human input needed
+    H-&gt;&gt;T: clarification request
+    T-&gt;&gt;You: &quot;Realistic or stylized?&quot;
+    You-&gt;&gt;T: &quot;Stylized&quot;
+    T-&gt;&gt;H: clarification response
+    H-&gt;&gt;A: continue: stylized
+</code></pre>
+<p>Communication is two-way: agents can ask the human for information, and the Talker stays responsive while an agent waits.</p>
+<h2 id="task-agents">Task agents</h2>
+<p>The v1 design: a minimal Hub, one Main Assistant, real modules (no relay script). Full signatures are on the <a href="../api/agents.html">Agents API page</a>.</p>
+<h3 id="itaskagent"><code>ITaskAgent</code></h3>
+<p>Any agent that takes tasks provides <strong><code>ITaskAgent</code></strong> (<code>multiple = True</code>): the Main Assistant now, subagents later. The Hub knows only this contract, finds agents with <code>ctx.get_all(ITaskAgent)</code>, and never imports an agent module. The Talker doesn't provide it; it stays driven by <code>InputReceived</code> / <code>ResponseReady</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Does</th>
+<th>Like in Claude Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>info()</code></td>
+<td>Id, description, capabilities, <code>busy</code> (has an unfinished task), <code>working</code> (its session is in a turn right now). Read on every lookup</td>
+<td></td>
+</tr>
+<tr>
+<td><code>assign(task)</code></td>
+<td>Accept or refuse a task. Returns at once, never waits for the work</td>
+<td>Typing a new request</td>
+</tr>
+<tr>
+<td><code>message(task_id, text, resume)</code></td>
+<td>Interrupt, answer quickly, then continue the task unless <code>resume</code> is false (stop or pause)</td>
+<td>Typing while it works</td>
+</tr>
+<tr>
+<td><code>cancel(task_id)</code></td>
+<td>Stop the task now. The session and its memory survive</td>
+<td>Pressing Esc</td>
+</tr>
+</tbody>
+</table>
+<p>There's no <code>Agent</code> base class. Each class inherits one interface and is assembled from parts (<a href="principles.html">principle 12</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Inherits</th>
+<th>Composed from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MainAssistantModule</code></td>
+<td><code>Module</code></td>
+<td><code>SessionTaskAgent</code>, <code>ClaudeSession</code></td>
+</tr>
+<tr>
+<td><code>SessionTaskAgent</code></td>
+<td><code>ITaskAgent</code></td>
+<td><code>ClaudeSession</code>, <code>ModuleContext</code></td>
+</tr>
+<tr>
+<td><code>ClaudeSession</code> (<code>infra</code>)</td>
+<td>nothing</td>
+<td>one <code>claude -p</code> stream-json process</td>
+</tr>
+</tbody>
+</table>
+<p>The module provides the contract through its composed part: <code>ctx.provide(ITaskAgent, self._agent)</code>. A later subagent reuses <code>SessionTaskAgent</code> and <code>ClaudeSession</code> with its own prompt and permissions.</p>
+<h3 id="who-sends-what">Who sends what</h3>
+<pre><code class="language-mermaid">flowchart LR
+    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
+    Hub[&quot;&lt;b&gt;Agent Hub&lt;/b&gt;&lt;br/&gt;authoritative task state&quot;]
+    Agent[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;ITaskAgent&quot;]
+    View[&quot;&lt;b&gt;Terminal 2&lt;/b&gt;&lt;br/&gt;assistant_view&quot;]
+
+    Talker -- &quot;StartTask · GetTaskStatus&lt;br/&gt;SendToTask · CancelTask&quot; --&gt; Hub
+    Hub -- &quot;assign · message · cancel&quot; --&gt; Agent
+    Agent -- &quot;ReportTask&quot; --&gt; Hub
+    Hub -. &quot;TaskUpdated&quot; .-&gt; Talker
+    Agent -. &quot;AgentActivity&lt;br/&gt;AgentStateChanged&quot; .-&gt; View
+</code></pre>
+<p>Solid: commands and contract calls, which always return a <code>Result</code>. Dotted: events, which may be dropped.</p>
+<ul>
+<li><strong>Talker → Hub:</strong> commands <code>StartTask</code>, <code>GetTaskStatus</code> (status without bothering the agent), <code>SendToTask</code> (a question, extra instruction, or your answer), <code>CancelTask</code>. In v1 the <code>talker</code> module turns tags in the Talker's text (<code>&lt;&lt;WORK: …&gt;&gt;</code>, <code>&lt;&lt;ASK: …&gt;&gt;</code>, <code>&lt;&lt;PAUSE: …&gt;&gt;</code>, <code>&lt;&lt;CANCEL&gt;&gt;</code> etc.) into these commands; real tools need an MCP bridge, later.</li>
+<li><strong>You never use keywords or flags.</strong> You just talk; the Talker (a Claude too) infers from context whether you meant continue, pause, or cancel, and emits the matching tag.</li>
+<li><strong>Agent → any UI:</strong> the <code>AgentStateChanged</code> event whenever <code>busy</code> or <code>working</code> changes, so a UI shows it live. <code>ListAgents</code> (Hub) is the authoritative read.</li>
+<li><strong>Hub → agent:</strong> the <code>ITaskAgent</code> methods.</li>
+<li><strong>Agent → Hub:</strong> the <code>ReportTask(task_id, kind, text)</code> command, with <code>kind</code> = <code>progress</code> / <code>reply</code> / <code>need</code> / <code>done</code> / <code>failed</code>. A command, not an event, because the Hub's state must not miss it.</li>
+<li><strong>Hub → Talker:</strong> the <code>TaskUpdated</code> event on every report and state change. The Talker can always re-read with <code>GetTaskStatus</code>.</li>
+<li><strong>Agent → terminal 2:</strong> the <code>AgentActivity</code> event, the agent's raw text and tool calls. Published by the agent module directly, since it's high-volume and only for viewing.</li>
+</ul>
+<h3 id="messages-and-cancel">Messages and cancel</h3>
+<p><strong><code>message</code></strong> works like typing into Claude Code while it works:</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant T as Talker
+    participant H as Hub
+    participant M as Main Assistant
+    You-&gt;&gt;T: &quot;Wait, is it using the old API?&quot;
+    T-&gt;&gt;H: SendToTask(text, resume=true)
+    H-&gt;&gt;M: message(text, resume=true)
+    M-&gt;&gt;M: interrupt the current turn
+    M-&gt;&gt;H: ReportTask(reply, &quot;Yes, v1. Switching to v2.&quot;)
+    H--&gt;&gt;T: TaskUpdated(reply)
+    T-&gt;&gt;You: &quot;It was. It's switching to v2.&quot;
+    M-&gt;&gt;M: &quot;continue the task&quot;
+</code></pre>
+<ul>
+<li><strong><code>resume=true</code></strong> (default): after the reply, the agent sends "continue the task" to its session itself.</li>
+<li><strong><code>resume=false</code></strong>: you said stop or pause. The agent replies and stays paused; a later <code>SendToTask</code> with <code>resume=true</code> (e.g. "carry on") continues it. To abandon the task, use <code>CancelTask</code>.</li>
+<li><strong>Waiting for input:</strong> if the agent asked you something (<code>need</code>), its turn has already ended, so there's nothing to interrupt. Your answer goes in as the next message and the work continues.</li>
+<li>The Talker infers <code>resume</code> from context; you never say a keyword. The reply is how it (and you) decide whether to cancel.</li>
+</ul>
+<p><strong><code>cancel</code></strong> works like Esc: interrupt the turn, mark the task <code>cancelled</code>, keep the session (and its memory) for the next task. Killing the process is only the fallback if the interrupt doesn't stop it; the next task then starts a fresh session or resumes it by id.</p>
+<h3 id="task-state">Task state</h3>
+<p>The Hub owns the authoritative state. An accepted assignment is not a finished task.</p>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; running: assign accepted
+    running --&gt; waiting_for_input: ReportTask need
+    waiting_for_input --&gt; running: SendToTask (your answer)
+    running --&gt; paused: SendToTask resume=false
+    paused --&gt; running: SendToTask resume=true
+    running --&gt; done: ReportTask done
+    running --&gt; failed: ReportTask failed
+    running --&gt; cancelled: CancelTask
+    waiting_for_input --&gt; cancelled: CancelTask
+    paused --&gt; cancelled: CancelTask
+    done --&gt; [*]
+    failed --&gt; [*]
+    cancelled --&gt; [*]
+</code></pre>
+<p><code>progress</code> and <code>reply</code> reports don't change the state. In v1 each agent runs <strong>one task at a time</strong>; <code>assign</code> to a busy agent is refused and <code>StartTask</code> returns <code>not_available</code>. No queues, priorities, progress percentages, or crash resume yet.</p>
+<h2 id="principles">Principles</h2>
+<ol>
+<li><strong>The Hub encompasses all agents.</strong> Talker, Main Assistant, and subagents share one coordination layer.</li>
+<li><strong>One central intelligence.</strong> The Main Assistant plans and reasons; the Talker communicates; subagents execute.</li>
+<li><strong>The Hub is not an AI.</strong> Deterministic coordination, routing, bookkeeping.</li>
+<li><strong>No direct cross-module dependencies.</strong> Only core infrastructure and shared contracts.</li>
+<li><strong>Replaceable implementations.</strong> Talker, Main Assistant, Hub, and subagents change independently.</li>
+<li><strong>Capability-based contracts.</strong> No rigid agent class hierarchy; a module may provide several contracts (the core already supports this via <code>Manifest.provides</code>).</li>
+<li><strong>Logical hierarchy, flexible routing.</strong> Skip levels where it makes sense.</li>
+<li><strong>Independent execution.</strong> Subagents can eventually work in parallel without blocking the Talker.</li>
+<li><strong>Authoritative task state.</strong> Status and results never depend only on events, which may be dropped.</li>
+<li><strong>Minimal first.</strong> No scheduling, queues, or distributed machinery until needed.</li>
+</ol>
+<h2 id="state-context-transcripts-events">State, context, transcripts, events</h2>
+<p>These are different things and aren't interchangeable:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>What it is</th>
+<th>Who gets it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Task state</strong></td>
+<td>Authoritative status, ownership, progress, results</td>
+<td>Anyone, by query to the Hub</td>
+</tr>
+<tr>
+<td><strong>Agent context</strong></td>
+<td>What a model needs to reason well</td>
+<td>Talker: compact summaries and status snapshots, never the full transcript. Main Assistant: relevant conversation context on assignment. Subagents: only what their task needs</td>
+</tr>
+<tr>
+<td><strong>Transcripts</strong></td>
+<td>Full record of an agent's activity</td>
+<td>Stored; read on demand (e.g. the chat window)</td>
+</tr>
+<tr>
+<td><strong>Events</strong></td>
+<td>Notifications of activity or state changes</td>
+<td>Subscribers; may be dropped, so never the source of truth</td>
+</tr>
+</tbody>
+</table>
+<p>The Hub stores and serves these; deciding what's <em>relevant</em> stays with the agents. Eventually: stable task ids, parent/child tasks, cancellation, progress, and idempotent submissions so retries don't duplicate work.</p>
+<h2 id="open-questions">Open questions</h2>
+<p>Answered by the <a href="#task-agents">task-agent design</a>: the Hub holds task state and each agent its session; agents share <code>ITaskAgent</code>; the Talker reaches a busy agent with <code>SendToTask</code> (interrupt, reply, continue); clarifications are <code>need</code> reports answered with <code>SendToTask</code>.</p>
+<p>Still open:</p>
+<ul>
+<li>How does the Main Assistant delegate through the Hub?</li>
+<li>How do multiple front-ends share the same task state?</li>
+<li>How do interrupted or crashed agents recover without repeating side effects?</li>
+<li>How do we stay simple while keeping room for parallel execution?</li>
+</ul>
+<footer>Generated from <code>docs/architecture/agents.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>

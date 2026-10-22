@@ -64,7 +64,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html" aria-current="page">Core host (internal)</a></li></ul></nav>
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="control.html">Module control</a></li><li><a href="agents.html">Agents</a></li><li><a href="infra.html">Infrastructure</a></li><li><a href="core.html" aria-current="page">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
 <main>
 <h1 id="core-host-internal">Core host (internal)</h1>
 <p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
@@ -135,7 +135,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <p><strong>Raises:</strong> <code>StartupError</code> for unknown or duplicate ids, non-shared contracts in a manifest, a missing required contract, more than one provider of a single-provider contract, or a circular dependency.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/registry.py</code></p>
 <h2 id="lifecyclemanager"><code>LifecycleManager</code></h2>
-<p><code>LifecycleManager(modules: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0)</code></p>
+<p><code>LifecycleManager(available: Sequence[type[Module]], start_order: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0, on_change: Callable[[str, ModuleState], None] | None = None)</code></p>
+<p><code>available</code> is every module that may run; <code>start_order</code> is the validated list active at startup (from <code>resolve_modules</code>). <code>on_change</code> is called on every state transition; <code>App</code> publishes it as <code>ModuleStateChanged</code>. Transitions are serialized by a lock.</p>
 <table>
 <thead>
 <tr>
@@ -146,11 +147,23 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tbody>
 <tr>
 <td><code>async start()</code></td>
-<td>Instantiate and <code>init</code> each module, then <code>start</code> each, in order. A failing module is closed and skipped; raises <code>StartupError</code> if another module requires a contract only it provides</td>
+<td>Instantiate and <code>init</code> each startup module, then <code>start</code> each, in order. A failing module is closed and marked <code>failed</code>; raises <code>StartupError</code> if another module requires a contract only it provides</td>
 </tr>
 <tr>
 <td><code>async stop()</code></td>
-<td><code>stop</code> each active module in reverse order (with <code>stop_timeout</code>), then close its context</td>
+<td><code>stop</code> each active module in reverse activation order (with <code>stop_timeout</code>), then close its context</td>
+</tr>
+<tr>
+<td><code>modules() -&gt; list[ModuleInfo]</code></td>
+<td>Every available module and its state</td>
+</tr>
+<tr>
+<td><code>async activate(module_id) -&gt; Result</code></td>
+<td>Runtime activation; see <a href="control.html#activatemodule"><code>ActivateModule</code></a></td>
+</tr>
+<tr>
+<td><code>async deactivate(module_id, with_dependents=False) -&gt; Result</code></td>
+<td>Runtime deactivation; see <a href="control.html#deactivatemodule"><code>DeactivateModule</code></a></td>
 </tr>
 </tbody>
 </table>

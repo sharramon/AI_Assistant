@@ -10,6 +10,8 @@ Base class for every module. Set the `manifest` class attribute and implement `i
 
 The core calls `init` for every module in dependency order, then `start` for each, and on shutdown `stop` in reverse order. `stop` is called for every module whose `init` succeeded, even if `start` never ran. If `init` or `start` raises, the module is skipped (see [lifecycle](../architecture/core.md#lifecycle)).
 
+**Modules must be restartable.** A module can be [deactivated and activated](control.md) while the app runs. Each activation creates a **fresh instance** and calls `init` and `start` again, so `stop` must release everything the module started (processes, threads, windows, devices), and in-memory state doesn't survive deactivation. Load expensive resources in `start` or on first use. After `stop`, the old context drops `publish` and refuses `send`. A resource that can't be stopped (like a blocking `input()` thread) should be shared across instances, as `console_io` does.
+
 **Attributes**
 | Name | Type | Description |
 |------|------|-------------|
@@ -36,7 +38,7 @@ Stop work and release resources. Default does nothing. Has `core.module_stop_tim
 **Example**
 
     class EchoOrchestrator(Module):
-        manifest = Manifest(id="echo_orchestrator", optional=(ToolProvider,))
+        manifest = Manifest(id="echo_orchestrator", optional=(IToolProvider,))
 
         async def init(self, ctx: ModuleContext) -> None:
             self._ctx = ctx
@@ -157,4 +159,4 @@ Base for capability interfaces that modules provide and resolve. Subclasses must
 | `multiple` | `ClassVar[bool]` | Whether several modules may provide it at once. Default `False` |
 
 **Defined in:** `src/assistant/contracts/module.py`
-**See also:** [`ToolProvider`](tools.md#toolprovider)
+**See also:** [`IToolProvider`](tools.md#itoolprovider)

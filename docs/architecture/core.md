@@ -16,7 +16,7 @@ flowchart TB
 
     subgraph Contracts["Contracts (stable)"]
         IModule["Module, ModuleContext"]
-        Caps["Capability interfaces<br/>today: ToolProvider<br/>later as needed: input, output,<br/>view, background worker"]
+        Caps["Capability interfaces<br/>today: IToolProvider<br/>later as needed: input, output,<br/>view, background worker"]
         Msgs[Command & event types]
     end
 
@@ -66,6 +66,9 @@ classDiagram
     class LifecycleManager {
         +start()
         +stop()
+        +modules() list~ModuleInfo~
+        +activate(module_id) Result
+        +deactivate(module_id, with_dependents) Result
     }
     class CommandRouter {
         +register(type, handler)
@@ -108,6 +111,7 @@ classDiagram
     App *-- EventBus
     App *-- Container
     App ..> dispatch_tool : handles InvokeTool
+    App ..> LifecycleManager : handles ListModules, ActivateModule, DeactivateModule
     LifecycleManager --> ScopedContext : one per module
     ScopedContext --> CommandRouter
     ScopedContext --> EventBus
@@ -119,7 +123,7 @@ classDiagram
 |------|----------|
 | `app.py` | `App`: builds the parts, owns startup and shutdown order |
 | `registry.py` | `resolve_modules`, `StartupError`: selection and dependency validation |
-| `lifecycle.py` | `LifecycleManager`: init / start / stop, failure handling |
+| `lifecycle.py` | `LifecycleManager`: init / start / stop at startup and shutdown, runtime activate / deactivate, module states, failure handling |
 | `context.py` | `ScopedContext`: a module's handle on the core, tracks what it registered |
 | `router.py` | `CommandRouter`: commands, results, timeouts, cancellation |
 | `bus.py` | `EventBus`, `Subscription`: event delivery |
@@ -159,8 +163,37 @@ Order: a module comes after every provider of the contracts it `requires` or lis
 
 **Shutdown:**
 - Each module gets `module_stop_timeout` seconds to stop. Errors and timeouts are logged and shutdown continues.
-- Cleanup doesn't depend on modules behaving: `ScopedContext.close()` removes every subscription, command handler, and provided contract the module registered.
+- Cleanup doesn't depend on modules behaving: `ScopedContext.close()` removes every subscription, command handler, and provided contract the module registered. After that, the context drops `publish`, refuses `send` with `not_available`, and raises on new registrations, so a leftover thread or callback can't keep talking to the app.
 - Events still queued for a stopped module are dropped.
+
+### Runtime module control
+
+> **Built in the core.** The control panel UI module that uses it comes later.
+
+Turning modules on and off while the app runs. **The core owns the transitions; each module owns its resources.** Every module listed in `__main__.py` is *available*; `modules.enabled` only says which are active at startup. The lifecycle manager tracks every available module's state:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Inactive
+    Inactive --> Starting: activate
+    Starting --> Active
+    Starting --> Failed
+    Active --> Stopping: deactivate
+    Stopping --> Inactive
+    Failed --> Starting: retry
+```
+
+- **Control interface:** three core commands, [`ListModules`, `ActivateModule`, `DeactivateModule`](../api/control.md), plus a `ModuleStateChanged` event on every transition. The core stays generic: it doesn't know what any module does.
+- **Who calls it:** a **control panel** UI module, or the Talker when you say "enable the browser module". Both send the same request.
+- **Activating** a module first activates the provider of each contract it `requires`, if exactly one module could provide it; if several could, it refuses and asks which. It refuses if the module would be a second provider of a single-provider contract.
+- **Deactivating** is refused while an active module requires something only this one provides, and the error names them. With `with_dependents`, those are deactivated first.
+- **Fresh instance per activation.** Deactivating stops the module and removes everything it registered; activating creates a new instance and runs `init` and `start` again. So `stop` must release everything, and in-memory state doesn't survive (persist it if it must).
+- **Failures:** a module that fails to activate is marked `failed` and can be retried; nothing else is affected.
+- **Transitions finish:** one at a time, and a transition finishes even if the command that asked for it times out. Shutdown waits for it, then stops everything.
+- **Modules load expensive things lazily:** a `claude` process, a speech model, or a window starts when the module is activated or first used, not at app start.
+- **Agents adapt automatically:** tools are looked up at call time, so a deactivated module's tools disappear from what the agents can use.
+- **What needs a restart:** adding or changing code. Enabling, disabling, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.
+- **Not the Agent Hub's job:** the Hub coordinates agents through their contracts. It never starts or stops modules itself.
 
 ## Communication internals
 
@@ -183,7 +216,7 @@ Order: a module comes after every provider of the contracts it `requires` or lis
 - Single-provider contracts reject a second provider at runtime too, not just at startup.
 
 **Tools** (`dispatch_tool`):
-- Handles `InvokeTool` by asking every `ToolProvider` for its tools *at call time*, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).
+- Handles `InvokeTool` by asking every `IToolProvider` for its tools *at call time*, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).
 - Unknown name → `NotAvailable`; a name offered by more than one provider → `Failed`.
 - A future `ToolsChanged` event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.
 
