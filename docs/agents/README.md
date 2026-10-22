@@ -32,4 +32,5 @@ How we run and work with the agents: setup, experiments, and what we've learned.
 
 ## Pages
 
+- [Agent runtime](runtime.md): how the two agents are spawned, behave, and talk to each other (planned, for review)
 - [Two-Claude spike](spike.md): the disposable experiment and its findings

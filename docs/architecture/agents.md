@@ -137,7 +137,7 @@ Communication is two-way: agents can ask the human for information, and the Talk
 
 ## Task agents
 
-The v1 design: a minimal Hub, one Main Assistant, real modules (no relay script). Full signatures are on the [Agents API page](../api/agents.md).
+The v1 design: a minimal Hub, one Main Assistant, real modules (no relay script). Full signatures are on the [Agents API page](../api/agents.md). Processes, spawning, each agent's loop, and prompts: [Agent runtime](../agents/runtime.md).
 
 ### `ITaskAgent`
 

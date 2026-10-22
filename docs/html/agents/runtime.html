@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent runtime</title>
+<!-- Generated from docs/agents/runtime.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
+  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
+  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+nav {
+  background: var(--panel); border-right: 1px solid var(--border);
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
+nav h2:first-child { margin-top: 0; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--border); }
+nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
+main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
+h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+.diagram {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
+}
+.diagram svg { max-width: 100%; height: auto; }
+.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  main { padding: 20px 16px 48px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="index.html">Overview</a></li><li><a href="runtime.html" aria-current="page">Agent runtime</a></li><li><a href="spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<main>
+<h1 id="agent-runtime">Agent runtime</h1>
+<p>How the two agents are spawned, how each behaves on its own, and how they talk to each other, down to the classes. Back to <a href="index.html">Agents</a>. The contracts are on the <a href="../architecture/agents.html#task-agents">architecture page</a> and the <a href="../api/agents.html">Agents API page</a>.</p>
+<blockquote>
+<p><strong>Status: planned, for review.</strong> Nothing here is built yet.</p>
+</blockquote>
+<h2 id="what-runs">What runs</h2>
+<p>Four OS processes. The app is the only one that knows about the others; the two <code>claude</code> processes never talk to each other directly.</p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+    subgraph App[&quot;python -m assistant (terminal 1)&quot;]
+        direction TB
+        Console[&quot;console_io&quot;]
+        Talker[&quot;talker&quot;]
+        Hub[&quot;agent_hub&quot;]
+        Main[&quot;main_assistant&quot;]
+        View[&quot;assistant_view&quot;]
+    end
+    TC[&quot;&lt;b&gt;claude -p&lt;/b&gt;&lt;br/&gt;Talker session&lt;br/&gt;sonnet, no tools&quot;]
+    MC[&quot;&lt;b&gt;claude -p&lt;/b&gt;&lt;br/&gt;Main Assistant session&lt;br/&gt;file tools, workspace/&quot;]
+    VW[&quot;&lt;b&gt;Terminal 2&lt;/b&gt;&lt;br/&gt;viewer script&lt;br/&gt;(new console window)&quot;]
+
+    You -- types --&gt; Console
+    Console -- prints --&gt; You
+    Talker &lt;-- &quot;stdin / stdout&lt;br/&gt;JSON lines&quot; --&gt; TC
+    Main &lt;-- &quot;stdin / stdout&lt;br/&gt;JSON lines&quot; --&gt; MC
+    View -- &quot;stdin pipe&lt;br/&gt;text lines&quot; --&gt; VW
+    VW -- shows --&gt; You
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Started by</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The app</td>
+<td>You</td>
+<td><code>python -m assistant</code></td>
+</tr>
+<tr>
+<td>Talker session</td>
+<td><code>talker</code> module, in <code>start</code></td>
+<td><code>claude -p --input-format stream-json --output-format stream-json --verbose --strict-mcp-config --model sonnet --tools "" --append-system-prompt &lt;talker prompt&gt;</code></td>
+</tr>
+<tr>
+<td>Main Assistant session</td>
+<td><code>main_assistant</code> module, in <code>start</code></td>
+<td><code>claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt &lt;worker prompt&gt;</code>, working directory <code>workspace/</code></td>
+</tr>
+<tr>
+<td>Terminal 2</td>
+<td><code>assistant_view</code> module, in <code>start</code></td>
+<td><code>python -m assistant.modules.assistant_view.viewer</code> in a new console window, its stdin a pipe from the app</td>
+</tr>
+</tbody>
+</table>
+<h2 id="launched-from-the-main-app">Launched from the main app</h2>
+<p>Everything below runs in one Python process, on one <code>asyncio</code> event loop (plus <code>console_io</code>'s stdin thread). The agents' <code>claude</code> processes are children of it.</p>
+<pre><code class="language-mermaid">flowchart TB
+    Run([&quot;python -m assistant&quot;]) --&gt; Main[&quot;&lt;b&gt;__main__.main()&lt;/b&gt;&lt;br/&gt;load_config · setup_logging&quot;]
+    Main --&gt; AppNew[&quot;&lt;b&gt;App(MODULES, config)&lt;/b&gt;&lt;br/&gt;builds CommandRouter, EventBus, Container&lt;br/&gt;resolve_modules → start order&lt;br/&gt;LifecycleManager&quot;]
+    AppNew --&gt; AppRun[&quot;&lt;b&gt;asyncio.run(app.run())&lt;/b&gt;&quot;]
+    AppRun --&gt; AppStart[&quot;&lt;b&gt;App.start()&lt;/b&gt;&lt;br/&gt;registers the core's own handlers&lt;br/&gt;(ListModules, ActivateModule, …)&quot;]
+    AppStart --&gt; LStart[&quot;&lt;b&gt;LifecycleManager.start()&lt;/b&gt;&quot;]
+    LStart --&gt; Ctx[&quot;for each module in start order:&lt;br/&gt;&lt;b&gt;_make_context&lt;/b&gt; → a ScopedContext&lt;br/&gt;&lt;b&gt;module.init(ctx)&lt;/b&gt;&quot;]
+    Ctx --&gt; Start[&quot;then for each: &lt;b&gt;module.start()&lt;/b&gt;&quot;]
+    Start --&gt; CS[&quot;talker, main_assistant:&lt;br/&gt;&lt;b&gt;ClaudeSession.start()&lt;/b&gt;&quot;]
+    Start --&gt; VS[&quot;assistant_view:&lt;br/&gt;launch the viewer in a new console&quot;]
+    CS --&gt; Spawn[&quot;&lt;b&gt;asyncio.create_subprocess_exec&lt;/b&gt;('claude', '-p', …)&lt;br/&gt;stdin + stdout pipes&lt;br/&gt;+ a reader task on stdout&quot;]
+    Start --&gt; Wait[&quot;App waits for ShutdownRequested&lt;br/&gt;(you type exit, or Ctrl+C)&quot;]
+    Wait --&gt; Stop[&quot;&lt;b&gt;App.stop()&lt;/b&gt;: cancel in-flight commands,&lt;br/&gt;module.stop() in reverse → ClaudeSession.close(),&lt;br/&gt;close the viewer, close the bus&quot;]
+
+    classDef new fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    class CS,VS,Spawn new
+</code></pre>
+<p>Purple: new. The rest exists today. The only edits outside the new modules are two lists: <code>MODULES</code> in <code>__main__.py</code> gains the four new module classes, and <code>modules.enabled</code> in <code>config/default.toml</code> switches them on (and the echo module off).</p>
+<h2 id="messaging-to-and-from-the-main-app">Messaging to and from the main app</h2>
+<p>Modules never hold references to each other. Each gets a <code>ScopedContext</code>, and everything goes through the core's three parts. Only the pipes leave the process.</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph App[&quot;Main app process&quot;]
+        direction TB
+        subgraph Core[&quot;Core&quot;]
+            Router[&quot;&lt;b&gt;CommandRouter&lt;/b&gt;&lt;br/&gt;one handler per command&quot;]
+            Bus[&quot;&lt;b&gt;EventBus&lt;/b&gt;&lt;br/&gt;a queue per subscriber&quot;]
+            Cont[&quot;&lt;b&gt;Container&lt;/b&gt;&lt;br/&gt;contract → providers&quot;]
+        end
+        Console[&quot;console_io&quot;]
+        Talker[&quot;talker&lt;br/&gt;+ ClaudeSession&quot;]
+        Hub[&quot;agent_hub&quot;]
+        Main[&quot;main_assistant&lt;br/&gt;SessionTaskAgent + ClaudeSession&quot;]
+        View[&quot;assistant_view&quot;]
+    end
+    TC[&quot;claude (Talker)&quot;]
+    MC[&quot;claude (Main Assistant)&quot;]
+    VW[&quot;Terminal 2 viewer&quot;]
+
+    Talker -- &quot;send: StartTask, SendToTask, …&quot; --&gt; Router
+    Main -- &quot;send: ReportTask&quot; --&gt; Router
+    Router -- &quot;runs handler&quot; --&gt; Hub
+    Console -- &quot;publish: InputReceived&quot; --&gt; Bus
+    Talker -- &quot;publish: ResponseReady&quot; --&gt; Bus
+    Hub -- &quot;publish: TaskUpdated&quot; --&gt; Bus
+    Main -- &quot;publish: AgentActivity, AgentStateChanged&quot; --&gt; Bus
+    Bus -- &quot;deliver&quot; --&gt; Console
+    Bus -- &quot;deliver&quot; --&gt; Talker
+    Bus -- &quot;deliver&quot; --&gt; View
+    Main -- &quot;provide ITaskAgent&quot; --&gt; Cont
+    Hub -- &quot;get_all(ITaskAgent),&lt;br/&gt;then calls it directly&quot; --&gt; Cont
+    Talker &lt;-- &quot;JSON lines&quot; --&gt; TC
+    Main &lt;-- &quot;JSON lines&quot; --&gt; MC
+    View -- &quot;text lines&quot; --&gt; VW
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>How it works</th>
+<th>Waits?</th>
+<th>Can be lost?</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Command</strong></td>
+<td><code>ctx.send(cmd)</code> → <code>CommandRouter.send</code> runs the one handler as its own task and returns its <code>Result</code>. Timeout from config (default 30 s)</td>
+<td>The sender waits for the <code>Result</code></td>
+<td>No: always a <code>Result</code> (<code>ok</code>, <code>timed_out</code>, …)</td>
+<td>Talker → Hub, agent → Hub (<code>ReportTask</code>)</td>
+</tr>
+<tr>
+<td><strong>Event</strong></td>
+<td><code>ctx.publish(ev)</code> → <code>EventBus</code> puts it on each subscriber's queue; each subscriber has a worker running its handler, in order, 10 s limit</td>
+<td>No, returns at once</td>
+<td>Yes, if a subscriber's queue (100) is full</td>
+<td>You → Talker, Talker → you, Hub → Talker, agent → terminal 2</td>
+</tr>
+<tr>
+<td><strong>Contract call</strong></td>
+<td><code>ctx.get_all(ITaskAgent)</code> → <code>Container</code> → a plain Python method call on the provider (<code>SessionTaskAgent</code>)</td>
+<td>The Hub awaits the method, which returns at once</td>
+<td>No</td>
+<td>Hub → agent</td>
+</tr>
+<tr>
+<td><strong>Session pipe</strong></td>
+<td><code>ClaudeSession</code> writes one JSON line to the child's stdin; its reader task reads stdout lines and calls <code>on_event</code> for each</td>
+<td>Writing doesn't wait for a reply</td>
+<td>Only if the process dies</td>
+<td>Module ↔ its <code>claude</code></td>
+</tr>
+<tr>
+<td><strong>Viewer pipe</strong></td>
+<td><code>assistant_view</code> writes text lines to the viewer's stdin</td>
+<td>No</td>
+<td>If the window was closed</td>
+<td>Terminal 2</td>
+</tr>
+</tbody>
+</table>
+<p>Since each command handler runs as its own task, the Hub can handle a <code>ReportTask</code> while it's still inside a <code>SendToTask</code>. That's why the agent may report while the Hub is calling it.</p>
+<h3 id="a-message-there-and-back-through-the-core">A message there and back, through the core</h3>
+<p>You ask for work; the Main Assistant finishes; the Talker tells you. Every hop shown:</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant C as console_io
+    participant B as EventBus
+    participant T as talker
+    participant TC as claude (Talker)
+    participant R as CommandRouter
+    participant H as agent_hub
+    participant K as Container
+    participant A as SessionTaskAgent
+    participant MC as claude (Main)
+
+    C-&gt;&gt;B: publish InputReceived
+    B-&gt;&gt;T: deliver → put in inbox, return
+    T-&gt;&gt;TC: stdin: user message
+    TC--&gt;&gt;T: stdout: assistant text … result
+    T-&gt;&gt;B: publish ResponseReady (&quot;On it&quot;)
+    B-&gt;&gt;C: deliver → print
+    T-&gt;&gt;R: send StartTask
+    R-&gt;&gt;H: run handler
+    H-&gt;&gt;K: get_all(ITaskAgent)
+    K--&gt;&gt;H: [SessionTaskAgent]
+    H-&gt;&gt;A: assign(task)
+    A-&gt;&gt;MC: stdin: &quot;New task: …&quot;
+    A--&gt;&gt;H: ok
+    H--&gt;&gt;R: ok(task_id)
+    R--&gt;&gt;T: Result ok(task_id)
+    Note over MC: works: tool calls, notes
+    MC--&gt;&gt;A: stdout: … result
+    A-&gt;&gt;R: send ReportTask(done)
+    R-&gt;&gt;H: run handler: state → done
+    H-&gt;&gt;B: publish TaskUpdated(done)
+    H--&gt;&gt;R: ok
+    R--&gt;&gt;A: Result ok
+    B-&gt;&gt;T: deliver → put in inbox, return
+    T-&gt;&gt;TC: stdin: &quot;[Task update: done] …&quot;
+    TC--&gt;&gt;T: stdout: … result
+    T-&gt;&gt;B: publish ResponseReady (&quot;Done!&quot;)
+    B-&gt;&gt;C: deliver → print
+</code></pre>
+<h2 id="spawning">Spawning</h2>
+<p>The core's lifecycle manager starts the modules in dependency order. Nothing else launches anything: each module starts its own process in <code>start</code> and ends it in <code>stop</code>.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant L as Lifecycle (core)
+    participant C as console_io
+    participant M as main_assistant
+    participant H as agent_hub
+    participant T as talker
+    participant V as assistant_view
+
+    Note over L: init, in dependency order
+    L-&gt;&gt;C: init: subscribe ResponseReady
+    L-&gt;&gt;M: init: build ClaudeSession + SessionTaskAgent, provide ITaskAgent
+    L-&gt;&gt;H: init: handle StartTask, SendToTask, CancelTask, GetTaskStatus, ReportTask, ListAgents
+    L-&gt;&gt;T: init: build ClaudeSession, subscribe InputReceived + TaskUpdated
+    L-&gt;&gt;V: init: subscribe AgentActivity, AgentStateChanged, TaskUpdated
+
+    Note over L: start, same order
+    L-&gt;&gt;C: start: read terminal 1
+    L-&gt;&gt;M: start: launch its claude (instant; ~6 s until it can first reply)
+    L-&gt;&gt;H: start: nothing to launch
+    L-&gt;&gt;T: start: launch its claude (kept warm), start its inbox loop
+    L-&gt;&gt;V: start: open terminal 2
+</code></pre>
+<ul>
+<li><strong>Order:</strong> <code>main_assistant</code> provides <code>ITaskAgent</code> and the Hub lists it as optional, so the agent starts first. <code>talker</code> and <code>assistant_view</code> depend on nothing; they only send commands and listen to events.</li>
+<li><strong>Stop</strong> runs in reverse. Each session closes its <code>claude</code> process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.</li>
+<li><strong>Runtime control:</strong> deactivating <code>main_assistant</code> ends its process; the Hub sees no agents and <code>StartTask</code> returns <code>not_available</code>. Activating it again starts a fresh session (no memory of before).</li>
+</ul>
+<h2 id="classes">Classes</h2>
+<pre><code class="language-mermaid">classDiagram
+    direction LR
+    class ClaudeSession {
+        &lt;&lt;infra&gt;&gt;
+        +start()
+        +send(text)
+        +interrupt()
+        +close()
+        +running bool
+        +working bool
+        on_event(dict)
+    }
+    class ITaskAgent {
+        &lt;&lt;contract&gt;&gt;
+        +info() AgentInfo
+        +assign(task) Result
+        +message(task_id, text, resume) Result
+        +cancel(task_id) Result
+    }
+    class SessionTaskAgent {
+        task, mode
+    }
+    class MainAssistantModule { &lt;&lt;module&gt;&gt; }
+    class TalkerModule {
+        &lt;&lt;module&gt;&gt;
+        inbox: Queue
+        current_task_id
+    }
+    class AgentHubModule {
+        &lt;&lt;module&gt;&gt;
+        tasks: dict
+    }
+    class AssistantViewModule { &lt;&lt;module&gt;&gt; }
+
+    SessionTaskAgent --|&gt; ITaskAgent
+    SessionTaskAgent --&gt; ClaudeSession : owns its use
+    MainAssistantModule --&gt; SessionTaskAgent : provides as ITaskAgent
+    MainAssistantModule --&gt; ClaudeSession : creates, closes
+    TalkerModule --&gt; ClaudeSession : creates, closes
+    AgentHubModule ..&gt; ITaskAgent : get_all()
+</code></pre>
+<p><code>ClaudeSession</code> knows nothing about tasks or the Talker: it runs one process, writes messages and interrupts, calls <code>on_event</code> for every JSON line, and sets <code>working</code> from "message sent" until <code>result</code>. Both agents reuse it with different settings.</p>
+<h2 id="the-talker-on-its-own">The Talker on its own</h2>
+<p>The Talker is a conversation loop with one <strong>inbox</strong>. Everything that should make it speak goes into the inbox, and it handles one item at a time, one <code>claude</code> turn each. So it never talks over itself, and the event handlers return at once (no 10 s handler timeout).</p>
+<table>
+<thead>
+<tr>
+<th>Inbox item</th>
+<th>Comes from</th>
+<th>Sent to its session as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>You said something</td>
+<td><code>InputReceived</code></td>
+<td>your text, as is</td>
+</tr>
+<tr>
+<td>Task update: <code>done</code>, <code>need</code>, <code>reply</code>, <code>failed</code></td>
+<td><code>TaskUpdated</code></td>
+<td><code>[Task update: done] &lt;text&gt;</code></td>
+</tr>
+<tr>
+<td>Command result worth telling</td>
+<td>its own tags (e.g. <code>StartTask</code> refused, <code>GetTaskStatus</code>)</td>
+<td><code>[Status] &lt;text&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>progress</code> updates don't go to the inbox: they'd make it chatter. The Hub keeps them and they come back when you ask "how's it going?".</p>
+<pre><code class="language-mermaid">flowchart TB
+    Wait[&quot;Wait for the next inbox item&quot;] --&gt; Send[&quot;Send it to the Talker session&quot;]
+    Send --&gt; Reply[&quot;Turn ends (result)&quot;]
+    Reply --&gt; Split[&quot;Split the reply: text and tags&quot;]
+    Split --&gt; Print[&quot;Publish the text as ResponseReady&lt;br/&gt;(correlated if it answers your input)&quot;]
+    Split --&gt; Tags[&quot;Run each tag as a Hub command&quot;]
+    Tags -- &quot;result to tell (LOOK, refused)&quot; --&gt; Queue[&quot;Put [Status] item in the inbox&quot;]
+    Print --&gt; Wait
+    Queue --&gt; Wait
+</code></pre>
+<p><strong>Tags</strong> (v1: one task at a time, so no task ids; the Talker module remembers the current task):</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Hub command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;&lt;WORK: task&gt;&gt;</code></td>
+<td><code>StartTask(task, context)</code>, context = the last few exchanges</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;LOOK&gt;&gt;</code></td>
+<td><code>GetTaskStatus()</code>; the result comes back as a <code>[Status]</code> item</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;ASK: text&gt;&gt;</code></td>
+<td><code>SendToTask(text, resume=true)</code>: a question, extra instruction, or your answer to a NEED</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;PAUSE: text&gt;&gt;</code></td>
+<td><code>SendToTask(text, resume=false)</code></td>
+</tr>
+<tr>
+<td><code>&lt;&lt;CANCEL&gt;&gt;</code></td>
+<td><code>CancelTask()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Talker prompt, in short:</strong> you're the voice of a personal assistant; keep replies short and conversational; you can't do work yourself, so hand anything substantial over with <code>WORK</code>; never claim work is done until a <code>[Task update: done]</code> arrives; infer from context whether the user means continue, pause, or cancel, and never ask them for keywords.</p>
+<h2 id="the-main-assistant-on-its-own">The Main Assistant on its own</h2>
+<p><code>SessionTaskAgent</code> turns <code>ITaskAgent</code> calls into session messages and session events into reports. It keeps an internal <strong>mode</strong>; the Hub's <code>TaskState</code> is the outside view of the same thing.</p>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; idle
+    idle --&gt; working: assign → send task
+    working --&gt; idle: result, no NEED → report done
+    working --&gt; idle: result is an error we didn't cause → report failed
+    working --&gt; waiting: result ends with NEED → report need
+    working --&gt; interrupting: message() or cancel()
+    interrupting --&gt; replying: interrupted result (message) → send wrapped message
+    interrupting --&gt; idle: interrupted result (cancel)
+    replying --&gt; working: result → report reply, then send &quot;continue&quot; (resume)
+    replying --&gt; paused: result → report reply (no resume)
+    waiting --&gt; working: message() → send your answer
+    paused --&gt; working: message(resume) → send it
+    waiting --&gt; idle: cancel()
+    paused --&gt; idle: cancel()
+</code></pre>
+<ul>
+<li><strong>Interrupt isn't failure:</strong> in <code>interrupting</code> the agent knows it caused the <code>error_during_execution</code> result (<a href="spike.html#findings">spike finding</a>) and doesn't report <code>failed</code>.</li>
+<li><strong><code>message</code> and <code>cancel</code> return as soon as the interrupt is sent</strong>; the rest happens as events arrive. So the Hub never waits on the agent while the agent is reporting to the Hub.</li>
+<li><strong>Cancel fallback:</strong> if no <code>result</code> arrives within a few seconds of the interrupt, close the process; the next task starts a fresh session.</li>
+<li><strong>Reports and events while working:</strong></li>
+<li>every <code>assistant</code> text or tool call → <code>AgentActivity</code> (terminal 2)</li>
+<li>a text note mid-turn → <code>ReportTask(progress)</code></li>
+<li><code>working</code> / <code>busy</code> changes → <code>AgentStateChanged</code></li>
+</ul>
+<p><strong>Worker prompt, in short:</strong> you're the Main Assistant doing tasks handed to you; work only in your folder; before each major step write one short progress line; if you need a decision from the user, stop and end your turn with a last line <code>NEED: &lt;question&gt;</code>; when finished, end with a short summary of what you did.</p>
+<p><strong>Messages it sends to its session:</strong></p>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>Text</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New task</td>
+<td><code>New task: &lt;text&gt;</code> plus <code>Context: &lt;context&gt;</code></td>
+</tr>
+<tr>
+<td>Mid-task message</td>
+<td><code>[The user interrupted your task with a message. Answer it briefly; you'll be told when to continue.] &lt;text&gt;</code></td>
+</tr>
+<tr>
+<td>Continue</td>
+<td><code>Continue the task from where you left off.</code></td>
+</tr>
+<tr>
+<td>Answer to NEED, or resume from pause</td>
+<td>the text as is</td>
+</tr>
+</tbody>
+</table>
+<h2 id="talking-to-each-other-a-whole-conversation">Talking to each other: a whole conversation</h2>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant C as console_io
+    participant T as talker
+    participant H as agent_hub
+    participant M as main_assistant
+    participant V as Terminal 2
+
+    You-&gt;&gt;C: &quot;Write three poems about Seoul into poems.txt&quot;
+    C-&gt;&gt;T: InputReceived
+    Note over T: turn: reply + WORK tag
+    T-&gt;&gt;C: ResponseReady &quot;On it, I'll have the assistant do that.&quot;
+    T-&gt;&gt;H: StartTask
+    H-&gt;&gt;M: assign(task)
+    M--&gt;&gt;H: ok (returns at once)
+    H--&gt;&gt;T: ok(task_id)
+    M--&gt;&gt;V: AgentStateChanged(busy, working)
+    loop while it works
+        M--&gt;&gt;V: AgentActivity (text, tool calls)
+        M-&gt;&gt;H: ReportTask(progress)
+    end
+    You-&gt;&gt;C: &quot;Tell me a joke meanwhile&quot;
+    C-&gt;&gt;T: InputReceived
+    T-&gt;&gt;C: ResponseReady (joke)
+    M-&gt;&gt;H: ReportTask(need, &quot;Modern or traditional style?&quot;)
+    H--&gt;&gt;T: TaskUpdated(need)
+    Note over T: inbox: [Task update: need] → turn
+    T-&gt;&gt;C: ResponseReady &quot;Quick question: modern or traditional?&quot;
+    You-&gt;&gt;C: &quot;Modern&quot;
+    C-&gt;&gt;T: InputReceived
+    Note over T: turn: ASK tag &quot;modern&quot;
+    T-&gt;&gt;H: SendToTask(&quot;modern&quot;, resume)
+    H-&gt;&gt;M: message → send answer (it was waiting, no interrupt)
+    M-&gt;&gt;H: ReportTask(done, &quot;Wrote 3 poems to poems.txt&quot;)
+    H--&gt;&gt;T: TaskUpdated(done)
+    T-&gt;&gt;C: ResponseReady &quot;Done: three poems are in poems.txt.&quot;
+    M--&gt;&gt;V: AgentStateChanged(idle)
+</code></pre>
+<p>The mid-task question flow (interrupt → reply → continue) is on the <a href="../architecture/agents.html#messages-and-cancel">architecture page</a>.</p>
+<h2 id="rules-that-keep-it-from-locking-up">Rules that keep it from locking up</h2>
+<ul>
+<li><strong>Nobody waits on a <code>claude</code> turn inside a handler.</strong> Event handlers queue; <code>assign</code>, <code>message</code> and <code>cancel</code> return once their message or interrupt is written.</li>
+<li><strong>The Hub is the only one that changes task state</strong>, and only from commands (<code>StartTask</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>), so dropped events never corrupt it.</li>
+<li><strong>One turn at a time per session.</strong> The Talker's inbox and the agent's mode guarantee nothing is written to a session mid-turn except an interrupt.</li>
+<li><strong>The Talker waits on nobody:</strong> while the Main Assistant works, waits for you, or is paused, the Talker keeps chatting.</li>
+</ul>
+<footer>Generated from <code>docs/agents/runtime.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre > code.language-mermaid");
+  blocks.forEach(function (code) {
+    var div = document.createElement("div");
+    div.className = "diagram";
+    div.textContent = code.textContent;
+    code.parentElement.replaceWith(div);
+  });
+  if (!window.mermaid) {
+    // Offline: show the diagram source instead.
+    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
+    return;
+  }
+  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
+  mermaid.run({ querySelector: ".diagram" });
+})();
+</script>
+</body>
+</html>
