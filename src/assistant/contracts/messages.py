@@ -6,7 +6,7 @@ process or network boundaries (e.g. to remote clients) unchanged.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
@@ -21,7 +21,7 @@ class Message(BaseModel):
 
     id: str = Field(default_factory=lambda: uuid4().hex)
     correlation_id: str | None = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class Command(Message):

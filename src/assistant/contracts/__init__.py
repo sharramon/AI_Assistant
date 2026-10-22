@@ -1,5 +1,13 @@
 """Stable contracts shared by the core and all modules. Depends on nothing else in the app."""
 
+from assistant.contracts.control import (
+    ActivateModule,
+    DeactivateModule,
+    ListModules,
+    ModuleInfo,
+    ModuleState,
+    ModuleStateChanged,
+)
 from assistant.contracts.messages import (
     Command,
     Event,
@@ -11,22 +19,28 @@ from assistant.contracts.messages import (
     Status,
 )
 from assistant.contracts.module import Contract, Manifest, Module, ModuleContext
-from assistant.contracts.tools import InvokeTool, ToolProvider, ToolSpec
+from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
 
 __all__ = [
+    "ActivateModule",
     "Command",
     "Contract",
+    "DeactivateModule",
     "Event",
     "InputReceived",
     "InvokeTool",
+    "ListModules",
     "Manifest",
     "Message",
     "Module",
     "ModuleContext",
+    "ModuleInfo",
+    "ModuleState",
+    "ModuleStateChanged",
     "ResponseReady",
     "Result",
     "ShutdownRequested",
     "Status",
-    "ToolProvider",
+    "IToolProvider",
     "ToolSpec",
 ]

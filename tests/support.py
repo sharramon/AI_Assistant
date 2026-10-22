@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from assistant.contracts import Contract, Manifest, Module, ModuleContext, Result, ToolProvider, ToolSpec
+from assistant.contracts import Contract, IToolProvider, Manifest, Module, ModuleContext, Result, ToolSpec
 
 
 class Speaker(Contract):
@@ -24,11 +24,11 @@ async def wait_until(predicate, timeout: float = 1.0) -> None:
             await asyncio.sleep(0.005)
 
 
-class Calculator(Module, ToolProvider):
-    manifest = Manifest(id="calculator", provides=(ToolProvider,))
+class Calculator(Module, IToolProvider):
+    manifest = Manifest(id="calculator", provides=(IToolProvider,))
 
     async def init(self, ctx: ModuleContext) -> None:
-        ctx.provide(ToolProvider, self)
+        ctx.provide(IToolProvider, self)
 
     def tools(self) -> list[ToolSpec]:
         return [ToolSpec(name="add", description="Add a and b")]

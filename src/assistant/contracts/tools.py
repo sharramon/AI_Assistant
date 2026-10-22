@@ -28,7 +28,7 @@ class InvokeTool(Command):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
-class ToolProvider(Contract):
+class IToolProvider(Contract):
     """A module that offers tools. Any number of modules may provide this."""
 
     multiple = True

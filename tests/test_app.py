@@ -6,6 +6,7 @@ from assistant.contracts import (
     Command,
     InputReceived,
     InvokeTool,
+    IToolProvider,
     Manifest,
     Module,
     ModuleContext,
@@ -13,7 +14,6 @@ from assistant.contracts import (
     Result,
     ShutdownRequested,
     Status,
-    ToolProvider,
 )
 from assistant.core import App, StartupError
 from assistant.modules.echo_orchestrator import EchoOrchestrator
@@ -64,7 +64,7 @@ async def test_orchestrator_discovers_tools_without_knowing_them():
 
 async def test_invoke_tool_routing():
     class Calculator2(Calculator):
-        manifest = Manifest(id="calculator2", provides=(ToolProvider,))
+        manifest = Manifest(id="calculator2", provides=(IToolProvider,))
 
     app = App([Calculator, Calculator2], make_config("calculator"))
     await app.start()
@@ -83,15 +83,15 @@ class Busy(Command):
     pass
 
 
-class Everything(Module, ToolProvider):
+class Everything(Module, IToolProvider):
     """Registers one of each kind of thing, to check that stop removes them all."""
 
-    manifest = Manifest(id="everything", provides=(ToolProvider,))
+    manifest = Manifest(id="everything", provides=(IToolProvider,))
 
     async def init(self, ctx: ModuleContext) -> None:
         ctx.subscribe(InputReceived, self._on_input)
         ctx.handle(Busy, self._busy)
-        ctx.provide(ToolProvider, self)
+        ctx.provide(IToolProvider, self)
 
     async def _on_input(self, event):
         pass
@@ -156,11 +156,11 @@ async def test_failed_required_provider_aborts_startup():
 
 
 async def test_provide_requires_declaring_the_contract():
-    class Undeclared(Module, ToolProvider):
+    class Undeclared(Module, IToolProvider):
         manifest = Manifest(id="undeclared")
 
         async def init(self, ctx):
-            ctx.provide(ToolProvider, self)
+            ctx.provide(IToolProvider, self)
 
         def tools(self):
             return []
@@ -170,5 +170,5 @@ async def test_provide_requires_declaring_the_contract():
 
     app = App([Undeclared], make_config("undeclared"))
     await app.start()  # init fails, module is skipped
-    assert app.container.get_all(ToolProvider) == []
+    assert app.container.get_all(IToolProvider) == []
     await app.stop()

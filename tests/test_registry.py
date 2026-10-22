@@ -1,6 +1,6 @@
 import pytest
 
-from assistant.contracts import Contract, Manifest, Module, ToolProvider
+from assistant.contracts import Contract, IToolProvider, Manifest, Module
 from assistant.core.registry import StartupError, resolve_modules
 from tests.support import Speaker
 
@@ -23,8 +23,8 @@ def test_providers_start_before_dependents():
 
 
 def test_optional_dependency_also_orders():
-    user = module("user", optional=(ToolProvider,))
-    tools = module("tools", provides=(ToolProvider,))
+    user = module("user", optional=(IToolProvider,))
+    tools = module("tools", provides=(IToolProvider,))
     assert ids(resolve_modules([user, tools], ["user", "tools"])) == ["tools", "user"]
 
 
@@ -47,8 +47,8 @@ def test_too_many_providers_of_single_contract():
 
 
 def test_multiple_providers_allowed_when_contract_says_so():
-    a = module("a", provides=(ToolProvider,))
-    b = module("b", provides=(ToolProvider,))
+    a = module("a", provides=(IToolProvider,))
+    b = module("b", provides=(IToolProvider,))
     assert ids(resolve_modules([a, b], ["a", "b"])) == ["a", "b"]
 
 

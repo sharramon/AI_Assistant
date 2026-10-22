@@ -87,6 +87,12 @@ class Module(ABC):
     The core calls `init` (in dependency order), then `start`, and on shutdown
     `stop` in reverse order. `stop` is called for every module whose `init`
     succeeded, even if `start` never ran.
+
+    Modules can also be activated and deactivated while the app runs. Each
+    activation creates a fresh instance, so `stop` must release everything the
+    module started (processes, threads, windows, devices), and in-memory state
+    doesn't survive deactivation. Load expensive resources in `start` or on
+    first use, not at import.
     """
 
     manifest: ClassVar[Manifest]

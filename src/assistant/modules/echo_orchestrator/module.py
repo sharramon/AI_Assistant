@@ -5,11 +5,11 @@ Exists to prove the plumbing; replace it by enabling a different orchestrator in
 
 from __future__ import annotations
 
-from assistant.contracts import InputReceived, Manifest, Module, ModuleContext, ResponseReady, ToolProvider
+from assistant.contracts import InputReceived, IToolProvider, Manifest, Module, ModuleContext, ResponseReady
 
 
 class EchoOrchestrator(Module):
-    manifest = Manifest(id="echo_orchestrator", optional=(ToolProvider,))
+    manifest = Manifest(id="echo_orchestrator", optional=(IToolProvider,))
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
@@ -17,7 +17,7 @@ class EchoOrchestrator(Module):
 
     async def _on_input(self, event: InputReceived) -> None:
         if event.text == "/tools":
-            names = [spec.name for provider in self._ctx.get_all(ToolProvider) for spec in provider.tools()]
+            names = [spec.name for provider in self._ctx.get_all(IToolProvider) for spec in provider.tools()]
             reply = "Tools: " + ", ".join(names) if names else "No tools available."
         else:
             reply = f"Echo: {event.text}"

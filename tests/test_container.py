@@ -33,14 +33,14 @@ def test_single_provider_contract_rejects_second_provider():
 
 
 def test_get_and_remove_owner():
-    from assistant.contracts import ToolProvider
+    from assistant.contracts import IToolProvider
 
     container = Container()
     calc, speaker = Calculator(), Impl()
-    container.provide(ToolProvider, calc, owner="calc")
+    container.provide(IToolProvider, calc, owner="calc")
     container.provide(Speaker, speaker, owner="calc")
-    assert container.get_all(ToolProvider) == [calc]
+    assert container.get_all(IToolProvider) == [calc]
     assert container.get_one(Speaker) is speaker
     container.remove_owner("calc")
-    assert container.get_all(ToolProvider) == []
+    assert container.get_all(IToolProvider) == []
     assert container.get_one(Speaker) is None

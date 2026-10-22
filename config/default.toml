@@ -2,8 +2,9 @@
 # (gitignored), or point ASSISTANT_CONFIG_DIR at another directory.
 
 [modules]
-# Which of the modules listed in src/assistant/__main__.py actually run.
-# Swap the orchestrator by changing this list.
+# Which of the modules listed in src/assistant/__main__.py are active at startup.
+# The others can be turned on at runtime (ActivateModule). Swap the orchestrator
+# by changing this list.
 enabled = ["console_io", "echo_orchestrator"]
 
 # Per-module settings go in [modules.<module id>].

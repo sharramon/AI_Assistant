@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from collections.abc import Callable
 
 from assistant.contracts import (
     InputReceived,
@@ -18,6 +19,55 @@ from assistant.contracts import (
 EXIT_WORDS = {"exit", "quit"}
 
 
+class _StdinReader:
+    """One daemon thread per process that reads stdin and hands lines to the active module.
+
+    A blocking input() call can't be cancelled, so the thread outlives a
+    deactivated module and is reused when the module is activated again. Lines
+    typed while no module is attached are dropped.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._target: tuple[asyncio.AbstractEventLoop, Callable[[str], None]] | None = None
+        self._thread: threading.Thread | None = None
+
+    def attach(self, loop: asyncio.AbstractEventLoop, callback: Callable[[str], None]) -> None:
+        with self._lock:
+            self._target = (loop, callback)
+            if self._thread is None:
+                # Daemon, so it never keeps the process alive after shutdown.
+                self._thread = threading.Thread(target=self._run, name="console-input", daemon=True)
+                self._thread.start()
+
+    def detach(self, callback: Callable[[str], None]) -> None:
+        with self._lock:
+            if self._target and self._target[1] == callback:
+                self._target = None
+
+    def _run(self) -> None:
+        while True:
+            try:
+                line, at_eof = input().strip(), False
+            except EOFError:
+                line, at_eof = "exit", True
+            with self._lock:
+                target = self._target
+                if at_eof:
+                    self._thread = None
+            if target:
+                loop, callback = target
+                try:
+                    loop.call_soon_threadsafe(callback, line)
+                except RuntimeError:  # the event loop has already closed
+                    pass
+            if at_eof:
+                return
+
+
+_stdin = _StdinReader()
+
+
 class ConsoleIO(Module):
     manifest = Manifest(id="console_io")
 
@@ -28,24 +78,11 @@ class ConsoleIO(Module):
         ctx.subscribe(ResponseReady, self._on_response)
 
     async def start(self) -> None:
-        loop = asyncio.get_running_loop()
-        # A daemon thread, because a blocking input() call can't be cancelled
-        # and must not keep the process alive after shutdown.
-        threading.Thread(target=self._read_lines, args=(loop,), name="console-input", daemon=True).start()
+        _stdin.attach(asyncio.get_running_loop(), self._submit)
         print(self._prompt, end="", flush=True)
 
-    def _read_lines(self, loop: asyncio.AbstractEventLoop) -> None:
-        while True:
-            try:
-                line = input().strip()
-            except EOFError:
-                line = "exit"
-            try:
-                loop.call_soon_threadsafe(self._submit, line)
-            except RuntimeError:  # the event loop has already closed
-                return
-            if line in EXIT_WORDS:
-                return
+    async def stop(self) -> None:
+        _stdin.detach(self._submit)
 
     def _submit(self, text: str) -> None:
         if text in EXIT_WORDS:
