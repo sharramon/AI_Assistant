@@ -1,0 +1,47 @@
+# Runs on every push and pull request. Tests that need a real `claude`
+# process (marked `claude`) are skipped here; run them locally with `pytest -m claude`.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows: where it runs today. Linux: where it moves later (a server).
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest
+
+  checks:
+    name: Lint and docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Lint
+        run: python -m ruff check src tests scripts
+      - name: Docs HTML matches the Markdown
+        # Fails if docs/**/*.md changed without rebuilding docs/html.
+        run: |
+          python scripts/build_docs.py
+          git add -N docs/html
+          git diff --exit-code --stat docs/html || {
+            echo "::error::docs/html is out of date. Run: python scripts/build_docs.py and commit the result."
+            exit 1
+          }

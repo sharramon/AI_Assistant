@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 dependencies = ["pydantic>=2.7"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "markdown>=3.6"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "markdown>=3.6", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -20,3 +20,23 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
 testpaths = ["tests"]
+# Tests that run a real `claude` process are skipped by default (and in CI).
+# Run them on your own machine with: pytest -m claude
+addopts = "-m 'not claude'"
+markers = ["claude: runs a real claude process; needs a logged-in claude CLI"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "."]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # long lines: not enforced
+    "B024",  # Contract is an ABC with no abstract methods on purpose
+    "B027",  # Module.start/stop are deliberately optional no-ops
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["assistant", "tests"]
