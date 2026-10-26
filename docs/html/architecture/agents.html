@@ -53,6 +53,17 @@ th { background: var(--panel); }
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+.diagram:not(.offline) { cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
+.zoom.dragging { cursor: grabbing; }
+.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.zoom-stage svg { display: block; max-width: none !important; }
+.zoom-close {
+  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.zoom-close:hover { background: var(--border); }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
@@ -69,7 +80,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <h1 id="agents">Agents</h1>
 <p>How the AI side fits the system: an <strong>Agent Hub</strong> coordinates a <strong>Talker</strong>, a <strong>Main Assistant</strong>, and <strong>subagents</strong>. Back to the <a href="index.html">overview</a>. How we actually run and test the agents is in the <a href="../agents/index.html">Agents tab</a>.</p>
 <blockquote>
-<p><strong>Status: designed, not built.</strong> The <a href="#task-agents">task-agent design</a> below is decided; a small <a href="../agents/spike.html">spike</a> checks that interrupting a <code>claude</code> session works the way it assumes. API: <a href="../api/agents.html">Agents</a> (planned).</p>
+<p><strong>Status: built (2026-10-25)</strong> for the Talker, one Main Assistant, and the Hub; subagents are still to come. The <a href="../agents/spike.html">spike</a> confirmed the interrupt the design relies on. API: <a href="../api/agents.html">Agents</a>.</p>
 </blockquote>
 <h2 id="the-idea">The idea</h2>
 <p>Separate <strong>communication</strong> (Talker), <strong>coordination</strong> (Hub), <strong>intelligence</strong> (Main Assistant), and <strong>execution</strong> (subagents), each a replaceable module.</p>
@@ -146,11 +157,11 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <p>The core's lifecycle manager starts every module, agents included; the Hub launches nothing. Each agent module owns its <code>claude</code> process, and the terminals belong to view modules, not to the agents:</p>
 <pre><code>python -m assistant
  └─ core lifecycle activates the enabled modules, in dependency order:
-     ├─ agent_hub        coordinates; launches nothing
-     ├─ talker           its own hidden `claude -p` process
-     ├─ main_assistant   its own hidden `claude -p` process
      ├─ console_io       terminal 1, the app's own: you talk here
-     └─ assistant_view   opens terminal 2: the Main Assistant's activity, view only
+     ├─ main_assistant   its own hidden `claude -p` process
+     ├─ talker           its own hidden `claude -p` process
+     ├─ assistant_view   opens terminal 2: the Main Assistant's activity, view only
+     └─ agent_hub        coordinates; launches nothing (after the agents it finds)
 </code></pre>
 <p>Each module decides when to start its expensive part (<a href="core.html#runtime-module-control">runtime module control</a>):</p>
 <table>
@@ -169,8 +180,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 <tr>
 <td>Main Assistant</td>
-<td>When activated, or on the first task</td>
-<td>A few seconds' startup is fine before a long task</td>
+<td>When activated; restarted on the next task if it was closed</td>
+<td>Ready for the first task; a restart's few seconds are fine before a long task</td>
 </tr>
 <tr>
 <td>Subagents</td>
@@ -432,6 +443,71 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
   var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
+
+  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+  var overlay = null, stage, scale, x, y;
+  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    document.body.style.overflow = "";
+  }
+  function open(svg) {
+    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
+    var h = box && box.height ? box.height : svg.getBBox().height;
+    var clone = svg.cloneNode(true);
+    clone.removeAttribute("style");
+    clone.setAttribute("width", w);
+    clone.setAttribute("height", h);
+    overlay = document.createElement("div");
+    overlay.className = "zoom";
+    var btn = document.createElement("button");
+    btn.className = "zoom-close";
+    btn.setAttribute("aria-label", "Close");
+    btn.textContent = "\u00d7";
+    btn.addEventListener("click", close);
+    stage = document.createElement("div");
+    stage.className = "zoom-stage";
+    stage.appendChild(clone);
+    overlay.appendChild(btn);
+    overlay.appendChild(stage);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
+    x = (innerWidth - w * scale) / 2;
+    y = (innerHeight - h * scale) / 2;
+    place();
+    overlay.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
+      f = s / scale;
+      x = e.clientX - (e.clientX - x) * f;
+      y = e.clientY - (e.clientY - y) * f;
+      scale = s;
+      place();
+    }, { passive: false });
+    var drag = null;
+    overlay.addEventListener("pointerdown", function (e) {
+      if (e.target === btn) return;
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      overlay.setPointerCapture(e.pointerId);
+      overlay.classList.add("dragging");
+    });
+    overlay.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      x = drag.x + e.clientX - drag.px;
+      y = drag.y + e.clientY - drag.py;
+      place();
+    });
+    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+  }
+  document.addEventListener("click", function (e) {
+    var d = e.target.closest && e.target.closest(".diagram");
+    var svg = d && d.querySelector("svg");
+    if (svg && !overlay) open(svg);
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
 </script>
 </body>

@@ -2,7 +2,7 @@
 
 How we run and work with the agents: setup, experiments, and what we've learned. How they fit the system is on the [Agents architecture page](../architecture/agents.md).
 
-> **Status:** designed, not built. The [spike](spike.md) is done: interrupting a session works as the design assumes. Next: build the modules.
+> **Status:** built (2026-10-25): Talker, Main Assistant, Agent Hub, and terminal 2, launched by `python -m assistant`. See [Agent runtime](runtime.md).
 
 ## Roles
 
@@ -23,7 +23,7 @@ How we run and work with the agents: setup, experiments, and what we've learned.
 ## Permissions
 
 - **Talker:** no tools.
-- **Main Assistant:** reads anywhere, writes only inside its workspace folder, no shell, `dontAsk` mode, until a confirmation mechanism exists.
+- **Main Assistant:** file tools only (`Read,Write,Edit,Glob,Grep`), no shell, `acceptEdits` mode: it reads anywhere and writes only inside its `workspace/` folder (other writes are refused, since nobody can approve them), until a confirmation mechanism exists.
 
 ## First implementation limits
 
@@ -32,5 +32,5 @@ How we run and work with the agents: setup, experiments, and what we've learned.
 
 ## Pages
 
-- [Agent runtime](runtime.md): how the two agents are spawned, behave, and talk to each other (planned, for review)
+- [Agent runtime](runtime.md): how the two agents are spawned, behave, and talk to each other
 - [Two-Claude spike](spike.md): the disposable experiment and its findings

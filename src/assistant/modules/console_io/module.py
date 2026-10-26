@@ -1,5 +1,6 @@
 """Terminal input/output: each line typed becomes an InputReceived event, and the
-replies to those inputs are printed. Type `exit` or `quit` to shut down."""
+replies to those inputs (and uncorrelated replies) are printed. Type `exit` or
+`quit` to shut down."""
 
 from __future__ import annotations
 
@@ -95,9 +96,11 @@ class ConsoleIO(Module):
             self._ctx.publish(event)
 
     async def _on_response(self, event: ResponseReady) -> None:
-        # Only print replies to our own inputs, not those from other clients.
-        if event.correlation_id not in self._awaiting:
-            return
-        self._awaiting.discard(event.correlation_id)
+        # Print replies to our own inputs, not those from other clients, and
+        # uncorrelated ones: the assistant speaking first (e.g. "the task is done").
+        if event.correlation_id is not None:
+            if event.correlation_id not in self._awaiting:
+                return
+            self._awaiting.discard(event.correlation_id)
         print(event.text)
         print(self._prompt, end="", flush=True)

@@ -2,7 +2,7 @@
 
 How the AI side fits the system: an **Agent Hub** coordinates a **Talker**, a **Main Assistant**, and **subagents**. Back to the [overview](README.md). How we actually run and test the agents is in the [Agents tab](../agents/README.md).
 
-> **Status: designed, not built.** The [task-agent design](#task-agents) below is decided; a small [spike](../agents/spike.md) checks that interrupting a `claude` session works the way it assumes. API: [Agents](../api/agents.md) (planned).
+> **Status: built (2026-10-25)** for the Talker, one Main Assistant, and the Hub; subagents are still to come. The [spike](../agents/spike.md) confirmed the interrupt the design relies on. API: [Agents](../api/agents.md).
 
 ## The idea
 
@@ -62,11 +62,11 @@ The core's lifecycle manager starts every module, agents included; the Hub launc
 ```
 python -m assistant
  └─ core lifecycle activates the enabled modules, in dependency order:
-     ├─ agent_hub        coordinates; launches nothing
-     ├─ talker           its own hidden `claude -p` process
-     ├─ main_assistant   its own hidden `claude -p` process
      ├─ console_io       terminal 1, the app's own: you talk here
-     └─ assistant_view   opens terminal 2: the Main Assistant's activity, view only
+     ├─ main_assistant   its own hidden `claude -p` process
+     ├─ talker           its own hidden `claude -p` process
+     ├─ assistant_view   opens terminal 2: the Main Assistant's activity, view only
+     └─ agent_hub        coordinates; launches nothing (after the agents it finds)
 ```
 
 Each module decides when to start its expensive part ([runtime module control](core.md#runtime-module-control)):
@@ -74,7 +74,7 @@ Each module decides when to start its expensive part ([runtime module control](c
 | Module | Process starts | Why |
 |--------|----------------|-----|
 | Talker | When activated, kept warm | You expect an instant reply |
-| Main Assistant | When activated, or on the first task | A few seconds' startup is fine before a long task |
+| Main Assistant | When activated; restarted on the next task if it was closed | Ready for the first task; a restart's few seconds are fine before a long task |
 | Subagents | When the Hub first delegates to one; stop when idle | Most aren't used most of the time |
 | Assistant view | When activated | Terminal 2 should be there when you look |
 

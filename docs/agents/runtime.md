@@ -2,7 +2,7 @@
 
 How the two agents are spawned, how each behaves on its own, and how they talk to each other, down to the classes. Back to [Agents](README.md). The contracts are on the [architecture page](../architecture/agents.md#task-agents) and the [Agents API page](../api/agents.md).
 
-> **Status: planned, for review.** Nothing here is built yet.
+> **Status: built (2026-10-25).** Run it with `.\.venv\Scripts\python -m assistant`. Code: `src/assistant/modules/{talker,main_assistant,agent_hub,assistant_view}/` and `src/assistant/infra/{claude_session,session_agent}.py`.
 
 ## What runs
 
@@ -35,8 +35,10 @@ flowchart LR
 |---------|------------|---------|
 | The app | You | `python -m assistant` |
 | Talker session | `talker` module, in `start` | `claude -p --input-format stream-json --output-format stream-json --verbose --strict-mcp-config --model sonnet --tools "" --append-system-prompt <talker prompt>` |
-| Main Assistant session | `main_assistant` module, in `start` | `claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt <worker prompt>`, working directory `workspace/` |
-| Terminal 2 | `assistant_view` module, in `start` | `python -m assistant.modules.assistant_view.viewer` in a new console window, its stdin a pipe from the app |
+| Main Assistant session | `main_assistant` module, in `start` | `claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt <worker prompt>`, working directory `workspace/`. `acceptEdits` approves writes inside the working directory only; others are refused, since nobody can approve them |
+| Terminal 2 | `assistant_view` module, in `start` | `python -m assistant.modules.assistant_view.viewer` in a new console window, its stdin a pipe from the app. It writes to its own window (`CONOUT$`), because its inherited stdout is terminal 1. Windows only for now |
+
+Each command line is built by [`claude_command`](../api/infra.md#claude_command); the model, tools, permission mode, and workspace come from `[modules.talker]` and `[modules.main_assistant]` in `config/default.toml`.
 
 ## Launched from the main app
 
@@ -61,7 +63,7 @@ flowchart TB
     class CS,VS,Spawn new
 ```
 
-Purple: new. The rest exists today. The only edits outside the new modules are two lists: `MODULES` in `__main__.py` gains the four new module classes, and `modules.enabled` in `config/default.toml` switches them on (and the echo module off).
+Purple: added for the agents. Outside the new modules, the only edits were two lists (`MODULES` in `__main__.py` gained the four module classes, and `modules.enabled` in `config/default.toml` switches them on and the echo module off) and `console_io` now also prints uncorrelated replies, so the Talker can speak first.
 
 ## Messaging to and from the main app
 
@@ -180,14 +182,14 @@ sequenceDiagram
 
     Note over L: start, same order
     L->>C: start: read terminal 1
-    L->>M: start: launch its claude (instant; ~6 s until it can first reply)
+    L->>M: start: launch its claude (instant, ~6 s until it can first reply)
     L->>H: start: nothing to launch
     L->>T: start: launch its claude (kept warm), start its inbox loop
     L->>V: start: open terminal 2
 ```
 
-- **Order:** `main_assistant` provides `ITaskAgent` and the Hub lists it as optional, so the agent starts first. `talker` and `assistant_view` depend on nothing; they only send commands and listen to events.
-- **Stop** runs in reverse. Each session closes its `claude` process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.
+- **Order:** `main_assistant` provides `ITaskAgent` and the Hub lists it as optional, so the agent starts before the Hub. `talker` and `assistant_view` depend on nothing; they only send commands and listen to events. The diagram shows one valid order; the actual one is `console_io, main_assistant, talker, assistant_view, agent_hub`.
+- **Stop** runs in reverse, so the Hub stops first: reports an agent sends while shutting down are refused (logged as warnings, harmless). Each session closes its `claude` process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.
 - **Runtime control:** deactivating `main_assistant` ends its process; the Hub sees no agents and `StartTask` returns `not_available`. Activating it again starts a fresh session (no memory of before).
 
 ## Classes
@@ -203,7 +205,7 @@ classDiagram
         +close()
         +running bool
         +working bool
-        on_event(dict)
+        +on_event(dict)
     }
     class ITaskAgent {
         <<contract>>
@@ -213,6 +215,7 @@ classDiagram
         +cancel(task_id) Result
     }
     class SessionTaskAgent {
+        <<infra>>
         task, mode
     }
     class MainAssistantModule { <<module>> }
@@ -228,14 +231,23 @@ classDiagram
     class AssistantViewModule { <<module>> }
 
     SessionTaskAgent --|> ITaskAgent
-    SessionTaskAgent --> ClaudeSession : owns its use
+    SessionTaskAgent --> ClaudeSession : uses
     MainAssistantModule --> SessionTaskAgent : provides as ITaskAgent
     MainAssistantModule --> ClaudeSession : creates, closes
     TalkerModule --> ClaudeSession : creates, closes
     AgentHubModule ..> ITaskAgent : get_all()
 ```
 
-`ClaudeSession` knows nothing about tasks or the Talker: it runs one process, writes messages and interrupts, calls `on_event` for every JSON line, and sets `working` from "message sent" until `result`. Both agents reuse it with different settings.
+The core's lifecycle manager starts all of these modules, and none of them launches another. In the diagram, the arrow with a hollow head means "implements", a plain arrow means "holds and uses", and the dotted arrow means "looks up through the Container".
+
+`ClaudeSession` runs one `claude` process. It knows nothing about tasks or the Talker: it writes messages and interrupts, calls `on_event` for every JSON line, and sets `working` from "message sent" until `result`. `SessionTaskAgent` lives in `infra` too, not in the `main_assistant` module, so a later subagent module can reuse it without importing another module's internals ([principle 3](../architecture/principles.md)).
+
+The Talker and the Main Assistant are both LLM agents. Each has its own `ClaudeSession`, so each runs its own `claude` process with its own model, prompt, and tools. What differs is their role, and the diagram shows it by which one implements `ITaskAgent`:
+
+- `MainAssistantModule` is the worker. In `init` it builds a `ClaudeSession` and a `SessionTaskAgent`, and registers the agent with the Container as an `ITaskAgent`. `SessionTaskAgent` turns the Hub's calls (`assign`, `message`, `cancel`) into messages for its session, and the session's results into reports.
+- `TalkerModule` talks with you and takes no tasks, so it doesn't implement `ITaskAgent`. When something needs doing, it hands the task to the Hub with a command (`StartTask`, `SendToTask`, …) and hears back through `TaskUpdated` events. Commands and events travel through the core, so they aren't drawn here; they're in [Messaging to and from the main app](#messaging-to-and-from-the-main-app).
+- `AgentHubModule` holds no reference to any agent module. It asks the Container for every `ITaskAgent` and calls the ones it gets back. A future subagent is one more module that provides `ITaskAgent`, and the Hub finds it without any change.
+- `AssistantViewModule` only listens to events, so it has no arrows.
 
 ## The Talker on its own
 

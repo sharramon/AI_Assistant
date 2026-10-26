@@ -17,27 +17,18 @@ What we're working on now. This page changes as the work moves on.
 - **The spike is done** and confirmed the design: interrupt → reply → continue works, and a session survives a cancel with its memory. Details on the [spike page](../agents/spike.md#findings). The relay script was never built.
 - **CI:** GitHub Actions runs the tests on Windows and Linux, `ruff`, and checks that `docs/html` matches the Markdown. See [Testing and CI](#testing-and-ci).
 
-## Now: the two-terminal setup
+## Done: the two-terminal setup (2026-10-25)
 
-**Start next session with:** review the [Agent runtime](../agents/runtime.md) page together (launch from the main app, messaging through the core, each agent's loop, prompts, the `NEED:` convention, the tags). If it looks right, build.
+The [Agent runtime](../agents/runtime.md) is built and runs: `.\.venv\Scripts\python -m assistant` opens terminal 2 and starts both `claude` sessions. Tested end to end (hand off, work, "done" notice, file in `workspace/`) and by `tests/test_agents.py`, which runs against `tests/fake_claude.py`.
 
-Build the real modules, in this order, each with the `architecture-first` skill:
+**Known issues:**
+- **Exit crash with piped stdin:** typing `exit` when stdin is a pipe (not a console) ends with "Fatal Python error … stdin … daemon threads". `console_io`'s stdin thread holds the stdin lock at shutdown. It also happened before the agents were added.
+- **Interrupt and NEED untried with the real agents:** the fake-`claude` tests cover them; try a mid-task question, pause, and cancel by hand.
+- **The Talker's working directory** is the app's, so it loads this project's `CLAUDE.md`. Set `[modules.talker] cwd` to a neutral folder if that slows it down.
 
-| # | Build | What it does | Test without the rest |
-|---|-------|--------------|-----------------------|
-| 1 | `infra/ClaudeSession` | One `claude -p` stream-json process: start, send, interrupt, read events, track `working` | Unit tests replay the spike's recorded events; one `claude`-marked test against a real session |
-| 2 | `main_assistant` | Provides `ITaskAgent` through `SessionTaskAgent`; reports with `ReportTask`; publishes `AgentActivity` and `AgentStateChanged` | Against a fake Hub |
-| 3 | `agent_hub` | Task state; handles `StartTask`, `GetTaskStatus`, `SendToTask`, `CancelTask`, `ReportTask`, `ListAgents` | Against a fake `ITaskAgent` |
-| 4 | `talker` | A fast `claude` session for conversation; turns its tags into Hub commands; tells you about task updates | Terminal 1 works from here |
-| 5 | `assistant_view` | Opens terminal 2 and shows `AgentActivity` | Terminal 2 works from here |
+## Now
 
-**Gaps found in the current code** (fix while building; no core changes):
-- **The Talker can't speak first:** `console_io` only prints a `ResponseReady` that answers one of its own inputs, once. It must also print uncorrelated ones (e.g. "the task is done").
-- **Event handler timeout (10 s):** the Talker must not wait for its `claude` reply inside the `InputReceived` handler; it hands the input to its own loop and returns.
-- **Terminal 2 has no mechanism yet:** to decide with `assistant_view` (simplest: open a new console running a small viewer, fed over a local pipe).
-- **Interrupted turns end with `is_error: true`:** `SessionTaskAgent` must know it sent the interrupt and not report the task as failed.
-
-After this: speech-to-text (voice in) and voice out.
+Try it by hand, then speech-to-text (voice in) and voice out.
 
 ## Testing and CI
 

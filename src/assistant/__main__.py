@@ -7,12 +7,16 @@ import sys
 
 from assistant.core import App, StartupError
 from assistant.infra import load_config, setup_logging
+from assistant.modules.agent_hub import AgentHubModule
+from assistant.modules.assistant_view import AssistantViewModule
 from assistant.modules.console_io import ConsoleIO
 from assistant.modules.echo_orchestrator import EchoOrchestrator
+from assistant.modules.main_assistant import MainAssistantModule
+from assistant.modules.talker import TalkerModule
 
 # Every module the app can run. Which ones actually start is set by
 # `modules.enabled` in config.
-MODULES = [ConsoleIO, EchoOrchestrator]
+MODULES = [ConsoleIO, EchoOrchestrator, AgentHubModule, MainAssistantModule, TalkerModule, AssistantViewModule]
 
 
 def main() -> int:

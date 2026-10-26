@@ -53,6 +53,17 @@ th { background: var(--panel); }
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+.diagram:not(.offline) { cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
+.zoom.dragging { cursor: grabbing; }
+.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.zoom-stage svg { display: block; max-width: none !important; }
+.zoom-close {
+  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.zoom-close:hover { background: var(--border); }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
@@ -104,11 +115,11 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class VoiceIn,Term,Talker,Main,VoiceOut planned
+    class VoiceIn,VoiceOut planned
     class You person
     class Window,Quest,Subs,Control later
 </code></pre>
-<p><strong>Built today:</strong> a single app (the core, plus a terminal input and an echo stand-in in place of the agents). <strong>Terminals:</strong> one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later. The <a href="agents.html">Agent Hub</a> is a module, not part of the core.</p>
+<p><strong>Built today:</strong> a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and terminal 2 (view). <strong>Terminals:</strong> one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later. The <a href="agents.html">Agent Hub</a> is a module, not part of the core.</p>
 <h2 id="summary">Summary</h2>
 <p>A highly modular personal AI assistant that serves as a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (inputs, outputs, views, tools, background workers, and the AI orchestration itself) that can be added, replaced, or discarded with minimal changes elsewhere.</p>
 <p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. Everything runs in one process. Changing code means a rebuild and restart; turning existing modules on and off happens while the app runs (<a href="core.html#runtime-module-control">runtime module control</a>: built in the core; a control panel and asking the Talker come later). Loading new code without a restart and independent deployment are not goals.</p>
@@ -177,14 +188,14 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 <tr>
 <td>Modules</td>
-<td>All capabilities, including the AI orchestrator. Today: <code>console_io</code>, <code>echo_orchestrator</code></td>
+<td>All capabilities, including the AI orchestration. Today: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>assistant_view</code>, and the <code>echo_orchestrator</code> stand-in (off)</td>
 <td><code>src/assistant/modules/</code></td>
-<td></td>
+<td><a href="../agents/runtime.html">agent runtime</a></td>
 </tr>
 <tr>
 <td>Agent Hub</td>
-<td>Coordinates the agents: who is doing what, task state, routing, clarifications (planned)</td>
-<td><em>TBD</em> module</td>
+<td>Coordinates the agents: who is doing what, task state, routing, clarifications</td>
+<td><code>src/assistant/modules/agent_hub/</code></td>
 <td><a href="agents.html">agents</a></td>
 </tr>
 <tr>
@@ -228,6 +239,71 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
   var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
+
+  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+  var overlay = null, stage, scale, x, y;
+  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    document.body.style.overflow = "";
+  }
+  function open(svg) {
+    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
+    var h = box && box.height ? box.height : svg.getBBox().height;
+    var clone = svg.cloneNode(true);
+    clone.removeAttribute("style");
+    clone.setAttribute("width", w);
+    clone.setAttribute("height", h);
+    overlay = document.createElement("div");
+    overlay.className = "zoom";
+    var btn = document.createElement("button");
+    btn.className = "zoom-close";
+    btn.setAttribute("aria-label", "Close");
+    btn.textContent = "\u00d7";
+    btn.addEventListener("click", close);
+    stage = document.createElement("div");
+    stage.className = "zoom-stage";
+    stage.appendChild(clone);
+    overlay.appendChild(btn);
+    overlay.appendChild(stage);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
+    x = (innerWidth - w * scale) / 2;
+    y = (innerHeight - h * scale) / 2;
+    place();
+    overlay.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
+      f = s / scale;
+      x = e.clientX - (e.clientX - x) * f;
+      y = e.clientY - (e.clientY - y) * f;
+      scale = s;
+      place();
+    }, { passive: false });
+    var drag = null;
+    overlay.addEventListener("pointerdown", function (e) {
+      if (e.target === btn) return;
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      overlay.setPointerCapture(e.pointerId);
+      overlay.classList.add("dragging");
+    });
+    overlay.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      x = drag.x + e.clientX - drag.px;
+      y = drag.y + e.clientY - drag.py;
+      place();
+    });
+    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+  }
+  document.addEventListener("click", function (e) {
+    var d = e.target.closest && e.target.closest(".diagram");
+    var svg = d && d.querySelector("svg");
+    if (svg && !overlay) open(svg);
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
 </script>
 </body>

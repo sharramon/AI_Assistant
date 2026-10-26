@@ -53,6 +53,17 @@ th { background: var(--panel); }
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+.diagram:not(.offline) { cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
+.zoom.dragging { cursor: grabbing; }
+.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.zoom-stage svg { display: block; max-width: none !important; }
+.zoom-close {
+  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.zoom-close:hover { background: var(--border); }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
@@ -84,59 +95,16 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <li><strong>The spike is done</strong> and confirmed the design: interrupt → reply → continue works, and a session survives a cancel with its memory. Details on the <a href="../agents/spike.html#findings">spike page</a>. The relay script was never built.</li>
 <li><strong>CI:</strong> GitHub Actions runs the tests on Windows and Linux, <code>ruff</code>, and checks that <code>docs/html</code> matches the Markdown. See <a href="#testing-and-ci">Testing and CI</a>.</li>
 </ul>
-<h2 id="now-the-two-terminal-setup">Now: the two-terminal setup</h2>
-<p><strong>Start next session with:</strong> review the <a href="../agents/runtime.html">Agent runtime</a> page together (launch from the main app, messaging through the core, each agent's loop, prompts, the <code>NEED:</code> convention, the tags). If it looks right, build.</p>
-<p>Build the real modules, in this order, each with the <code>architecture-first</code> skill:</p>
-<table>
-<thead>
-<tr>
-<th>#</th>
-<th>Build</th>
-<th>What it does</th>
-<th>Test without the rest</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td><code>infra/ClaudeSession</code></td>
-<td>One <code>claude -p</code> stream-json process: start, send, interrupt, read events, track <code>working</code></td>
-<td>Unit tests replay the spike's recorded events; one <code>claude</code>-marked test against a real session</td>
-</tr>
-<tr>
-<td>2</td>
-<td><code>main_assistant</code></td>
-<td>Provides <code>ITaskAgent</code> through <code>SessionTaskAgent</code>; reports with <code>ReportTask</code>; publishes <code>AgentActivity</code> and <code>AgentStateChanged</code></td>
-<td>Against a fake Hub</td>
-</tr>
-<tr>
-<td>3</td>
-<td><code>agent_hub</code></td>
-<td>Task state; handles <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>ListAgents</code></td>
-<td>Against a fake <code>ITaskAgent</code></td>
-</tr>
-<tr>
-<td>4</td>
-<td><code>talker</code></td>
-<td>A fast <code>claude</code> session for conversation; turns its tags into Hub commands; tells you about task updates</td>
-<td>Terminal 1 works from here</td>
-</tr>
-<tr>
-<td>5</td>
-<td><code>assistant_view</code></td>
-<td>Opens terminal 2 and shows <code>AgentActivity</code></td>
-<td>Terminal 2 works from here</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Gaps found in the current code</strong> (fix while building; no core changes):</p>
+<h2 id="done-the-two-terminal-setup-2026-10-25">Done: the two-terminal setup (2026-10-25)</h2>
+<p>The <a href="../agents/runtime.html">Agent runtime</a> is built and runs: <code>.\.venv\Scripts\python -m assistant</code> opens terminal 2 and starts both <code>claude</code> sessions. Tested end to end (hand off, work, "done" notice, file in <code>workspace/</code>) and by <code>tests/test_agents.py</code>, which runs against <code>tests/fake_claude.py</code>.</p>
+<p><strong>Known issues:</strong></p>
 <ul>
-<li><strong>The Talker can't speak first:</strong> <code>console_io</code> only prints a <code>ResponseReady</code> that answers one of its own inputs, once. It must also print uncorrelated ones (e.g. "the task is done").</li>
-<li><strong>Event handler timeout (10 s):</strong> the Talker must not wait for its <code>claude</code> reply inside the <code>InputReceived</code> handler; it hands the input to its own loop and returns.</li>
-<li><strong>Terminal 2 has no mechanism yet:</strong> to decide with <code>assistant_view</code> (simplest: open a new console running a small viewer, fed over a local pipe).</li>
-<li><strong>Interrupted turns end with <code>is_error: true</code>:</strong> <code>SessionTaskAgent</code> must know it sent the interrupt and not report the task as failed.</li>
+<li><strong>Exit crash with piped stdin:</strong> typing <code>exit</code> when stdin is a pipe (not a console) ends with "Fatal Python error … stdin … daemon threads". <code>console_io</code>'s stdin thread holds the stdin lock at shutdown. It also happened before the agents were added.</li>
+<li><strong>Interrupt and NEED untried with the real agents:</strong> the fake-<code>claude</code> tests cover them; try a mid-task question, pause, and cancel by hand.</li>
+<li><strong>The Talker's working directory</strong> is the app's, so it loads this project's <code>CLAUDE.md</code>. Set <code>[modules.talker] cwd</code> to a neutral folder if that slows it down.</li>
 </ul>
-<p>After this: speech-to-text (voice in) and voice out.</p>
+<h2 id="now">Now</h2>
+<p>Try it by hand, then speech-to-text (voice in) and voice out.</p>
 <h2 id="testing-and-ci">Testing and CI</h2>
 <ul>
 <li><code>pytest</code> runs the unit tests (fast, no <code>claude</code>). Tests that run a real <code>claude</code> process are marked <code>@pytest.mark.claude</code>, skipped by default and in CI; run them locally with <code>pytest -m claude</code>.</li>
@@ -167,6 +135,71 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
   var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
+
+  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+  var overlay = null, stage, scale, x, y;
+  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    document.body.style.overflow = "";
+  }
+  function open(svg) {
+    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
+    var h = box && box.height ? box.height : svg.getBBox().height;
+    var clone = svg.cloneNode(true);
+    clone.removeAttribute("style");
+    clone.setAttribute("width", w);
+    clone.setAttribute("height", h);
+    overlay = document.createElement("div");
+    overlay.className = "zoom";
+    var btn = document.createElement("button");
+    btn.className = "zoom-close";
+    btn.setAttribute("aria-label", "Close");
+    btn.textContent = "\u00d7";
+    btn.addEventListener("click", close);
+    stage = document.createElement("div");
+    stage.className = "zoom-stage";
+    stage.appendChild(clone);
+    overlay.appendChild(btn);
+    overlay.appendChild(stage);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
+    x = (innerWidth - w * scale) / 2;
+    y = (innerHeight - h * scale) / 2;
+    place();
+    overlay.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
+      f = s / scale;
+      x = e.clientX - (e.clientX - x) * f;
+      y = e.clientY - (e.clientY - y) * f;
+      scale = s;
+      place();
+    }, { passive: false });
+    var drag = null;
+    overlay.addEventListener("pointerdown", function (e) {
+      if (e.target === btn) return;
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      overlay.setPointerCapture(e.pointerId);
+      overlay.classList.add("dragging");
+    });
+    overlay.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      x = drag.x + e.clientX - drag.px;
+      y = drag.y + e.clientY - drag.py;
+      place();
+    });
+    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+  }
+  document.addEventListener("click", function (e) {
+    var d = e.target.closest && e.target.closest(".diagram");
+    var svg = d && d.querySelector("svg");
+    if (svg && !overlay) open(svg);
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
 </script>
 </body>

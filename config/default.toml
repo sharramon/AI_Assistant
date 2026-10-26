@@ -5,11 +5,23 @@
 # Which of the modules listed in src/assistant/__main__.py are active at startup.
 # The others can be turned on at runtime (ActivateModule). Swap the orchestrator
 # by changing this list.
-enabled = ["console_io", "echo_orchestrator"]
+enabled = ["console_io", "agent_hub", "main_assistant", "talker", "assistant_view"]
 
 # Per-module settings go in [modules.<module id>].
 [modules.console_io]
 prompt = "> "
+
+[modules.talker]
+model = "sonnet"
+turn_timeout = 120.0      # seconds before a Talker turn is interrupted
+context_exchanges = 6     # recent exchanges passed to the Main Assistant with a task
+# cwd = "..."             # the Talker's working directory (it has no tools)
+
+[modules.main_assistant]
+workspace = "workspace"   # its working folder; writes outside it are refused
+tools = "Read,Write,Edit,Glob,Grep"
+permission_mode = "acceptEdits"
+# model = "opus"          # default: your claude default
 
 [core]
 command_timeout = 30.0        # seconds; default for every command

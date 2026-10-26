@@ -94,7 +94,7 @@ User input from any source.
 
 `ResponseReady(text: str, conversation_id: str | None = None, correlation_id=...)` (event)
 
-A reply to present. Set `correlation_id` to the `id` of the `InputReceived` it answers, so the source can tell which replies are its own.
+A reply to present. Set `correlation_id` to the `id` of the `InputReceived` it answers, so the source can tell which replies are its own. Leave it `None` when the assistant speaks first (e.g. "the task is done"); `console_io` prints those too.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 

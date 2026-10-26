@@ -1,7 +1,5 @@
 # Agents
 
-> **Status: planned.** Designed, not built yet. Nothing here exists in the code.
-
 Task agents and the Agent Hub's commands and events. All items: `from assistant.contracts import ...`. Back to the [API index](README.md). How it works: [task agents](../architecture/agents.md#task-agents).
 
 ## `ITaskAgent`
@@ -65,20 +63,24 @@ Abstract. Like pressing Esc: interrupt the turn and drop the task. The session a
         manifest = Manifest(id="main_assistant", provides=(ITaskAgent,))
 
         async def init(self, ctx):
-            self._session = ClaudeSession(...)
-            self._agent = SessionTaskAgent(self._session, ctx)
+            self._session = ClaudeSession(claude_command(...), cwd=..., log=ctx.log)
+            self._agent = SessionTaskAgent(self._session, ctx, agent_id="main_assistant", description="...")
             ctx.provide(ITaskAgent, self._agent)
 
+        async def start(self):
+            await self._session.start()
+
         async def stop(self):
+            await self._agent.close()
             await self._session.close()
 
-**Defined in:** `src/assistant/contracts/agents.py` (planned)
+**Defined in:** `src/assistant/contracts/agents.py`. Implemented by [`SessionTaskAgent`](infra.md#sessiontaskagent).
 
 ## `Task`
 
 `Task(id: str, text: str, context: str = "")`
 
-A unit of work the Hub assigns. Frozen.
+A unit of work the Hub assigns. Frozen. The other data types and all commands and events below are defined in `src/assistant/contracts/agents.py` too.
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -102,7 +104,7 @@ Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 
 ## `TaskState`
 
-`class TaskState(StrEnum)`: `RUNNING`, `PAUSED`, `WAITING_FOR_INPUT`, `DONE`, `FAILED`, `CANCELLED`. Values are the lowercase names. `PAUSED` means you stopped it on purpose; `WAITING_FOR_INPUT` means it asked you something. The last three are final. Transitions: [task state](../architecture/agents.md#task-state).
+`class TaskState(StrEnum)`: `RUNNING`, `PAUSED`, `WAITING_FOR_INPUT`, `DONE`, `FAILED`, `CANCELLED`. Values are the lowercase names. `PAUSED` means you stopped it on purpose; `WAITING_FOR_INPUT` means it asked you something. The last three are final: `state.is_final`. Transitions: [task state](../architecture/agents.md#task-state).
 
 ## `TaskInfo`
 
@@ -147,7 +149,7 @@ Give work to a free agent. Handled by the Agent Hub.
 
 Task status from the Hub, without disturbing the agent.
 
-**Returns:** `Result.ok(list[TaskInfo])`: that task, or with no `task_id`, the active and recent ones. `invalid_arguments` for an unknown id.
+**Returns:** `Result.ok(list[TaskInfo])`: that task, or with no `task_id`, the last five finished ones followed by the unfinished ones. `invalid_arguments` for an unknown id.
 
 ## `SendToTask`
 
@@ -187,7 +189,7 @@ Sent by an agent to the Hub. A command rather than an event so the Hub's state n
 
 `TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None, text: str)` (event)
 
-Published by the Hub on every report and state change; the Talker listens. `kind` is `None` for changes the Hub made itself (e.g. cancel). May be dropped; `GetTaskStatus` is authoritative.
+Published by the Hub on every report and state change; the Talker listens. `kind` is `None` for changes the Hub made itself (start, with `text` "started"; `SendToTask`; cancel). May be dropped; `GetTaskStatus` is authoritative.
 
 ## `AgentStateChanged`
 

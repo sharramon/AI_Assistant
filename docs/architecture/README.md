@@ -41,12 +41,12 @@ flowchart LR
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class VoiceIn,Term,Talker,Main,VoiceOut planned
+    class VoiceIn,VoiceOut planned
     class You person
     class Window,Quest,Subs,Control later
 ```
 
-**Built today:** a single app (the core, plus a terminal input and an echo stand-in in place of the agents). **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
+**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and terminal 2 (view). **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
 
 ## Summary
 
@@ -76,8 +76,8 @@ The core runs on a PC today and will later move to a server, so it must not assu
 | Event Bus | In-process publish/subscribe for events | `src/assistant/core/bus.py` | [core](core.md#communication-internals) |
 | Contracts | `Module`, `ModuleContext`, capability interfaces, command and event types | `src/assistant/contracts/` | [API](../api/README.md) |
 | Shared Infrastructure | Configuration and logging today; persistence and auth/secrets later | `src/assistant/infra/` | [API](../api/infra.md) |
-| Modules | All capabilities, including the AI orchestrator. Today: `console_io`, `echo_orchestrator` | `src/assistant/modules/` | |
-| Agent Hub | Coordinates the agents: who is doing what, task state, routing, clarifications (planned) | _TBD_ module | [agents](agents.md) |
+| Modules | All capabilities, including the AI orchestration. Today: `console_io`, `talker`, `main_assistant`, `agent_hub`, `assistant_view`, and the `echo_orchestrator` stand-in (off) | `src/assistant/modules/` | [agent runtime](../agents/runtime.md) |
+| Agent Hub | Coordinates the agents: who is doing what, task state, routing, clarifications | `src/assistant/modules/agent_hub/` | [agents](agents.md) |
 | Control panel | UI module to turn modules on and off while running, through the core's control interface (planned) | _TBD_ module | [core](core.md#runtime-module-control) |
 | Gateway module | Relays messages to and from remote clients over WebSocket | _TBD_ | |
 | Remote clients | Device apps with their own UI logic (Quest 3 first) | `clients/` | |

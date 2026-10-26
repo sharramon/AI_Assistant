@@ -53,8 +53,8 @@ Turning modules on and off while the app runs. Handled by the core. `from assist
 | [`ModuleState`](control.md#modulestate) | enum | `inactive`, `starting`, `active`, `stopping`, `failed` |
 | [`ModuleStateChanged`](control.md#modulestatechanged) | event | A module moved to a new state |
 
-### [Agents](agents.md) (planned)
-Task agents and the Agent Hub. Designed, not built. `from assistant.contracts import ...`
+### [Agents](agents.md)
+Task agents and the Agent Hub. `from assistant.contracts import ...`
 
 | Item | Kind | Summary |
 |------|------|---------|
@@ -80,6 +80,9 @@ Shared services. `from assistant.infra import ...`
 |------|------|---------|
 | [`load_config`](infra.md#load_config) | function | Load TOML config with local overrides |
 | [`setup_logging`](infra.md#setup_logging) | function | Configure logging from the `[logging]` section |
+| [`ClaudeSession`](infra.md#claudesession) | class | One `claude -p` stream-json process: start, send, interrupt, events |
+| [`claude_command`](infra.md#claude_command) | function | The command line for a stream-json `claude` session |
+| [`SessionTaskAgent`](infra.md#sessiontaskagent) | class | An `ITaskAgent` backed by a `ClaudeSession`; reuse it for every task agent |
 
 ### [Core host](core.md) (internal)
 The stable host. Modules never use these directly. `from assistant.core import ...`

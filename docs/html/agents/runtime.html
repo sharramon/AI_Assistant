@@ -53,6 +53,17 @@ th { background: var(--panel); }
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+.diagram:not(.offline) { cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
+.zoom.dragging { cursor: grabbing; }
+.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.zoom-stage svg { display: block; max-width: none !important; }
+.zoom-close {
+  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.zoom-close:hover { background: var(--border); }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
@@ -69,7 +80,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <h1 id="agent-runtime">Agent runtime</h1>
 <p>How the two agents are spawned, how each behaves on its own, and how they talk to each other, down to the classes. Back to <a href="index.html">Agents</a>. The contracts are on the <a href="../architecture/agents.html#task-agents">architecture page</a> and the <a href="../api/agents.html">Agents API page</a>.</p>
 <blockquote>
-<p><strong>Status: planned, for review.</strong> Nothing here is built yet.</p>
+<p><strong>Status: built (2026-10-25).</strong> Run it with <code>.\.venv\Scripts\python -m assistant</code>. Code: <code>src/assistant/modules/{talker,main_assistant,agent_hub,assistant_view}/</code> and <code>src/assistant/infra/{claude_session,session_agent}.py</code>.</p>
 </blockquote>
 <h2 id="what-runs">What runs</h2>
 <p>Four OS processes. The app is the only one that knows about the others; the two <code>claude</code> processes never talk to each other directly.</p>
@@ -116,15 +127,16 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tr>
 <td>Main Assistant session</td>
 <td><code>main_assistant</code> module, in <code>start</code></td>
-<td><code>claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt &lt;worker prompt&gt;</code>, working directory <code>workspace/</code></td>
+<td><code>claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt &lt;worker prompt&gt;</code>, working directory <code>workspace/</code>. <code>acceptEdits</code> approves writes inside the working directory only; others are refused, since nobody can approve them</td>
 </tr>
 <tr>
 <td>Terminal 2</td>
 <td><code>assistant_view</code> module, in <code>start</code></td>
-<td><code>python -m assistant.modules.assistant_view.viewer</code> in a new console window, its stdin a pipe from the app</td>
+<td><code>python -m assistant.modules.assistant_view.viewer</code> in a new console window, its stdin a pipe from the app. It writes to its own window (<code>CONOUT$</code>), because its inherited stdout is terminal 1. Windows only for now</td>
 </tr>
 </tbody>
 </table>
+<p>Each command line is built by <a href="../api/infra.html#claude_command"><code>claude_command</code></a>; the model, tools, permission mode, and workspace come from <code>[modules.talker]</code> and <code>[modules.main_assistant]</code> in <code>config/default.toml</code>.</p>
 <h2 id="launched-from-the-main-app">Launched from the main app</h2>
 <p>Everything below runs in one Python process, on one <code>asyncio</code> event loop (plus <code>console_io</code>'s stdin thread). The agents' <code>claude</code> processes are children of it.</p>
 <pre><code class="language-mermaid">flowchart TB
@@ -144,7 +156,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     classDef new fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     class CS,VS,Spawn new
 </code></pre>
-<p>Purple: new. The rest exists today. The only edits outside the new modules are two lists: <code>MODULES</code> in <code>__main__.py</code> gains the four new module classes, and <code>modules.enabled</code> in <code>config/default.toml</code> switches them on (and the echo module off).</p>
+<p>Purple: added for the agents. Outside the new modules, the only edits were two lists (<code>MODULES</code> in <code>__main__.py</code> gained the four module classes, and <code>modules.enabled</code> in <code>config/default.toml</code> switches them on and the echo module off) and <code>console_io</code> now also prints uncorrelated replies, so the Talker can speak first.</p>
 <h2 id="messaging-to-and-from-the-main-app">Messaging to and from the main app</h2>
 <p>Modules never hold references to each other. Each gets a <code>ScopedContext</code>, and everything goes through the core's three parts. Only the pipes leave the process.</p>
 <pre><code class="language-mermaid">flowchart LR
@@ -290,14 +302,14 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 
     Note over L: start, same order
     L-&gt;&gt;C: start: read terminal 1
-    L-&gt;&gt;M: start: launch its claude (instant; ~6 s until it can first reply)
+    L-&gt;&gt;M: start: launch its claude (instant, ~6 s until it can first reply)
     L-&gt;&gt;H: start: nothing to launch
     L-&gt;&gt;T: start: launch its claude (kept warm), start its inbox loop
     L-&gt;&gt;V: start: open terminal 2
 </code></pre>
 <ul>
-<li><strong>Order:</strong> <code>main_assistant</code> provides <code>ITaskAgent</code> and the Hub lists it as optional, so the agent starts first. <code>talker</code> and <code>assistant_view</code> depend on nothing; they only send commands and listen to events.</li>
-<li><strong>Stop</strong> runs in reverse. Each session closes its <code>claude</code> process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.</li>
+<li><strong>Order:</strong> <code>main_assistant</code> provides <code>ITaskAgent</code> and the Hub lists it as optional, so the agent starts before the Hub. <code>talker</code> and <code>assistant_view</code> depend on nothing; they only send commands and listen to events. The diagram shows one valid order; the actual one is <code>console_io, main_assistant, talker, assistant_view, agent_hub</code>.</li>
+<li><strong>Stop</strong> runs in reverse, so the Hub stops first: reports an agent sends while shutting down are refused (logged as warnings, harmless). Each session closes its <code>claude</code> process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.</li>
 <li><strong>Runtime control:</strong> deactivating <code>main_assistant</code> ends its process; the Hub sees no agents and <code>StartTask</code> returns <code>not_available</code>. Activating it again starts a fresh session (no memory of before).</li>
 </ul>
 <h2 id="classes">Classes</h2>
@@ -311,7 +323,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
         +close()
         +running bool
         +working bool
-        on_event(dict)
+        +on_event(dict)
     }
     class ITaskAgent {
         &lt;&lt;contract&gt;&gt;
@@ -321,6 +333,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
         +cancel(task_id) Result
     }
     class SessionTaskAgent {
+        &lt;&lt;infra&gt;&gt;
         task, mode
     }
     class MainAssistantModule { &lt;&lt;module&gt;&gt; }
@@ -336,13 +349,21 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     class AssistantViewModule { &lt;&lt;module&gt;&gt; }
 
     SessionTaskAgent --|&gt; ITaskAgent
-    SessionTaskAgent --&gt; ClaudeSession : owns its use
+    SessionTaskAgent --&gt; ClaudeSession : uses
     MainAssistantModule --&gt; SessionTaskAgent : provides as ITaskAgent
     MainAssistantModule --&gt; ClaudeSession : creates, closes
     TalkerModule --&gt; ClaudeSession : creates, closes
     AgentHubModule ..&gt; ITaskAgent : get_all()
 </code></pre>
-<p><code>ClaudeSession</code> knows nothing about tasks or the Talker: it runs one process, writes messages and interrupts, calls <code>on_event</code> for every JSON line, and sets <code>working</code> from "message sent" until <code>result</code>. Both agents reuse it with different settings.</p>
+<p>The core's lifecycle manager starts all of these modules, and none of them launches another. In the diagram, the arrow with a hollow head means "implements", a plain arrow means "holds and uses", and the dotted arrow means "looks up through the Container".</p>
+<p><code>ClaudeSession</code> runs one <code>claude</code> process. It knows nothing about tasks or the Talker: it writes messages and interrupts, calls <code>on_event</code> for every JSON line, and sets <code>working</code> from "message sent" until <code>result</code>. <code>SessionTaskAgent</code> lives in <code>infra</code> too, not in the <code>main_assistant</code> module, so a later subagent module can reuse it without importing another module's internals (<a href="../architecture/principles.html">principle 3</a>).</p>
+<p>The Talker and the Main Assistant are both LLM agents. Each has its own <code>ClaudeSession</code>, so each runs its own <code>claude</code> process with its own model, prompt, and tools. What differs is their role, and the diagram shows it by which one implements <code>ITaskAgent</code>:</p>
+<ul>
+<li><code>MainAssistantModule</code> is the worker. In <code>init</code> it builds a <code>ClaudeSession</code> and a <code>SessionTaskAgent</code>, and registers the agent with the Container as an <code>ITaskAgent</code>. <code>SessionTaskAgent</code> turns the Hub's calls (<code>assign</code>, <code>message</code>, <code>cancel</code>) into messages for its session, and the session's results into reports.</li>
+<li><code>TalkerModule</code> talks with you and takes no tasks, so it doesn't implement <code>ITaskAgent</code>. When something needs doing, it hands the task to the Hub with a command (<code>StartTask</code>, <code>SendToTask</code>, …) and hears back through <code>TaskUpdated</code> events. Commands and events travel through the core, so they aren't drawn here; they're in <a href="#messaging-to-and-from-the-main-app">Messaging to and from the main app</a>.</li>
+<li><code>AgentHubModule</code> holds no reference to any agent module. It asks the Container for every <code>ITaskAgent</code> and calls the ones it gets back. A future subagent is one more module that provides <code>ITaskAgent</code>, and the Hub finds it without any change.</li>
+<li><code>AssistantViewModule</code> only listens to events, so it has no arrows.</li>
+</ul>
 <h2 id="the-talker-on-its-own">The Talker on its own</h2>
 <p>The Talker is a conversation loop with one <strong>inbox</strong>. Everything that should make it speak goes into the inbox, and it handles one item at a time, one <code>claude</code> turn each. So it never talks over itself, and the event handlers return at once (no 10 s handler timeout).</p>
 <table>
@@ -537,6 +558,71 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
   var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
+
+  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+  var overlay = null, stage, scale, x, y;
+  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    document.body.style.overflow = "";
+  }
+  function open(svg) {
+    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
+    var h = box && box.height ? box.height : svg.getBBox().height;
+    var clone = svg.cloneNode(true);
+    clone.removeAttribute("style");
+    clone.setAttribute("width", w);
+    clone.setAttribute("height", h);
+    overlay = document.createElement("div");
+    overlay.className = "zoom";
+    var btn = document.createElement("button");
+    btn.className = "zoom-close";
+    btn.setAttribute("aria-label", "Close");
+    btn.textContent = "\u00d7";
+    btn.addEventListener("click", close);
+    stage = document.createElement("div");
+    stage.className = "zoom-stage";
+    stage.appendChild(clone);
+    overlay.appendChild(btn);
+    overlay.appendChild(stage);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
+    x = (innerWidth - w * scale) / 2;
+    y = (innerHeight - h * scale) / 2;
+    place();
+    overlay.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
+      f = s / scale;
+      x = e.clientX - (e.clientX - x) * f;
+      y = e.clientY - (e.clientY - y) * f;
+      scale = s;
+      place();
+    }, { passive: false });
+    var drag = null;
+    overlay.addEventListener("pointerdown", function (e) {
+      if (e.target === btn) return;
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      overlay.setPointerCapture(e.pointerId);
+      overlay.classList.add("dragging");
+    });
+    overlay.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      x = drag.x + e.clientX - drag.px;
+      y = drag.y + e.clientY - drag.py;
+      place();
+    });
+    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+  }
+  document.addEventListener("click", function (e) {
+    var d = e.target.closest && e.target.closest(".diagram");
+    var svg = d && d.querySelector("svg");
+    if (svg && !overlay) open(svg);
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
 </script>
 </body>

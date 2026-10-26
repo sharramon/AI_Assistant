@@ -53,6 +53,17 @@ th { background: var(--panel); }
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
+.diagram:not(.offline) { cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
+.zoom.dragging { cursor: grabbing; }
+.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.zoom-stage svg { display: block; max-width: none !important; }
+.zoom-close {
+  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.zoom-close:hover { background: var(--border); }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
@@ -126,6 +137,76 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </table>
 <p>With neither <code>file</code> nor <code>stderr</code>, logs are discarded.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/log.py</code></p>
+<h2 id="claudesession"><code>ClaudeSession</code></h2>
+<p><code>ClaudeSession(command: Sequence[str], cwd: str | Path | None = None, log: Logger | None = None, on_event: Callable[[dict], None] | None = None)</code></p>
+<p>One long-lived <code>claude -p</code> stream-json process. Knows nothing about tasks or agents: it writes messages and interrupts as JSON lines on stdin and hands every JSON line from stdout to <code>on_event</code>, in order. Build <code>command</code> with <a href="#claude_command"><code>claude_command</code></a>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async start()</code></td>
+<td>Launch the process (no-op if running). Raises <code>FileNotFoundError</code> if <code>claude</code> isn't installed</td>
+</tr>
+<tr>
+<td><code>async send(text)</code></td>
+<td>Send a user message, starting a turn. Raises <code>RuntimeError</code> if not running</td>
+</tr>
+<tr>
+<td><code>async interrupt()</code></td>
+<td>Interrupt the turn, like Esc. The turn still ends with a <code>result</code> (<code>is_error: true</code>)</td>
+</tr>
+<tr>
+<td><code>async close(timeout=3.0)</code></td>
+<td>Close stdin, wait, kill if it doesn't exit. <code>start</code> works again afterwards</td>
+</tr>
+<tr>
+<td><code>running: bool</code></td>
+<td>The process is alive</td>
+</tr>
+<tr>
+<td><code>working: bool</code></td>
+<td>From <code>send</code> until the turn's <code>result</code></td>
+</tr>
+<tr>
+<td><code>on_event</code></td>
+<td>Settable callback. Also gets <code>{"type": "exit", "returncode": n}</code> if the process ends on its own</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>session = ClaudeSession(claude_command(model="sonnet"), on_event=print)
+await session.start()
+await session.send("Hello")
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code></p>
+<h2 id="claude_command"><code>claude_command</code></h2>
+<p><code>claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, system_prompt: str | None = None, program: Sequence[str] = ("claude",)) -&gt; list[str]</code></p>
+<p>The command line for a stream-json <code>claude -p</code> session. Always adds <code>--strict-mcp-config</code> (otherwise your claude.ai MCP connectors load). <code>tools=""</code> means no tools; <code>system_prompt</code> goes in as <code>--append-system-prompt</code>. <code>program</code> is replaceable so tests can run a fake.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code></p>
+<h2 id="sessiontaskagent"><code>SessionTaskAgent</code></h2>
+<p><code>SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0)</code></p>
+<p>An <a href="agents.html#itaskagent"><code>ITaskAgent</code></a> backed by one <code>ClaudeSession</code>: the shared part every task agent is built from. Turns <code>assign</code>, <code>message</code>, and <code>cancel</code> into session messages, and the session's events into <a href="agents.html#reporttask"><code>ReportTask</code></a>, <a href="agents.html#agentactivity"><code>AgentActivity</code></a>, and <a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a>. Sets itself as the session's <code>on_event</code>. Every method returns once its message or interrupt is written. A turn whose last line is <code>NEED: &lt;question&gt;</code> is reported as <code>need</code>. If a cancel's interrupt doesn't end the turn within <code>cancel_timeout</code>, the session is closed and the next task starts a fresh one. Behavior: <a href="../agents/runtime.html#the-main-assistant-on-its-own">The Main Assistant on its own</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async close()</code></td>
+<td>Stop its background tasks. The owning module closes the session itself</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong> see <a href="agents.html#itaskagent"><code>ITaskAgent</code></a>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/session_agent.py</code></p>
 <footer>Generated from <code>docs/api/infra.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
@@ -147,6 +228,71 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
   var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
+
+  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+  var overlay = null, stage, scale, x, y;
+  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    document.body.style.overflow = "";
+  }
+  function open(svg) {
+    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
+    var h = box && box.height ? box.height : svg.getBBox().height;
+    var clone = svg.cloneNode(true);
+    clone.removeAttribute("style");
+    clone.setAttribute("width", w);
+    clone.setAttribute("height", h);
+    overlay = document.createElement("div");
+    overlay.className = "zoom";
+    var btn = document.createElement("button");
+    btn.className = "zoom-close";
+    btn.setAttribute("aria-label", "Close");
+    btn.textContent = "\u00d7";
+    btn.addEventListener("click", close);
+    stage = document.createElement("div");
+    stage.className = "zoom-stage";
+    stage.appendChild(clone);
+    overlay.appendChild(btn);
+    overlay.appendChild(stage);
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
+    x = (innerWidth - w * scale) / 2;
+    y = (innerHeight - h * scale) / 2;
+    place();
+    overlay.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
+      f = s / scale;
+      x = e.clientX - (e.clientX - x) * f;
+      y = e.clientY - (e.clientY - y) * f;
+      scale = s;
+      place();
+    }, { passive: false });
+    var drag = null;
+    overlay.addEventListener("pointerdown", function (e) {
+      if (e.target === btn) return;
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      overlay.setPointerCapture(e.pointerId);
+      overlay.classList.add("dragging");
+    });
+    overlay.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      x = drag.x + e.clientX - drag.px;
+      y = drag.y + e.clientY - drag.py;
+      place();
+    });
+    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+  }
+  document.addEventListener("click", function (e) {
+    var d = e.target.closest && e.target.closest(".diagram");
+    var svg = d && d.querySelector("svg");
+    if (svg && !overlay) open(svg);
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
 </script>
 </body>
