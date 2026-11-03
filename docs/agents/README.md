@@ -44,6 +44,17 @@ How we run and work with the agents: setup, experiments, and what we've learned.
 - One Main Assistant and **one active task**; another request gets "busy". No queue.
 - No scheduling or distributed machinery until needed.
 
+## Workflow skills
+
+Project skills in `.claude/skills/`, used by Claude Code and the Main Assistant alike. `CLAUDE.md` says when each applies.
+
+| Skill | What it's for | When |
+|-------|---------------|------|
+| `batching` | The batching rules that keep the step count and per-step cost down | Before any multi-step task (several reads, edits, builds, or questions) |
+| `architecture-first` | Confirms the use-case, checks the architecture docs and API reference so code gets reused, keeps those docs updated | Before non-trivial edits, or a change touching more than one function or file |
+| `architecture-check` | Checks what was just built for modularity, reuse, and fit with the main app; the final report gets an "Architecture check" section | After each big chunk of a multi-chunk build, and before the final report |
+| `docs-html` | Regenerates the browsable HTML in `docs/html/` | Whenever a file under `docs/` (Markdown) is created, edited, renamed, or deleted |
+
 ## Pages
 
 - [Agent runtime](runtime.md): how the two agents are spawned, behave, and talk to each other

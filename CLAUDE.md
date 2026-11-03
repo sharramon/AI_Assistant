@@ -18,6 +18,7 @@ For agent work (Talker, Main Assistant, Agent Hub, subagents), also read `docs/a
 
 - Any multi-step task: follow the `batching` skill.
 - Making a change that touches more than one function or file: use the `architecture-first` skill.
+- During and at the end of a multi-chunk build: use the `architecture-check` skill after each big chunk and before the final report.
 - After editing anything in `docs/**/*.md`: use the `docs-html` skill (rebuild with `.\.venv\Scripts\python scripts\build_docs.py`). Never edit `docs/html/` by hand.
 - Discuss proposed doc or structure changes with the user before editing.
 

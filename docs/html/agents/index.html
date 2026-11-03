@@ -89,6 +89,39 @@
 <li>One Main Assistant and <strong>one active task</strong>; another request gets "busy". No queue.</li>
 <li>No scheduling or distributed machinery until needed.</li>
 </ul>
+<h2 id="workflow-skills">Workflow skills</h2>
+<p>Project skills in <code>.claude/skills/</code>, used by Claude Code and the Main Assistant alike. <code>CLAUDE.md</code> says when each applies.</p>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>What it's for</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>batching</code></td>
+<td>The batching rules that keep the step count and per-step cost down</td>
+<td>Before any multi-step task (several reads, edits, builds, or questions)</td>
+</tr>
+<tr>
+<td><code>architecture-first</code></td>
+<td>Confirms the use-case, checks the architecture docs and API reference so code gets reused, keeps those docs updated</td>
+<td>Before non-trivial edits, or a change touching more than one function or file</td>
+</tr>
+<tr>
+<td><code>architecture-check</code></td>
+<td>Checks what was just built for modularity, reuse, and fit with the main app; the final report gets an "Architecture check" section</td>
+<td>After each big chunk of a multi-chunk build, and before the final report</td>
+</tr>
+<tr>
+<td><code>docs-html</code></td>
+<td>Regenerates the browsable HTML in <code>docs/html/</code></td>
+<td>Whenever a file under <code>docs/</code> (Markdown) is created, edited, renamed, or deleted</td>
+</tr>
+</tbody>
+</table>
 <h2 id="pages">Pages</h2>
 <ul>
 <li><a href="runtime.html">Agent runtime</a>: how the two agents are spawned, behave, and talk to each other</li>
