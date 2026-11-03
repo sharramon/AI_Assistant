@@ -34,16 +34,16 @@
 <td>every module</td>
 </tr>
 <tr>
-<td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a></td>
+<td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> (<code>ModulePermissions</code>)</td>
 <td>interface</td>
-<td><code>has</code> / <code>request</code> a permission; stand-in allows and logs (<em>planned</em>)</td>
-<td><code>contracts/module.py</code>, <code>core/context.py</code></td>
-<td><code>voice_in</code> (<em>planned</em>), every module that asks</td>
+<td><code>has</code> / <code>request</code> a permission; the stand-in <a href="core.html#allowallpermissions"><code>AllowAllPermissions</code></a> allows, warns once per module and permission</td>
+<td><code>contracts/module.py</code>, <code>core/permissions.py</code>, <code>core/context.py</code></td>
+<td>every module's context (<code>ScopedContext</code>); callers: <code>voice_in</code> (<em>planned</em>), every module that asks</td>
 </tr>
 <tr>
 <td><a href="modules.html#manifest"><code>Manifest</code></a></td>
 <td>data</td>
-<td>Id, contracts provided / required / optional, permissions (<em>planned</em>)</td>
+<td>Id, contracts provided / required / optional, <code>permissions</code> / <code>optional_permissions</code></td>
 <td><code>contracts/module.py</code></td>
 <td>every module</td>
 </tr>
@@ -116,6 +116,56 @@
 <td>A task agent's mode was set, and when it applies</td>
 <td><code>contracts/agents.py</code></td>
 <td><code>SessionTaskAgent</code> → <code>talker</code>, <code>temp_ui</code></td>
+</tr>
+<tr>
+<td><a href="messaging.html#startlistening"><code>StartListening</code></a>, <a href="messaging.html#stoplistening"><code>StopListening</code></a></td>
+<td>command</td>
+<td>Turn the mic on and off; any UI may send them</td>
+<td><code>contracts/voice.py</code></td>
+<td><code>temp_ui</code> (<em>planned</em>) → <code>voice_in</code> (<em>planned</em>)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#listeningstate"><code>ListeningState</code></a></td>
+<td>enum</td>
+<td>The mic's state: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>failed</code></td>
+<td><code>contracts/voice.py</code></td>
+<td><code>VoiceState</code></td>
+</tr>
+<tr>
+<td><a href="messaging.html#voicestate"><code>VoiceState</code></a></td>
+<td>event</td>
+<td>The mic's state changed, for the button</td>
+<td><code>contracts/voice.py</code></td>
+<td><code>voice_in</code> (<em>planned</em>) → <code>temp_ui</code> (<em>planned</em>)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#voicetranscript"><code>VoiceTranscript</code></a></td>
+<td>event</td>
+<td>Live and final voice text; the public stream</td>
+<td><code>contracts/voice.py</code></td>
+<td><code>voice_in</code> (<em>planned</em>) → <code>temp_ui</code> (<em>planned</em>), any subscriber</td>
+</tr>
+</tbody>
+</table>
+<h2 id="voice-service-voice_serviceprotocol">Voice service: <code>voice_service.protocol</code></h2>
+<p>Shared by the service and its Python clients; never imports <code>assistant</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Kind</th>
+<th>Purpose</th>
+<th>Where</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="messaging.html#the-voice-service-protocol">Voice service protocol</a></td>
+<td>models, functions</td>
+<td>The <code>/ws/listen</code> messages, <code>ErrorCode</code>, <code>parse_client_message</code>, <code>parse_service_message</code>, <code>dump</code>, <code>ProtocolError</code></td>
+<td><code>voice_service/protocol.py</code></td>
+<td><code>voice_service</code> server (<em>planned</em>), <code>voice_in</code> client (<em>planned</em>)</td>
 </tr>
 </tbody>
 </table>

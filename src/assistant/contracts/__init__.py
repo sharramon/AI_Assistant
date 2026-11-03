@@ -47,6 +47,13 @@ from assistant.contracts.messages import (
 )
 from assistant.contracts.module import Contract, Manifest, Module, ModuleContext, ModulePermissions
 from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
+from assistant.contracts.voice import (
+    ListeningState,
+    StartListening,
+    StopListening,
+    VoiceState,
+    VoiceTranscript,
+)
 
 __all__ = [
     "ActivateModule",
@@ -64,6 +71,7 @@ __all__ = [
     "InvokeTool",
     "ITaskAgent",
     "ListAgents",
+    "ListeningState",
     "ListModules",
     "Manifest",
     "Message",
@@ -85,8 +93,10 @@ __all__ = [
     "SessionTheme",
     "SessionUsage",
     "ShutdownRequested",
+    "StartListening",
     "StartTask",
     "Status",
+    "StopListening",
     "Task",
     "TaskInfo",
     "TaskState",
@@ -96,4 +106,6 @@ __all__ = [
     "ViewerClip",
     "ViewerClipDropped",
     "ViewerTabsChanged",
+    "VoiceState",
+    "VoiceTranscript",
 ]

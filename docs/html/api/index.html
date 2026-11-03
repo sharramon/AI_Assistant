@@ -19,7 +19,8 @@
 <h2 id="reusable-parts">♻ Reusable parts</h2>
 <p><strong>Check the <a href="reusable.html">reusable parts index</a> before writing a helper.</strong> One line per part (name, kind, purpose, where, used by), sorted by where it lives:</p>
 <ul>
-<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleContext</code>, <code>ctx.permissions</code> (planned), <code>Manifest</code>, the Event Bus, <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code></li>
+<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleContext</code>, <code>ctx.permissions</code>, <code>Manifest</code>, the Event Bus, <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
+<li><strong>Voice service</strong> (<code>voice_service.protocol</code>): the <code>/ws/listen</code> messages</li>
 <li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code>, <code>session_usage</code>, <code>agent_tags</code></li>
 <li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code>, <code>load_layered</code>, <code>CompanionApp</code></li>
 </ul>
@@ -43,7 +44,7 @@
 <tr>
 <td><a href="modules.html#manifest"><code>Manifest</code></a></td>
 <td>data</td>
-<td>♻ Module id, the contracts it provides, requires, and optionally uses, and its permissions (planned)</td>
+<td>♻ Module id, the contracts it provides, requires, and optionally uses, and its permissions</td>
 </tr>
 <tr>
 <td><a href="modules.html#modulecontext"><code>ModuleContext</code></a></td>
@@ -53,7 +54,7 @@
 <tr>
 <td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a></td>
 <td>interface</td>
-<td>♻ <code>has</code> / <code>request</code> a permission; a stand-in allows and logs until the handler runs (planned)</td>
+<td>♻ <code>has</code> / <code>request</code> a permission (<code>ModulePermissions</code>); a stand-in allows and logs until the handler runs</td>
 </tr>
 <tr>
 <td><a href="modules.html#contract"><code>Contract</code></a></td>
@@ -132,6 +133,36 @@
 <td><a href="messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a></td>
 <td>event</td>
 <td>You dropped a snip before sending it</td>
+</tr>
+<tr>
+<td><a href="messaging.html#startlistening"><code>StartListening</code></a></td>
+<td>command</td>
+<td>♻ Turn the mic on; <code>send_as_input</code> decides whether the Talker gets the text</td>
+</tr>
+<tr>
+<td><a href="messaging.html#stoplistening"><code>StopListening</code></a></td>
+<td>command</td>
+<td>♻ Turn the mic off; the result has the final text</td>
+</tr>
+<tr>
+<td><a href="messaging.html#listeningstate"><code>ListeningState</code></a></td>
+<td>enum</td>
+<td>♻ <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>failed</code></td>
+</tr>
+<tr>
+<td><a href="messaging.html#voicestate"><code>VoiceState</code></a></td>
+<td>event</td>
+<td>♻ The mic's state changed, for the button</td>
+</tr>
+<tr>
+<td><a href="messaging.html#voicetranscript"><code>VoiceTranscript</code></a></td>
+<td>event</td>
+<td>♻ Live and final voice text, for any subscriber</td>
+</tr>
+<tr>
+<td><a href="messaging.html#the-voice-service-protocol">Voice service protocol</a></td>
+<td>models</td>
+<td>♻ <code>/ws/listen</code> messages shared by <code>voice_service</code> and <code>voice_in</code> (<code>from voice_service.protocol import ...</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -455,6 +486,11 @@
 <td><a href="core.html#scopedcontext"><code>ScopedContext</code></a></td>
 <td>class</td>
 <td>The <code>ModuleContext</code> implementation; undoes registrations on close</td>
+</tr>
+<tr>
+<td><a href="core.html#allowallpermissions"><code>AllowAllPermissions</code></a></td>
+<td>class</td>
+<td>The <code>ctx.permissions</code> stand-in: allows, warns once per module and permission</td>
 </tr>
 <tr>
 <td><a href="core.html#commandrouter"><code>CommandRouter</code></a></td>

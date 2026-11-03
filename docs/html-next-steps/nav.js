@@ -94,6 +94,14 @@
         "href": "reusable-parts.html"
       },
       {
+        "name": "Permissions stand-in (`ctx.permissions`)",
+        "href": "permissions-stand-in.html"
+      },
+      {
+        "name": "Voice in: contracts (step 1)",
+        "href": "voice-contracts.html"
+      },
+      {
         "name": "Permission mode button",
         "href": "permission-mode-button.html"
       },

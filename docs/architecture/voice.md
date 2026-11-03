@@ -3,6 +3,8 @@
 Speech to text, so you can talk to the assistant instead of typing. It's **Voice in** in the [overview](README.md). Voice out (the Talker speaking back) is a separate, later part.
 
 > **Status: planned (designed 2026-10-28; code design added and approved 2026-11-02).** Not built. The first build is phase 1 below; its steps are in the next-steps list. The code-level design is under [Code design (phase 1)](#code-design-phase-1).
+>
+> **Built: step 1, the contracts** (2026-11-03, [change note](../next-steps/voice-contracts.md)): `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript` in `contracts/voice.py`, and the protocol's messages in `voice_service/protocol.py`, which `voice_in` will import ([API](../api/messaging.md#voice)). The service and `voice_in` are next.
 
 ## Rules
 
@@ -281,7 +283,7 @@ class VoiceInModule(Module):
 
 | Event | Fields | When |
 |-------|--------|------|
-| `VoiceState` | `state: Literal["idle", "starting", "listening", "failed"]`, `reason: str \| None` (the error code, `"service_stopped"`, or `"silence"` on an idle after a silence stop), `detail: str \| None` (a short sentence for the button) | Every change. `starting` from the click until `started` (the service may be launching) |
+| `VoiceState` | `state: ListeningState` (a `StrEnum`: `idle`, `starting`, `listening`, `failed`; decided 2026-11-03), `reason: str \| None` (the error code, `"service_stopped"`, or `"silence"` on an idle after a silence stop), `detail: str \| None` (a short sentence for the button) | Every change. `starting` from the click until `started` (the service may be launching) |
 | `VoiceTranscript` | `session_id: str`, `text: str`, `final: bool` | Each partial (`final=False`), then once with the final text (`final=True`; empty clears the line) |
 | `InputReceived` (existing) | `text`, `source="voice"` | Once per session, when the final is non-empty and `complete`, and `send_as_input` is true |
 

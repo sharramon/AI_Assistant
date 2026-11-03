@@ -9,8 +9,8 @@ Every reusable part, one line each. **Check here before writing a helper**; afte
 | Name | Kind | Purpose | Where | Used by |
 |------|------|---------|-------|---------|
 | [`ModuleContext`](modules.md#modulecontext) | interface | A module's access to the app: events, commands, contracts, config, log | `contracts/module.py` | every module |
-| [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | `has` / `request` a permission; stand-in allows and logs (*planned*) | `contracts/module.py`, `core/context.py` | `voice_in` (*planned*), every module that asks |
-| [`Manifest`](modules.md#manifest) | data | Id, contracts provided / required / optional, permissions (*planned*) | `contracts/module.py` | every module |
+| [`ctx.permissions`](modules.md#modulecontextpermissions) (`ModulePermissions`) | interface | `has` / `request` a permission; the stand-in [`AllowAllPermissions`](core.md#allowallpermissions) allows, warns once per module and permission | `contracts/module.py`, `core/permissions.py`, `core/context.py` | every module's context (`ScopedContext`); callers: `voice_in` (*planned*), every module that asks |
+| [`Manifest`](modules.md#manifest) | data | Id, contracts provided / required / optional, `permissions` / `optional_permissions` | `contracts/module.py` | every module |
 | Event Bus (`ctx.subscribe` / `ctx.publish`) | core | The stream for any event: voice text, agent activity, usage | `core/bus.py` | every module |
 | [`InputReceived`](messaging.md#inputreceived) | event | User input from any source | `contracts/messages.py` | `console_io`, `temp_ui`, `voice_in` (*planned*) → `talker`, `echo_orchestrator` |
 | [`ResponseReady`](messaging.md#responseready) | event | A reply to present | `contracts/messages.py` | `talker`, `echo_orchestrator` → `console_io`, `temp_ui` |
@@ -21,6 +21,18 @@ Every reusable part, one line each. **Check here before writing a helper**; afte
 | [`PermissionMode`](agents.md#permissionmode) | enum | A task agent's mode: `manual`, `auto` | `contracts/agents.py` | `SessionTaskAgent`, `main_assistant`, `talker`, `temp_ui` |
 | [`SetPermissionMode`](agents.md#setpermissionmode) | command | Switch a task agent's mode; any UI or the control panel later | `contracts/agents.py` | `temp_ui` (button), `talker` (Manual only) → `agent_hub` |
 | [`PermissionModeChanged`](agents.md#permissionmodechanged) | event | A task agent's mode was set, and when it applies | `contracts/agents.py` | `SessionTaskAgent` → `talker`, `temp_ui` |
+| [`StartListening`](messaging.md#startlistening), [`StopListening`](messaging.md#stoplistening) | command | Turn the mic on and off; any UI may send them | `contracts/voice.py` | `temp_ui` (*planned*) → `voice_in` (*planned*) |
+| [`ListeningState`](messaging.md#listeningstate) | enum | The mic's state: `idle`, `starting`, `listening`, `failed` | `contracts/voice.py` | `VoiceState` |
+| [`VoiceState`](messaging.md#voicestate) | event | The mic's state changed, for the button | `contracts/voice.py` | `voice_in` (*planned*) → `temp_ui` (*planned*) |
+| [`VoiceTranscript`](messaging.md#voicetranscript) | event | Live and final voice text; the public stream | `contracts/voice.py` | `voice_in` (*planned*) → `temp_ui` (*planned*), any subscriber |
+
+## Voice service: `voice_service.protocol`
+
+Shared by the service and its Python clients; never imports `assistant`.
+
+| Name | Kind | Purpose | Where | Used by |
+|------|------|---------|-------|---------|
+| [Voice service protocol](messaging.md#the-voice-service-protocol) | models, functions | The `/ws/listen` messages, `ErrorCode`, `parse_client_message`, `parse_service_message`, `dump`, `ProtocolError` | `voice_service/protocol.py` | `voice_service` server (*planned*), `voice_in` client (*planned*) |
 
 ## Main-app helpers: `assistant.infra`
 

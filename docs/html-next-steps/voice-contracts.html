@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice in: contracts (step 1)</title>
+<!-- Generated from docs/next-steps/voice-contracts.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-contracts.html"></nav>
+<main>
+<h1 id="voice-in-contracts-step-1">Voice in: contracts (step 1)</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Approved with your two decisions; built and tested (174 tests pass, ruff clean). Not committed. Next: step 2, the <code>voice_service</code> app.</p>
+</blockquote>
+<p><strong>Asked:</strong> start the voice input build with step 1 of <a href="index.html#next-voice-in-phase-1">the plan</a>: the shared contracts and shapes that the <code>voice_service</code> app and the thin <code>voice_in</code> module will use. Contracts only; no service, no module yet.</p>
+<p><strong>Why:</strong> both later steps build on these shapes. If they're fixed and tested first, the service (step 2) and <code>voice_in</code> (step 3) can each be built and tested against them on their own.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><code>src/assistant/contracts/voice.py</code> (new): the two commands, two events, and the <code>ListeningState</code> enum.</li>
+<li><code>src/assistant/contracts/__init__.py</code>: export them.</li>
+<li><code>src/voice_service/__init__.py</code> (new, empty) and <code>src/voice_service/protocol.py</code> (new): the WebSocket protocol's messages. See open question 1.</li>
+<li><code>tests/test_voice_contracts.py</code> (new).</li>
+<li>Docs: <a href="../html/api/messaging.html">Messaging API</a> (four entries, plus the protocol), the <a href="../html/api/index.html">API index</a>, the <a href="../html/api/reusable.html">reusable parts index</a>, <a href="../html/architecture/voice.html">Voice</a> (status line; <code>VoiceState.state</code> becomes <code>ListeningState</code>), and <a href="index.html">Next steps</a> (step 1 done; step 3's text still says "copy <code>_ensure_running</code>, log its own warning", which I'd fix to say <code>CompanionApp</code> and <code>ctx.permissions</code>, as already decided). Then rebuild.</li>
+<li>No module, config, or <code>pyproject.toml</code> changes. Nothing uses the new types yet.</li>
+</ul>
+<p><strong>Approach:</strong> the fields are the ones already approved in <a href="../html/architecture/voice.html#the-voice_in-module">the voice_in module</a>, as frozen pydantic models like every other message.</p>
+<pre><code class="language-python"># assistant/contracts/voice.py
+class StartListening(Command):
+    send_as_input: bool = True      # False: text only to VoiceTranscript subscribers, never the Talker
+
+class StopListening(Command):
+    pass
+
+class ListeningState(StrEnum):     # like TaskState
+    IDLE = &quot;idle&quot;                   # mic off, nothing happening
+    STARTING = &quot;starting&quot;           # clicked; service launching / mic opening
+    LISTENING = &quot;listening&quot;         # mic open, text coming
+    FAILED = &quot;failed&quot;               # went wrong; reason and detail say what
+
+class VoiceState(Event):           # correlation_id = session_id
+    state: ListeningState
+    reason: str | None = None       # error code, &quot;service_stopped&quot;, or &quot;silence&quot;
+    detail: str | None = None       # a short sentence for the button
+
+class VoiceTranscript(Event):      # correlation_id = session_id
+    session_id: str
+    text: str
+    final: bool = False             # True once, with the final text; &quot;&quot; clears the line
+</code></pre>
+<pre><code class="language-python"># voice_service/protocol.py: no assistant import; pydantic only
+class ErrorCode(StrEnum): BUSY, MIC_UNAVAILABLE, MIC_LOST, ENGINE_FAILED, BAD_MESSAGE
+# app → service
+class Start:   type: Literal[&quot;start&quot;]
+class Stop:    type: Literal[&quot;stop&quot;]
+# service → app
+class Started: type: Literal[&quot;started&quot;]
+class Partial: type: Literal[&quot;partial&quot;]; text: str
+class Final:   type: Literal[&quot;final&quot;]; text: str; latency_ms: int; complete: bool = True;
+               ended_by: Literal[&quot;stop&quot;, &quot;silence&quot;] = &quot;stop&quot;
+class Error:   type: Literal[&quot;error&quot;]; reason: ErrorCode; detail: str = &quot;&quot;
+def parse_client_message(raw: str) -&gt; Start | Stop          # raises ProtocolError → bad_message
+def parse_service_message(raw: str) -&gt; Started | Partial | Final | Error
+def dump(msg) -&gt; str                                         # one JSON text frame
+</code></pre>
+<ul>
+<li><strong>Reuse checked:</strong> nothing in the <a href="../html/api/reusable.html">reusable parts index</a> parses a WebSocket protocol, so <code>protocol.py</code> is new. <code>CompanionApp</code> and <code>load_layered</code> aren't used in this step; the service's config (step 2) and <code>voice_in</code>'s launch (step 3) use them.</li>
+<li><strong>The mic permission</strong> needs no contract: <code>voice_in</code> will call the built <code>ctx.permissions.request("microphone", ...)</code> and declare <code>optional_permissions=("microphone",)</code> in step 3.</li>
+</ul>
+<p><strong>Tests</strong> (<code>tests/test_voice_contracts.py</code>, no mic, no model, no network):</p>
+<ul>
+<li>The contracts: defaults (<code>send_as_input=True</code>, <code>final=False</code>), frozen, <code>ListeningState</code> has exactly the four values, a bad <code>state</code> rejected, a plain <code>"listening"</code> accepted and turned into <code>ListeningState.LISTENING</code>, all exported from <code>assistant.contracts</code>.</li>
+<li>The protocol: each message dumps and parses back unchanged; JSON matches the <a href="../html/architecture/voice.html#the-protocol">protocol table</a> exactly (<code>{"type": "start"}</code>, etc.); unknown <code>type</code>, bad JSON, or a missing field raises <code>ProtocolError</code>; a client parser refuses service messages and the reverse; the error codes are exactly the five listed.</li>
+<li><code>voice_service.protocol</code> imports nothing from <code>assistant</code> (checked in the test).</li>
+<li>Then all of <code>pytest</code> and <code>ruff</code>.</li>
+</ul>
+<p><strong>Reusable parts index, after the build:</strong> <code>StartListening</code> / <code>StopListening</code>, <code>VoiceState</code> with <code>ListeningState</code>, <code>VoiceTranscript</code> (Used by: <code>voice_in</code>, <code>temp_ui</code>, planned), and the protocol (Used by: <code>voice_service</code> server and <code>voice_in</code> client, both planned) in a new <code>voice_service</code> row group.</p>
+<p><strong>Left for the next steps:</strong></p>
+<ul>
+<li><strong>Step 2, the <code>voice_service</code> app:</strong> <code>config.py</code> on <code>load_layered</code>, <code>server.py</code> (<code>/health</code>, <code>/quit</code>, <code>/ws/listen</code>), <code>session.py</code>, <code>audio.py</code> (<code>MicSource</code>, <code>FakeSource</code>), <code>engines/</code> (<code>zipformer</code>, <code>fake</code>), <code>download.py</code>, <code>__main__.py</code>, <code>config/voice_service.toml</code>, and the <code>voice</code> extra in <code>pyproject.toml</code>.</li>
+<li><strong>Step 3, the <code>voice_in</code> module:</strong> launch through <code>CompanionApp</code>, <code>ctx.permissions</code> for the mic, one WebSocket per session, the two commands, <code>[modules.voice_in]</code> config and <code>core.command_timeouts.StartListening = 30</code>.</li>
+<li><strong>Steps 4 to 7:</strong> the temp UI's mic button and live line, tests against a fake service, trying it on your mic, then Nemotron.</li>
+</ul>
+<p><strong>Decided by you (2026-11-03):</strong></p>
+<ol>
+<li><strong>The protocol's shapes live in <code>voice_service/protocol.py</code></strong>, built now, and <code>voice_in</code> imports that one file, so the service and the client share one definition and can't drift. <code>voice_service/__init__.py</code> stays empty, so the import doesn't pull in FastAPI or sherpa-onnx. <strong>Approved.</strong></li>
+<li><strong>The voice state is a named enum, <code>ListeningState</code></strong> (a <code>StrEnum</code>, like <code>TaskState</code>), not the design's <code>Literal</code> of plain strings: these are real states, and an enum is easier to edit later. The JSON is unchanged (<code>"listening"</code> etc.). <a href="../html/architecture/voice.html#the-voice_in-module">Voice</a> and the Messaging API get updated to match. <strong>Changed as you asked.</strong></li>
+</ol>
+<p><strong>Open questions:</strong> none.</p>
+<footer>Generated from <code>docs/next-steps/voice-contracts.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

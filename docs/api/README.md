@@ -12,7 +12,8 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 
 **Check the [reusable parts index](reusable.md) before writing a helper.** One line per part (name, kind, purpose, where, used by), sorted by where it lives:
 
-- **Contracts** (`assistant.contracts`): `ModuleContext`, `ctx.permissions` (planned), `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`
+- **Contracts** (`assistant.contracts`): `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
+- **Voice service** (`voice_service.protocol`): the `/ws/listen` messages
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `agent_tags`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `CompanionApp`
 
@@ -24,9 +25,9 @@ Writing a module: lifecycle, manifest, and its context. `from assistant.contract
 | Item | Kind | Summary |
 |------|------|---------|
 | [`Module`](modules.md#module) | base class | Base for every module: `init`, `start`, `stop` |
-| [`Manifest`](modules.md#manifest) | data | ♻ Module id, the contracts it provides, requires, and optionally uses, and its permissions (planned) |
+| [`Manifest`](modules.md#manifest) | data | ♻ Module id, the contracts it provides, requires, and optionally uses, and its permissions |
 | [`ModuleContext`](modules.md#modulecontext) | interface | ♻ A module's only access to the app: events, commands, contracts, config, logging |
-| [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission; a stand-in allows and logs until the handler runs (planned) |
+| [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission (`ModulePermissions`); a stand-in allows and logs until the handler runs |
 | [`Contract`](modules.md#contract) | base class | Base for capability interfaces resolvable through DI |
 
 ### [Messaging](messaging.md)
@@ -46,6 +47,12 @@ Commands, events, and results. `from assistant.contracts import ...`
 | [`ViewerTabsChanged`](messaging.md#viewertabschanged) | event | The HTML viewer's open tabs or highlights changed |
 | [`ViewerClip`](messaging.md#viewerclip) | event | You snipped part of a page in the HTML viewer: an image for the Talker |
 | [`ViewerClipDropped`](messaging.md#viewerclipdropped) | event | You dropped a snip before sending it |
+| [`StartListening`](messaging.md#startlistening) | command | ♻ Turn the mic on; `send_as_input` decides whether the Talker gets the text |
+| [`StopListening`](messaging.md#stoplistening) | command | ♻ Turn the mic off; the result has the final text |
+| [`ListeningState`](messaging.md#listeningstate) | enum | ♻ `idle`, `starting`, `listening`, `failed` |
+| [`VoiceState`](messaging.md#voicestate) | event | ♻ The mic's state changed, for the button |
+| [`VoiceTranscript`](messaging.md#voicetranscript) | event | ♻ Live and final voice text, for any subscriber |
+| [Voice service protocol](messaging.md#the-voice-service-protocol) | models | ♻ `/ws/listen` messages shared by `voice_service` and `voice_in` (`from voice_service.protocol import ...`) |
 
 ### [Tools](tools.md)
 Capabilities invocable by name. `from assistant.contracts import ...`
@@ -131,6 +138,7 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`resolve_modules`](core.md#resolve_modules) | function | Select enabled modules, validate dependencies, return start order |
 | [`LifecycleManager`](core.md#lifecyclemanager) | class | Init, start, and stop modules in dependency order; activate and deactivate at runtime |
 | [`ScopedContext`](core.md#scopedcontext) | class | The `ModuleContext` implementation; undoes registrations on close |
+| [`AllowAllPermissions`](core.md#allowallpermissions) | class | The `ctx.permissions` stand-in: allows, warns once per module and permission |
 | [`CommandRouter`](core.md#commandrouter) | class | One handler per command; timeouts, cancellation, `Result`s |
 | [`EventBus`](core.md#eventbus) | class | Non-blocking publish with isolated, bounded subscribers |
 | [`Container`](core.md#container) | class | DI restricted to shared contracts |

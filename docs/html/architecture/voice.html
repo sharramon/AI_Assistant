@@ -15,6 +15,7 @@
 <p>Speech to text, so you can talk to the assistant instead of typing. It's <strong>Voice in</strong> in the <a href="index.html">overview</a>. Voice out (the Talker speaking back) is a separate, later part.</p>
 <blockquote>
 <p><strong>Status: planned (designed 2026-10-28; code design added and approved 2026-11-02).</strong> Not built. The first build is phase 1 below; its steps are in the next-steps list. The code-level design is under <a href="#code-design-phase-1">Code design (phase 1)</a>.</p>
+<p><strong>Built: step 1, the contracts</strong> (2026-11-03, change note): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). The service and <code>voice_in</code> are next.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
 <ul>
@@ -424,7 +425,7 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 <tbody>
 <tr>
 <td><code>VoiceState</code></td>
-<td><code>state: Literal["idle", "starting", "listening", "failed"]</code>, <code>reason: str | None</code> (the error code, <code>"service_stopped"</code>, or <code>"silence"</code> on an idle after a silence stop), <code>detail: str | None</code> (a short sentence for the button)</td>
+<td><code>state: ListeningState</code> (a <code>StrEnum</code>: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>failed</code>; decided 2026-11-03), <code>reason: str | None</code> (the error code, <code>"service_stopped"</code>, or <code>"silence"</code> on an idle after a silence stop), <code>detail: str | None</code> (a short sentence for the button)</td>
 <td>Every change. <code>starting</code> from the click until <code>started</code> (the service may be launching)</td>
 </tr>
 <tr>
