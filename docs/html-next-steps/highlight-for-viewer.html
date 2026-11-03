@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Highlight for viewer</title>
+<!-- Generated from docs/next-steps/highlight-for-viewer.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="highlight-for-viewer.html"></nav>
+<main>
+<h1 id="highlight-for-viewer">Highlight for viewer</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-27).</strong> Approved with the recommended answers: keep old highlights until cleared, no labels, page text only. Built as planned; <code>pytest</code> and <code>ruff</code> pass, and it was checked in a real Edge window (mark drawn, scrolled to, Clear and Clear all, editing a highlighted paragraph). One change: the scroll target is part of the tab's state (<code>focus</code>), not an event, so a viewer window that opens only for the highlight still scrolls to it. As built: <a href="../html/architecture/html-viewer.html#as-built-v1">HTML viewer</a>.</p>
+</blockquote>
+<p><strong>Asked:</strong> "highlight for viewer": the AI opens the relevant HTML file in the viewer and highlights the part of the page it's talking about. You clear a highlight by clicking it and choosing <strong>Clear</strong>. It's the <strong>Point at a section</strong> item under Later in the <a href="../html/architecture/html-viewer.html#scope">HTML viewer</a> scope.</p>
+<p><strong>Why:</strong> "see the third paragraph under Parts" makes you hunt. A highlight shows you right away.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><code>html_viewer</code>: a <code>viewer.highlight</code> tool in <code>module.py</code>; highlight state per tab and <code>POST /api/highlight</code>, <code>/api/clear</code> in <code>viewer.py</code>; drawing, scrolling and the Clear popup in <code>page.html</code>.</li>
+<li>The <code>&lt;&lt;SHOW: ...&gt;&gt;</code> tag (Main Assistant and Talker) gets an optional target.</li>
+<li><code>talker</code> and <code>main_assistant</code> prompts; the Talker's open-tabs tally lists highlights.</li>
+<li>Docs: <a href="../html/architecture/html-viewer.html">HTML viewer</a>, <a href="../html/api/tools.html#tools-offered-today">Tools offered today</a>.</li>
+</ul>
+<h2 id="approach">Approach</h2>
+<p><strong>How the AI picks and marks the part:</strong></p>
+<ul>
+<li>A new tool next to <code>viewer.open</code> and <code>viewer.tabs</code>: <strong><code>viewer.highlight(path, text, heading?)</code></strong>. <code>text</code> is a short quote of the page's words (a sentence or phrase); <code>heading</code> narrows the search to one section when the words appear more than once. It opens the file if it isn't open, switches to its tab, scrolls to the text and marks it.</li>
+<li>Agents can't call app tools yet, so they use the tag they already use: <code>&lt;&lt;SHOW: path | "quoted text" | heading&gt;&gt;</code> on its own line. The <code>html_viewer</code> module reads it, as it does <code>&lt;&lt;SHOW: path&gt;&gt;</code> today.</li>
+<li><strong>Not found</strong> (the words aren't on the page): the file still opens, nothing is marked, and the result says so. <strong>Several matches</strong>, even within the heading: the first one is marked, and the result says how many there were.</li>
+<li>The mark is a yellow background over the matched words. Several highlights can be on a page at once.</li>
+</ul>
+<p><strong>What survives:</strong></p>
+<ul>
+<li>Highlights live in the <strong>viewer program's state for the tab, never in the file</strong>. They're drawn over the page, so saving never writes them, and the edit tool removes them from the HTML it sends.</li>
+<li><strong>Window closed and reopened, switching tabs, the page redrawn:</strong> they're drawn again.</li>
+<li><strong>File reloaded</strong> (changed on disk, or a rebuild) <strong>or the highlighted text edited:</strong> the viewer looks for the quoted text again. If it's still there, the highlight stays; if not, it's dropped quietly, and the Talker's tally no longer lists it.</li>
+<li><strong>Tab closed or app restarted:</strong> gone.</li>
+</ul>
+<p><strong>How Clear works:</strong></p>
+<ul>
+<li><strong>Click</strong> a highlight: a small popup by it offers <strong>Clear</strong> and <strong>Clear all</strong>. Clicking elsewhere closes the popup.</li>
+<li><strong>Double-click</strong> still edits the text as before; the popup steps aside.</li>
+<li>Clearing removes the highlight from the tab's state, so it doesn't come back on reload. The Talker sees it gone in its tally.</li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>Keep old highlights when the AI adds a new one?</strong> <strong>Recommend</strong> keeping them until you clear them, since you asked for clearing by hand. Option: each new AI reply clears its own earlier ones.</li>
+<li><strong>A label on the highlight</strong> (a few words from the AI, shown on hover)? <strong>Recommend</strong> leaving it out for now: the AI's reply already says why.</li>
+<li><strong>Highlight inside diagrams (Mermaid nodes)?</strong> <strong>Recommend</strong> page text only for now; diagram nodes later.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/highlight-for-viewer.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

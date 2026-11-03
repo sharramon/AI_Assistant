@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permission requests in the app</title>
+<!-- Generated from docs/next-steps/permission-requests.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="permission-requests.html"></nav>
+<main>
+<h1 id="permission-requests-in-the-app">Permission requests in the app</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26).</strong> Approved as proposed (buttons and Talker, allow-once, deny after 10 minutes). Verified end to end with a real <code>claude</code>: a write to <code>.claude/skills/</code> asked, was allowed, and went through.</p>
+</blockquote>
+<p><strong>Spike finding:</strong> <code>claude -p</code> sends permission requests to its host only with <code>--permission-prompt-tool stdio</code>. It then writes <code>{"type": "control_request", "request_id", "request": {"subtype": "can_use_tool", "tool_name", "input", ...}}</code> and waits; the reply is <code>{"type": "control_response", "response": {"subtype": "success", "request_id", "response": {"behavior": "allow", "updatedInput": &lt;input&gt;}}}</code> (or <code>{"behavior": "deny", "message"}</code>). Allowing works for <code>.claude/</code> too. Without the flag, everything outside the rules is refused at once. The <code>.claude/skills</code> standing write rule was removed: it never worked (sensitive path), and the request covers it.</p>
+<p><strong>Asked:</strong> "I thought I asked you to make it so that you can ask me for permission in-app to fix this." The Main Assistant should ask you when it needs access it doesn't have, and you approve or refuse right there.</p>
+<p><strong>Why:</strong></p>
+<ul>
+<li>Today anything outside the <a href="../html/agents/index.html#permissions">standing rules</a> is refused at once, and saying "yes" in chat changes nothing.</li>
+<li>Some paths can't be opened by standing rules at all: <code>claude</code> treats <code>.claude/</code> as sensitive, so the worker's write to <code>.claude/skills/app-update/SKILL.md</code> was refused even though <code>.claude/skills</code> is in its write rules.</li>
+<li>This is steps 2 and 3 of the <a href="../html/agents/self-improvement.html#steps">self-improvement plan</a> (the in-the-moment asks).</li>
+</ul>
+<p><strong>Touches:</strong> <code>ClaudeSession</code>, <code>SessionTaskAgent</code>, the agents contracts (<code>ReportKind</code>, a new command), <code>agent_hub</code>, <code>talker</code> (a tag and prompt), <code>temp_ui</code> (buttons), and the docs for each.</p>
+<p><strong>Approach:</strong></p>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant UI as Temp UI / Talker
+    participant H as Agent Hub
+    participant A as SessionTaskAgent
+    participant C as claude (Main)
+    C-&gt;&gt;A: permission request (tool, path)
+    A-&gt;&gt;H: ReportTask(permission, &quot;Edit .claude/skills/…&quot;)
+    H--&gt;&gt;UI: TaskUpdated(permission)
+    UI-&gt;&gt;You: &quot;It wants to edit X. OK?&quot; + Allow / Deny
+    You-&gt;&gt;UI: Allow
+    UI-&gt;&gt;H: AnswerPermission(task, allow)
+    H-&gt;&gt;A: answer_permission(allow)
+    A-&gt;&gt;C: permission response
+    Note over C: the write goes ahead in the same turn
+</code></pre>
+<ol>
+<li><strong>Spike first</strong> (small, like the interrupt spike): how <code>claude -p</code> sends a permission request on stdout and what reply it expects (the help says prompts go to "the host" by default; the exact message shape is unconfirmed, and it may need an extra flag). Also check whether a "yes" gets past the <code>.claude/</code> sensitive-path check.</li>
+<li><strong><code>ClaudeSession</code></strong> passes the request on as an event and gains <code>answer_permission(request_id, allow)</code>.</li>
+<li><strong><code>SessionTaskAgent</code></strong> reports it as a new <code>ReportKind.PERMISSION</code> and waits; the turn stays open, so nothing else is interrupted.</li>
+<li><strong>Hub</strong> gets an <code>AnswerPermission(task_id, allow)</code> command and passes it to the agent (a new <code>ITaskAgent</code> method).</li>
+<li><strong>Talker</strong> says what's being asked in one sentence; your answer becomes an <code>&lt;&lt;ALLOW&gt;&gt;</code> or <code>&lt;&lt;DENY&gt;&gt;</code> tag.</li>
+<li><strong>Temp UI</strong> shows Allow / Deny buttons on the request in the Main Assistant pane. Moved to the Talker pane on 2026-10-26: <a href="permission-on-talker-side.html">Permission requests on the Talker side</a>.</li>
+</ol>
+<p><strong>Open questions</strong> (recommendation first):</p>
+<ul>
+<li><strong>Where you answer:</strong> both the UI buttons and by talking to the Talker (recommended), or the buttons only.</li>
+<li><strong>"Always allow":</strong> v1 has allow-once only (recommended); "always" would save a standing rule to <code>config/local.toml</code>, and that can come later.</li>
+<li><strong>No answer:</strong> deny after 10 minutes so a task never hangs forever (recommended), or wait indefinitely.</li>
+<li><strong>The <code>.claude/skills</code> write rule</strong> stays in config for now; remove it if the spike shows <code>.claude/</code> always needs a prompt.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/permission-requests.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

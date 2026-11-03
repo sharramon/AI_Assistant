@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logs button</title>
+<!-- Generated from docs/next-steps/logs-button.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="logs-button.html"></nav>
+<main>
+<h1 id="logs-button">Logs button</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26).</strong> Approved with the label "Logs".</p>
+</blockquote>
+<p><strong>Asked:</strong> "A button on this UI that is just 'open logs in explorer'. Or something shorter that would make the UI nicer."</p>
+<p><strong>Why:</strong> the transcripts (<code>logs/talker.jsonl</code>, <code>logs/main_assistant.jsonl</code>) and <code>logs/assistant.log</code> are the main debugging tool, and finding the folder by hand is slow.</p>
+<p><strong>Touches:</strong> <code>temp_ui</code> only (<code>module.py</code>, <code>page.html</code>), plus one config key. Throwaway like the rest of the <a href="../html/agents/runtime.html#temp-ui">temp UI</a>.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>A small <strong>Logs</strong> button in the header, right side, next to the connection status, with a folder icon.</li>
+<li>Clicking it sends <code>POST /open-logs</code>; the module opens the folder in Explorer (<code>os.startfile</code>).</li>
+<li>The folder comes from <code>[modules.temp_ui] logs_dir</code> (default <code>"logs"</code>).</li>
+<li>Only works when the browser and the app are on the same PC, which is true for the temp UI.</li>
+</ul>
+<p><strong>Open questions:</strong></p>
+<ul>
+<li>Label: <strong>"Logs"</strong> with a folder icon (recommended), or "Open logs".</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/logs-button.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

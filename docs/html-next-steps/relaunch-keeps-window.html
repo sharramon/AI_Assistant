@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relaunch opens one fresh window</title>
+<!-- Generated from docs/next-steps/relaunch-keeps-window.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="relaunch-keeps-window.html"></nav>
+<main>
+<h1 id="relaunch-opens-one-fresh-window">Relaunch opens one fresh window</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26), fixed after trying it.</strong> In the real app the old window stayed open: Edge refuses <code>window.close()</code> in an app window it didn't open from script. Now the app window runs on its own Edge profile (<code>--user-data-dir</code>), so it is its own Edge process, and the app closes it: at startup (any window left from the last launch) and when it stops. Checked by hand: opening, closing, and reopening a window on that profile, in under a second each; your normal Edge is untouched.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Every time we relaunch, the old window's chat gets reset to a blank AND a new window gets launched." Wanted: a relaunch ends the current session, closes the old window, and starts a fresh session in exactly one new window with a blank chat.</p>
+<p><strong>Why:</strong> after a relaunch you have a blank old window plus a new one, and every relaunch adds another.</p>
+<p><strong>Cause</strong> (found in the code):</p>
+<ol>
+<li><strong>Blank old window:</strong> the chat history only exists in the app's memory, so a relaunch loses it. The old window's <code>EventSource</code> keeps retrying, reaches the new app, and on reconnect <code>page.html</code> clears both panes, expecting the server to replay its history. The new app has nothing to replay.</li>
+<li><strong>Second window:</strong> <code>TempUIModule.start()</code> always opens an Edge window. The relaunch doesn't close the old one: Edge isn't a child of the app, so <code>relaunch.ps1</code> never stops it.</li>
+</ol>
+<p><strong>Touches:</strong> <code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>page.html</code>), the <a href="../html/agents/runtime.html#temp-ui">temp UI docs</a>.</p>
+<p><strong>Approach:</strong> the old window closes itself; the new app opens the one new window, as it does now.</p>
+<ul>
+<li>Each app launch gets a random id, sent as the first item on <code>/events</code>. The page remembers the id it first got.</li>
+<li>On reconnect, same id (a short network drop): clear and replay, as now. <strong>Different id</strong> (the app was relaunched): the page closes its own window (<code>window.close()</code>).</li>
+<li>The new app opens its window on start as today, so exactly one window remains, with a blank chat.</li>
+<li>~~Killing Edge from the script isn't an option: the app window shares Edge's process with your normal browser.~~ With its own profile it doesn't share it, so the app closes it (see the status).</li>
+<li>If the browser refuses <code>window.close()</code> (e.g. <code>window = "browser"</code>, a normal tab), the page shows "This session ended; the app opened a new window" instead of a blank chat.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/relaunch-keeps-window.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

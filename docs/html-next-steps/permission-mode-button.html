@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permission mode button</title>
+<!-- Generated from docs/next-steps/permission-mode-button.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="permission-mode-button.html"></nav>
+<main>
+<h1 id="permission-mode-button">Permission mode button</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-02).</strong> The spike passed (findings below). The code, <code>page.html</code>, and <code>tests/test_permission_mode.py</code> are built: ruff is clean and all tests pass. Updated docs: <a href="../html/api/agents.html#permissionmode">Agents API</a>, <a href="../html/api/infra.html#sessiontaskagent">Infrastructure API</a>, <a href="../html/api/reusable.html">reusable parts</a> (Used by lines checked against the imports), <code>api/README.md</code>, <a href="../html/architecture/permissions.html#permission-mode-built">Permissions</a>, <a href="../html/agents/runtime.html#permission-mode">Agent runtime</a>, and <code>next-steps/README.md</code>. <strong>Restart the app</strong> to get it.</p>
+<p>After an Auto switch is deferred (<code>next_task</code>), the running session is still in Manual, so a later Manual click sends no control request. The test starts the task in Auto to check the live switch.</p>
+</blockquote>
+<p><strong>Asked:</strong> a button to switch the Main Assistant between <strong>manual</strong> permissions (it asks you before each tool use outside its standing rules, as today) and <strong>auto</strong> (it doesn't ask), like the permission modes in Claude Code.</p>
+<p><strong>Why:</strong> long, trusted tasks stop on every shell command until you click Allow. Some tasks should run unattended, but the default has to stay safe.</p>
+<p><strong>Touches:</strong> <code>contracts/agents.py</code>, <code>infra/claude_session.py</code>, <code>infra/session_agent.py</code>, <code>agent_hub</code>, <code>main_assistant</code> (command and prompt), <code>talker</code> (what it's told), <code>temp_ui</code> (module and <code>page.html</code>), and tests. Docs: <code>api/agents.md</code>, <code>api/infra.md</code>, <code>api/reusable.md</code>, <code>api/README.md</code>, <code>agents/runtime.md</code>, <code>architecture/permissions.md</code>.</p>
+<h2 id="decided-2026-11-02">Decided (2026-11-02)</h2>
+<ul>
+<li><strong>Two modes, Manual and Auto.</strong> Today's Manual already accepts edits, so a separate accept-edits mode would add nothing.</li>
+<li><strong>Manual at every launch.</strong> The mode isn't saved.</li>
+<li><strong>Only you switch to Auto,</strong> with the button. The Talker can switch back to Manual (<code>&lt;&lt;MODE: manual&gt;&gt;</code>), never to Auto.</li>
+<li><strong>A switch that can't apply mid-task applies from the next task,</strong> and the UI says so.</li>
+<li><strong>The button is in the Talker pane</strong> of the temp UI, marked as a stand-in, and the Talker is told the current mode.</li>
+<li><strong>Auto means full permissions</strong> (<code>bypassPermissions</code>), with no block list as the main design. The Main Assistant pauses on its own and asks before very risky steps.</li>
+<li><strong>One hard backstop in Auto: <code>git push</code> is blocked.</strong> It is refused, not asked about, and you push yourself. The spike confirmed that the block holds with every prompt off.</li>
+</ul>
+<h2 id="spike-findings-2026-11-02-real-claude">Spike findings (2026-11-02, real <code>claude</code>)</h2>
+<p>Run against a throwaway bare repo and clone in a temp folder (<code>%TEMP%\pm-spike\</code>), never the project's remote.</p>
+<ul>
+<li><strong>The <code>git push</code> block holds under <code>bypassPermissions</code>.</strong> The command line was <code>--permission-mode bypassPermissions --disallowedTools "PowerShell(git push)" "PowerShell(git push *)" "Bash(git push)" "Bash(git push *)"</code>, passed as separate arguments. <code>git push origin HEAD:refs/heads/main</code> and a bare <code>git push</code> were both refused ("Permission to use PowerShell with command git push has been denied"). No <code>can_use_tool</code> request arrived, and the bare remote stayed empty. The result was the same with <code>--permission-prompt-tool stdio</code> on, so Auto keeps the prompt tool.</li>
+<li><strong><code>set_permission_mode</code> works over our stdio session.</strong> A session started in <code>bypassPermissions</code> got <code>{"subtype": "set_permission_mode", "mode": "acceptEdits"}</code> and answered <code>success</code>. After that, <code>git tag spike-tag</code> arrived as a <code>can_use_tool</code> request (and was denied). <code>git status</code> is no test, because it's read-only and allowed in any mode. The request was sent between turns; mid-turn wasn't tried.</li>
+<li><strong>Limit:</strong> the block only catches a direct <code>git push</code> (not <code>git -C x push</code> or a script that pushes), as section 2 already says.</li>
+</ul>
+<h2 id="approach">Approach</h2>
+<h3 id="1-the-modes">1. The modes</h3>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What it does</th>
+<th><code>claude</code> flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Manual</strong> (default)</td>
+<td>Exactly today: edits in the repo and the read-only commands run without asking, and everything else shows an Allow / Deny card</td>
+<td><code>--permission-mode acceptEdits</code>, the <code>--allowedTools</code> standing rules, <code>--permission-prompt-tool stdio</code></td>
+</tr>
+<tr>
+<td><strong>Auto</strong></td>
+<td>Full permissions for every tool, with no cards, except <code>git push</code>, which is refused. The Main Assistant pauses on its own before very risky steps (section 2)</td>
+<td><code>--permission-mode bypassPermissions</code>, <code>--disallowedTools</code> with <code>git push</code> and <code>git push *</code> for both PowerShell and Bash, the same standing rules and prompt tool (so a switch back to Manual asks again), plus the risky-step rule in its prompt</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Auto removes every prompt.</strong> With <code>bypassPermissions</code>, <code>claude</code> never sends a <code>can_use_tool</code> request, so no Allow / Deny card appears. Only two things stand between the Main Assistant and a risky step: its own judgment, and the <code>git push</code> block.</p>
+<h3 id="2-in-auto-the-main-assistant-asks-before-very-risky-steps">2. In Auto, the Main Assistant asks before very risky steps</h3>
+<p>In Auto, the access section of its prompt says it has full permissions except <code>git push</code>, then adds this rule:</p>
+<blockquote>
+<p>Before a very risky step, stop and ask first: end your turn with <code>NEED: Risky: &lt;what you want to do and why&gt;</code>. Continue once the user answers. Very risky means:
+- deleting data or files beyond what the task needs
+- rewriting git history (<code>reset --hard</code>, <code>rebase</code>, force anything, deleting branches)
+- changing secrets, credentials, or settings (<code>config/</code>, <code>.env</code>, <code>.claude/settings*</code>, system or account settings)
+- installing, upgrading, or removing packages or programs
+- spending money, or calling a paid service
+- sending anything outside this machine (email, posts, uploads)
+- anything else that's hard to undo</p>
+<p>If you're unsure whether a step counts, ask. <code>git push</code> is blocked: if the task needs one, say so in your summary and the user pushes.</p>
+</blockquote>
+<ul>
+<li><strong>It reuses the NEED path.</strong> <code>SessionTaskAgent</code> already turns <code>NEED:</code> into a <code>need</code> report, and the task waits for your answer. Your answer continues it (<code>SendToTask</code>). Nothing new is needed in the Hub or the Talker.</li>
+<li><strong>How the pause shows:</strong></li>
+<li>In the Talker pane, a <code>need</code> whose text starts with <code>Risky:</code> shows as an amber card: "⚠ Risky step, paused: …". You answer in words or with Go ahead / Don't buttons, and the buttons send the same answer as typing it would.</li>
+<li>The Talker says it out loud too, so voice and glasses get it.</li>
+<li>In the worker pane, it shows as "paused: risky step".</li>
+<li><strong>The rule is in the prompt only in Auto.</strong> In Manual, risky shell steps already ask through the card, and the rule would double the questions.</li>
+</ul>
+<p><strong>This is not a guarantee.</strong> The pause depends on the model judging each step correctly, every time. It can miss a step that is risky, for example a delete inside a script, a command whose effect it misreads, or a long task where the rule fades from its attention. Auto trusts the Main Assistant the way bypass mode trusts Claude Code. Use it for tasks you'd be fine with running unattended. The transcript and the worker pane show what it did. The <code>git push</code> block is the one hard limit, and it only catches a direct <code>git push</code> command.</p>
+<h3 id="3-when-a-switch-takes-effect">3. When a switch takes effect</h3>
+<ul>
+<li><strong>Per session (the normal case):</strong> each task already starts a fresh <code>claude</code> process, and so does each handoff. <code>ClaudeSession</code> takes its command as a callable that it reads on every <code>start</code>, so a new session gets the current mode's flags and prompt together. This costs nothing extra.</li>
+<li><strong>To Auto while a task runs:</strong> it applies from the next task (or the next handoff session), because the risky-step rule lives in the session's prompt, which is fixed when the session starts. The UI shows "Auto from the next task".</li>
+<li><strong>To Manual while a task runs:</strong> it applies at once, through the <code>set_permission_mode</code> control request (confirmed by the spike), when the running session is in Auto. If Auto was still waiting for the next task, the session is already in Manual and nothing is sent. If the request fails, it applies from the next task, and the UI says so.</li>
+<li><strong>No app restart is ever needed</strong> to switch. Getting this feature at all needs one restart.</li>
+</ul>
+<h3 id="4-where-the-button-lives-the-talker-pane-of-the-temp-ui-marked-as-a-stand-in">4. Where the button lives: the Talker pane of the temp UI, marked as a stand-in</h3>
+<ul>
+<li><strong>Now:</strong> a toggle in the Talker pane's header, <code>Main Assistant: Manual | Auto</code>. Its tooltip and the code comment say it's a stand-in. It sets what the Main Assistant may do. It sits on the Talker's side because the Talker side is where you answer permission requests already.</li>
+<li><strong>The Talker is told the mode.</strong> It gets <code>PermissionModeChanged</code> and puts a short <code>[Mode] worker: auto (from the next task)</code> line before your next message, once, like the <code>[Viewer]</code> note. Its prompt says the worker starts in Manual at every launch. So it knows the mode, can tell you, and mentions Auto when it hands over a task.</li>
+<li><strong>Later:</strong> the button only sends <code>SetPermissionMode</code> and shows <code>PermissionModeChanged</code>, so the control panel and the chat window reuse both as they are. When the permissions handler is built, it owns the mode as a grant per module ("main_assistant: auto") and handles <code>SetPermissionMode</code> in place of the Hub. No UI changes then.</li>
+</ul>
+<h3 id="5-reusable-parts-whats-reused-and-whats-new">5. Reusable parts: what's reused and what's new</h3>
+<p><strong>Reused:</strong> <code>claude_command</code> (it already takes <code>permission_mode</code>), <code>ClaudeSession</code>, <code>SessionTaskAgent</code> and its <code>NEED</code> handling, <code>path_rule</code>, the Hub route (it handles <code>SetPermissionMode</code> the same way as <code>AnswerPermission</code>), <code>SendToTask</code> for your answer to a risky-step pause, the Event Bus, <code>agent_tags</code> (for the Talker's <code>&lt;&lt;MODE: manual&gt;&gt;</code>), and the temp UI's SSE "current state" items (the usage meters work the same way).</p>
+<p><strong>New:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PermissionMode</code> (<code>manual</code>, <code>auto</code>)</td>
+<td>enum</td>
+<td><code>contracts/agents.py</code></td>
+</tr>
+<tr>
+<td><code>SetPermissionMode(agent_id, mode)</code></td>
+<td>command, handled by the Agent Hub</td>
+<td><code>contracts/agents.py</code></td>
+</tr>
+<tr>
+<td><code>PermissionModeChanged(agent_id, mode, applies: "now" | "next_task")</code></td>
+<td>event, for the UIs and the Talker</td>
+<td><code>contracts/agents.py</code></td>
+</tr>
+<tr>
+<td><code>ITaskAgent.set_permission_mode(mode) -&gt; Result</code></td>
+<td>contract method with a default that refuses (<code>not_available</code>); implemented in <code>SessionTaskAgent</code></td>
+<td><code>contracts/agents.py</code></td>
+</tr>
+<tr>
+<td><code>AgentInfo.permission_mode</code></td>
+<td>field, so <code>ListAgents</code> shows it</td>
+<td><code>contracts/agents.py</code></td>
+</tr>
+<tr>
+<td><code>ClaudeSession(command=callable)</code> and <code>set_permission_mode(mode)</code></td>
+<td>the command read on each start; the control request</td>
+<td><code>infra/claude_session.py</code></td>
+</tr>
+<tr>
+<td><code>claude_command(disallowed=...)</code></td>
+<td>argument (<code>--disallowedTools</code>, separate arguments), for the <code>git push</code> block in Auto</td>
+<td><code>infra/claude_session.py</code></td>
+</tr>
+<tr>
+<td><code>build_command(config, workspace, mode)</code></td>
+<td>the worker's command line and prompt for a mode</td>
+<td><code>modules/main_assistant/module.py</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Where the mode is stored:</strong> in memory, in <code>SessionTaskAgent</code>.</li>
+<li><strong>Index:</strong> each new part is in <code>docs/api/reusable.md</code> with its Used by line, checked against the imports.</li>
+</ul>
+<h3 id="6-build-steps-and-tests">6. Build steps and tests</h3>
+<ol>
+<li><strong>Spike:</strong> done, passed (see the findings above).</li>
+<li><strong>Contracts</strong>, 3. <strong><code>infra</code></strong>, 4. <strong><code>SessionTaskAgent</code></strong>, 5. <strong><code>main_assistant</code></strong>, 6. <strong><code>agent_hub</code></strong>, 7. <strong><code>talker</code></strong>, 8. <strong><code>temp_ui</code></strong> (module and <code>page.html</code>): done.</li>
+<li><strong>Tests:</strong> done, <code>tests/test_permission_mode.py</code>:
+   - <code>build_command</code> per mode: acceptEdits with no <code>--disallowedTools</code> and no risky rule, against bypassPermissions with the four <code>AUTO_BLOCKED</code> rules as separate arguments and the risky rule; both keep the standing rules and the prompt tool
+   - <code>ClaudeSession</code> calls a callable command on every start
+   - Manual at launch in <code>ListAgents</code>; the Hub refuses an unknown agent
+   - Auto when idle applies now, and the session's command is built for Auto; the task then starts in Auto, Manual mid-task sends one <code>set_permission_mode</code> control request (<code>acceptEdits</code>, seen in the transcript) and applies now, and Auto mid-task applies from the next task
+   - the Talker: <code>&lt;&lt;MODE: auto&gt;&gt;</code> gets the <code>[Status]</code> and the mode stays Manual; after your Auto switch it hears <code>[Mode] worker: auto</code> once, and <code>&lt;&lt;MODE: manual&gt;&gt;</code> switches back
+   - the temp UI: <code>POST /permission-mode</code> gives <code>ok</code>, plus the <code>mode</code> state item, the <code>note</code>, the <code>risky</code> card, and the worker lines</li>
+<li><strong>Docs</strong>, the docs build, and this note set to done: done.</li>
+</ol>
+<h3 id="7-safety">7. Safety</h3>
+<ul>
+<li><strong>The default stays Manual,</strong> at every launch and whatever happened in the last one.</li>
+<li><strong>The mode is always visible.</strong> In Auto, the Talker pane's header turns amber and reads "Main Assistant: AUTO, no permission prompts", the worker pane shows the same tag, and the Talker knows the mode.</li>
+<li><strong>Switching to Auto takes a deliberate click:</strong> a confirm dialog says Auto gives full permissions except <code>git push</code>, that the Main Assistant pauses before risky steps on its own judgment only, and that this is not a guarantee. Switching back to Manual is one click, with no dialog.</li>
+<li><strong>Only you switch to Auto.</strong> The Main Assistant has no route to <code>SetPermissionMode</code>, and the Talker can only switch to Manual.</li>
+<li><strong><code>git push</code> is refused in Auto,</strong> not asked about. You push yourself.</li>
+<li><strong>Every switch is logged,</strong> in both panes and in the log.</li>
+</ul>
+<h2 id="next">Next</h2>
+<ul>
+<li><strong>Restart the app</strong> to get the mode (and the earlier <code>config/default.toml</code> permission changes).</li>
+<li><strong>A manual try</strong> with the real worker: switch to Auto, give it a harmless task with one risky step (say, deleting a scratch folder it made), and check that it pauses with <code>NEED: Risky:</code> and that the amber card shows.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/permission-mode-button.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

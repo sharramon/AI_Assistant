@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No logs until the first message</title>
+<!-- Generated from docs/next-steps/logs-after-first-message.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="logs-after-first-message.html"></nav>
+<main>
+<h1 id="no-logs-until-the-first-message">No logs until the first message</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26).</strong> Built as proposed, with the recommended <code>logs/no-chat.log</code>. <code>pytest</code>: 87 passed, 1 deselected; <code>ruff</code>: all checks passed. Not yet tried in the real app (needs a relaunch).</p>
+</blockquote>
+<p><strong>Asked:</strong> "Nothing about the chat is logged until the first message comes through and the 5-word max summary is created. I don't want empty sessions getting summary folders."</p>
+<p><strong>Why:</strong> today <code>LogSession</code> makes <code>logs/&lt;start time&gt;/</code> at startup and the transcripts open right away, so every launch leaves a folder, even if you never typed anything. Relaunches make this worse: <code>relaunch.ps1</code> force-kills the app, so <code>finish()</code> never runs and those folders also never get their theme.</p>
+<p><strong>Touches:</strong> <code>src/assistant/infra/log.py</code> (<code>LogSession</code>), <code>src/assistant/infra/claude_session.py</code> (transcript), <code>src/assistant/__main__.py</code>, <code>src/assistant/modules/talker/module.py</code>, <code>temp_ui</code>'s Logs button, tests, the <a href="../html/architecture/core.html#logging">logging docs</a> and <a href="../html/api/infra.html#logsession"><code>LogSession</code> API</a>.</p>
+<p><strong>Approach:</strong> create the folder when the theme arrives, already named, and hold everything in memory until then.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant A as App and modules
+    participant L as LogSession
+    A-&gt;&gt;L: log lines, transcript lines (kept in memory)
+    A--&gt;&gt;L: first message, Talker replies, SessionTheme(&quot;...&quot;)
+    L-&gt;&gt;L: create logs/&lt;start time&gt;_&lt;theme&gt;/, write what was held
+    A-&gt;&gt;L: later lines go straight to the files
+</code></pre>
+<ul>
+<li><code>LogSession</code> makes no folder at startup. It hands out one <strong>log sink</strong> per file (<code>assistant.log</code>, <code>talker.jsonl</code>, <code>main_assistant.jsonl</code>) that buffers lines until <code>set_theme</code>, then creates <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code>, writes the buffer, and writes directly from then on.</li>
+<li>The app log goes through a logging handler that writes to its sink; <code>ClaudeSession</code> writes its transcript to its sink instead of opening a file. <code>__main__</code> passes the sinks in through config, as it passes paths today.</li>
+<li><strong>No rename at shutdown:</strong> the folder has its final name from the start, so a force-kill (relaunch) or crash still leaves a correctly named folder. <code>finish()</code> only closes files.</li>
+<li><strong>The theme always comes once there's a message:</strong> if the Talker's first turn fails, it still publishes <code>SessionTheme</code> with the first message itself (today a failed first turn means no theme).</li>
+<li><strong>Logs button:</strong> opens the session folder once it exists, else <code>logs/</code> (today it would create the folder).</li>
+</ul>
+<p><strong>Open questions:</strong></p>
+<ul>
+<li><strong><code>assistant.log</code> for an empty session.</strong> It only holds startup lines, unless something went wrong (a module failed, <code>claude</code> missing). <em>Recommend:</em> discard it when it holds only normal lines; if it holds a warning or error, append it to one shared <code>logs/no-chat.log</code> (like <code>relaunch.log</code>, no folder). Lost if the app is force-killed before any message, which is fine.</li>
+<li><strong>Startup failures</strong> (<code>Startup failed: ...</code>) happen before any message, so they'd follow the same rule: into <code>logs/no-chat.log</code>. <em>Recommend:</em> yes.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/logs-after-first-message.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

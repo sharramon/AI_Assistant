@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice in</title>
+<!-- Generated from docs/next-steps/voice-in.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-in.html"></nav>
+<main>
+<h1 id="voice-in">Voice in</h1>
+<p>Moved 2026-10-28: the design is now <a href="../html/architecture/voice.html">Voice</a> in the architecture docs, and the build plan is under <a href="index.html#next-voice-in-phase-1">Next: voice in, phase 1</a>.</p>
+<h2 id="code-design-2026-11-02">Code design (2026-11-02)</h2>
+<blockquote>
+<p><strong>Status: approved (2026-11-02).</strong> The additions are approved, except the two-minute cap, which became a silence stop at the user's request: a session stops itself only after 2 minutes with no speech detected (<code>audio.silence_stop_seconds</code>, final <code>ended_by: "silence"</code>) and stays on while the user talks.</p>
+</blockquote>
+<p><strong>Asked:</strong> write the missing code-level design for voice in, phase 1, before anything is built.
+<strong>Why:</strong> the boundaries and protocol were designed, but not the service's threads, files, config, and error handling, or the <code>voice_in</code> manifest and contract fields.
+<strong>Touches:</strong> docs only: <a href="../html/architecture/voice.html#code-design-phase-1">Voice</a> (new section, small protocol additions) and the build steps in <a href="index.html#next-voice-in-phase-1">Next steps</a>.
+<strong>Approach:</strong> one asyncio loop for the network, a mic-callback thread that only queues, and one engine thread per session; <code>voice_service</code> split into <code>server</code>, <code>session</code>, <code>audio</code>, <code>engines/</code>, <code>config</code>, <code>protocol</code>, <code>download</code>; <code>voice_in</code> copies the <code>html_viewer</code> launch pattern, with one WebSocket per mic session and no contracts provided or required.
+<strong>Decided</strong> (see the design's <a href="../html/architecture/voice.html#for-you-to-check">For you to check</a>): the <code>started</code> reply and <code>starting</code> state, approved; not sending text from a lost mic to the Talker, approved; the two-minute cap, replaced by a stop after 2 minutes of silence; port 8767 and the models folder, approved.</p>
+<footer>Generated from <code>docs/next-steps/voice-in.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

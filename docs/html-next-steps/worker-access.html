@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worker gets full access</title>
+<!-- Generated from docs/next-steps/worker-access.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="worker-access.html"></nav>
+<main>
+<h1 id="worker-gets-full-access">Worker gets full access</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26).</strong> Config and prompts changed; takes effect on the next launch.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Worker should be able to do what you do. Which is read all the docs, and edit every file. For now. Its capabilities should be the same."</p>
+<p><strong>Why:</strong> while everything is still being built, the Main Assistant should be as capable as Claude Code in this repo. The guardrails (<a href="../html/architecture/permissions.html#repo-zones">repo zones</a>, branch workflow) come with the permissions handler.</p>
+<p><strong>Touches:</strong> <code>config/default.toml</code> (<code>[modules.main_assistant]</code>), the Main Assistant's and the Talker's prompts, and the agent docs.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li><code>workspace = "."</code>: the repo is its working folder, so it loads <code>CLAUDE.md</code> and reads the docs as Claude Code does.</li>
+<li><code>tools = "default"</code>: every built-in tool, shell included.</li>
+<li><code>write_dirs = ["."]</code>: it edits any file in the repo without asking.</li>
+<li>Shell commands and <code>.claude/</code> still ask you each time (Allow / Deny, or the Talker), as they do for Claude Code.</li>
+</ul>
+<p><strong>Open questions:</strong> none.</p>
+<footer>Generated from <code>docs/next-steps/worker-access.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

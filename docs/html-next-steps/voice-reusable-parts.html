@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice streamer: reusable parts</title>
+<!-- Generated from docs/next-steps/voice-reusable-parts.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-reusable-parts.html"></nav>
+<main>
+<h1 id="voice-streamer-reusable-parts">Voice streamer: reusable parts</h1>
+<blockquote>
+<p><strong>Status: approved (2026-11-02).</strong> All three open questions approved as recommended (<a href="#decided">Decided</a>). It adds to the approved <a href="../html/architecture/voice.html#code-design-phase-1">voice code design</a>; nothing in it is built yet. The build follows the steps below.</p>
+<p><strong>Revised (2026-11-02):</strong> <a href="reusable-parts.html#decided">Reusable parts as a core principle</a> is approved, and three points here changed with it (folded in below):
+1. <strong>Where <code>CompanionApp</code> lives:</strong> <code>app_kit/companion.py</code>, not <code>assistant/infra/companion.py</code>, so other apps can launch <code>voice_service</code> too.
+2. <strong>The voice service's config loader:</strong> <code>app_kit.load_layered</code>, not its own TOML loader.
+3. <strong>How the mic check is done:</strong> <code>voice_in</code> declares <code>optional_permissions=("microphone",)</code> and calls <code>ctx.permissions.request(...)</code>; the stand-in allows and logs the warning.</p>
+<p>Build the reusable-parts code steps (<code>app_kit</code>, the permissions stand-in) before this note's steps.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Can you make the voice streamer? … it's just a tool to use as a voice to text with the text being able to be received anywhere … we'll just [use] a subscription model. Should we have a 'streamable' class? Can you look at all the things we'll use for it and see what classes and interfaces we want to actually make into reusable parts?"</p>
+<p><strong>Why:</strong> voice text should reach any module that wants it, with the Talker only the first subscriber, and the parts the voice streamer shares with other features should be built once.</p>
+<p><strong>Touches:</strong> <code>src/app_kit/</code> (<code>CompanionApp</code>, built by the reusable-parts note), <code>src/assistant/contracts/voice.py</code> (as planned, plus one field), <code>modules/html_viewer</code> (switches to the helper), the new <code>voice_service</code> and <code>voice_in</code>. Docs: <a href="../html/architecture/voice.html">Voice</a>, App kit API (new, from the reusable-parts note), <a href="../html/api/messaging.html">Messaging API</a>.</p>
+<h2 id="the-streamable-question-no-new-class-the-event-bus-is-the-stream">The "streamable" question: no new class; the Event Bus is the stream</h2>
+<p><strong>Recommendation:</strong> don't add a <code>Streamable</code> contract or helper. Voice text is an event, <code>VoiceTranscript</code>, and any module that wants it calls <code>ctx.subscribe(VoiceTranscript, ...)</code>.</p>
+<ul>
+<li><strong>The bus already does what a stream class would.</strong> <code>subscribe</code> and unsubscribe (automatic when a module stops), any number of subscribers, a bounded queue per subscriber, and a failing subscriber can't block the others (<a href="../html/architecture/communication.html#event-delivery">event delivery</a>). A <code>Streamable</code> would be a second delivery path beside the bus, with its own bugs.</li>
+<li><strong>Start and stop belong to the source, not the stream.</strong> They're already commands (<code>StartListening</code>, <code>StopListening</code>) with one owner, <code>voice_in</code>. Subscribers only listen.</li>
+<li><strong>Agent activity proves it.</strong> <code>AgentActivity</code> is already a stream on the bus, and terminal 2, the temp UI, and <code>html_viewer</code> (for <code>&lt;&lt;SHOW:&gt;&gt;</code>) all subscribe to it. Nothing about it needed a stream class.</li>
+<li><strong>Across processes</strong> (other apps, the Quest) the stream is the service's WebSocket protocol, and later the gateway. A Python class wouldn't help there either.</li>
+<li><strong>Inside <code>voice_service</code></strong> there's one listener at a time and the audio goes mic → queue → engine. <code>AudioSource.start(on_chunk)</code> is a callback, which is all that needs.</li>
+</ul>
+<p><strong>One change so "anywhere" really holds:</strong> in the current design every voice session ends as <code>InputReceived</code> to the Talker. Add <code>send_as_input: bool = True</code> to <code>StartListening</code>. With <code>False</code> (say, dictating into a text box later), the text arrives only as <code>VoiceTranscript(final=True)</code> for whoever subscribed, and the Talker never sees it. <code>VoiceTranscript</code> becomes the public output; <code>InputReceived</code> is just the Talker's way in.</p>
+<h2 id="reusable-parts">Reusable parts</h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Kind</th>
+<th>Purpose</th>
+<th>Where</th>
+<th>New or reused</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EventBus</code> / <code>ctx.subscribe</code> / <code>ctx.publish</code></td>
+<td>core</td>
+<td>The subscription model for voice text, state, and agent activity</td>
+<td><code>core/bus.py</code></td>
+<td><strong>reused</strong></td>
+</tr>
+<tr>
+<td><code>InputReceived</code></td>
+<td>event</td>
+<td>Final voice text to the Talker (<code>source="voice"</code>)</td>
+<td><code>contracts/messages.py</code></td>
+<td><strong>reused</strong></td>
+</tr>
+<tr>
+<td><code>StartListening</code>, <code>StopListening</code></td>
+<td>commands</td>
+<td>Turn the mic on and off; any UI may send them. <code>StartListening</code> gains <code>send_as_input</code></td>
+<td><code>contracts/voice.py</code></td>
+<td>new (planned), one new field</td>
+</tr>
+<tr>
+<td><code>VoiceState</code>, <code>VoiceTranscript</code></td>
+<td>events</td>
+<td>Button state; live and final text for any subscriber</td>
+<td><code>contracts/voice.py</code></td>
+<td>new (planned)</td>
+</tr>
+<tr>
+<td><strong><code>CompanionApp</code></strong></td>
+<td>class (<code>app_kit</code> helper)</td>
+<td>Launch a local companion app if nothing answers its ping, wait until it's up, call its HTTP API, read its event stream, and on stop quit it (only if we launched it)</td>
+<td><code>src/app_kit/companion.py</code></td>
+<td><strong>new</strong>; replaces the copy in <code>html_viewer</code></td>
+</tr>
+<tr>
+<td><code>load_layered</code></td>
+<td>function (<code>app_kit</code> helper)</td>
+<td>The voice service's config: <code>config/voice_service.toml</code> plus its <code>.local</code> override</td>
+<td><code>src/app_kit/config.py</code></td>
+<td><strong>new</strong> (reusable-parts note); also behind <code>assistant.infra.load_config</code></td>
+</tr>
+<tr>
+<td><code>SttEngine</code>, <code>SttStream</code></td>
+<td>abstract classes</td>
+<td>Swappable speech engines: <code>zipformer</code>, <code>fake</code>, later Nemotron</td>
+<td><code>voice_service/engines/</code></td>
+<td>new (planned)</td>
+</tr>
+<tr>
+<td><code>AudioSource</code></td>
+<td>abstract class</td>
+<td>Where audio comes from: <code>MicSource</code>, <code>FakeSource</code>, later the Quest's <code>RemoteSource</code></td>
+<td><code>voice_service/audio.py</code></td>
+<td>new (planned)</td>
+</tr>
+<tr>
+<td><code>ModulePermissions</code> (<code>ctx.permissions</code>)</td>
+<td>interface</td>
+<td>The mic check: <code>voice_in</code> declares <code>optional_permissions=("microphone",)</code> and calls <code>ctx.permissions.request(...)</code>. Until the <a href="permissions-handler.html">permissions handler</a> exists, the stand-in allows and logs the warning</td>
+<td><code>ScopedContext</code> stand-in (reusable-parts note)</td>
+<td><strong>reused</strong>; the handler later plugs in behind it</td>
+</tr>
+<tr>
+<td><code>ctx.log</code>, <code>[modules.voice_in]</code> config</td>
+<td>existing</td>
+<td>Logging and config of the thin module</td>
+<td><code>ModuleContext</code></td>
+<td><strong>reused</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>CompanionApp</code>, the one real new reusable part.</strong> <code>html_viewer</code> already holds this logic (<code>_ensure_running</code>, <code>_ping</code>, <code>_call</code>, the quit-then-kill in <code>stop</code>), and <code>voice_in</code> needs exactly the same; it's the decided pattern for every <a href="../html/architecture/decisions.html#decided">independent app</a>. Sketch:</p>
+<pre><code class="language-python">app = CompanionApp(module=&quot;voice_service&quot;, host, port, ping=&quot;/health&quot;,
+                   args=[...], start_timeout=20.0, log=ctx.log)
+await app.ensure_running()        # ping; else launch `python -m &lt;module&gt; &lt;args&gt;`, poll every 100 ms
+info = await app.call(&quot;GET&quot;, &quot;/health&quot;)
+await app.stop()                  # POST quit, wait 5 s, kill; only if we launched it
+</code></pre>
+<p>It relies on one convention every companion app keeps: its ping answers <code>{"app": "&lt;name&gt;", ...}</code>, and it has a POST quit endpoint. The viewer and the voice service already do (<code>/api/ping</code>, <code>/health</code>).</p>
+<p><strong>Kept separate on purpose:</strong></p>
+<ul>
+<li><strong><code>voice_in</code>'s WebSocket session</strong> and the viewer's event-stream relay are specific to each app; nothing worth sharing yet.</li>
+<li><strong>No <code>IVoiceInput</code> contract:</strong> <code>voice_in</code> is reached only through commands and events, as designed.</li>
+</ul>
+<h2 id="build-steps">Build steps</h2>
+<ol start="0">
+<li><strong>First, from the <a href="reusable-parts.html#downstream-effects-in-order">reusable-parts note</a>:</strong> <code>app_kit</code> (<code>CompanionApp</code> with its tests, <code>load_layered</code>, <code>html_viewer</code> switched over) and the <code>ctx.permissions</code> stand-in.</li>
+<li>~~<code>CompanionApp</code> in <code>assistant.infra</code>~~ Moved into step 0 (<code>app_kit</code>).</li>
+<li><strong>Contracts</strong> <code>contracts/voice.py</code>, with <code>send_as_input</code> on <code>StartListening</code>; <a href="../html/api/messaging.html">Messaging API</a> entries.</li>
+<li><strong><code>voice_service</code></strong> as in the approved design (steps 2 and 5 of <a href="index.html#next-voice-in-phase-1">voice in, phase 1</a>), reading its config with <code>app_kit.load_layered</code>.</li>
+<li><strong><code>voice_in</code></strong> using <code>CompanionApp</code>; asks for the mic with <code>ctx.permissions.request("microphone")</code> (no warning of its own); publishes <code>InputReceived</code> only when <code>send_as_input</code> is true.</li>
+<li><strong><code>temp_ui</code></strong> mic button and live line, then tests, <code>ruff</code>, a try on your mic, and the doc updates (Voice: planned → built; <code>VoiceTranscript</code> described as the public output any module subscribes to).</li>
+</ol>
+<h2 id="decided">Decided</h2>
+<p>Approved by you, 2026-11-02:</p>
+<ol>
+<li><strong>No <code>Streamable</code> class; the Event Bus is the stream.</strong> Voice text is published as <code>VoiceTranscript</code>; any module subscribes.</li>
+<li><strong><code>send_as_input: bool = True</code> on <code>StartListening</code>.</strong> With <code>False</code>, the text goes only to <code>VoiceTranscript</code> subscribers, not to the Talker. (Not a config flag on <code>voice_in</code>, which would be all or nothing.)</li>
+<li><strong><code>html_viewer</code> switches to <code>CompanionApp</code> in the same change</strong>, so the launch code lives in one place.</li>
+</ol>
+<p><strong>When built,</strong> these move into the permanent docs: decisions 1 and 2 into <a href="../html/architecture/voice.html">Voice</a> (the voice_in module section), <code>CompanionApp</code> into the App kit API (per the reusable-parts note), and the <code>send_as_input</code> field into the <a href="../html/api/messaging.html">Messaging API</a>.</p>
+<footer>Generated from <code>docs/next-steps/voice-reusable-parts.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

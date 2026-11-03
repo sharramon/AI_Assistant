@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viewer edits write back to the Markdown</title>
+<!-- Generated from docs/next-steps/markdown-write-back.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="markdown-write-back.html"></nav>
+<main>
+<h1 id="viewer-edits-write-back-to-the-markdown">Viewer edits write back to the Markdown</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-27).</strong> Approved as written, with Q1 (match by text) and Q2 (no rebuild from the viewer). Built as planned; <code>pytest</code> and <code>ruff</code> pass. One addition: a change at the very start or end of a block goes at the block's edge, outside any markup. <code>markdown</code> is now a runtime dependency (the viewer renders blocks with it). A dry run on the architecture overview page mapped 66 of 77 text blocks; the 11 others are repeated table cells ("core", "API"), which it refuses as planned. Not yet tried by hand in the real window. As built: <a href="../html/architecture/html-viewer.html#as-built-v1">HTML viewer</a>.</p>
+</blockquote>
+<p><strong>Asked:</strong> "I thought I asked you to make it so that the text edits will overwrite the markdown." Saving a text edit in a built docs page should change its source Markdown too, so a docs rebuild keeps it. You did ask before: it's recorded as a <strong>Later</strong> item, "Write-back to Markdown for built pages", in the <a href="base-html-viewer.html#scope">base HTML viewer</a> note and in the <a href="../html/architecture/html-viewer.html#scope">HTML viewer</a> scope. It was left out of v1.</p>
+<p><strong>Why:</strong> today saving a page in <code>docs/html</code> or <code>docs/html-next-steps</code> only changes the HTML and warns "The next docs rebuild will overwrite this edit." The edit is lost at the next rebuild.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><code>src/assistant/modules/html_viewer/</code>: the save path in <code>viewer.py</code>, plus a new <code>markdown_source.py</code> (find the source file, map a block, rewrite its lines).</li>
+<li><code>page.html</code>: the new save message.</li>
+<li><code>tests/test_html_viewer.py</code>: write-back tests against small Markdown files.</li>
+<li>Docs: <a href="../html/architecture/html-viewer.html">HTML viewer</a> (scope, decided, as built).</li>
+<li>No change to <code>scripts/build_docs.py</code>.</li>
+</ul>
+<h2 id="approach">Approach</h2>
+<p><strong>Finding the source file.</strong> Every built page already says where it came from (<code>&lt;!-- Generated from docs/... --&gt;</code>). The viewer reads that.</p>
+<p><strong>Mapping an edited paragraph to its Markdown.</strong> This happens when you save, not when you edit, so undo needs nothing special:</p>
+<ol>
+<li>For each element whose text changed since the last save, take its <strong>old plain text</strong> (what was saved before) and its <strong>new plain text</strong>.</li>
+<li>Split the Markdown into blocks (heading, paragraph, list item, table cell) with their line numbers, skipping code fences. Render each block with the same Markdown settings the build uses and keep its plain text.</li>
+<li><strong>The block whose plain text equals the old text</strong> is the source. If exactly one block matches, it's used.</li>
+<li>Within that block, only the part that changed is replaced: drop the text both versions start and end with, and look for the old middle part in the block's Markdown. If it's found exactly once, replace it with the new middle part. Bold, links, <code>code</code> and the <code>#</code>, <code>-</code> or <code>|</code> around it stay as they are.</li>
+</ol>
+<p>Example: you change "turns modules on and off" to "turns modules on or off" inside a paragraph with a link and bold text. Only <code>and</code> → <code>or</code> is written into that line of the <code>.md</code>; the rest of the line isn't touched.</p>
+<p><strong>When the mapping is ambiguous or impossible</strong>, the Markdown is never guessed at:</p>
+<ul>
+<li>no block matches (text that isn't from the Markdown, such as the nav or footer), or <strong>two or more blocks match</strong> (the same sentence twice on a page);</li>
+<li>the changed part isn't found exactly once in the block, for example an edit that crosses a bold or a link boundary.</li>
+</ul>
+<p>Those edits aren't written to the Markdown. Edits that do map are still written.</p>
+<p><strong>What the warning becomes.</strong> Saving writes both files: the Markdown first, then the HTML, so the page matches until the next rebuild.</p>
+<ul>
+<li>All edits written back: no warning. A short note says "Saved; also written to <code>docs/architecture/README.md</code>."</li>
+<li>Some couldn't be written back: a warning before saving that lists them ("2 edits can't be written to the Markdown: the next rebuild will overwrite them"), with <strong>Save anyway</strong> or <strong>Cancel</strong>, the same as today.</li>
+<li>No source found (the comment is missing, or the <code>.md</code> was moved): today's warning, unchanged.</li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>Match by text when saving, or tag blocks with line numbers in the build</strong> (the earlier plan)? Tags need a change to <code>build_docs.py</code> and extra attributes in every built page, and they go stale as soon as the Markdown is edited by hand. <strong>Recommend matching by text</strong>: no build change, it works on pages already built, and it refuses when unsure.</li>
+<li><strong>Rebuild after saving?</strong> After a write-back the HTML is right in the viewer but may differ slightly from what the build would make, and CI checks that the two match. <strong>Recommend not rebuilding from the viewer</strong>: the <code>docs-html</code> skill rebuilds before any commit anyway. The save note can say a rebuild is still needed.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/markdown-write-back.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

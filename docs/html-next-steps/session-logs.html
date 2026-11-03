@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logs per session</title>
+<!-- Generated from docs/next-steps/session-logs.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="session-logs.html"></nav>
+<main>
+<h1 id="logs-per-session">Logs per session</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26).</strong> Approved in conversation, with the user's go-ahead for the code change and a relaunch. <code>pytest</code>: 85 passed, 1 deselected (the real-<code>claude</code> test); <code>ruff</code>: all checks passed. The app was relaunched to use it. Still to do: rebuild <code>docs/html</code>.</p>
+</blockquote>
+<p><strong>Asked:</strong> "I want logs to be session by session. So per session, create a folder and in that it'll have its own logs." Then: "a timestamp + a short (max 5 word) theme of my first question", and "should each module deal with its own logging? Or should I go through a handler?"</p>
+<p><strong>Why:</strong> today every launch appends to the same three files in <code>logs/</code>, so one run's lines are mixed in with every earlier run. Finding what happened in one session means scrolling by timestamp.</p>
+<p><strong>Who owned logging before:</strong> no single owner. <code>setup_logging</code> wrote <code>logs/assistant.log</code> from <code>[logging] file</code>; each agent's <code>ClaudeSession</code> wrote its transcript from its module's <code>transcript</code> path; the temp UI's Logs button opened <code>logs_dir</code>.</p>
+<p><strong>Touches:</strong> <code>infra/log.py</code> (the handler), <code>__main__.py</code>, a <code>SessionTheme</code> event in the contracts, <code>talker</code> (sends the theme, prompt names the new paths), <code>config/default.toml</code>, tests, and the docs that name the log paths. <code>temp_ui</code> and <code>main_assistant</code> code don't change.</p>
+<p><strong>Decided:</strong></p>
+<ul>
+<li><strong>One owner: a log handler in the core infrastructure,</strong> <a href="../html/api/infra.html#logsession"><code>LogSession</code></a> next to <code>setup_logging</code>. Not a module (it must exist before modules start) and not the Main Assistant. It owns only <em>where</em> logs go: it creates the session folder, hands out the file paths, and renames the folder at the end. Modules still decide <em>what</em> they write, through the logging they already get; no module picks its own path.</li>
+<li><strong>Session = one app launch.</strong> A relaunch starts a new session.</li>
+<li><strong>Layout:</strong> <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code> with <code>assistant.log</code>, <code>talker.jsonl</code>, <code>main_assistant.jsonl</code>, e.g. <code>logs/2026-10-26_03-06-52_session-log-folders/</code>.</li>
+<li><strong>Theme:</strong> up to five words about your first question. The Talker adds it as a <code>&lt;&lt;THEME: ...&gt;&gt;</code> tag to its first reply (falling back to the question's first words) and publishes a <a href="../html/api/messaging.html#sessiontheme"><code>SessionTheme</code></a> event; <code>__main__</code> passes it to the handler, which makes it folder-safe (lowercase, hyphens, letters and digits only, at most five words).</li>
+<li><strong>Rename at shutdown:</strong> the folder is created at launch with the timestamp only (<code>-2</code> added if the name is taken). The theme is added when the app stops and the files are closed, since Windows can't rename a folder with open files. A failed rename is logged and never breaks shutdown; if the target name exists, the timestamp name stays. After a crash the folder keeps its timestamp-only name.</li>
+<li><strong>Sharing the paths:</strong> <code>__main__.main()</code> points <code>[logging] file</code> and every module's <code>transcript</code> into the folder, and the temp UI's <code>logs_dir</code> at it. In config, <code>transcript</code> is now a file name.</li>
+<li><strong>Logs button:</strong> opens the current session's folder.</li>
+<li><strong><code>logs/relaunch.log</code></strong> stays where it is, written by <code>scripts/relaunch.ps1</code> outside the app.</li>
+<li><strong>Old files:</strong> the flat <code>logs/assistant.log</code>, <code>talker.jsonl</code>, <code>main_assistant.jsonl</code> are left untouched. Session folders are kept, with no automatic cleanup. No "latest" pointer.</li>
+</ul>
+<p><strong>Open questions:</strong> none.</p>
+<footer>Generated from <code>docs/next-steps/session-logs.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

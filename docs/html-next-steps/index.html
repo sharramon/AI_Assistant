@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Next steps</title>
+<!-- Generated from docs/next-steps/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="index.html"></nav>
+<main>
+<h1 id="next-steps">Next steps</h1>
+<p>What we're working on now. This page changes as the work moves on.</p>
+<h2 id="where-we-are">Where we are</h2>
+<p><strong>Decided earlier:</strong></p>
+<ul>
+<li><strong>Agent Hub</strong> (<a href="../html/architecture/agents.html">agents</a>): one module coordinating a Talker, a Main Assistant, and later subagents. Not an AI, not part of the core, launches nothing.</li>
+<li><strong>Two terminals for now:</strong> terminal 1 to talk to the Talker, terminal 2 view-only on the Main Assistant. The chat window comes later as nicer UX for the same thing.</li>
+<li><strong>Modules own their resources</strong> and start expensive things (a <code>claude</code> process, a model, a window) lazily.</li>
+<li><a href="../html/architecture/core.html#runtime-module-control">Runtime module control</a> is built (<code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>).</li>
+<li><strong>Interfaces by inheritance, functionality by composition</strong> (<a href="../html/architecture/principles.html">principle 12</a>), with the <code>I</code> prefix for <code>Contract</code> subclasses only.</li>
+<li><strong>Subscription terms</strong> (checked): runs on your subscription (personal use, official unmodified <code>claude</code> binary). Revisit subscription vs API key when the Hub becomes an always-on service. Sources: <a href="https://www.anthropic.com/legal/consumer-terms">Consumer Terms</a> §3, <a href="https://code.claude.com/docs/en/legal-and-compliance">Claude Code legal page</a>.</li>
+</ul>
+<p><strong>Done 2026-10-22:</strong></p>
+<ul>
+<li><strong>The task-agent design</strong> is written: <a href="../html/architecture/agents.html#task-agents">agents</a> and the <a href="../html/api/agents.html">Agents API page</a> (planned). <code>message</code> = typing into Claude Code while it works (interrupt, quick reply, continue unless you meant stop or pause; the Talker infers which). <code>cancel</code> = Esc. Minimal Hub in v1. <code>AgentInfo</code> has <code>busy</code> and <code>working</code>, with <code>ListAgents</code> and <code>AgentStateChanged</code> for UIs.</li>
+<li><strong>The spike is done</strong> and confirmed the design: interrupt → reply → continue works, and a session survives a cancel with its memory. Details on the <a href="../html/agents/spike.html#findings">spike page</a>. The relay script was never built.</li>
+<li><strong>CI:</strong> GitHub Actions runs the tests on Windows and Linux, <code>ruff</code>, and checks that <code>docs/html</code> matches the Markdown. See <a href="#testing-and-ci">Testing and CI</a>.</li>
+</ul>
+<h2 id="done-the-two-terminal-setup-2026-10-25">Done: the two-terminal setup (2026-10-25)</h2>
+<p>The <a href="../html/agents/runtime.html">Agent runtime</a> is built and runs: <code>.\.venv\Scripts\python -m assistant</code> starts both <code>claude</code> sessions and opens the <a href="../html/agents/runtime.html#temp-ui">temp UI</a> (Main Assistant left, Talker right) in its own window. Transcripts of both sessions go to <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> in the launch's <a href="../html/architecture/core.html#logging">log folder</a>. Tested end to end (hand off, work, "done" notice, file in <code>workspace/</code>) and by <code>tests/test_agents.py</code>, which runs against <code>tests/fake_claude.py</code>.</p>
+<p><strong>Known issues:</strong></p>
+<ul>
+<li><strong>Exit crash with piped stdin:</strong> typing <code>exit</code> when stdin is a pipe (not a console) ends with "Fatal Python error … stdin … daemon threads". <code>console_io</code>'s stdin thread holds the stdin lock at shutdown. It also happened before the agents were added.</li>
+<li><strong>Interrupt and NEED untried with the real agents:</strong> the fake-<code>claude</code> tests cover them; try a mid-task question, pause, and cancel by hand.</li>
+<li><strong>The Talker's working directory</strong> is the app's, so it loads this project's <code>CLAUDE.md</code>. Set <code>[modules.talker] cwd</code> to a neutral folder if that slows it down.</li>
+<li><strong>The Talker invented facts</strong> (that the worker could read the repo, that it had "granted" access, a permission prompt to approve). Its prompt now lists the facts about the system and forbids going beyond them; watch whether that holds.</li>
+</ul>
+<h2 id="pending-changes">Pending changes</h2>
+<p>Changes you asked for, each with a note written before anything is built (<a href="../../.claude/skills/app-update/SKILL.md"><code>app-update</code></a> skill). Statuses: proposed → approved → done (or ready to build).</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Status</th>
+<th>Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="session-logs.html">Logs per session</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="permission-on-talker-side.html">Permission requests on the Talker side</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="permissions-handler.html">Permissions handler</a></td>
+<td>proposed</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="worker-access.html">Worker gets full access</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="permission-requests.html">Permission requests in the app</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="logs-button.html">Logs button</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="relaunch-keeps-window.html">Relaunch opens one fresh window</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="logs-after-first-message.html">No logs until the first message</a></td>
+<td>done</td>
+<td>2026-10-26</td>
+</tr>
+<tr>
+<td><a href="base-html-viewer.html">Base HTML viewer</a></td>
+<td>done</td>
+<td>2026-10-27</td>
+</tr>
+<tr>
+<td><a href="markdown-write-back.html">Viewer edits write back to the Markdown</a></td>
+<td>done</td>
+<td>2026-10-27</td>
+</tr>
+<tr>
+<td><a href="snip-for-viewer.html">Snip for viewer</a></td>
+<td>done</td>
+<td>2026-10-27</td>
+</tr>
+<tr>
+<td><a href="highlight-for-viewer.html">Highlight for viewer</a></td>
+<td>done</td>
+<td>2026-10-27</td>
+</tr>
+<tr>
+<td><a href="leaner-worker.html">Leaner worker: smaller contexts, fewer calls</a></td>
+<td>done</td>
+<td>2026-10-27</td>
+</tr>
+<tr>
+<td><a href="usage-meters.html">Usage meters: context now and usage so far</a></td>
+<td>done</td>
+<td>2026-10-28</td>
+</tr>
+<tr>
+<td><a href="blue-highlight.html">Blue highlight in the HTML viewer</a></td>
+<td>done</td>
+<td>2026-10-28</td>
+</tr>
+<tr>
+<td><a href="voice-in.html">Voice in</a></td>
+<td>ready to build; design moved to <a href="../html/architecture/voice.html">Voice</a></td>
+<td>2026-10-28</td>
+</tr>
+<tr>
+<td><a href="voice-in.html#code-design-2026-11-02">Voice in: code design</a></td>
+<td>approved</td>
+<td>2026-11-02</td>
+</tr>
+<tr>
+<td><a href="viewer-to-front.html">Open in viewer brings the viewer to the front</a></td>
+<td>done</td>
+<td>2026-10-28</td>
+</tr>
+<tr>
+<td><a href="voice-reusable-parts.html">Voice streamer: reusable parts</a></td>
+<td>approved; revised by the note below (CompanionApp in <code>app_kit</code>, <code>load_layered</code>, mic check via <code>ctx.permissions</code>)</td>
+<td>2026-11-02</td>
+</tr>
+<tr>
+<td><a href="reusable-parts.html">Reusable parts as a core principle</a></td>
+<td>approved; permanent docs done; <code>app_kit</code> and <code>agent_tags</code> built (2026-11-02); code next: the permissions stand-in, before the voice build</td>
+<td>2026-11-02</td>
+</tr>
+<tr>
+<td><a href="permission-mode-button.html">Permission mode button (Manual / Auto)</a></td>
+<td>done (spike passed: <code>git push</code> blocked under bypass; button on the Talker side; restart the app to get it)</td>
+<td>2026-11-02</td>
+</tr>
+</tbody>
+</table>
+<h2 id="next-voice-in-phase-1">Next: voice in, phase 1</h2>
+<p>The next thing to build. The design is <a href="../html/architecture/voice.html">Voice</a>, with the code-level design (threads, files, config, errors, the <code>voice_in</code> manifest and contracts) in its <a href="../html/architecture/voice.html#code-design-phase-1">Code design (phase 1)</a> section, approved 2026-11-02. Follow <code>app-update</code> and <code>architecture-first</code>. No voice code exists yet.</p>
+<p><strong>The first version includes:</strong> the shared <code>voice_service</code> app with the recorder, the receiver, and the Streaming Zipformer engine. It also includes the thin <code>voice_in</code> module, a mic button and a live-text line in the temp UI, one message to the Talker when the mic turns off, and latency per utterance in the log.</p>
+<p><strong>Left out of it:</strong> Silero VAD (not needed with a button), Ctrl+Space, the "didn't catch that" message, auto-restarting the service, <code>/ws/audio</code> for remote recorders, several listeners at once, and Nemotron (step 7).</p>
+<p><strong>Before step 1:</strong> the code steps of <a href="reusable-parts.html#downstream-effects-in-order">Reusable parts</a> (<code>app_kit</code>, built 2026-11-02; the <code>ctx.permissions</code> stand-in), as revised in the <a href="voice-reusable-parts.html">voice streamer note</a>. Step 3 below then uses <code>CompanionApp</code> and <code>ctx.permissions</code> instead of copying <code>_ensure_running</code> and logging its own warning; step 2 uses <code>app_kit.load_layered</code>.</p>
+<p><strong>Steps:</strong></p>
+<ol>
+<li><strong>Contracts:</strong> <code>StartListening</code>, <code>StopListening</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>src/assistant/contracts/voice.py</code>, with entries in the <a href="../html/api/messaging.html">Messaging API</a>. Fields per <a href="../html/architecture/voice.html#the-voice_in-module">the voice_in module</a>.</li>
+<li><strong><code>src/voice_service/</code></strong> (doesn't import the assistant): the <a href="../html/architecture/voice.html#the-voice-service-files-and-classes">files and classes</a>, <a href="../html/architecture/voice.html#the-voice-service-threads-and-audio-flow">threads</a>, <a href="../html/architecture/voice.html#the-voice-service-config">config</a> (<code>config/voice_service.toml</code>), and <a href="../html/architecture/voice.html#the-voice-service-errors">error handling</a> in the design. FastAPI + Uvicorn on <code>127.0.0.1:8767</code>, <code>/health</code>, <code>/quit</code>, <code>/ws/listen</code> per the <a href="../html/architecture/voice.html#the-protocol">protocol</a>; <code>SttEngine</code> / <code>SttStream</code> with <code>zipformer</code> and <code>fake</code>; <code>MicSource</code> and <code>FakeSource</code>; the <code>download</code> command. Runs alone with <code>python -m voice_service</code>.</li>
+<li><strong><code>src/assistant/modules/voice_in/</code>:</strong> per <a href="../html/architecture/voice.html#the-voice_in-module">the voice_in module</a>: launches the service the way <code>html_viewer</code> does (<code>_ensure_running</code>), one WebSocket per mic session, handles the two commands, logs the "no permissions handler" warning on each start, publishes <code>VoiceState</code> and <code>VoiceTranscript</code>, and sends the final text as <code>InputReceived(source="voice")</code>. Off by default; <code>[modules.voice_in]</code> in <code>config/default.toml</code>, plus <code>core.command_timeouts.StartListening = 30</code>.</li>
+<li><strong><code>temp_ui</code>:</strong> the mic button (shows <em>listening</em> or <em>failed</em>) and a grey live-text line above the input box.</li>
+<li><strong><code>pyproject.toml</code>:</strong> an optional <code>voice</code> extra (FastAPI, Uvicorn, sherpa-onnx, sounddevice, and <code>websockets</code> for <code>voice_in</code>'s client).</li>
+<li><strong>Tests and check:</strong> the service with the <code>fake</code> engine and a fake recorder; <code>voice_in</code> against a fake service. No real mic or model in CI. Run <code>pytest</code> and <code>ruff</code>, then try it on your mic. That's the first real test of the latency targets. Update the docs (Voice: planned → built, the overview's Parts table, the <a href="../html/agents/runtime.html">runtime</a> page) and rebuild.</li>
+<li><strong>Next:</strong> a Nemotron Speech Streaming EN 0.6B INT8 engine, and a comparison script on a folder of recordings with reference text (word error rate, latency, CPU per engine).</li>
+</ol>
+<h2 id="now-self-improvement">Now: self-improvement</h2>
+<p>The <a href="../html/agents/self-improvement.html">self-improvement plan</a>: edits on a branch, tests on the new version, merge only when you're satisfied, CI/CD later.</p>
+<ol>
+<li>~~<strong>Standing rules:</strong> the Main Assistant reads the whole repo and writes <code>docs/</code> and <code>.claude/skills/</code>.~~ Done 2026-10-25.</li>
+<li>~~<strong>Spike, then permission requests in the app</strong>~~ (<a href="permission-requests.html">note</a>). Done 2026-10-26.</li>
+<li><strong>Branch workflow</strong> for <code>src/</code> edits, then CI/CD. Until then the worker edits the repo directly, with the <a href="worker-access.html">same access as Claude Code</a>, and the <a href="permission-mode-button.html">permission mode button</a> (Manual / Auto, 2026-11-02) decides whether it asks.</li>
+</ol>
+<p><strong>Also open:</strong> the <a href="../html/architecture/decisions.html#open-decisions">UI handler</a> design; the temp UI stands in until then. Voice in is next to build (<a href="#next-voice-in-phase-1">above</a>); voice out after it.</p>
+<h2 id="testing-and-ci">Testing and CI</h2>
+<ul>
+<li><code>pytest</code> runs the unit tests (fast, no <code>claude</code>). Tests that run a real <code>claude</code> process are marked <code>@pytest.mark.claude</code>, skipped by default and in CI; run them locally with <code>pytest -m claude</code>.</li>
+<li>Code that wraps <code>claude</code> is tested against fakes: a fake process replaying recorded events, a fake <code>ITaskAgent</code>.</li>
+<li><code>ruff check src tests scripts</code> lints (config in <code>pyproject.toml</code>).</li>
+<li><strong>CI</strong> (<code>.github/workflows/ci.yml</code>), on every push and pull request: tests on Windows and Linux (Python 3.12), then <code>ruff</code> and a docs check that fails if <code>docs/html</code> or <code>docs/html-next-steps</code> wasn't rebuilt after a Markdown change.</li>
+<li>Real <code>claude</code> calls stay out of CI: they'd need your login on GitHub's machines. Use an API key as a GitHub secret if that's ever wanted.</li>
+<li>No CD yet: nothing is deployed while it runs on your PC.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

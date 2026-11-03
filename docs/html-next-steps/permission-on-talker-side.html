@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permission requests on the Talker side</title>
+<!-- Generated from docs/next-steps/permission-on-talker-side.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="permission-on-talker-side.html"></nav>
+<main>
+<h1 id="permission-requests-on-the-talker-side">Permission requests on the Talker side</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-26).</strong> Approved as proposed, keeping the log line in the Main Assistant pane.</p>
+</blockquote>
+<p><strong>Asked:</strong> "The permission should appear on the talker side, not the worker side."</p>
+<p><strong>Why:</strong> You talk to the assistant through the Talker, so that's where you should answer it. Today the Allow / Deny card appears in the temp UI's <strong>Main Assistant</strong> pane (left). The Talker also asks you in the chat on the right, so the same question shows up in two places and the buttons are in the pane you only watch.</p>
+<p><strong>Current behavior:</strong></p>
+<ul>
+<li><code>temp_ui/module.py</code> (<code>_on_task</code>) puts a <code>permission</code> <code>TaskUpdated</code> in the <code>worker</code> pane. <code>page.html</code> draws it there as the Allow / Deny card (<code>POST /permission</code> → <code>AnswerPermission</code>).</li>
+<li>The Talker gets the same update and asks you in one sentence. A <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> tag answers it. Either way of answering settles the card.</li>
+</ul>
+<p><strong>Intended behavior:</strong></p>
+<ul>
+<li>The card appears in the <strong>Talker</strong> pane (right), in line with the conversation, next to the Talker's question. It works the same way otherwise: Allow / Deny buttons, or answer the Talker in words.</li>
+<li>The Main Assistant pane keeps one plain log line (<code>asks permission: &lt;tool and path&gt;</code>, then <code>permission allowed/denied</code>), with no buttons, so its activity log stays complete.</li>
+<li>Nothing changes in the Hub, the contracts, or the Main Assistant: <code>ReportTask(permission)</code> → <code>TaskUpdated</code> → <code>AnswerPermission</code> stays the same. Only where the UI shows the request moves. The planned <a href="permissions-handler.html">permissions handler</a> already has "the UI / Talker" asking you, so this matches it.</li>
+</ul>
+<p><strong>Touches:</strong></p>
+<ul>
+<li>Code: <code>src/assistant/modules/temp_ui/module.py</code> (push the card to the <code>talker</code> pane, plus a log line to <code>worker</code>) and <code>src/assistant/modules/temp_ui/page.html</code> (draw the card and its "answered" state in the Talker pane).</li>
+<li>Talker prompt (<code>talker/module.py</code>): one small wording fix so it says the buttons are "right here in the chat". No change in behavior.</li>
+<li>Tests: <code>tests/test_temp_ui.py</code> gets a case for a <code>permission</code> update: the card is in the <code>talker</code> pane and the log line is in the <code>worker</code> pane.</li>
+<li>Docs: <code>docs/agents/runtime.md</code> (Temp UI section), <code>docs/agents/README.md</code> (Permission requests line), and a one-line pointer in <code>docs/next-steps/permission-requests.md</code> (step 6). Then rebuild the HTML.</li>
+</ul>
+<p><strong>Decided:</strong></p>
+<ul>
+<li><strong>Keep a log line in the Main Assistant pane:</strong> yes, a plain line without buttons, so the worker's log shows what it asked (the user's answer, 2026-10-26).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/permission-on-talker-side.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

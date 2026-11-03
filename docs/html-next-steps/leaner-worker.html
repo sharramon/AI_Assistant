@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaner worker: smaller contexts, fewer calls</title>
+<!-- Generated from docs/next-steps/leaner-worker.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="leaner-worker.html"></nav>
+<main>
+<h1 id="leaner-worker-smaller-contexts-fewer-calls">Leaner worker: smaller contexts, fewer calls</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-27).</strong> Built as below; tests in <code>tests/test_agents.py</code>. Checked against the real <code>claude</code>: the <code>PowerShell(&lt;command&gt; *)</code> rule form lets pytest run without asking, and the <code>debugger</code> subagent's permission requests reach the app like the Main Assistant's. Docs: <a href="../html/agents/runtime.html#fresh-sessions-and-handoffs">agent runtime</a>, <a href="../html/api/agents.html#sessionusage">Agents API</a> (the meter event is now <code>SessionUsage</code>, see <a href="usage-meters.html">usage meters</a>). Needs a relaunch to go live.</p>
+</blockquote>
+<p><strong>Asked:</strong> after one session's token burn (2026-10-27, about $8.40, most of it in one 22-minute turn): "the Talker as the main context, and the main starting new sessions per task", with the docs as the source of truth; "the worker should be able to update docs, create a handoff for itself, and then start up a new worker"; "a subagent per debug"; "what are you doing?" should be "just a peek at the main, not a whole interrupt. Unless I ask for a pause"; give the test and ruff commands up front. Subagents: "let's go the easier route" (Claude Code's built-in ones, not Hub subagents).</p>
+<p><strong>Why:</strong> the logs (<code>logs/2026-10-27_17-08-42_next-steps-html-viewer/</code>) show:</p>
+<ul>
+<li><strong>One task held everything.</strong> The Talker sent four changes (write-back, highlight, viewer as its own app, snip) into one running task with ASK, so the Main Assistant's context grew from 39k to 273k tokens. Every call resends it all.</li>
+<li><strong>126 calls at about 165k each.</strong> Edits were mostly batched (158 edits in about 50 calls). The rest went on reads one file at a time (35), checks (20), and interrupts.</li>
+<li><strong>Interrupts cost 2–3 calls each.</strong> The Main answers, the Hub sends "continue", then the Talker's own "Continue. Go ahead…" arrives as another interrupt.</li>
+<li><strong>The peek was too thin.</strong> "What is going on?" got only the task text, so the follow-up became an interrupt at 266k.</li>
+<li><strong>A debug loop in the big context.</strong> Three real-Edge bugs fixed one after another (17 calls at about 220k each). It was never delegated: no <code>Task</code> call appears in any log.</li>
+<li><strong>37 permission prompts</strong>, almost all PowerShell, each also costing a Talker turn.</li>
+</ul>
+<p><strong>Touches:</strong> <code>infra/session_agent.py</code>, <code>modules/main_assistant/module.py</code> (prompt), <code>modules/talker/module.py</code> (prompt, status text), <code>modules/agent_hub/module.py</code> (recent activity), <code>config/default.toml</code>, new <code>.claude/agents/debugger.md</code>; docs: <code>architecture/agents.md</code>, <code>agents/runtime.md</code>, <code>api/agents.md</code>, <code>api/infra.md</code>.</p>
+<p><strong>Approach:</strong></p>
+<ol>
+<li><strong>One change per task (Talker).</strong> WORK starts a task for each new request; ASK is only for questions, answers and corrections about the running one. A new request while a task runs: the Talker tells you what's running now and what stopping it would leave unfinished, and you choose: wait, pause it, or cancel it. After a reply to ASK the task carries on by itself: no extra "continue".</li>
+<li><strong>Fresh session per task (worker).</strong> <code>SessionTaskAgent.assign</code> restarts the <code>claude</code> session when the last one has been used, so each task starts at the fixed ~31k. The task text points at its change note in <code>docs/next-steps/</code>; the docs, not the chat, carry the decisions.</li>
+<li><strong>Self-handoff (worker).</strong> At the start of a task the worker judges whether it holds separate, big parts (like write-back, highlight, independence and snip). If so, it does one part per session: when a part is built, it updates the docs, writes what's done and next in the change note, and ends with <code>HANDOFF: &lt;note path&gt;</code>. Small or tightly linked work stays in one session. No call count. <code>SessionTaskAgent</code> then starts a fresh session on the same task with "Continue from the handoff in <note>". The task id stays the same, so the Talker and Hub see no break. At most a few handoffs per task (default 3), then it ends with NEED to check in with you.</li>
+<li><strong>Debug subagents.</strong> A <code>debugger</code> agent in <code>.claude/agents/</code> (model <code>sonnet</code>, file tools and PowerShell). The Main's prompt: hand debugging loops and broad searches to subagents with the file, the symptom, and how to reproduce it; take back only the fix and the proof.</li>
+<li><strong>Peek, don't interrupt.</strong> The Hub keeps the last 15 activity lines per task (text and tool calls with file names, from <code>AgentActivity</code>) in <code>TaskInfo.activity</code>; the Talker's [Status] shows them. The Talker's prompt: "what are you doing / why" questions → LOOK; ASK or PAUSE only to change what it does or when you ask to pause.</li>
+<li><strong>Permissions up front.</strong> New <code>[modules.main_assistant] allowed_commands</code>: the tests, <code>ruff</code> and <code>scripts/build_docs.py</code>. File read and write in the project are already allowed. Other shell commands, including scripts the worker writes for itself, still ask.</li>
+<li><strong>Context meters.</strong> <code>ClaudeSession</code> reads each call's context size (input + cache tokens in <code>usage</code>) and publishes it in a new event (agent id, tokens), now <code>SessionUsage</code>. The temp UI shows it on both panes ("Worker 145k · Talker 24k"), and the Talker's [Status] includes it, so you can ask "how full are you?".</li>
+</ol>
+<p><strong>Decided (2026-10-27):</strong> Q1 the Talker explains and you choose; Q2 handoff by separate, big parts, not a call count; Q3 the debugger runs on <code>sonnet</code>; Q4 the worker's own scripts keep asking.</p>
+<p>Q5 <strong>resetting:</strong> say "reset" to the Talker, or press a Reset button on that pane. A Talker reset keeps the last few exchanges (<code>context_exchanges</code>) so it doesn't forget what you were doing. A worker reset between tasks is automatic (item 2); during a task it's a handoff.</p>
+<p><strong>To verify while building:</strong> the exact rule syntax for allowing PowerShell commands, and that a subagent's permission requests still reach the app's Allow / Deny.</p>
+<footer>Generated from <code>docs/next-steps/leaner-worker.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
