@@ -110,6 +110,10 @@
         "href": "voice-in-module.html"
       },
       {
+        "name": "Voice in: the temp UI's mic button (step 4)",
+        "href": "voice-temp-ui.html"
+      },
+      {
         "name": "Permission mode button",
         "href": "permission-mode-button.html"
       },

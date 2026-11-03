@@ -122,7 +122,7 @@
 <td>command</td>
 <td>Turn the mic on and off; any UI may send them</td>
 <td><code>contracts/voice.py</code></td>
-<td><code>temp_ui</code> (<em>planned</em>) → <code>voice_in</code></td>
+<td><code>temp_ui</code> → <code>voice_in</code></td>
 </tr>
 <tr>
 <td><a href="messaging.html#listeningstate"><code>ListeningState</code></a></td>
@@ -136,14 +136,14 @@
 <td>event</td>
 <td>The mic's state changed, for the button</td>
 <td><code>contracts/voice.py</code></td>
-<td><code>voice_in</code> → <code>temp_ui</code> (<em>planned</em>)</td>
+<td><code>voice_in</code> → <code>temp_ui</code></td>
 </tr>
 <tr>
 <td><a href="messaging.html#voicetranscript"><code>VoiceTranscript</code></a></td>
 <td>event</td>
 <td>Live and final voice text; the public stream</td>
 <td><code>contracts/voice.py</code></td>
-<td><code>voice_in</code> → <code>temp_ui</code> (<em>planned</em>), any subscriber</td>
+<td><code>voice_in</code> → <code>temp_ui</code>, any subscriber</td>
 </tr>
 </tbody>
 </table>

@@ -144,11 +144,11 @@ You dropped a snip before sending it (the × on its thumbnail). The Talker forge
 
 ## Voice
 
-Voice input ([design](../architecture/voice.md#the-voice_in-module)). Any UI sends the commands; `voice_in` handles them and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id), so a UI can drop a stale session's updates. Built 2026-11-03; `voice_in` built 2026-11-03 ([change note](../next-steps/voice-in-module.md)), off by default until the temp UI's mic button (step 4).
+Voice input ([design](../architecture/voice.md#the-voice_in-module)). Any UI sends the commands; `voice_in` handles them and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id), so a UI can drop a stale session's updates. Built 2026-11-03; `voice_in` built 2026-11-03 ([change note](../next-steps/voice-in-module.md)); the temp UI's mic button sends the commands (step 4, [change note](../next-steps/voice-temp-ui.md)).
 
 ### `StartListening`
 
-**Reusable** · Used by: `temp_ui` (planned) sends; `voice_in` handles
+**Reusable** · Used by: `temp_ui` sends; `voice_in` handles
 
 `StartListening(send_as_input: bool = True)` (command)
 
@@ -156,7 +156,7 @@ Turn the mic on. With `send_as_input=False` (dictating into a text box, say) the
 
 ### `StopListening`
 
-**Reusable** · Used by: `temp_ui` (planned) sends; `voice_in` handles
+**Reusable** · Used by: `temp_ui` sends; `voice_in` handles
 
 `StopListening()` (command)
 
@@ -170,7 +170,7 @@ Turn the mic off. **Result:** `ok` after the final arrives, value `{"text", "lat
 
 ### `VoiceState`
 
-**Reusable** · Used by: `voice_in` publishes; `temp_ui` (planned) subscribes
+**Reusable** · Used by: `voice_in` publishes; `temp_ui` subscribes
 
 `VoiceState(state: ListeningState, reason: str | None = None, detail: str | None = None)` (event)
 
@@ -178,7 +178,7 @@ The mic's state changed. `reason` is the service's error code (`busy`, `mic_unav
 
 ### `VoiceTranscript`
 
-**Reusable** · Used by: `voice_in` publishes; `temp_ui` (planned) and any module that wants voice text subscribe
+**Reusable** · Used by: `voice_in` publishes; `temp_ui` and any module that wants voice text subscribe
 
 `VoiceTranscript(session_id: str, text: str, final: bool = False)` (event)
 

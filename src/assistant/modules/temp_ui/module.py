@@ -21,6 +21,11 @@ Serves `page.html` on http://127.0.0.1:<port>/ (standard library only):
 - the header shows the worker's and the Talker's usage side by side, live (`SessionUsage`:
   context now, used since launch, ~$); each pane's Reset button sends
   `POST /reset` `{"agent": "worker" | "talker"}`, which publishes `ResetRequested`
+- the mic button: `POST /mic` `{"on": true | false}` sends `StartListening` / `StopListening`
+  (handled by `voice_in`). `VoiceState` and `VoiceTranscript` of the current session (the one
+  that sent `starting`) make the `voice` SSE state item: the button's state, the live text, and
+  for *dropped* the countdown's end (`until`, read from the state's detail). Spoken input
+  (`InputReceived(source="voice")`) shows as your message, marked spoken
 
 `window = "app"` opens it in its own window (Edge app mode: no tabs or address
 bar); `"browser"` opens a browser tab; `"none"` opens nothing.
@@ -36,7 +41,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import subprocess
+import time
 import webbrowser
 from collections import deque
 from datetime import datetime
@@ -51,6 +58,7 @@ from assistant.contracts import (
     AnswerPermission,
     InputReceived,
     InvokeTool,
+    ListeningState,
     Manifest,
     Module,
     ModuleContext,
@@ -61,15 +69,21 @@ from assistant.contracts import (
     ResponseReady,
     SessionUsage,
     SetPermissionMode,
+    StartListening,
+    Status,
+    StopListening,
     TaskUpdated,
     ViewerClip,
     ViewerClipDropped,
+    VoiceState,
+    VoiceTranscript,
 )
 
 PAGE = Path(__file__).with_name("page.html")
 HISTORY = 500
 MAX_SNIPS = 3  # as many as the Talker sends with one message
 RISKY = "Risky:"  # a need starting with this is the worker pausing before a risky step (Auto)
+WAIT = re.compile(r"(\d+(?:\.\d+)?)\s*s\b")  # the wait in a dropped mic's detail ("waiting 15 s for it…")
 
 
 class TempUIModule(Module):
@@ -96,6 +110,11 @@ class TempUIModule(Module):
         self._usage: dict[str, dict[str, Any]] = {}
         # The worker's permission mode (an SSE item): Manual at every launch until told otherwise.
         self._mode = {"kind": "mode", "mode": str(PermissionMode.MANUAL), "applies": "now"}
+        # The mic button and live line (an SSE item), following one voice session at a time.
+        self._voice_session: str | None = None
+        self._voice: dict[str, Any] = {"kind": "voice", "state": str(ListeningState.IDLE), "detail": None, "text": "", "until": None}
+        ctx.subscribe(VoiceState, self._on_voice_state)
+        ctx.subscribe(VoiceTranscript, self._on_voice_text)
         ctx.subscribe(InputReceived, self._on_input)
         ctx.subscribe(SessionUsage, self._on_usage)
         ctx.subscribe(ViewerClip, self._on_snip)
@@ -134,7 +153,7 @@ class TempUIModule(Module):
     # --- events → panes ---
 
     async def _on_input(self, event: InputReceived) -> None:
-        self._push("talker", "you", event.text)
+        self._push("talker", "you", event.text, **({"voice": True} if event.source == "voice" else {}))
         if self._snips:  # they went to the Talker with this message
             self._snips.clear()
             self._push_snips()
@@ -178,6 +197,39 @@ class TempUIModule(Module):
         label = "Auto, no permission prompts" if event.mode is PermissionMode.AUTO else "Manual"
         self._push("talker", "note", f"Main Assistant: {label}{when}")
         self._push("worker", "task", f"permission mode: {event.mode}{when}")
+
+    # --- voice: the mic button and the live line ---
+
+    async def _on_voice_state(self, event: VoiceState) -> None:
+        if event.state is ListeningState.STARTING:  # a new session: follow it, forget the last one
+            self._voice_session = event.correlation_id
+            self._voice["text"] = ""
+        elif event.correlation_id != self._voice_session:
+            return  # a stale session's update
+        until = None
+        if event.state is ListeningState.DROPPED and (wait := WAIT.search(event.detail or "")):
+            until = (time.time() + float(wait[1])) * 1000  # the page counts down to this (ms, like Date.now())
+        if event.state in (ListeningState.IDLE, ListeningState.FAILED):
+            self._voice["text"] = ""
+        self._set_voice(state=str(event.state), detail=event.detail, until=until)
+
+    async def _on_voice_text(self, event: VoiceTranscript) -> None:
+        if event.correlation_id == self._voice_session:
+            self._set_voice(text="" if event.final else event.text)
+
+    def _set_voice(self, **changes: Any) -> None:
+        self._voice = {**self._voice, **changes}
+        self._push_state(self._voice)
+
+    async def _mic(self, on: bool) -> dict[str, Any]:
+        command = StartListening() if on else StopListening()
+        result = await self._ctx.send(command)
+        if on and not result.is_ok and self._voice_session != command.id:
+            # No VoiceState came for it: nothing handled the command (voice_in is off), or it failed first.
+            detail = "voice input is off" if result.status is Status.NOT_AVAILABLE else result.error
+            self._voice_session = command.id
+            self._set_voice(state=str(ListeningState.FAILED), detail=detail, text="", until=None)
+        return {"ok": result.is_ok, "error": result.error}
 
     async def _on_response(self, event: ResponseReady) -> None:
         self._push("talker", "talker", event.text)
@@ -261,6 +313,10 @@ class TempUIModule(Module):
                 if agent:
                     self._ctx.publish(ResetRequested(agent_id=agent))
                 await self._respond(writer, 204, "text/plain", b"")
+            elif method == "POST" and path == "/mic":
+                body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")
+                answer = await self._mic(bool(body.get("on")))
+                await self._respond(writer, 200, "application/json", json.dumps(answer).encode())
             elif method == "POST" and path == "/open-logs":
                 self._open_logs()
                 await self._respond(writer, 204, "text/plain", b"")
@@ -317,6 +373,7 @@ class TempUIModule(Module):
         for item in self._usage.values():
             writer.write(_sse(item))
         writer.write(_sse(self._mode))
+        writer.write(_sse(self._voice))
         await writer.drain()
         self._clients.add(queue)
         try:

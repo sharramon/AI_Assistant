@@ -213,24 +213,24 @@
 <p>You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by <code>temp_ui</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="voice">Voice</h2>
-<p>Voice input (<a href="../architecture/voice.html#the-voice_in-module">design</a>). Any UI sends the commands; <code>voice_in</code> handles them and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id), so a UI can drop a stale session's updates. Built 2026-11-03; <code>voice_in</code> built 2026-11-03 (change note), off by default until the temp UI's mic button (step 4).</p>
+<p>Voice input (<a href="../architecture/voice.html#the-voice_in-module">design</a>). Any UI sends the commands; <code>voice_in</code> handles them and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id), so a UI can drop a stale session's updates. Built 2026-11-03; <code>voice_in</code> built 2026-11-03 (change note); the temp UI's mic button sends the commands (step 4, change note).</p>
 <h3 id="startlistening"><code>StartListening</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (planned) sends; <code>voice_in</code> handles</p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> sends; <code>voice_in</code> handles</p>
 <p><code>StartListening(send_as_input: bool = True)</code> (command)</p>
 <p>Turn the mic on. With <code>send_as_input=False</code> (dictating into a text box, say) the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker. <strong>Result:</strong> <code>ok</code> once the service says <code>started</code>, value <code>{"session_id"}</code>; already listening: <code>ok</code> with the same session. <code>not_available</code> (retryable) if the service couldn't start or the mic or engine failed; <code>failed</code> for <code>busy</code> or a denied <code>microphone</code> permission. A running service that <code>voice_in</code> reuses gets a quick <code>/health</code> check first, so a failed model fails at once with <code>engine_failed</code>.</p>
 <h3 id="stoplistening"><code>StopListening</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (planned) sends; <code>voice_in</code> handles</p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> sends; <code>voice_in</code> handles</p>
 <p><code>StopListening()</code> (command)</p>
 <p>Turn the mic off. <strong>Result:</strong> <code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>; nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (its text is dropped), the service stopped, or no final came within <code>reply_timeout</code>.</p>
 <h3 id="listeningstate"><code>ListeningState</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>VoiceState</code></p>
 <p><code>StrEnum</code>: <code>idle</code> (mic off), <code>starting</code> (clicked; the service may be launching, the mic opening), <code>listening</code> (mic open, text coming), <code>dropped</code> (the mic went away mid-session; waiting for it to come back, then <code>listening</code> or <code>failed</code>; added 2026-11-03), <code>failed</code> (went wrong; the event's <code>reason</code> and <code>detail</code> say what).</p>
 <h3 id="voicestate"><code>VoiceState</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_in</code> publishes; <code>temp_ui</code> (planned) subscribes</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> publishes; <code>temp_ui</code> subscribes</p>
 <p><code>VoiceState(state: ListeningState, reason: str | None = None, detail: str | None = None)</code> (event)</p>
 <p>The mic's state changed. <code>reason</code> is the service's error code (<code>busy</code>, <code>mic_unavailable</code>, <code>mic_lost</code>, <code>engine_failed</code>), one of the app's own (<code>not_allowed</code>, <code>service_unavailable</code>, <code>service_stopped</code>, <code>timed_out</code>), <code>"mic_dropped"</code> on <code>dropped</code>, or <code>"silence"</code> on an idle after a silence stop; <code>detail</code> is a short sentence for the button (on <code>dropped</code>: <em>mic dropped, waiting 15 s for it to come back</em>).</p>
 <h3 id="voicetranscript"><code>VoiceTranscript</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_in</code> publishes; <code>temp_ui</code> (planned) and any module that wants voice text subscribe</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> publishes; <code>temp_ui</code> and any module that wants voice text subscribe</p>
 <p><code>VoiceTranscript(session_id: str, text: str, final: bool = False)</code> (event)</p>
 <p>The live text: each partial (<code>final=False</code>), then once the final text (<code>final=True</code>; empty clears the line). This is the public stream of voice text; <code>InputReceived(source="voice")</code> is only the Talker's way in.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/voice.py</code></p>

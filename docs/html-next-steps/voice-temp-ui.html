@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice in: the temp UI&#x27;s mic button (step 4)</title>
+<!-- Generated from docs/next-steps/voice-temp-ui.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-temp-ui.html"></nav>
+<main>
+<h1 id="voice-in-the-temp-uis-mic-button-step-4">Voice in: the temp UI's mic button (step 4)</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Approved in advance: the user asked for voice in end to end in full auto ("assume yes to everything"), so the design choices below were made from the docs and principles and are recorded here instead of stopping for a check. The <a href="../html/agents/runtime.html#temp-ui">temp UI is throwaway</a>: nothing new is shared, no contract changes.</p>
+</blockquote>
+<h2 id="what-it-does">What it does</h2>
+<ul>
+<li><strong>A mic button</strong> next to Send. Click: <code>POST /mic {"on": true}</code> → <code>StartListening</code>. Click again: <code>{"on": false}</code> → <code>StopListening</code>. The page shows the result's error only when <code>voice_in</code> didn't publish a state of its own.</li>
+<li><strong>The button shows <code>VoiceState</code>:</strong> idle (outline mic), <em>starting</em> (pulsing, not clickable), <em>listening</em> (red), <em>dropped</em> (amber, crossed-out mic), <em>failed</em> (outline, with the reason under it).</li>
+<li><strong>A grey line above the input</strong> shows, in order of what's happening:</li>
+<li><em>listening:</em> the live text from <code>VoiceTranscript</code> partials ("Listening…" before the first one);</li>
+<li><em>dropped:</em> "⦸ Mic dropped, waiting 12 s for it to come back · 8 words so far", the countdown ticking down;</li>
+<li><em>failed:</em> "Mic: " and the state's <code>detail</code> (already a short plain sentence, from <a href="../html/architecture/voice.html#the-voice_in-module-how-errors-reach-the-button">the error table</a>); it stays until the next click;</li>
+<li><em>idle after a silence stop:</em> "Mic: mic turned off after a long silence".</li>
+<li><strong>Your spoken message</strong> shows in the chat as your own message, like typed text, marked "spoken" next to its time (<code>InputReceived(source="voice")</code>; the temp UI already showed every <code>InputReceived</code>).</li>
+<li><strong><code>voice_in</code> is on:</strong> added to <code>[modules] enabled</code> in <code>config/default.toml</code>. Without the voice extra its <code>init</code> fails and the core skips it; the rest of the app runs, and the button says "voice input is off".</li>
+</ul>
+<h2 id="decisions-made-for-the-user">Decisions made for the user</h2>
+<ol>
+<li><strong><code>voice_in</code> is turned on in config, not by the temp UI.</strong> The design says "add <code>voice_in</code> to <code>enabled</code>" (<a href="handoff-voice-in.html">handoff</a>); a UI that activates modules is the control panel's job, not the temp UI's.</li>
+<li><strong>The countdown is read from the <code>dropped</code> state's <code>detail</code></strong> ("waiting 15 s…"), as step 3's note planned, instead of adding a <code>wait_seconds</code> field to <code>VoiceState</code>. The temp UI is throwaway, so no contract change for it; the real UI handler can ask for the field when it's designed. If the number isn't there, the line shows the detail without a countdown.</li>
+<li><strong>The word count</strong> is the words of the last partial, counted in the page.</li>
+<li><strong>Stale sessions:</strong> the temp UI follows the session that sent <code>VoiceState(starting)</code> and ignores <code>VoiceState</code> and <code>VoiceTranscript</code> with any other <code>correlation_id</code>.</li>
+<li><strong>"voice input is off":</strong> when <code>StartListening</code> fails and no <code>VoiceState</code> came for it (no handler: <code>voice_in</code> isn't running), the temp UI shows this itself.</li>
+<li><strong>The voice state is a "current state" SSE item</strong> (like the usage meters and the permission mode), not history: a reconnect shows the button as it is now, not replayed.</li>
+<li><strong>No shared test harness:</strong> the temp UI's tests use a tiny fake <code>voice_in</code> (a module that handles the two commands), not the real service, so <code>tests/test_voice_in.py</code>'s <code>Service</code> stays where it is.</li>
+</ol>
+<h2 id="files">Files</h2>
+<ul>
+<li><code>src/assistant/modules/temp_ui/module.py</code> (<code>POST /mic</code>, <code>VoiceState</code> and <code>VoiceTranscript</code> subscribers, the <code>voice</code> state item, <code>voice: true</code> on spoken input), <code>page.html</code> (button, line, countdown).</li>
+<li><code>config/default.toml</code> (<code>voice_in</code> in <code>enabled</code>).</li>
+<li><code>tests/test_temp_ui.py</code> (the mic round trip, stale sessions, the dropped countdown, voice input off).</li>
+<li>Docs: <a href="../html/agents/runtime.html#temp-ui">runtime: temp UI</a>, <a href="../html/architecture/voice.html">Voice</a> (status, flowcharts), the overview, <a href="index.html">Next steps</a>.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/voice-temp-ui.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

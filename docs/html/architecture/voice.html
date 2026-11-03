@@ -18,6 +18,7 @@
 <p><strong>Built: step 1, the contracts</strong> (2026-11-03, change note): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
 <p><strong>Built: step 2, the voice service</strong> (2026-11-03, change note): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
 <p><strong>Built: step 3, the <code>voice_in</code> module</strong> (2026-11-03, change note): <code>src/assistant/modules/voice_in/</code>, off by default, as designed in <a href="#the-voice_in-module">the voice_in module</a>, plus two additions you asked for. <strong>A dropped mic is waited for:</strong> the service keeps the session and tries to reopen the mic for <code>mic_recovery_seconds</code> (15 s), sending <code>mic_dropped</code> and then <code>mic_back</code>. If the mic doesn't come back, the session ends and its text is dropped. <strong>A quick <code>/health</code> check</strong> runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.</p>
+<p><strong>Built: step 4, the temp UI's mic button</strong> (2026-11-03, change note): the button sends <code>StartListening</code> / <code>StopListening</code> and shows <code>VoiceState</code>; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. <code>voice_in</code> is now in <code>[modules] enabled</code>. Details: <a href="../agents/runtime.html#temp-ui">runtime: temp UI</a>.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
 <ul>
@@ -37,8 +38,8 @@
         Rec --&gt; Eng
     end
     subgraph Main[&quot;Main app&quot;]
-        UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&lt;br/&gt;mic button · live text&lt;br/&gt;(step 4, planned)&quot;]
-        Handler[&quot;&lt;b&gt;3. Voice handler&lt;/b&gt;&lt;br/&gt;thin module voice_in&lt;br/&gt;(built, off by default)&quot;]
+        UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&lt;br/&gt;mic button · live text&lt;br/&gt;(built, a stand-in)&quot;]
+        Handler[&quot;&lt;b&gt;3. Voice handler&lt;/b&gt;&lt;br/&gt;thin module voice_in&lt;br/&gt;(built, on)&quot;]
         Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
     end
     Other[&quot;Other apps (later)&lt;br/&gt;own thin client&quot;]
@@ -55,11 +56,10 @@
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
-    class UI planned
     class Other,Quest later
     class You person
 </code></pre>
-<p><strong>Built (2026-11-03):</strong> the service (recorder and receiver) and <code>voice_in</code>. <strong>Purple:</strong> planned next (the temp UI's mic button, step 4). <strong>Dashed:</strong> later. Until step 4, nothing in the app sends <code>StartListening</code>, and <code>voice_in</code> is off by default.</p>
+<p><strong>Built (2026-11-03):</strong> the service (recorder and receiver), <code>voice_in</code> (on), and the temp UI's mic button and live line (a stand-in until the <a href="decisions.html#open-decisions">UI handler</a>). <strong>Dashed:</strong> later.</p>
 <table>
 <thead>
 <tr>
@@ -169,7 +169,7 @@
 <li><strong>The Event Bus is the stream</strong> (decided 2026-11-02): no <code>Streamable</code> class. <code>VoiceTranscript</code> is the public output; any module that wants voice text calls <code>ctx.subscribe(VoiceTranscript, ...)</code>. <code>InputReceived</code> is only the Talker's way in.</li>
 <li><strong><code>send_as_input: bool = True</code></strong> on <code>StartListening</code> (decided 2026-11-02): with <code>False</code> (dictating into a text box, say), the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker.</li>
 <li><strong>Where you see the text:</strong> while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.</li>
-<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>), off by default; the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
+<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>), on (in <code>[modules] enabled</code> since step 4); the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
 <li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, sounddevice) go in an optional <code>voice</code> extra, so the app installs without them. Model files download once.</li>
 </ul>
 <h2 id="the-mic-permission">The mic permission</h2>
@@ -464,7 +464,7 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </tbody>
 </table>
 <p>All three carry <code>correlation_id = session_id</code> (the <code>StartListening</code> command's id), so a UI can drop a stale session's updates.</p>
-<p><strong>Config</strong> (<code>[modules.voice_in]</code>, the module off by default):</p>
+<p><strong>Config</strong> (<code>[modules.voice_in]</code>; the module is in <code>[modules] enabled</code> since step 4):</p>
 <pre><code class="language-toml">[modules.voice_in]
 # Voice input: launches the voice service (its own app) on the first mic click.
 host = &quot;127.0.0.1&quot;
@@ -490,7 +490,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
     participant V as voice_in
     participant S as voice_service
     participant T as talker
-    You-&gt;&gt;U: click mic (temp_ui: step 4, planned)
+    You-&gt;&gt;U: click mic (POST /mic)
     U-&gt;&gt;V: StartListening
     Note over V: one session at a time (a lock);&lt;br/&gt;already listening → ok, same session
     V--&gt;&gt;U: VoiceState(starting)

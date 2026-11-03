@@ -107,6 +107,22 @@ form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--
   position: absolute; top: -6px; right: 10px; width: 20px; height: 20px; padding: 0; border-radius: 50%;
   font-size: 13px; line-height: 20px; background: var(--text); color: var(--panel);
 }
+/* The mic button and the grey live line above the input (voice_in). */
+#voice { display: none; padding: 8px 16px 0; border-top: 1px solid var(--border); background: var(--panel);
+  color: var(--muted); font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere; }
+#voice.show { display: block; }
+#voice[data-state="dropped"] { color: var(--waiting); font-style: normal; font-weight: 500; }
+#voice[data-state="failed"], #voice[data-state="idle"] { font-style: normal; }
+#voice.show + #snips, #voice.show + #snips + form, #snips.show + form { border-top: 0; }
+.mic { width: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--text); border: 1px solid var(--border); }
+.mic svg { width: 18px; height: 18px; }
+.mic .slash { display: none; }
+.mic[data-state="starting"] { animation: pulse 1.2s infinite; cursor: progress; }
+.mic[data-state="listening"] { background: #c43d3d; border-color: #c43d3d; color: #ffffff; }
+.mic[data-state="dropped"] { background: var(--waiting); border-color: var(--waiting); color: #1d1d1b; }
+.mic[data-state="dropped"] .slash { display: inline; }
+.mic[data-state="failed"] { border-color: var(--waiting); }
 textarea {
   flex: 1; resize: none; height: 40px; max-height: 160px; padding: 9px 12px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
@@ -155,9 +171,13 @@ button {
       <button class="ghost" data-reset="talker" title="Start the Talker fresh (it keeps the last few exchanges)">Reset</button>
     </div>
     <div class="feed" id="talker"><div class="empty">Say something to start.</div></div>
+    <div id="voice" data-state="idle"></div>
     <div id="snips" title="Snips from the HTML viewer: sent with your next message"></div>
     <form id="say">
       <textarea id="text" placeholder="Talk to the assistant (Enter to send, Shift+Enter for a new line)" autofocus></textarea>
+      <button type="button" class="mic" id="mic" data-state="idle" title="Click to talk, click again to send what you said">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/><path class="slash" d="M3 3l18 18"/></svg>
+      </button>
       <button>Send</button>
     </form>
   </section>
@@ -298,7 +318,51 @@ function showUsage(item) {
     `${k(item.cache_read)} cache reads, ${k(item.output)} output`;
 }
 
+// The mic (voice_in): the button shows VoiceState; the grey line shows the live text, the
+// dropped mic's countdown and word count, or why it failed. Spoken messages land in the chat
+// as your own, from InputReceived.
+const micButton = document.getElementById("mic"), voiceLine = document.getElementById("voice");
+let voice = { state: "idle", text: "", detail: null, until: null }, countdown = null;
+const words = (s) => (s.trim() ? s.trim().split(/\s+/).length : 0);
+
+function voiceText() {
+  if (voice.state === "listening") return voice.text || "Listening…";
+  if (voice.state === "starting") return "Starting the mic…";
+  if (voice.state === "dropped") {
+    const left = voice.until ? Math.max(0, Math.ceil((voice.until - Date.now()) / 1000)) : null;
+    const n = words(voice.text);
+    return "⦸ Mic dropped" + (left !== null ? `, waiting ${left} s for it to come back` : voice.detail ? ": " + voice.detail : "") +
+      ` · ${n} word${n === 1 ? "" : "s"} so far`;
+  }
+  return voice.detail ? "Mic: " + voice.detail : "";
+}
+
+function showVoice(item) {
+  voice = item;
+  micButton.dataset.state = voiceLine.dataset.state = item.state;
+  micButton.title = { listening: "Listening: click to send what you said", dropped: "The mic dropped: click to stop",
+    starting: "Starting the mic…" }[item.state] || "Click to talk, click again to send what you said";
+  clearInterval(countdown);
+  if (item.state === "dropped" && item.until) countdown = setInterval(renderVoice, 250);
+  renderVoice();
+}
+
+function renderVoice() {
+  const line = voiceText();
+  voiceLine.textContent = line;
+  voiceLine.classList.toggle("show", !!line);
+}
+
+micButton.onclick = async () => {
+  if (voice.state === "starting") return;
+  const on = !(voice.state === "listening" || voice.state === "dropped");
+  if (on) showVoice({ ...voice, state: "starting", text: "", detail: null });  // the server confirms it at once
+  const r = await post("/mic", { on }).then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
+  if (!r.ok && r.error === "no connection") showVoice({ ...voice, state: "failed", detail: "no connection to the app" });
+};
+
 function add(item) {
+  if (item.kind === "voice") return showVoice(item);
   if (item.kind === "snips") return showSnips(item.snips);
   if (item.kind === "usage") return showUsage(item);
   if (item.kind === "mode") return showMode(item);
@@ -325,7 +389,7 @@ function add(item) {
     el.textContent = item.text;
     const t = document.createElement("span");
     t.className = "time";
-    t.textContent = item.t;
+    t.textContent = item.voice ? "spoken · " + item.t : item.t;
     el.append(t);
     const opens = item.kind === "talker" && openButtons(item.text);
     if (opens) el.append(opens);

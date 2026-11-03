@@ -5,7 +5,7 @@
 # Which of the modules listed in src/assistant/__main__.py are active at startup.
 # The others can be turned on at runtime (ActivateModule). Swap the orchestrator
 # by changing this list.
-enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "html_viewer"]
+enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "html_viewer", "voice_in"]
 
 # Per-module settings go in [modules.<module id>].
 [modules.console_io]
@@ -69,7 +69,7 @@ generated = ["docs/html", "docs/html-next-steps"]
 start_timeout = 10.0      # seconds to wait for the viewer to answer after starting it
 
 [modules.voice_in]
-# Voice input (off by default until the temp UI has a mic button): launches the voice service
+# Voice input (on: the temp UI's mic button sends it StartListening / StopListening): launches the voice service
 # (its own app, `python -m voice_service`) on the first mic click and quits it with the app
 # (one you started yourself is left running). The service's own settings, such as how long it
 # waits for a dropped mic, are in config/voice_service.toml.

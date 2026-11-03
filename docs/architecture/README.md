@@ -54,7 +54,7 @@ flowchart LR
     class Window,Quest,Subs,Control later
 ```
 
-**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a [temp UI](../agents/runtime.md#temp-ui) (a web page with both, a stand-in for the chat window until a UI handler is designed). **Voice in:** the [voice service](voice.md) and its thin `voice_in` module are built; it's off until the temp UI gets its mic button. **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Permissions:** every part asks one [permissions handler](permissions.md) before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
+**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a [temp UI](../agents/runtime.md#temp-ui) (a web page with both, a stand-in for the chat window until a UI handler is designed). **Voice in:** the [voice service](voice.md) and its thin `voice_in` module are built and on; the temp UI's mic button turns the mic on and off. **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Permissions:** every part asks one [permissions handler](permissions.md) before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
 
 ## Summary
 
@@ -75,7 +75,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 - [Remote clients](remote-clients.md): Quest, glasses, the gateway
 - [Decisions](decisions.md): decided, open, and deferred
 - [HTML viewer](html-viewer.md): viewing and editing HTML in tabs; state, commands, view
-- [Voice](voice.md): speech to text through a shared voice service (service and `voice_in` built; the mic button is next)
+- [Voice](voice.md): speech to text through a shared voice service (service, `voice_in` and the temp UI's mic button built; your own mic is next)
 
 ## Parts
 
@@ -90,10 +90,10 @@ The core runs on a PC today and will later move to a server, so it must not assu
 | Shared Infrastructure | Configuration and logging today; persistence and auth/secrets later | `src/assistant/infra/` | [API](../api/infra.md) |
 | Reusable parts | Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, and `app_kit` for what the independent apps share too | `src/assistant/contracts/`, `src/assistant/infra/`, `src/app_kit/` | [reusable parts](reusable-parts.md), [index](../api/reusable.md) |
 | Log handler | Owns where logs go: one folder per app launch, named by start time and the theme of your first question | `src/assistant/infra/log.py` | [core](core.md#logging) |
-| Modules | All capabilities, including the AI orchestration. Today: `console_io`, `talker`, `main_assistant`, `agent_hub`, `temp_ui`, `html_viewer` (the HTML viewer's thin module), and, off by default, `voice_in` (voice input's thin module), `assistant_view` and the `echo_orchestrator` stand-in | `src/assistant/modules/` | [agent runtime](../agents/runtime.md) |
+| Modules | All capabilities, including the AI orchestration. Today: `console_io`, `talker`, `main_assistant`, `agent_hub`, `temp_ui`, `html_viewer` (the HTML viewer's thin module), `voice_in` (voice input's thin module), and, off by default, `assistant_view` and the `echo_orchestrator` stand-in | `src/assistant/modules/` | [agent runtime](../agents/runtime.md) |
 | UI handler | Owns the user-facing UIs (chat window, Quest, glasses). Not designed yet; `temp_ui` stands in | _TBD_ | [decisions](decisions.md#open-decisions) |
 | HTML viewer | Its own app: view, edit, highlight, and snip HTML files. The main app launches it through the thin `html_viewer` module, with `CompanionApp` | `src/html_viewer/` | [HTML viewer](html-viewer.md) |
-| Voice handler | Speech to text: a shared `voice_service` app (mic and engine; built, runs alone) and the thin `voice_in` module that launches it, relays the mic's state and live text, and sends the final text to the Talker (built, off by default until the temp UI's mic button); built on `CompanionApp` and `load_layered` | `src/voice_service/`, `src/assistant/modules/voice_in/` | [voice](voice.md) |
+| Voice handler | Speech to text: a shared `voice_service` app (mic and engine; built, runs alone) and the thin `voice_in` module that launches it, relays the mic's state and live text, and sends the final text to the Talker (built and on; the temp UI's mic button drives it); built on `CompanionApp` and `load_layered` | `src/voice_service/`, `src/assistant/modules/voice_in/` | [voice](voice.md) |
 | Agent Hub | Coordinates the agents: who is doing what, task state, routing, clarifications | `src/assistant/modules/agent_hub/` | [agents](agents.md) |
 | Permissions handler | Knows what the app has, what each module needs, and what you've granted; asks you otherwise. Modules call it through `ctx.permissions`; today a stand-in that allows and logs answers (built), the handler is planned | _TBD_ `modules/permissions/` | [permissions](permissions.md) |
 | Control panel | UI module to turn modules on and off while running, through the core's control interface (planned) | _TBD_ module | [core](core.md#runtime-module-control) |

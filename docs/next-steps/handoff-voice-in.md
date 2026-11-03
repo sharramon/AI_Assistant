@@ -49,7 +49,7 @@
 
 ## Next
 
-1. **Step 4, the temp UI:**
+1. ~~**Step 4, the temp UI**~~ done 2026-11-03 ([note](voice-temp-ui.md)); `voice_in` is now enabled. As planned:
    - The mic button sends `StartListening` and `StopListening`, and shows `VoiceState`: *starting* as a spinner, *dropped* as an amber crossed-out mic with a countdown and the word count of the last partial, and *failed* with its `detail`.
    - The grey live line comes from `VoiceTranscript`. Drop updates whose `correlation_id` isn't the current session's, and clear the line on `final=True`.
    - Show `InputReceived(source="voice")` as your own message.

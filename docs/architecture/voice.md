@@ -9,6 +9,8 @@ Speech to text, so you can talk to the assistant instead of typing. It's **Voice
 > **Built: step 2, the voice service** (2026-11-03, [change note](../next-steps/voice-service.md)): `src/voice_service/` as designed below, run alone with `python -m voice_service` (or `voice-service`); `python -m voice_service download zipformer` fetched the model (310 MB) into `%LOCALAPPDATA%\AI_Assistant\voice_models`, outside the repo. Tested with the fake engine and fake sources ([API](../api/messaging.md#the-voice-services-parts)). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after `stop`. The first partial came about 1.1 s after `start`; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only *dishonored* for *dishonoured*) and were slower (62 to 93 ms), so int8 stays the default.
 >
 > **Built: step 3, the `voice_in` module** (2026-11-03, [change note](../next-steps/voice-in-module.md)): `src/assistant/modules/voice_in/`, off by default, as designed in [the voice_in module](#the-voice_in-module), plus two additions you asked for. **A dropped mic is waited for:** the service keeps the session and tries to reopen the mic for `mic_recovery_seconds` (15 s), sending `mic_dropped` and then `mic_back`. If the mic doesn't come back, the session ends and its text is dropped. **A quick `/health` check** runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.
+>
+> **Built: step 4, the temp UI's mic button** (2026-11-03, [change note](../next-steps/voice-temp-ui.md)): the button sends `StartListening` / `StopListening` and shows `VoiceState`; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. `voice_in` is now in `[modules] enabled`. Details: [runtime: temp UI](../agents/runtime.md#temp-ui).
 
 ## Rules
 
@@ -31,8 +33,8 @@ flowchart LR
         Rec --> Eng
     end
     subgraph Main["Main app"]
-        UI["<b>temp_ui</b><br/>mic button · live text<br/>(step 4, planned)"]
-        Handler["<b>3. Voice handler</b><br/>thin module voice_in<br/>(built, off by default)"]
+        UI["<b>temp_ui</b><br/>mic button · live text<br/>(built, a stand-in)"]
+        Handler["<b>3. Voice handler</b><br/>thin module voice_in<br/>(built, on)"]
         Talker["<b>Talker</b>"]
     end
     Other["Other apps (later)<br/>own thin client"]
@@ -49,12 +51,11 @@ flowchart LR
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
-    class UI planned
     class Other,Quest later
     class You person
 ```
 
-**Built (2026-11-03):** the service (recorder and receiver) and `voice_in`. **Purple:** planned next (the temp UI's mic button, step 4). **Dashed:** later. Until step 4, nothing in the app sends `StartListening`, and `voice_in` is off by default.
+**Built (2026-11-03):** the service (recorder and receiver), `voice_in` (on), and the temp UI's mic button and live line (a stand-in until the [UI handler](decisions.md#open-decisions)). **Dashed:** later.
 
 | Part | Where it runs | Owns | Receives | Sends |
 |------|---------------|------|----------|-------|
@@ -102,7 +103,7 @@ Written down so other apps can use it. It names no models and nothing about the 
 - **The Event Bus is the stream** (decided 2026-11-02): no `Streamable` class. `VoiceTranscript` is the public output; any module that wants voice text calls `ctx.subscribe(VoiceTranscript, ...)`. `InputReceived` is only the Talker's way in.
 - **`send_as_input: bool = True`** on `StartListening` (decided 2026-11-02): with `False` (dictating into a text box, say), the text goes only to `VoiceTranscript` subscribers, never to the Talker.
 - **Where you see the text:** while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.
-- **Config:** `[modules.voice_in]` (`host`, `port`, `start_timeout`, `service_config`, `reply_timeout`), off by default; the service has its own config file for the engine and model path, read with the shared [`app_kit.load_layered`](../api/app_kit.md#load_layered) ([details](#the-voice-service-config)).
+- **Config:** `[modules.voice_in]` (`host`, `port`, `start_timeout`, `service_config`, `reply_timeout`), on (in `[modules] enabled` since step 4); the service has its own config file for the engine and model path, read with the shared [`app_kit.load_layered`](../api/app_kit.md#load_layered) ([details](#the-voice-service-config)).
 - **Dependencies** (FastAPI, Uvicorn, sherpa-onnx, sounddevice) go in an optional `voice` extra, so the app installs without them. Model files download once.
 
 ## The mic permission
@@ -307,7 +308,7 @@ class VoiceInModule(Module):
 
 All three carry `correlation_id = session_id` (the `StartListening` command's id), so a UI can drop a stale session's updates.
 
-**Config** (`[modules.voice_in]`, the module off by default):
+**Config** (`[modules.voice_in]`; the module is in `[modules] enabled` since step 4):
 
 ```toml
 [modules.voice_in]
@@ -338,7 +339,7 @@ sequenceDiagram
     participant V as voice_in
     participant S as voice_service
     participant T as talker
-    You->>U: click mic (temp_ui: step 4, planned)
+    You->>U: click mic (POST /mic)
     U->>V: StartListening
     Note over V: one session at a time (a lock);<br/>already listening → ok, same session
     V-->>U: VoiceState(starting)

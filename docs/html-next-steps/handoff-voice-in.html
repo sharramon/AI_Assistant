@@ -64,7 +64,7 @@
 </ul>
 <h2 id="next">Next</h2>
 <ol>
-<li><strong>Step 4, the temp UI:</strong>
+<li>~~<strong>Step 4, the temp UI</strong>~~ done 2026-11-03 (<a href="voice-temp-ui.html">note</a>); <code>voice_in</code> is now enabled. As planned:
    - The mic button sends <code>StartListening</code> and <code>StopListening</code>, and shows <code>VoiceState</code>: <em>starting</em> as a spinner, <em>dropped</em> as an amber crossed-out mic with a countdown and the word count of the last partial, and <em>failed</em> with its <code>detail</code>.
    - The grey live line comes from <code>VoiceTranscript</code>. Drop updates whose <code>correlation_id</code> isn't the current session's, and clear the line on <code>final=True</code>.
    - Show <code>InputReceived(source="voice")</code> as your own message.

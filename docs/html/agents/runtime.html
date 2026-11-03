@@ -69,7 +69,7 @@
 <td><code>python -m html_viewer --port 8766 --window app --profile &lt;its Edge profile&gt; --generated docs/html …</code>: the standalone viewer app, an HTTP server plus its own Edge app window (with a DevTools port on 127.0.0.1, for snip). Stopped (<code>POST /api/quit</code>, then killed) when the app stops</td>
 </tr>
 <tr>
-<td>Voice service (not drawn above; <code>voice_in</code> is off by default)</td>
+<td>Voice service (not drawn above)</td>
 <td><code>voice_in</code> module, on the first <code>StartListening</code>, not in <code>start</code>, through <code>CompanionApp</code>. One you started yourself is used (after a quick <code>/health</code> check) and left running</td>
 <td><code>python -m voice_service --host 127.0.0.1 --port 8767 [--config &lt;file&gt;]</code>, with no console: the mic and the speech engine, an HTTP and WebSocket server (<a href="../architecture/voice.html#the-voice_in-module">Voice</a>). Stopped (<code>POST /quit</code>, wait 5 s, then killed) when the module stops, only if it launched it</td>
 </tr>
@@ -92,9 +92,9 @@
     UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt; module&lt;br/&gt;stdlib HTTP server&quot;]
     Bus[&quot;&lt;b&gt;EventBus&lt;/b&gt;&quot;]
 
-    Browser -- &quot;POST /say&quot; --&gt; UI
-    UI -- &quot;publish InputReceived&quot; --&gt; Bus
-    Bus -- &quot;InputReceived, ResponseReady,&lt;br/&gt;TaskUpdated, AgentActivity,&lt;br/&gt;AgentStateChanged, PermissionModeChanged&quot; --&gt; UI
+    Browser -- &quot;POST /say · POST /mic&quot; --&gt; UI
+    UI -- &quot;publish InputReceived ·&lt;br/&gt;send StartListening / StopListening&quot; --&gt; Bus
+    Bus -- &quot;InputReceived, ResponseReady,&lt;br/&gt;TaskUpdated, AgentActivity,&lt;br/&gt;AgentStateChanged, PermissionModeChanged,&lt;br/&gt;VoiceState, VoiceTranscript&quot; --&gt; UI
     UI -- &quot;GET /events (Server-Sent Events)&quot; --&gt; Browser
 </code></pre>
 <ul>
@@ -106,6 +106,7 @@
 <li><strong>Relaunch, one window:</strong> <code>/events</code> starts with a <code>hello</code> carrying the launch's id. On reconnect, the same id means a network drop (the page clears and the history replays); a new id means the app was relaunched. In app mode the new app has already closed the old window at startup (any Edge process on the window's profile), then opens a fresh one. Otherwise the old page tries <code>window.close()</code>; if the browser refuses (a normal tab), it says the session ended instead. The app also closes its window when it stops.</li>
 <li>On (re)connect the page gets the last 500 items replayed, so a refresh loses nothing recent.</li>
 <li><strong>Open in viewer:</strong> an HTML file path in a Talker message gets an <strong>Open in viewer</strong> button under it. Clicking it sends <code>InvokeTool viewer.open</code> with <code>front: true</code> (<code>POST /open-in-viewer</code>): the viewer window comes to the front, or opens again if you closed it. Without the <code>html_viewer</code> module the button says it couldn't open. A bare file name resolves against the app's folder, which is why the Talker always writes full paths.</li>
+<li><strong>Mic button</strong> (voice in, change note): next to Send. A click sends <code>StartListening</code> (<code>POST /mic {"on": true}</code>), the next click <code>StopListening</code>; <code>voice_in</code> handles both. The button shows <code>VoiceState</code>: pulsing while <em>starting</em>, red while <em>listening</em>, an amber crossed-out mic when <em>dropped</em>. A grey line above the input shows the live text (<code>VoiceTranscript</code> partials); when the mic drops, "⦸ Mic dropped, waiting 12 s for it to come back · 8 words so far", counting down (the wait is read from the state's <code>detail</code>); on <em>failed</em>, "Mic: " and the reason, until the next click. Your spoken message appears in the chat as your own, marked "spoken". Updates from any session but the one that last sent <em>starting</em> are ignored. With <code>voice_in</code> not running, the line says "voice input is off". The voice state is a current-state item, like the usage meters.</li>
 <li><strong>Snips:</strong> a snip from the HTML viewer (<code>ViewerClip</code>) shows as a thumbnail above the input until your next message, which takes it to the Talker. Up to 3; × drops one (<code>ViewerClipDropped</code>).</li>
 <li><strong>Usage and Reset:</strong> the header shows the worker's and the Talker's usage side by side, live (<a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>): <code>Worker context 145k · used 2.3M · ~$5.10</code>, the same for the Talker. Context turns amber from 100k; hovering shows the split of used tokens. Each pane's <strong>Reset</strong> button (<code>POST /reset</code>) publishes <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>: the Talker starts fresh but keeps its last few exchanges; the worker resets at once when idle, or writes a handoff and carries on fresh mid-task.</li>
 <li>The window code (Edge app mode on its own profile): <a href="../api/app_kit.html#window"><code>app_kit.window</code></a>, shared with the HTML viewer. SHOW tags, the Talker's tags, and <code>NEED:</code> / <code>HANDOFF:</code> lines are read with the shared <a href="../api/infra.html#agent_tags"><code>agent_tags</code></a>. Both prompts point the agents at the <a href="../api/reusable.html">reusable parts index</a>.</li>
