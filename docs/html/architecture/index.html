@@ -5,77 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architecture</title>
 <!-- Generated from docs/architecture/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<style>
-:root {
-  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
-  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
-nav {
-  background: var(--panel); border-right: 1px solid var(--border);
-  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
-}
-nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
-nav h2:first-child { margin-top: 0; }
-nav ul { list-style: none; margin: 0; padding: 0; }
-nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
-nav a:hover { background: var(--border); }
-nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
-main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
-h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
-h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-h3 { font-size: 1.1rem; margin: 28px 0 8px; }
-a { color: var(--accent); }
-code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
-pre code { background: none; padding: 0; }
-table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
-th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
-th { background: var(--panel); }
-.diagram {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
-}
-.diagram svg { max-width: 100%; height: auto; }
-.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
-.diagram:not(.offline) { cursor: zoom-in; }
-.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
-.zoom.dragging { cursor: grabbing; }
-.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.zoom-stage svg { display: block; max-width: none !important; }
-.zoom-close {
-  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
-  font-size: 22px; line-height: 1; cursor: pointer;
-}
-.zoom-close:hover { background: var(--border); }
-footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
-@media (max-width: 760px) {
-  .layout { grid-template-columns: 1fr; }
-  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
-  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
-  main { padding: 20px 16px 48px; }
-}
-</style>
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/runtime.html">Agent runtime</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<nav data-root="../" data-page="architecture/index.html"></nav>
 <main>
 <h1 id="architecture">Architecture</h1>
 <p>The whole project at a glance. Each part links to its own page; the public interface is in the <a href="../api/index.html">API reference</a>.</p>
@@ -89,6 +23,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     VoiceOut[&quot;&lt;b&gt;Voice out&lt;/b&gt;&lt;br/&gt;text → speech&quot;]
     Quest[&quot;&lt;b&gt;Quest 3 / glasses&lt;/b&gt;&lt;br/&gt;remote screen + mic&quot;]
     Control[&quot;&lt;b&gt;Control panel&lt;/b&gt;&lt;br/&gt;turn features on / off&quot;]
+    Perms[&quot;&lt;b&gt;Permissions&lt;/b&gt;&lt;br/&gt;who may use what&quot;]
+    Features[&quot;&lt;b&gt;Features&lt;/b&gt;&lt;br/&gt;map, calendar, tools…&quot;]
 
     subgraph Hub[&quot;Agent Hub: coordinates the agents&quot;]
         Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;talks with you&quot;]
@@ -111,27 +47,37 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     Quest -. later .-&gt; Talker
     You -. on / off .-&gt; Control
     Talker -. &quot;enable X&quot; .-&gt; Control
+    Main -- &quot;may I?&quot; --&gt; Perms
+    Features -. &quot;may I?&quot; .-&gt; Perms
+    Perms -- &quot;allow? (card · voice)&quot; --&gt; Talker
+    Talker -- &quot;allow / deny&quot; --&gt; Perms
+    Control -. grants .-&gt; Perms
 
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class VoiceIn,VoiceOut planned
+    class VoiceIn,VoiceOut,Perms planned
+    class Features later
     class You person
     class Window,Quest,Subs,Control later
 </code></pre>
-<p><strong>Built today:</strong> a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and terminal 2 (view). <strong>Terminals:</strong> one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later. The <a href="agents.html">Agent Hub</a> is a module, not part of the core.</p>
+<p><strong>Built today:</strong> a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a <a href="../agents/runtime.html#temp-ui">temp UI</a> (a web page with both, a stand-in for the chat window until a UI handler is designed). <strong>Terminals:</strong> one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. <strong>Permissions:</strong> every part asks one <a href="permissions.html">permissions handler</a> before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later. The <a href="agents.html">Agent Hub</a> is a module, not part of the core.</p>
 <h2 id="summary">Summary</h2>
 <p>A highly modular personal AI assistant that serves as a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (inputs, outputs, views, tools, background workers, and the AI orchestration itself) that can be added, replaced, or discarded with minimal changes elsewhere.</p>
-<p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. Everything runs in one process. Changing code means a rebuild and restart; turning existing modules on and off happens while the app runs (<a href="core.html#runtime-module-control">runtime module control</a>: built in the core; a control panel and asking the Talker come later). Loading new code without a restart and independent deployment are not goals.</p>
+<p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. The modules run in one process. Changing code means a rebuild and restart; turning existing modules on and off happens while the app runs (<a href="core.html#runtime-module-control">runtime module control</a>: built in the core; a control panel and asking the Talker come later). Loading new code without a restart is not a goal. <strong>Independent deployment is, for parts that are useful on their own:</strong> such a part is its own app that the main app launches and talks to through two-way hooks, via a thin module (<a href="decisions.html#decided">decisions</a>). The <a href="html-viewer.html">HTML viewer</a> is the first.</p>
 <p>The core runs on a PC today and will later move to a server, so it must not assume a local desktop: configuration, secrets, and data paths come from config files and environment variables, and user-facing interfaces are modules or remote clients. Headsets (Quest 3) and smartglasses are <a href="remote-clients.html">remote clients</a> that connect over the network.</p>
 <h2 id="pages">Pages</h2>
 <ul>
 <li><a href="principles.html">Principles</a>: the rules behind every decision</li>
+<li><a href="reusable-parts.html">Reusable parts</a>: build it once; where shared parts live</li>
 <li><a href="core.html">Core</a>: the host, lifecycle, and how modules are added or swapped</li>
 <li><a href="communication.html">Communication</a>: commands, events, results, timeouts</li>
 <li><a href="agents.html">Agents</a>: the Agent Hub, Talker, Main Assistant, subagents</li>
+<li><a href="permissions.html">Permissions</a>: who may use what, per module</li>
 <li><a href="remote-clients.html">Remote clients</a>: Quest, glasses, the gateway</li>
 <li><a href="decisions.html">Decisions</a>: decided, open, and deferred</li>
+<li><a href="html-viewer.html">HTML viewer</a>: viewing and editing HTML in tabs; state, commands, view</li>
+<li><a href="voice.html">Voice</a>: speech to text through a shared voice service (planned)</li>
 </ul>
 <h2 id="parts">Parts</h2>
 <table>
@@ -187,16 +133,52 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <td><a href="../api/infra.html">API</a></td>
 </tr>
 <tr>
+<td>Reusable parts</td>
+<td>Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, and <code>app_kit</code> for what the independent apps share too</td>
+<td><code>src/assistant/contracts/</code>, <code>src/assistant/infra/</code>, <code>src/app_kit/</code></td>
+<td><a href="reusable-parts.html">reusable parts</a>, <a href="../api/reusable.html">index</a></td>
+</tr>
+<tr>
+<td>Log handler</td>
+<td>Owns where logs go: one folder per app launch, named by start time and the theme of your first question</td>
+<td><code>src/assistant/infra/log.py</code></td>
+<td><a href="core.html#logging">core</a></td>
+</tr>
+<tr>
 <td>Modules</td>
-<td>All capabilities, including the AI orchestration. Today: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>assistant_view</code>, and the <code>echo_orchestrator</code> stand-in (off)</td>
+<td>All capabilities, including the AI orchestration. Today: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>temp_ui</code>, <code>html_viewer</code> (the HTML viewer's thin module), and, off by default, <code>assistant_view</code> and the <code>echo_orchestrator</code> stand-in</td>
 <td><code>src/assistant/modules/</code></td>
 <td><a href="../agents/runtime.html">agent runtime</a></td>
+</tr>
+<tr>
+<td>UI handler</td>
+<td>Owns the user-facing UIs (chat window, Quest, glasses). Not designed yet; <code>temp_ui</code> stands in</td>
+<td><em>TBD</em></td>
+<td><a href="decisions.html#open-decisions">decisions</a></td>
+</tr>
+<tr>
+<td>HTML viewer</td>
+<td>Its own app: view, edit, highlight, and snip HTML files. The main app launches it through the thin <code>html_viewer</code> module, with <code>CompanionApp</code></td>
+<td><code>src/html_viewer/</code></td>
+<td><a href="html-viewer.html">HTML viewer</a></td>
+</tr>
+<tr>
+<td>Voice handler</td>
+<td>Speech to text: a shared <code>voice_service</code> app (mic and engine) and the thin <code>voice_in</code> module that sends the final text to the Talker; built on <code>CompanionApp</code> and <code>load_layered</code> (planned)</td>
+<td><em>TBD</em> <code>src/voice_service/</code>, <code>modules/voice_in/</code></td>
+<td><a href="voice.html">voice</a></td>
 </tr>
 <tr>
 <td>Agent Hub</td>
 <td>Coordinates the agents: who is doing what, task state, routing, clarifications</td>
 <td><code>src/assistant/modules/agent_hub/</code></td>
 <td><a href="agents.html">agents</a></td>
+</tr>
+<tr>
+<td>Permissions handler</td>
+<td>Knows what the app has, what each module needs, and what you've granted; asks you otherwise. Modules call it through <code>ctx.permissions</code>; a stand-in that allows and logs comes first (both planned)</td>
+<td><em>TBD</em> <code>modules/permissions/</code></td>
+<td><a href="permissions.html">permissions</a></td>
 </tr>
 <tr>
 <td>Control panel</td>
@@ -221,90 +203,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <footer>Generated from <code>docs/architecture/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
+<script src="../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script>
-(function () {
-  var blocks = document.querySelectorAll("pre > code.language-mermaid");
-  blocks.forEach(function (code) {
-    var div = document.createElement("div");
-    div.className = "diagram";
-    div.textContent = code.textContent;
-    code.parentElement.replaceWith(div);
-  });
-  if (!window.mermaid) {
-    // Offline: show the diagram source instead.
-    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
-    return;
-  }
-  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
-  mermaid.run({ querySelector: ".diagram" });
-
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
-  var overlay = null, stage, scale, x, y;
-  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
-  function close() {
-    if (!overlay) return;
-    overlay.remove();
-    overlay = null;
-    document.body.style.overflow = "";
-  }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
-    overlay = document.createElement("div");
-    overlay.className = "zoom";
-    var btn = document.createElement("button");
-    btn.className = "zoom-close";
-    btn.setAttribute("aria-label", "Close");
-    btn.textContent = "\u00d7";
-    btn.addEventListener("click", close);
-    stage = document.createElement("div");
-    stage.className = "zoom-stage";
-    stage.appendChild(clone);
-    overlay.appendChild(btn);
-    overlay.appendChild(stage);
-    document.body.appendChild(overlay);
-    document.body.style.overflow = "hidden";
-    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
-    x = (innerWidth - w * scale) / 2;
-    y = (innerHeight - h * scale) / 2;
-    place();
-    overlay.addEventListener("wheel", function (e) {
-      e.preventDefault();
-      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
-      f = s / scale;
-      x = e.clientX - (e.clientX - x) * f;
-      y = e.clientY - (e.clientY - y) * f;
-      scale = s;
-      place();
-    }, { passive: false });
-    var drag = null;
-    overlay.addEventListener("pointerdown", function (e) {
-      if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
-      overlay.setPointerCapture(e.pointerId);
-      overlay.classList.add("dragging");
-    });
-    overlay.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      x = drag.x + e.clientX - drag.px;
-      y = drag.y + e.clientY - drag.py;
-      place();
-    });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
-  }
-  document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
-    var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
-  });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-})();
-</script>
+<script src="../site.js"></script>
 </body>
 </html>

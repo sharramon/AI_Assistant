@@ -77,6 +77,8 @@ Handlers normally return only `ok`, `invalid_arguments`, `not_available`, or `fa
 
 ## `InputReceived`
 
+**Reusable** · Used by: `console_io`, `temp_ui`, `voice_in` (planned) publish; `talker`, `echo_orchestrator` subscribe
+
 `InputReceived(text: str, source: str, conversation_id: str | None = None)` (event)
 
 User input from any source.
@@ -92,6 +94,8 @@ User input from any source.
 
 ## `ResponseReady`
 
+**Reusable** · Used by: `talker`, `echo_orchestrator` publish; `console_io`, `temp_ui` subscribe
+
 `ResponseReady(text: str, conversation_id: str | None = None, correlation_id=...)` (event)
 
 A reply to present. Set `correlation_id` to the `id` of the `InputReceived` it answers, so the source can tell which replies are its own. Leave it `None` when the assistant speaks first (e.g. "the task is done"); `console_io` prints those too.
@@ -103,5 +107,37 @@ A reply to present. Set `correlation_id` to the `id` of the `InputReceived` it a
 `ShutdownRequested(reason: str = "")` (event)
 
 Asks the host to shut down cleanly. Any module may publish it.
+
+**Defined in:** `src/assistant/contracts/messages.py`
+
+## `SessionTheme`
+
+`SessionTheme(text: str)` (event)
+
+A few words about what this app session is about, from your first question. The Talker publishes it once; `__main__` passes it to [`LogSession.set_theme`](infra.md#logsession), which creates the session's log folder with it in the name. Until then nothing is written to disk. If the first turn fails, the Talker still publishes it, with the message itself.
+
+**Defined in:** `src/assistant/contracts/messages.py`
+
+## `ViewerTabsChanged`
+
+`ViewerTabsChanged(tabs: tuple[str, ...] = (), active: str | None = None, highlights: tuple[tuple[str, str], ...] = ())` (event)
+
+The [HTML viewer](../architecture/html-viewer.md)'s open tabs or highlights changed: a tab opened, closed, or was switched to, or a highlight was added, cleared, or dropped. `tabs` are the open files' full paths in tab order; `active` is the one showing; `highlights` are `(path, quoted text)` pairs. The `html_viewer` module publishes it; the Talker keeps the latest and hears it, as a `[Viewer] open: ...; highlighted: ...` line, with your next message.
+
+**Defined in:** `src/assistant/contracts/messages.py`
+
+## `ViewerClip`
+
+`ViewerClip(id: str, image_path: str, file: str, heading: str | None = None)` (event)
+
+You snipped part of a page in the [HTML viewer](../architecture/html-viewer.md). `image_path` is the PNG, kept in the launch's log folder (`snips/`); `file` is the page; `heading` the nearest heading above the box. The `html_viewer` module publishes it. The Talker keeps up to 3 and sends them as images with your next message; the temp UI shows them as thumbnails until then.
+
+**Defined in:** `src/assistant/contracts/messages.py`
+
+## `ViewerClipDropped`
+
+`ViewerClipDropped(id: str)` (event)
+
+You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by `temp_ui`.
 
 **Defined in:** `src/assistant/contracts/messages.py`

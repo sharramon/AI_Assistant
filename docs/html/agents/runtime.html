@@ -5,82 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent runtime</title>
 <!-- Generated from docs/agents/runtime.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<style>
-:root {
-  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
-  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
-nav {
-  background: var(--panel); border-right: 1px solid var(--border);
-  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
-}
-nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
-nav h2:first-child { margin-top: 0; }
-nav ul { list-style: none; margin: 0; padding: 0; }
-nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
-nav a:hover { background: var(--border); }
-nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
-main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
-h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
-h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-h3 { font-size: 1.1rem; margin: 28px 0 8px; }
-a { color: var(--accent); }
-code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
-pre code { background: none; padding: 0; }
-table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
-th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
-th { background: var(--panel); }
-.diagram {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
-}
-.diagram svg { max-width: 100%; height: auto; }
-.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
-.diagram:not(.offline) { cursor: zoom-in; }
-.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
-.zoom.dragging { cursor: grabbing; }
-.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.zoom-stage svg { display: block; max-width: none !important; }
-.zoom-close {
-  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
-  font-size: 22px; line-height: 1; cursor: pointer;
-}
-.zoom-close:hover { background: var(--border); }
-footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
-@media (max-width: 760px) {
-  .layout { grid-template-columns: 1fr; }
-  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
-  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
-  main { padding: 20px 16px 48px; }
-}
-</style>
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="index.html">Overview</a></li><li><a href="runtime.html" aria-current="page">Agent runtime</a></li><li><a href="spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<nav data-root="../" data-page="agents/runtime.html"></nav>
 <main>
 <h1 id="agent-runtime">Agent runtime</h1>
 <p>How the two agents are spawned, how each behaves on its own, and how they talk to each other, down to the classes. Back to <a href="index.html">Agents</a>. The contracts are on the <a href="../architecture/agents.html#task-agents">architecture page</a> and the <a href="../api/agents.html">Agents API page</a>.</p>
 <blockquote>
-<p><strong>Status: built (2026-10-25).</strong> Run it with <code>.\.venv\Scripts\python -m assistant</code>. Code: <code>src/assistant/modules/{talker,main_assistant,agent_hub,assistant_view}/</code> and <code>src/assistant/infra/{claude_session,session_agent}.py</code>.</p>
+<p><strong>Status: built (2026-10-25).</strong> Run it with <code>.\.venv\Scripts\python -m assistant</code>. Code: <code>src/assistant/modules/{talker,main_assistant,agent_hub,assistant_view}/</code> and <code>src/assistant/infra/{claude_session,session_agent}.py</code>. The <a href="../architecture/html-viewer.html">HTML viewer</a> (built 2026-10-27) is its own app (<code>src/html_viewer</code>) that the app starts through the thin <code>html_viewer</code> module; see <a href="#html-viewer">HTML viewer</a> below. The Main Assistant's <a href="#permission-mode">permission mode</a> (Manual or Auto, built 2026-11-02) is switched from the temp UI.</p>
 </blockquote>
 <h2 id="what-runs">What runs</h2>
 <p>Four OS processes. The app is the only one that knows about the others; the two <code>claude</code> processes never talk to each other directly.</p>
@@ -95,7 +29,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
         View[&quot;assistant_view&quot;]
     end
     TC[&quot;&lt;b&gt;claude -p&lt;/b&gt;&lt;br/&gt;Talker session&lt;br/&gt;sonnet, no tools&quot;]
-    MC[&quot;&lt;b&gt;claude -p&lt;/b&gt;&lt;br/&gt;Main Assistant session&lt;br/&gt;file tools, workspace/&quot;]
+    MC[&quot;&lt;b&gt;claude -p&lt;/b&gt;&lt;br/&gt;Main Assistant session&lt;br/&gt;all tools, the repo&quot;]
     VW[&quot;&lt;b&gt;Terminal 2&lt;/b&gt;&lt;br/&gt;viewer script&lt;br/&gt;(new console window)&quot;]
 
     You -- types --&gt; Console
@@ -126,21 +60,82 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 <tr>
 <td>Main Assistant session</td>
-<td><code>main_assistant</code> module, in <code>start</code></td>
-<td><code>claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt &lt;worker prompt&gt;</code>, working directory <code>workspace/</code>. <code>acceptEdits</code> approves writes inside the working directory only; others are refused, since nobody can approve them</td>
+<td><code>main_assistant</code> module, in <code>start</code>; a fresh one for each task and each handoff (<a href="#fresh-sessions-and-handoffs">below</a>)</td>
+<td><strong>Manual</strong> (the default): <code>claude -p … --strict-mcp-config --tools default --permission-mode acceptEdits --allowedTools &lt;read/write rules, allowed commands&gt; --permission-prompt-tool stdio --append-system-prompt &lt;worker prompt + its access&gt;</code>, working directory the repo. Allowed: every file in the repo (<a href="index.html#permissions">permissions</a>) and the <code>allowed_commands</code> (the tests, <code>ruff</code>, the docs build), as <code>PowerShell(&lt;command&gt;)</code> and <code>PowerShell(&lt;command&gt; *)</code> rules; any other shell command is asked of you. <strong>Auto:</strong> the same, but <code>--permission-mode bypassPermissions</code>, plus <code>--disallowedTools "PowerShell(git push)" "PowerShell(git push *)" "Bash(git push)" "Bash(git push *)"</code> (separate arguments), and the risky-step rule in the prompt (<a href="#permission-mode">Permission mode</a>). The command is built by <code>build_command(config, workspace, mode)</code> and read again at every session start. Its <code>debugger</code> subagent (<code>.claude/agents/debugger.md</code>, sonnet) runs inside this process under the same rules: its permission requests reach you the same way</td>
 </tr>
 <tr>
-<td>Terminal 2</td>
+<td>HTML viewer (not drawn above)</td>
+<td><code>html_viewer</code> module, on the first file shown, not in <code>start</code>. One you started yourself is used and left running</td>
+<td><code>python -m html_viewer --port 8766 --window app --profile &lt;its Edge profile&gt; --generated docs/html …</code>: the standalone viewer app, an HTTP server plus its own Edge app window (with a DevTools port on 127.0.0.1, for snip). Stopped (<code>POST /api/quit</code>, then killed) when the app stops</td>
+</tr>
+<tr>
+<td>Terminal 2 (off by default; the <a href="#temp-ui">temp UI</a> replaces it)</td>
 <td><code>assistant_view</code> module, in <code>start</code></td>
 <td><code>python -m assistant.modules.assistant_view.viewer</code> in a new console window, its stdin a pipe from the app. It writes to its own window (<code>CONOUT$</code>), because its inherited stdout is terminal 1. Windows only for now</td>
 </tr>
 </tbody>
 </table>
-<p>Each command line is built by <a href="../api/infra.html#claude_command"><code>claude_command</code></a>; the model, tools, permission mode, and workspace come from <code>[modules.talker]</code> and <code>[modules.main_assistant]</code> in <code>config/default.toml</code>.</p>
+<p>Each command line is built by <a href="../api/infra.html#claude_command"><code>claude_command</code></a>; the model, tools, permission mode, and workspace come from <code>[modules.talker]</code> and <code>[modules.main_assistant]</code> in <code>config/default.toml</code>. Each session also writes a <strong>transcript</strong> of every line in and out: <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> in the launch's log folder, <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code>, next to <code>assistant.log</code> (<a href="../architecture/core.html#logging">Logging</a>). The Talker supplies the theme from your first question (<code>&lt;&lt;THEME: ...&gt;&gt;</code> in its first reply, published as <code>SessionTheme</code>).</p>
+<h2 id="temp-ui">Temp UI</h2>
+<blockquote>
+<p><strong>Temporary.</strong> A throwaway stand-in until a real <strong>UI handler</strong> and its UI configurations are designed, in a conversation of their own (an <a href="../architecture/decisions.html#open-decisions">open decision</a>). Kept small so it's easy to throw away; don't build on it.</p>
+</blockquote>
+<p>The <code>temp_ui</code> module serves a local web page at <code>http://127.0.0.1:8765/</code>: the <strong>Main Assistant's</strong> activity on the left (its text, tool calls, task updates, and an idle / working / waiting badge), the <strong>Talker</strong> conversation on the right (with an input box). Terminal 1 still works alongside it; type <code>exit</code> there to quit.</p>
+<p>It opens in its own window using Edge's app mode (<code>msedge --app=URL</code>: no tabs or address bar). Set <code>[modules.temp_ui] window</code> to <code>"browser"</code> for a normal tab, or <code>"none"</code> to open nothing. Without Edge it falls back to a tab. Closing the window doesn't stop the app. The window runs on its own Edge profile (<code>window_profile</code>, default <code>%LOCALAPPDATA%\AI_Assistant\temp_ui_window</code>), so it's separate from your normal Edge and the app can close it.</p>
+<pre><code class="language-mermaid">flowchart LR
+    Browser[&quot;&lt;b&gt;Page in its own window&lt;/b&gt;&lt;br/&gt;Main Assistant | Talker&quot;]
+    UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt; module&lt;br/&gt;stdlib HTTP server&quot;]
+    Bus[&quot;&lt;b&gt;EventBus&lt;/b&gt;&quot;]
+
+    Browser -- &quot;POST /say&quot; --&gt; UI
+    UI -- &quot;publish InputReceived&quot; --&gt; Bus
+    Bus -- &quot;InputReceived, ResponseReady,&lt;br/&gt;TaskUpdated, AgentActivity,&lt;br/&gt;AgentStateChanged, PermissionModeChanged&quot; --&gt; UI
+    UI -- &quot;GET /events (Server-Sent Events)&quot; --&gt; Browser
+</code></pre>
+<ul>
+<li>It's an ordinary module: it publishes <code>InputReceived</code>, sends <code>AnswerPermission</code> and <code>SetPermissionMode</code>, and listens to events, so nothing else knows it exists.</li>
+<li><strong>Permission requests</strong> show in the Talker pane, in line with the conversation, as a card with <strong>Allow</strong> / <strong>Deny</strong> (<code>POST /permission</code>). Answering the Talker in words instead settles the card too. The Main Assistant pane only logs the request and its answer, with no buttons (change note).</li>
+<li><strong>Permission mode toggle (a stand-in):</strong> <code>Main Assistant: Manual | Auto</code> in the Talker pane's header sets what the Main Assistant may do (<code>POST /permission-mode</code> → <code>SetPermissionMode</code>). Its tooltip and code comment mark it as a stand-in until the control panel or chat window. Switching to Auto first shows a confirm dialog: full permissions except <code>git push</code>, the Main Assistant pauses before risky steps on its own judgment only, and this is not a guarantee. Switching back to Manual is one click. While Auto is on, the Talker pane's header turns amber and reads "Main Assistant: AUTO, no permission prompts", and the worker pane shows an <code>AUTO</code> tag; a switch that waits says "(from the next task)". Each <code>PermissionModeChanged</code> is logged as a <code>note</code> line in both panes. The current mode is a "current state" item, so a reconnect shows it like the usage meters.</li>
+<li><strong>Risky-step card:</strong> in Auto, a <code>need</code> whose text starts with <code>Risky:</code> shows in the Talker pane as an amber card, "⚠ Risky step, paused: …", with <strong>Go ahead</strong> / <strong>Don't</strong>. The buttons send "Go ahead" or "Don't do it" through <code>/say</code>, the same as typing it. The worker pane logs "paused: risky step".</li>
+<li><strong>Logs</strong> button in the header opens the current session's log folder in Explorer, or <code>logs/</code> before your first message, when the folder doesn't exist yet (<code>POST /open-logs</code>; <code>__main__</code> sets <code>logs_dir</code> to <code>LogSession.folder</code>).</li>
+<li><strong>Relaunch, one window:</strong> <code>/events</code> starts with a <code>hello</code> carrying the launch's id. On reconnect, the same id means a network drop (the page clears and the history replays); a new id means the app was relaunched. In app mode the new app has already closed the old window at startup (any Edge process on the window's profile), then opens a fresh one. Otherwise the old page tries <code>window.close()</code>; if the browser refuses (a normal tab), it says the session ended instead. The app also closes its window when it stops.</li>
+<li>On (re)connect the page gets the last 500 items replayed, so a refresh loses nothing recent.</li>
+<li><strong>Open in viewer:</strong> an HTML file path in a Talker message gets an <strong>Open in viewer</strong> button under it. Clicking it sends <code>InvokeTool viewer.open</code> with <code>front: true</code> (<code>POST /open-in-viewer</code>): the viewer window comes to the front, or opens again if you closed it. Without the <code>html_viewer</code> module the button says it couldn't open. A bare file name resolves against the app's folder, which is why the Talker always writes full paths.</li>
+<li><strong>Snips:</strong> a snip from the HTML viewer (<code>ViewerClip</code>) shows as a thumbnail above the input until your next message, which takes it to the Talker. Up to 3; × drops one (<code>ViewerClipDropped</code>).</li>
+<li><strong>Usage and Reset:</strong> the header shows the worker's and the Talker's usage side by side, live (<a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>): <code>Worker context 145k · used 2.3M · ~$5.10</code>, the same for the Talker. Context turns amber from 100k; hovering shows the split of used tokens. Each pane's <strong>Reset</strong> button (<code>POST /reset</code>) publishes <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>: the Talker starts fresh but keeps its last few exchanges; the worker resets at once when idle, or writes a handoff and carries on fresh mid-task.</li>
+<li>The window code (Edge app mode on its own profile): <a href="../api/app_kit.html#window"><code>app_kit.window</code></a>, shared with the HTML viewer. SHOW tags, the Talker's tags, and <code>NEED:</code> / <code>HANDOFF:</code> lines are read with the shared <a href="../api/infra.html#agent_tags"><code>agent_tags</code></a>. Both prompts point the agents at the <a href="../api/reusable.html">reusable parts index</a>.</li>
+<li>Code: <code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>page.html</code>). Config: <code>[modules.temp_ui]</code> (<code>port</code>, <code>window</code>).</li>
+</ul>
+<h2 id="html-viewer">HTML viewer</h2>
+<p>HTML files opened through the chat open in the <a href="../architecture/html-viewer.html">HTML viewer</a>, never in your default browser.</p>
+<table>
+<thead>
+<tr>
+<th>Who</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>You, in the chat</td>
+<td>Click <strong>Open in viewer</strong> under an HTML path in a Talker message; the viewer comes to the front</td>
+</tr>
+<tr>
+<td>The Talker</td>
+<td>Writes the <strong>full absolute path</strong> (never a bare file name), so the button shows and works; when you ask it to open a file now, <code>&lt;&lt;SHOW: path&gt;&gt;</code> → <code>InvokeTool viewer.open</code>; to point at a part, <code>&lt;&lt;SHOW: path | "quoted text" | heading&gt;&gt;</code> → <code>viewer.highlight</code>. The tag is stripped from the reply, so the Talker adds its path back if the reply doesn't have it, and the button still shows</td>
+</tr>
+<tr>
+<td>The Main Assistant</td>
+<td>Can't call app tools: writes the same <code>&lt;&lt;SHOW: ...&gt;&gt;</code> forms on their own line. The <code>html_viewer</code> module reads them in <code>AgentActivity</code> and calls <code>viewer.open</code> or <code>viewer.highlight</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Focus:</strong> pages an agent opens on its own (SHOW tags: quick checks, debugging) open in the viewer but stay in the background. Only your click on an Open in viewer button brings the viewer to the front.</p>
+<p>The <code>html_viewer</code> module starts the viewer app on the first request, follows its event stream, and publishes <code>ViewerTabsChanged</code> (tabs and highlights) and <code>ViewerClip</code> (snips). The Talker doesn't take a turn for either: it hears <code>[Viewer] open: &lt;paths&gt;; highlighted: ...</code> before your next message, and gets waiting snips as images with that message, each with a <code>[Viewer] snip from &lt;file&gt;, near "&lt;heading&gt;"</code> line, so "what is this?" is enough.</p>
 <h2 id="launched-from-the-main-app">Launched from the main app</h2>
 <p>Everything below runs in one Python process, on one <code>asyncio</code> event loop (plus <code>console_io</code>'s stdin thread). The agents' <code>claude</code> processes are children of it.</p>
 <pre><code class="language-mermaid">flowchart TB
-    Run([&quot;python -m assistant&quot;]) --&gt; Main[&quot;&lt;b&gt;__main__.main()&lt;/b&gt;&lt;br/&gt;load_config · setup_logging&quot;]
+    Run([&quot;python -m assistant&quot;]) --&gt; Main[&quot;&lt;b&gt;__main__.main()&lt;/b&gt;&lt;br/&gt;load_config · LogSession · setup_logging&quot;]
     Main --&gt; AppNew[&quot;&lt;b&gt;App(MODULES, config)&lt;/b&gt;&lt;br/&gt;builds CommandRouter, EventBus, Container&lt;br/&gt;resolve_modules → start order&lt;br/&gt;LifecycleManager&quot;]
     AppNew --&gt; AppRun[&quot;&lt;b&gt;asyncio.run(app.run())&lt;/b&gt;&quot;]
     AppRun --&gt; AppStart[&quot;&lt;b&gt;App.start()&lt;/b&gt;&lt;br/&gt;registers the core's own handlers&lt;br/&gt;(ListModules, ActivateModule, …)&quot;]
@@ -296,13 +291,13 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     Note over L: init, in dependency order
     L-&gt;&gt;C: init: subscribe ResponseReady
     L-&gt;&gt;M: init: build ClaudeSession + SessionTaskAgent, provide ITaskAgent
-    L-&gt;&gt;H: init: handle StartTask, SendToTask, CancelTask, GetTaskStatus, ReportTask, ListAgents
-    L-&gt;&gt;T: init: build ClaudeSession, subscribe InputReceived + TaskUpdated
+    L-&gt;&gt;H: init: handle StartTask, SendToTask, CancelTask, GetTaskStatus, ReportTask, ListAgents, AnswerPermission, SetPermissionMode
+    L-&gt;&gt;T: init: build ClaudeSession, subscribe InputReceived + TaskUpdated + PermissionModeChanged
     L-&gt;&gt;V: init: subscribe AgentActivity, AgentStateChanged, TaskUpdated
 
     Note over L: start, same order
     L-&gt;&gt;C: start: read terminal 1
-    L-&gt;&gt;M: start: launch its claude (instant, ~6 s until it can first reply)
+    L-&gt;&gt;M: start: launch its claude in Manual (instant, ~6 s until it can first reply)
     L-&gt;&gt;H: start: nothing to launch
     L-&gt;&gt;T: start: launch its claude (kept warm), start its inbox loop
     L-&gt;&gt;V: start: open terminal 2
@@ -310,7 +305,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <ul>
 <li><strong>Order:</strong> <code>main_assistant</code> provides <code>ITaskAgent</code> and the Hub lists it as optional, so the agent starts before the Hub. <code>talker</code> and <code>assistant_view</code> depend on nothing; they only send commands and listen to events. The diagram shows one valid order; the actual one is <code>console_io, main_assistant, talker, assistant_view, agent_hub</code>.</li>
 <li><strong>Stop</strong> runs in reverse, so the Hub stops first: reports an agent sends while shutting down are refused (logged as warnings, harmless). Each session closes its <code>claude</code> process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.</li>
-<li><strong>Runtime control:</strong> deactivating <code>main_assistant</code> ends its process; the Hub sees no agents and <code>StartTask</code> returns <code>not_available</code>. Activating it again starts a fresh session (no memory of before).</li>
+<li><strong>Runtime control:</strong> deactivating <code>main_assistant</code> ends its process; the Hub sees no agents and <code>StartTask</code> returns <code>not_available</code>. Activating it again starts a fresh session (no memory of before), back in Manual.</li>
 </ul>
 <h2 id="classes">Classes</h2>
 <pre><code class="language-mermaid">classDiagram
@@ -320,6 +315,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
         +start()
         +send(text)
         +interrupt()
+        +set_permission_mode(mode)
         +close()
         +running bool
         +working bool
@@ -331,10 +327,12 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
         +assign(task) Result
         +message(task_id, text, resume) Result
         +cancel(task_id) Result
+        +answer_permission(allow) Result
+        +set_permission_mode(mode) Result
     }
     class SessionTaskAgent {
         &lt;&lt;infra&gt;&gt;
-        task, mode
+        task, mode, permission_mode
     }
     class MainAssistantModule { &lt;&lt;module&gt;&gt; }
     class TalkerModule {
@@ -356,10 +354,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     AgentHubModule ..&gt; ITaskAgent : get_all()
 </code></pre>
 <p>The core's lifecycle manager starts all of these modules, and none of them launches another. In the diagram, the arrow with a hollow head means "implements", a plain arrow means "holds and uses", and the dotted arrow means "looks up through the Container".</p>
-<p><code>ClaudeSession</code> runs one <code>claude</code> process. It knows nothing about tasks or the Talker: it writes messages and interrupts, calls <code>on_event</code> for every JSON line, and sets <code>working</code> from "message sent" until <code>result</code>. <code>SessionTaskAgent</code> lives in <code>infra</code> too, not in the <code>main_assistant</code> module, so a later subagent module can reuse it without importing another module's internals (<a href="../architecture/principles.html">principle 3</a>).</p>
+<p><code>ClaudeSession</code> runs one <code>claude</code> process. It knows nothing about tasks or the Talker: it writes messages and interrupts, calls <code>on_event</code> for every JSON line, and sets <code>working</code> from "message sent" until <code>result</code>. Its command can be a callable, read on every <code>start</code>, so each new session gets the current permission mode's flags. <code>SessionTaskAgent</code> lives in <code>infra</code> too, not in the <code>main_assistant</code> module, so a later subagent module can reuse it without importing another module's internals (<a href="../architecture/principles.html">principle 3</a>).</p>
 <p>The Talker and the Main Assistant are both LLM agents. Each has its own <code>ClaudeSession</code>, so each runs its own <code>claude</code> process with its own model, prompt, and tools. What differs is their role, and the diagram shows it by which one implements <code>ITaskAgent</code>:</p>
 <ul>
-<li><code>MainAssistantModule</code> is the worker. In <code>init</code> it builds a <code>ClaudeSession</code> and a <code>SessionTaskAgent</code>, and registers the agent with the Container as an <code>ITaskAgent</code>. <code>SessionTaskAgent</code> turns the Hub's calls (<code>assign</code>, <code>message</code>, <code>cancel</code>) into messages for its session, and the session's results into reports.</li>
+<li><code>MainAssistantModule</code> is the worker. In <code>init</code> it builds a <code>ClaudeSession</code> and a <code>SessionTaskAgent</code>, and registers the agent with the Container as an <code>ITaskAgent</code>. <code>SessionTaskAgent</code> turns the Hub's calls (<code>assign</code>, <code>message</code>, <code>cancel</code>, <code>set_permission_mode</code>) into messages for its session, and the session's results into reports.</li>
 <li><code>TalkerModule</code> talks with you and takes no tasks, so it doesn't implement <code>ITaskAgent</code>. When something needs doing, it hands the task to the Hub with a command (<code>StartTask</code>, <code>SendToTask</code>, …) and hears back through <code>TaskUpdated</code> events. Commands and events travel through the core, so they aren't drawn here; they're in <a href="#messaging-to-and-from-the-main-app">Messaging to and from the main app</a>.</li>
 <li><code>AgentHubModule</code> holds no reference to any agent module. It asks the Container for every <code>ITaskAgent</code> and calls the ones it gets back. A future subagent is one more module that provides <code>ITaskAgent</code>, and the Hub finds it without any change.</li>
 <li><code>AssistantViewModule</code> only listens to events, so it has no arrows.</li>
@@ -392,7 +390,15 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 </tbody>
 </table>
+<p><code>ViewerTabsChanged</code> isn't an inbox item: the Talker keeps the latest and puts <code>[Viewer] open: &lt;paths&gt;</code> before your next message. <code>PermissionModeChanged</code> for the worker works the same way: <code>[Mode] worker: auto (from the next task)</code> goes before your next message, once. Its prompt says the worker starts in Manual at every launch, so it knows the mode, can tell you, and mentions Auto when it hands over a task. A <code>need</code> starting with <code>Risky:</code> means the worker, in Auto, paused before a risky step: the Talker says so plainly and passes your answer on with <code>ASK</code>.</p>
+<p><strong>Usage, always in view.</strong> The Talker is the real interface (voice, glasses later), so it knows both sessions' usage without asking anyone. It keeps the worker's latest <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, reads its own from its session, and puts both, kept apart, before each of your messages:</p>
+<pre><code>[Usage] worker: context 145k, used 2.3M (~$5.10) · you: context 24k, used 0.4M (~$0.30)
+</code></pre>
+<p>"How full are you?" or "what has this cost?" is answered from that line, about either session or both. When either context passes <code>context_warning</code> (150k), a <code>[Status]</code> tells it once, so it tells you in a sentence and offers a reset; it warns about that session again only after its context has come back under (a reset or a fresh session) and passed the threshold again.</p>
 <p><code>progress</code> updates don't go to the inbox: they'd make it chatter. The Hub keeps them and they come back when you ask "how's it going?".</p>
+<p><strong>Peek, don't interrupt.</strong> Every message to the running task interrupts it and costs it a full step at its whole context, plus the automatic "continue". So questions about what it's doing ("what's going on?", "why is it editing that?") are a <code>LOOK</code>: the <code>[Status]</code> carries the task's last 15 activity lines (its text, and tool calls with their file or command, from <a href="../api/agents.html#taskinfo"><code>TaskInfo.activity</code></a>). <code>ASK</code> is only for answering its question or changing what it does, and never just to say "continue".</p>
+<p><strong>One change per task.</strong> A new request gets its own <code>WORK</code> once the running task is done; it isn't folded into the running task with <code>ASK</code>, which is what let one task grow to four features and 273k tokens of context (the 2026-10-27 logs). If you ask for new work while a task runs, the Talker says what's running and what pausing or cancelling it would leave unfinished, and you choose: wait, pause it, or cancel it.</p>
+<p><strong>Reset.</strong> <code>ResetRequested("talker")</code> (the temp UI's Reset button, or <code>&lt;&lt;RESET: talker&gt;&gt;</code>) goes into the inbox, so it happens between turns: the session restarts, and the next message to it starts with <code>[Context] Your session was just reset…</code> and the last few exchanges.</p>
 <pre><code class="language-mermaid">flowchart TB
     Wait[&quot;Wait for the next inbox item&quot;] --&gt; Send[&quot;Send it to the Talker session&quot;]
     Send --&gt; Reply[&quot;Turn ends (result)&quot;]
@@ -418,7 +424,11 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 <tr>
 <td><code>&lt;&lt;LOOK&gt;&gt;</code></td>
-<td><code>GetTaskStatus()</code>; the result comes back as a <code>[Status]</code> item</td>
+<td><code>GetTaskStatus()</code>; the result, with recent activity, comes back as a <code>[Status]</code> item</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;RESET: talker | worker&gt;&gt;</code></td>
+<td>Not a Hub command: publishes <code>ResetRequested</code> for itself or the worker, only when you ask</td>
 </tr>
 <tr>
 <td><code>&lt;&lt;ASK: text&gt;&gt;</code></td>
@@ -432,9 +442,29 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <td><code>&lt;&lt;CANCEL&gt;&gt;</code></td>
 <td><code>CancelTask()</code></td>
 </tr>
+<tr>
+<td><code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code></td>
+<td><code>AnswerPermission(allow=…)</code>, only after you've said yes or no to a <code>permission</code> update</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;MODE: manual&gt;&gt;</code></td>
+<td><code>SetPermissionMode(worker, manual)</code>, when you ask to switch the Main Assistant back to Manual. Manual only: any other mode is refused with a <code>[Status]</code> saying only you switch to Auto, with the button</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;SHOW: path&gt;&gt;</code></td>
+<td>Not a Hub command: <code>InvokeTool viewer.open(path)</code>, opening an HTML file in the <a href="#html-viewer">HTML viewer</a>, only when you ask it to open one</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;SHOW: path | "quote" | heading&gt;&gt;</code></td>
+<td>Not a Hub command: <code>InvokeTool viewer.highlight(path, text, heading)</code>, opening the file and highlighting the quoted part, when it's talking about one part of a page. If the quote isn't on the page, a <code>[Status]</code> says so</td>
+</tr>
+<tr>
+<td><code>&lt;&lt;THEME: words&gt;&gt;</code></td>
+<td>Not a Hub command: in the reply to your first message, up to five words about it, published once as <code>SessionTheme</code> for the <a href="../architecture/core.html#logging">log folder</a> name. Without it, the first words of your message are used</td>
+</tr>
 </tbody>
 </table>
-<p><strong>Talker prompt, in short:</strong> you're the voice of a personal assistant; keep replies short and conversational; you can't do work yourself, so hand anything substantial over with <code>WORK</code>; never claim work is done until a <code>[Task update: done]</code> arrives; infer from context whether the user means continue, pause, or cancel, and never ask them for keywords.</p>
+<p><strong>Talker prompt, in short:</strong> you're the voice of a personal assistant; keep replies short and conversational; you can't do work yourself, so hand anything substantial over with <code>WORK</code>; never claim work is done until a <code>[Task update: done]</code> arrives; infer from context whether the user means continue, pause, or cancel, and never ask them for keywords. You and the Main Assistant are one assistant to the user. It also gets the facts about the system: what the Main Assistant can read and write, that nobody can grant permissions by chat, the worker's permission mode (Manual at launch; only the user switches to Auto), and where the logs are. It must not state anything about the system beyond those facts. HTML files always open in the HTML viewer: it writes the path (the chat shows an Open in viewer button) and never offers or asks for the default browser. A <code>[Viewer] snip</code> line means an image of part of a page is attached; it answers about the image, and hands real work on it to the Main Assistant with the snip's path.</p>
 <h2 id="the-main-assistant-on-its-own">The Main Assistant on its own</h2>
 <p><code>SessionTaskAgent</code> turns <code>ITaskAgent</code> calls into session messages and session events into reports. It keeps an internal <strong>mode</strong>; the Hub's <code>TaskState</code> is the outside view of the same thing.</p>
 <pre><code class="language-mermaid">stateDiagram-v2
@@ -461,8 +491,55 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <li>every <code>assistant</code> text or tool call → <code>AgentActivity</code> (terminal 2)</li>
 <li>a text note mid-turn → <code>ReportTask(progress)</code></li>
 <li><code>working</code> / <code>busy</code> changes → <code>AgentStateChanged</code></li>
+<li>every call (and each turn's result) → <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, when the numbers changed</li>
 </ul>
-<p><strong>Worker prompt, in short:</strong> you're the Main Assistant doing tasks handed to you; work only in your folder; before each major step write one short progress line; if you need a decision from the user, stop and end your turn with a last line <code>NEED: &lt;question&gt;</code>; when finished, end with a short summary of what you did.</p>
+<h3 id="fresh-sessions-and-handoffs">Fresh sessions and handoffs</h3>
+<p>Every call resends the session's whole conversation, so the cost of a step grows with everything before it. On 2026-10-27 one task carried four features and grew from 39k to 273k tokens a call. So:</p>
+<ul>
+<li><strong>A fresh session per task</strong> (<code>fresh_sessions = true</code>): <code>assign</code> closes a used session and starts a new one, back at the fixed ~31k (system prompt and tools). The task text and its change note in <code>docs/next-steps/</code> carry what it needs; decisions live in the docs, not in an old conversation.</li>
+<li><strong>Handoffs inside a task:</strong> the prompt asks it to judge whether a task holds separate, big parts. If so, after each part it updates the docs, writes what's done and next into the change note, and ends with <code>HANDOFF: &lt;note&gt;</code>. The agent closes the session, starts a fresh one, and sends <code>Task, continued in a fresh session: &lt;text&gt; … read the handoff in &lt;note&gt; first</code>. Same task id, so the Hub and Talker see a <code>progress</code> report, not a new task. After <code>max_handoffs</code> (3) in one task it asks you (<code>need</code>) instead.</li>
+<li><strong>Reset</strong> (<a href="../api/infra.html#sessiontaskagent"><code>SessionTaskAgent.reset</code></a>, from <code>ResetRequested</code>): idle, the session closes now; mid-task, it gets a message asking for a handoff note, and its <code>HANDOFF:</code> reply hands off as above.</li>
+<li><strong>Debugging and broad searches</strong> go to the <code>debugger</code> subagent (Claude Code's own subagents, <code>.claude/agents/debugger.md</code>, sonnet): it loops in its own small context and returns only the cause, the fix, and the proof. It runs inside the Main Assistant's process, so the Hub doesn't see it as a task; stopping the Main Assistant stops it too.</li>
+</ul>
+<pre><code class="language-mermaid">stateDiagram-v2
+    working --&gt; restarting: result ends with HANDOFF (under max) → report progress
+    replying --&gt; restarting: reply ends with HANDOFF (asked to reset)
+    restarting --&gt; working: fresh session → send &quot;continued… read &lt;note&gt;&quot;
+    working --&gt; waiting: HANDOFF after max handoffs → report need
+</code></pre>
+<h3 id="permission-mode">Permission mode</h3>
+<p>The Main Assistant runs in one of two <a href="../api/agents.html#permissionmode"><code>PermissionMode</code></a>s. The mode lives in memory in <code>SessionTaskAgent</code>, and every launch starts in <strong>Manual</strong>: it isn't saved.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What it does</th>
+<th><code>claude</code> flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Manual</strong> (default)</td>
+<td>Edits in the repo and the allowed commands run without asking; everything else shows an Allow / Deny card</td>
+<td><code>--permission-mode acceptEdits</code>, the <code>--allowedTools</code> standing rules, <code>--permission-prompt-tool stdio</code></td>
+</tr>
+<tr>
+<td><strong>Auto</strong></td>
+<td>Full permissions, no cards, except <code>git push</code>, which is refused. It pauses on its own before very risky steps</td>
+<td><code>--permission-mode bypassPermissions</code>, <code>--disallowedTools</code> with <code>git push</code> and <code>git push *</code> for PowerShell and Bash, the same standing rules and prompt tool, plus the risky-step rule in its prompt</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Who switches:</strong> <code>SetPermissionMode(agent_id, mode)</code> goes to the Agent Hub, which calls the agent's <code>set_permission_mode</code> and publishes <code>PermissionModeChanged(agent_id, mode, applies)</code>. Only you switch to Auto, with the temp UI's toggle. The Talker can only switch back to Manual (<code>&lt;&lt;MODE: manual&gt;&gt;</code>), and the Main Assistant has no route to the command.</li>
+<li><strong>When it takes effect</strong> (<code>applies</code>):</li>
+<li><strong>idle:</strong> <code>now</code>. The next session's command is built for the new mode, since <code>ClaudeSession</code> reads its command on every start.</li>
+<li><strong>to Auto while a task runs:</strong> <code>next_task</code>, the next task or the next handoff session, because the risky-step rule lives in the session's prompt, which is fixed at start.</li>
+<li><strong>to Manual while a task runs:</strong> <code>now</code> if the running session is in Auto, through the <code>set_permission_mode</code> control request (<code>acceptEdits</code>). If Auto was still waiting for the next task, the session is already in Manual and nothing is sent. If the request fails, it's <code>next_task</code>.</li>
+<li><strong>Risky steps in Auto:</strong> the prompt tells it to end its turn with <code>NEED: Risky: &lt;what and why&gt;</code> before deleting data beyond the task, rewriting git history, changing secrets or settings, installing or removing packages, spending money or calling a paid service, sending anything outside the machine, or anything else hard to undo, and to ask when unsure. It reuses the normal <code>need</code> path; your answer continues the task through <code>SendToTask</code>. This rests on the model's judgment, not a hard stop.</li>
+<li><strong>The one hard limit:</strong> the <code>git push</code> block holds under <code>bypassPermissions</code> with no prompt (checked against the real <code>claude</code>, 2026-11-02). It only catches a direct <code>git push</code>, not <code>git -C x push</code> or a script that pushes.</li>
+</ul>
+<p><strong>Worker prompt, in short:</strong> you're the Main Assistant doing tasks handed to you; you and the Talker are one assistant to the user; your exact access is listed (built from config: folders and the allowed commands, by mode: in Manual, if a task needs more, just use the tool and you're asked; in Auto, full permissions except <code>git push</code>, plus the risky-step rule above); before each major step write one short progress line; if you need a decision from the user, stop and end your turn with a last line <code>NEED: &lt;question&gt;</code>; when finished, end with a short summary of what you did; every step resends the whole conversation, so batch reads and edits, split separate big parts across handoffs (<code>HANDOFF: &lt;note&gt;</code>), and keep decisions in the docs; hand debugging loops and broad searches to the <code>debugger</code> subagent; to show the user an HTML file, write <code>&lt;&lt;SHOW: full path&gt;&gt;</code> on its own line, never open it in the default browser.</p>
 <p><strong>Messages it sends to its session:</strong></p>
 <table>
 <thead>
@@ -473,7 +550,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </thead>
 <tbody>
 <tr>
-<td>New task</td>
+<td>New task (in a fresh session)</td>
 <td><code>New task: &lt;text&gt;</code> plus <code>Context: &lt;context&gt;</code></td>
 </tr>
 <tr>
@@ -483,6 +560,14 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tr>
 <td>Continue</td>
 <td><code>Continue the task from where you left off.</code></td>
+</tr>
+<tr>
+<td>After a handoff (in a fresh session)</td>
+<td><code>Task, continued in a fresh session: &lt;text&gt;</code> … <code>wrote a handoff in &lt;note&gt;. Read it first…</code> plus <code>Context: &lt;context&gt;</code></td>
+</tr>
+<tr>
+<td>Reset mid-task (as a mid-task message)</td>
+<td><code>The user asked to reset your session. … end with the line HANDOFF: &lt;that note's path&gt;.</code></td>
 </tr>
 <tr>
 <td>Answer to NEED, or resume from pause</td>
@@ -540,90 +625,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <footer>Generated from <code>docs/agents/runtime.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
+<script src="../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script>
-(function () {
-  var blocks = document.querySelectorAll("pre > code.language-mermaid");
-  blocks.forEach(function (code) {
-    var div = document.createElement("div");
-    div.className = "diagram";
-    div.textContent = code.textContent;
-    code.parentElement.replaceWith(div);
-  });
-  if (!window.mermaid) {
-    // Offline: show the diagram source instead.
-    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
-    return;
-  }
-  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
-  mermaid.run({ querySelector: ".diagram" });
-
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
-  var overlay = null, stage, scale, x, y;
-  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
-  function close() {
-    if (!overlay) return;
-    overlay.remove();
-    overlay = null;
-    document.body.style.overflow = "";
-  }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
-    overlay = document.createElement("div");
-    overlay.className = "zoom";
-    var btn = document.createElement("button");
-    btn.className = "zoom-close";
-    btn.setAttribute("aria-label", "Close");
-    btn.textContent = "\u00d7";
-    btn.addEventListener("click", close);
-    stage = document.createElement("div");
-    stage.className = "zoom-stage";
-    stage.appendChild(clone);
-    overlay.appendChild(btn);
-    overlay.appendChild(stage);
-    document.body.appendChild(overlay);
-    document.body.style.overflow = "hidden";
-    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
-    x = (innerWidth - w * scale) / 2;
-    y = (innerHeight - h * scale) / 2;
-    place();
-    overlay.addEventListener("wheel", function (e) {
-      e.preventDefault();
-      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
-      f = s / scale;
-      x = e.clientX - (e.clientX - x) * f;
-      y = e.clientY - (e.clientY - y) * f;
-      scale = s;
-      place();
-    }, { passive: false });
-    var drag = null;
-    overlay.addEventListener("pointerdown", function (e) {
-      if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
-      overlay.setPointerCapture(e.pointerId);
-      overlay.classList.add("dragging");
-    });
-    overlay.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      x = drag.x + e.clientX - drag.px;
-      y = drag.y + e.clientY - drag.py;
-      place();
-    });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
-  }
-  document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
-    var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
-  });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-})();
-</script>
+<script src="../site.js"></script>
 </body>
 </html>

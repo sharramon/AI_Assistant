@@ -52,9 +52,11 @@ Stop work and release resources. Default does nothing. Has `core.module_stop_tim
 
 ## `Manifest`
 
-`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = ())`
+**Reusable** · Used by: every module
 
-Frozen dataclass describing a module. Dependencies are on contracts, never on other modules.
+`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = ())`
+
+Frozen dataclass describing a module. Dependencies are on contracts, never on other modules. (`permissions` and `optional_permissions` are planned, with the [`ctx.permissions`](#modulecontextpermissions) stand-in.)
 
 **Fields**
 | Name | Type | Required | Description |
@@ -63,12 +65,16 @@ Frozen dataclass describing a module. Dependencies are on contracts, never on ot
 | `provides` | `tuple[type[Contract], ...]` | no | Contracts this module provides via `ctx.provide` |
 | `requires` | `tuple[type[Contract], ...]` | no | Contracts that must be provided by an enabled module, or startup fails |
 | `optional` | `tuple[type[Contract], ...]` | no | Contracts used if present; only affects start order |
+| `permissions` | `tuple[str, ...]` | no | Planned. [Permission names](../architecture/permissions.md#permission-names) the module can't run without |
+| `optional_permissions` | `tuple[str, ...]` | no | Planned. Permissions it asks for in the moment; without them a feature is off (`voice_in`: `("microphone",)`) |
 
 Every type listed must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails.
 
 **Defined in:** `src/assistant/contracts/module.py`
 
 ## `ModuleContext`
+
+**Reusable** · Used by: every module
 
 `class ModuleContext(ABC)`
 
@@ -80,6 +86,21 @@ A module's only access to the rest of the app, passed to `init`. Everything regi
 | `module_id` | `str` | This module's id |
 | `config` | `dict[str, Any]` | The `[modules.<id>]` config section, or `{}` |
 | `log` | `logging.Logger` | Logger named `assistant.modules.<id>` |
+| `permissions` | `ModulePermissions` | Planned. This module's permission checks; see below |
+
+### `ModuleContext.permissions`
+
+**Reusable** · Used by: `voice_in` first (planned); every module that needs a permission · **planned** (decided 2026-11-02)
+
+| Member | Does |
+|--------|------|
+| `has(name) -> bool` | Whether this module may use `name` now, without asking |
+| `async request(name, reason) -> bool` | Ask in the moment; `reason` is shown to you |
+
+The caller's id is filled in by the core; a module never passes it. Until the [permissions handler](../architecture/permissions.md) runs, the stand-in allows everything and logs a warning ("no permissions handler: allowing voice_in microphone"). The handler later plugs in behind the same calls.
+
+    if not await ctx.permissions.request("microphone", reason="You clicked the mic"):
+        return Result.failed("microphone not allowed")
 
 ### `ModuleContext.subscribe`
 

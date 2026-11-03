@@ -5,77 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Decisions</title>
 <!-- Generated from docs/architecture/decisions.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<style>
-:root {
-  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
-  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
-nav {
-  background: var(--panel); border-right: 1px solid var(--border);
-  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
-}
-nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
-nav h2:first-child { margin-top: 0; }
-nav ul { list-style: none; margin: 0; padding: 0; }
-nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
-nav a:hover { background: var(--border); }
-nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
-main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
-h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
-h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-h3 { font-size: 1.1rem; margin: 28px 0 8px; }
-a { color: var(--accent); }
-code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
-pre code { background: none; padding: 0; }
-table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
-th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
-th { background: var(--panel); }
-.diagram {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
-}
-.diagram svg { max-width: 100%; height: auto; }
-.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
-.diagram:not(.offline) { cursor: zoom-in; }
-.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
-.zoom.dragging { cursor: grabbing; }
-.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.zoom-stage svg { display: block; max-width: none !important; }
-.zoom-close {
-  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
-  font-size: 22px; line-height: 1; cursor: pointer;
-}
-.zoom-close:hover { background: var(--border); }
-footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
-@media (max-width: 760px) {
-  .layout { grid-template-columns: 1fr; }
-  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
-  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
-  main { padding: 20px 16px 48px; }
-}
-</style>
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="index.html">Overview</a></li><li><a href="principles.html">Principles</a></li><li><a href="core.html">Core host</a></li><li><a href="communication.html">Communication</a></li><li><a href="agents.html">Agents</a></li><li><a href="remote-clients.html">Remote clients</a></li><li><a href="decisions.html" aria-current="page">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/runtime.html">Agent runtime</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<nav data-root="../" data-page="architecture/decisions.html"></nav>
 <main>
 <h1 id="decisions">Decisions</h1>
 <p>What's decided, what's still open, and what's deliberately deferred. Back to the <a href="index.html">overview</a>.</p>
@@ -90,103 +24,26 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <li>
 <p><strong>Runtime module control:</strong> modules can be turned on and off while the app runs, through a core control interface; a control panel UI module and the Talker use it. Code changes still need a restart. See <a href="core.html#runtime-module-control">core</a>.</p>
 </li>
-<li><strong>Views:</strong> two terminals for now (talk, and a view-only window on the Main Assistant). The chat window comes later as nicer UX for the same thing.</li>
+<li><strong>Views:</strong> for now a throwaway <a href="../agents/runtime.html#temp-ui">temp UI</a> (a local web page in its own window: Main Assistant left, Talker right) plus terminal 1. The UI configurations you'll actually want get their own design conversation. Terminal 2 (<code>assistant_view</code>) still exists but is off by default.</li>
+<li><strong>Agent runtime:</strong> <code>claude -p</code> sessions on the subscription (terms checked; built, see <a href="../agents/runtime.html">agent runtime</a>).</li>
+<li><strong>Agent Hub contracts:</strong> <a href="../api/agents.html"><code>ITaskAgent</code></a> and the Hub's commands and events (built).</li>
+<li><strong>Independent apps where it pays off</strong> (decided in an earlier session, recorded 2026-10-27): a part may be its own app, deployed and run on its own, when it's useful without the assistant. It doesn't import the assistant; the main app launches it and talks to it through two-way hooks (its local HTTP API one way, its event stream the other), via a thin module. The modules inside the main app stay a modular monolith in one process. First one: the <a href="html-viewer.html">HTML viewer</a> (<code>src/html_viewer</code>, run with <code>python -m html_viewer</code>); its thin module is <code>html_viewer</code>.</li>
+<li><strong>Permissions are per module:</strong> one <a href="permissions.html">permissions handler</a> module; every module asks through <code>ctx.permissions</code>, and the core fills in who is asking. Not the whole app holding everything. Grants are saved in <code>data/permissions.toml</code>; with no handler running, everything is allowed and logged (designed, not built; the stand-in that allows and logs is planned now, the handler later).</li>
+<li><strong>Build it once</strong> (2026-11-02): behavior two parts need is one reusable part, listed in the <a href="../api/reusable.html">index</a> with who uses it (<a href="principles.html">principle 13</a>, <a href="reusable-parts.html">Reusable parts</a>). What the main app and the independent apps share goes in a new package, <code>app_kit</code> (standard library only, never imports <code>assistant</code>); each part has one import path, so the window functions aren't re-exported from <code>assistant.infra</code>. This replaces the HTML viewer's own copy of the window code (<a href="html-viewer.html#decided">viewer decision 8</a>). The <code>ctx.permissions</code> stand-in is built now, ahead of the handler. <code>app_kit</code> and <code>agent_tags</code> are built (2026-11-02); the stand-in is planned.</li>
 </ul>
 <h2 id="open-decisions">Open decisions</h2>
 <ul>
 <li><strong>Persistence technology</strong></li>
-<li><strong>Agent runtime:</strong> <code>claude -p</code> sessions on the subscription (provisional, pending a terms check and the <a href="../agents/spike.html">spike</a>)</li>
-<li><strong>Agent Hub contracts:</strong> designed after the spike</li>
+<li><strong>UI handler:</strong> a separate part that owns the user-facing UIs (chat window, Quest, glasses) instead of each UI being its own ad hoc module. Its shape isn't decided; the temp UI is a throwaway stand-in until it is.</li>
+<li><strong>Self-improvement permissions:</strong> how the Main Assistant gets access to its own code (<a href="../agents/self-improvement.html">plan</a>); will go through the <a href="permissions.html">permissions handler</a></li>
 </ul>
 <h2 id="deliberately-deferred">Deliberately deferred</h2>
 <p>Don't add more architectural machinery until two or three very different modules (e.g. a text input, a browser tool, and a view) are built and we've checked that each can be replaced independently. Let those real modules show which abstractions are actually missing.</p>
 <footer>Generated from <code>docs/architecture/decisions.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
+<script src="../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script>
-(function () {
-  var blocks = document.querySelectorAll("pre > code.language-mermaid");
-  blocks.forEach(function (code) {
-    var div = document.createElement("div");
-    div.className = "diagram";
-    div.textContent = code.textContent;
-    code.parentElement.replaceWith(div);
-  });
-  if (!window.mermaid) {
-    // Offline: show the diagram source instead.
-    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
-    return;
-  }
-  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
-  mermaid.run({ querySelector: ".diagram" });
-
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
-  var overlay = null, stage, scale, x, y;
-  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
-  function close() {
-    if (!overlay) return;
-    overlay.remove();
-    overlay = null;
-    document.body.style.overflow = "";
-  }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
-    overlay = document.createElement("div");
-    overlay.className = "zoom";
-    var btn = document.createElement("button");
-    btn.className = "zoom-close";
-    btn.setAttribute("aria-label", "Close");
-    btn.textContent = "\u00d7";
-    btn.addEventListener("click", close);
-    stage = document.createElement("div");
-    stage.className = "zoom-stage";
-    stage.appendChild(clone);
-    overlay.appendChild(btn);
-    overlay.appendChild(stage);
-    document.body.appendChild(overlay);
-    document.body.style.overflow = "hidden";
-    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
-    x = (innerWidth - w * scale) / 2;
-    y = (innerHeight - h * scale) / 2;
-    place();
-    overlay.addEventListener("wheel", function (e) {
-      e.preventDefault();
-      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
-      f = s / scale;
-      x = e.clientX - (e.clientX - x) * f;
-      y = e.clientY - (e.clientY - y) * f;
-      scale = s;
-      place();
-    }, { passive: false });
-    var drag = null;
-    overlay.addEventListener("pointerdown", function (e) {
-      if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
-      overlay.setPointerCapture(e.pointerId);
-      overlay.classList.add("dragging");
-    });
-    overlay.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      x = drag.x + e.clientX - drag.px;
-      y = drag.y + e.clientY - drag.py;
-      place();
-    });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
-  }
-  document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
-    var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
-  });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-})();
-</script>
+<script src="../site.js"></script>
 </body>
 </html>

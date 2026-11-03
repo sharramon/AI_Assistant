@@ -30,7 +30,7 @@ flowchart TB
 
     subgraph Infra["Shared Infrastructure"]
         Config[Configuration]
-        Logging[Logging]
+        Logging["Logging<br/>log handler: one folder per session"]
         Persist[Persistence]
         Secrets[Auth / secrets]
     end
@@ -231,9 +231,36 @@ stateDiagram-v2
 | `core.module_stop_timeout` | `5.0` | Seconds each module gets to stop |
 | `core.event_queue_size` | `100` | Per-subscriber queue size |
 | `core.event_handler_timeout` | `10.0` | Seconds before a stuck event handler is cancelled |
-| `logging.level` / `file` / `stderr` | `INFO` / none / `false` | See `setup_logging` |
+| `logging.dir` | `"logs"` | Where the session folders go. See [Logging](#logging) |
+| `logging.file` | `"assistant.log"` | The app log's file name inside the session folder |
+| `logging.level` / `stderr` | `INFO` / `false` | See `setup_logging` |
+| `modules.<id>.transcript` | | A file name; `__main__` puts it in the session folder |
 
 Config comes from `config/default.toml`, with `config/local.toml` deep-merged over it. `ASSISTANT_CONFIG_DIR` points elsewhere (e.g. on a server).
+
+## Logging
+
+**One owner for where logs go:** the log handler, [`LogSession`](../api/infra.md#logsession) in `src/assistant/infra/log.py`. It's shared infrastructure, not a module, because it must exist before any module starts. Modules decide *what* they write, through `ctx.log` or their own transcript; none picks its own path.
+
+- **Session = one app launch.** At startup `__main__.use_log_session()` creates a `LogSession`. It creates nothing on disk yet.
+- **Nothing on disk until the first message:** `__main__` hands out one [`LogSink`](../api/infra.md#logsink) per file: the app log through `LogSession.handler` (added by `setup_logging`), every module's `transcript` setting as a sink, and the temp UI's `logs_dir` as `LogSession.folder` (the folder once it exists, else `logs/`). Sinks hold what's written in memory until the folder exists.
+- **Theme creates the folder:** the Talker publishes a [`SessionTheme`](../api/messaging.md#sessiontheme) after your first message (its THEME tag, else the message itself, also if its turn failed). `__main__` passes it to `LogSession.set_theme`, which makes it folder-safe (at most five words), creates `logs/<start time>_<theme>/` (`-2` added after the time if taken), and writes what was held. A session folder holds `assistant.log`, `talker.jsonl`, and `main_assistant.jsonl`. The name is final from the start, so a crash or a force-kill (relaunch) leaves it named.
+- **A launch without a chat leaves no folder.** At shutdown `LogSession.finish()` drops what was held, unless the app log has a warning or error (a module failed, `Startup failed`): then that log is appended to `logs/no-chat.log` under a `--- <start time>: no chat ---` line. If the app is killed before any message, nothing is kept.
+- **Not in a session folder:** `logs/no-chat.log`, and `logs/relaunch.log`, written by `scripts/relaunch.ps1` outside the app. Old session folders are kept, with no automatic cleanup.
+
+```mermaid
+sequenceDiagram
+    participant M as __main__
+    participant L as LogSession
+    participant A as App and modules
+    M->>L: LogSession("logs"), nothing on disk
+    M->>A: config with sinks
+    A->>L: log and transcript lines, held in memory
+    A-->>M: SessionTheme("session log folders")
+    M->>L: set_theme(...) creates logs/2026-10-26_03-06-52_session-log-folders/, writes what was held
+    A->>L: later lines go straight to the files
+    Note over L: no theme by shutdown: finish() keeps only warnings, in logs/no-chat.log
+```
 
 ## Adding, replacing, or removing a module
 
@@ -246,7 +273,9 @@ Each module:
 
 Contracts grow as needed. Add a new capability interface when a real module needs it, not in anticipation. The interfaces named above are a starting point, not a fixed list.
 
-1. Create `src/assistant/modules/<name>/` with a `Module` subclass. Import only from `assistant.contracts` and `assistant.infra`.
+Before writing a helper for it, check the [reusable parts index](../api/reusable.md) ([principle 13](principles.md)); after building, add any new reusable part there and update the **Used by** lines of the parts it uses. Permissions it needs go in its manifest and are asked through `ctx.permissions` ([permissions](permissions.md)). A module that launches its own app follows the [companion app checklist](reusable-parts.md#companion-app-checklist).
+
+1. Create `src/assistant/modules/<name>/` with a `Module` subclass. Import only from `assistant.contracts`, `assistant.infra`, and `app_kit`.
 2. Add the class to `MODULES` in `src/assistant/__main__.py`.
 3. Add its id to `modules.enabled` in config.
 
@@ -259,5 +288,5 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
 .\.venv\Scripts\python -m assistant      # type a line; `exit` to quit
 .\.venv\Scripts\python -m pytest
-.\.venv\Scripts\python scripts\build_docs.py   # regenerate docs/html/ after editing docs
+.\.venv\Scripts\python scripts\build_docs.py   # regenerate docs/html/ and docs/html-next-steps/ after editing docs
 ```

@@ -2,7 +2,7 @@
 
 How the two agents are spawned, how each behaves on its own, and how they talk to each other, down to the classes. Back to [Agents](README.md). The contracts are on the [architecture page](../architecture/agents.md#task-agents) and the [Agents API page](../api/agents.md).
 
-> **Status: built (2026-10-25).** Run it with `.\.venv\Scripts\python -m assistant`. Code: `src/assistant/modules/{talker,main_assistant,agent_hub,assistant_view}/` and `src/assistant/infra/{claude_session,session_agent}.py`.
+> **Status: built (2026-10-25).** Run it with `.\.venv\Scripts\python -m assistant`. Code: `src/assistant/modules/{talker,main_assistant,agent_hub,assistant_view}/` and `src/assistant/infra/{claude_session,session_agent}.py`. The [HTML viewer](../architecture/html-viewer.md) (built 2026-10-27) is its own app (`src/html_viewer`) that the app starts through the thin `html_viewer` module; see [HTML viewer](#html-viewer) below. The Main Assistant's [permission mode](#permission-mode) (Manual or Auto, built 2026-11-02) is switched from the temp UI.
 
 ## What runs
 
@@ -20,7 +20,7 @@ flowchart LR
         View["assistant_view"]
     end
     TC["<b>claude -p</b><br/>Talker session<br/>sonnet, no tools"]
-    MC["<b>claude -p</b><br/>Main Assistant session<br/>file tools, workspace/"]
+    MC["<b>claude -p</b><br/>Main Assistant session<br/>all tools, the repo"]
     VW["<b>Terminal 2</b><br/>viewer script<br/>(new console window)"]
 
     You -- types --> Console
@@ -35,10 +35,58 @@ flowchart LR
 |---------|------------|---------|
 | The app | You | `python -m assistant` |
 | Talker session | `talker` module, in `start` | `claude -p --input-format stream-json --output-format stream-json --verbose --strict-mcp-config --model sonnet --tools "" --append-system-prompt <talker prompt>` |
-| Main Assistant session | `main_assistant` module, in `start` | `claude -p … --strict-mcp-config --tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits --append-system-prompt <worker prompt>`, working directory `workspace/`. `acceptEdits` approves writes inside the working directory only; others are refused, since nobody can approve them |
-| Terminal 2 | `assistant_view` module, in `start` | `python -m assistant.modules.assistant_view.viewer` in a new console window, its stdin a pipe from the app. It writes to its own window (`CONOUT$`), because its inherited stdout is terminal 1. Windows only for now |
+| Main Assistant session | `main_assistant` module, in `start`; a fresh one for each task and each handoff ([below](#fresh-sessions-and-handoffs)) | **Manual** (the default): `claude -p … --strict-mcp-config --tools default --permission-mode acceptEdits --allowedTools <read/write rules, allowed commands> --permission-prompt-tool stdio --append-system-prompt <worker prompt + its access>`, working directory the repo. Allowed: every file in the repo ([permissions](README.md#permissions)) and the `allowed_commands` (the tests, `ruff`, the docs build), as `PowerShell(<command>)` and `PowerShell(<command> *)` rules; any other shell command is asked of you. **Auto:** the same, but `--permission-mode bypassPermissions`, plus `--disallowedTools "PowerShell(git push)" "PowerShell(git push *)" "Bash(git push)" "Bash(git push *)"` (separate arguments), and the risky-step rule in the prompt ([Permission mode](#permission-mode)). The command is built by `build_command(config, workspace, mode)` and read again at every session start. Its `debugger` subagent (`.claude/agents/debugger.md`, sonnet) runs inside this process under the same rules: its permission requests reach you the same way |
+| HTML viewer (not drawn above) | `html_viewer` module, on the first file shown, not in `start`. One you started yourself is used and left running | `python -m html_viewer --port 8766 --window app --profile <its Edge profile> --generated docs/html …`: the standalone viewer app, an HTTP server plus its own Edge app window (with a DevTools port on 127.0.0.1, for snip). Stopped (`POST /api/quit`, then killed) when the app stops |
+| Terminal 2 (off by default; the [temp UI](#temp-ui) replaces it) | `assistant_view` module, in `start` | `python -m assistant.modules.assistant_view.viewer` in a new console window, its stdin a pipe from the app. It writes to its own window (`CONOUT$`), because its inherited stdout is terminal 1. Windows only for now |
 
-Each command line is built by [`claude_command`](../api/infra.md#claude_command); the model, tools, permission mode, and workspace come from `[modules.talker]` and `[modules.main_assistant]` in `config/default.toml`.
+Each command line is built by [`claude_command`](../api/infra.md#claude_command); the model, tools, permission mode, and workspace come from `[modules.talker]` and `[modules.main_assistant]` in `config/default.toml`. Each session also writes a **transcript** of every line in and out: `talker.jsonl` and `main_assistant.jsonl` in the launch's log folder, `logs/<start time>_<theme>/`, next to `assistant.log` ([Logging](../architecture/core.md#logging)). The Talker supplies the theme from your first question (`<<THEME: ...>>` in its first reply, published as `SessionTheme`).
+
+## Temp UI
+
+> **Temporary.** A throwaway stand-in until a real **UI handler** and its UI configurations are designed, in a conversation of their own (an [open decision](../architecture/decisions.md#open-decisions)). Kept small so it's easy to throw away; don't build on it.
+
+The `temp_ui` module serves a local web page at `http://127.0.0.1:8765/`: the **Main Assistant's** activity on the left (its text, tool calls, task updates, and an idle / working / waiting badge), the **Talker** conversation on the right (with an input box). Terminal 1 still works alongside it; type `exit` there to quit.
+
+It opens in its own window using Edge's app mode (`msedge --app=URL`: no tabs or address bar). Set `[modules.temp_ui] window` to `"browser"` for a normal tab, or `"none"` to open nothing. Without Edge it falls back to a tab. Closing the window doesn't stop the app. The window runs on its own Edge profile (`window_profile`, default `%LOCALAPPDATA%\AI_Assistant\temp_ui_window`), so it's separate from your normal Edge and the app can close it.
+
+```mermaid
+flowchart LR
+    Browser["<b>Page in its own window</b><br/>Main Assistant | Talker"]
+    UI["<b>temp_ui</b> module<br/>stdlib HTTP server"]
+    Bus["<b>EventBus</b>"]
+
+    Browser -- "POST /say" --> UI
+    UI -- "publish InputReceived" --> Bus
+    Bus -- "InputReceived, ResponseReady,<br/>TaskUpdated, AgentActivity,<br/>AgentStateChanged, PermissionModeChanged" --> UI
+    UI -- "GET /events (Server-Sent Events)" --> Browser
+```
+
+- It's an ordinary module: it publishes `InputReceived`, sends `AnswerPermission` and `SetPermissionMode`, and listens to events, so nothing else knows it exists.
+- **Permission requests** show in the Talker pane, in line with the conversation, as a card with **Allow** / **Deny** (`POST /permission`). Answering the Talker in words instead settles the card too. The Main Assistant pane only logs the request and its answer, with no buttons ([change note](../next-steps/permission-on-talker-side.md)).
+- **Permission mode toggle (a stand-in):** `Main Assistant: Manual | Auto` in the Talker pane's header sets what the Main Assistant may do (`POST /permission-mode` → `SetPermissionMode`). Its tooltip and code comment mark it as a stand-in until the control panel or chat window. Switching to Auto first shows a confirm dialog: full permissions except `git push`, the Main Assistant pauses before risky steps on its own judgment only, and this is not a guarantee. Switching back to Manual is one click. While Auto is on, the Talker pane's header turns amber and reads "Main Assistant: AUTO, no permission prompts", and the worker pane shows an `AUTO` tag; a switch that waits says "(from the next task)". Each `PermissionModeChanged` is logged as a `note` line in both panes. The current mode is a "current state" item, so a reconnect shows it like the usage meters.
+- **Risky-step card:** in Auto, a `need` whose text starts with `Risky:` shows in the Talker pane as an amber card, "⚠ Risky step, paused: …", with **Go ahead** / **Don't**. The buttons send "Go ahead" or "Don't do it" through `/say`, the same as typing it. The worker pane logs "paused: risky step".
+- **Logs** button in the header opens the current session's log folder in Explorer, or `logs/` before your first message, when the folder doesn't exist yet (`POST /open-logs`; `__main__` sets `logs_dir` to `LogSession.folder`).
+- **Relaunch, one window:** `/events` starts with a `hello` carrying the launch's id. On reconnect, the same id means a network drop (the page clears and the history replays); a new id means the app was relaunched. In app mode the new app has already closed the old window at startup (any Edge process on the window's profile), then opens a fresh one. Otherwise the old page tries `window.close()`; if the browser refuses (a normal tab), it says the session ended instead. The app also closes its window when it stops.
+- On (re)connect the page gets the last 500 items replayed, so a refresh loses nothing recent.
+- **Open in viewer:** an HTML file path in a Talker message gets an **Open in viewer** button under it. Clicking it sends `InvokeTool viewer.open` with `front: true` (`POST /open-in-viewer`): the viewer window comes to the front, or opens again if you closed it. Without the `html_viewer` module the button says it couldn't open. A bare file name resolves against the app's folder, which is why the Talker always writes full paths.
+- **Snips:** a snip from the HTML viewer (`ViewerClip`) shows as a thumbnail above the input until your next message, which takes it to the Talker. Up to 3; × drops one (`ViewerClipDropped`).
+- **Usage and Reset:** the header shows the worker's and the Talker's usage side by side, live ([`SessionUsage`](../api/agents.md#sessionusage)): `Worker context 145k · used 2.3M · ~$5.10`, the same for the Talker. Context turns amber from 100k; hovering shows the split of used tokens. Each pane's **Reset** button (`POST /reset`) publishes [`ResetRequested`](../api/agents.md#resetrequested): the Talker starts fresh but keeps its last few exchanges; the worker resets at once when idle, or writes a handoff and carries on fresh mid-task.
+- The window code (Edge app mode on its own profile): [`app_kit.window`](../api/app_kit.md#window), shared with the HTML viewer. SHOW tags, the Talker's tags, and `NEED:` / `HANDOFF:` lines are read with the shared [`agent_tags`](../api/infra.md#agent_tags). Both prompts point the agents at the [reusable parts index](../api/reusable.md).
+- Code: `src/assistant/modules/temp_ui/` (`module.py`, `page.html`). Config: `[modules.temp_ui]` (`port`, `window`).
+
+## HTML viewer
+
+HTML files opened through the chat open in the [HTML viewer](../architecture/html-viewer.md), never in your default browser.
+
+| Who | How |
+|-----|-----|
+| You, in the chat | Click **Open in viewer** under an HTML path in a Talker message; the viewer comes to the front |
+| The Talker | Writes the **full absolute path** (never a bare file name), so the button shows and works; when you ask it to open a file now, `<<SHOW: path>>` → `InvokeTool viewer.open`; to point at a part, `<<SHOW: path \| "quoted text" \| heading>>` → `viewer.highlight`. The tag is stripped from the reply, so the Talker adds its path back if the reply doesn't have it, and the button still shows |
+| The Main Assistant | Can't call app tools: writes the same `<<SHOW: ...>>` forms on their own line. The `html_viewer` module reads them in `AgentActivity` and calls `viewer.open` or `viewer.highlight` |
+
+**Focus:** pages an agent opens on its own (SHOW tags: quick checks, debugging) open in the viewer but stay in the background. Only your click on an Open in viewer button brings the viewer to the front.
+
+The `html_viewer` module starts the viewer app on the first request, follows its event stream, and publishes `ViewerTabsChanged` (tabs and highlights) and `ViewerClip` (snips). The Talker doesn't take a turn for either: it hears `[Viewer] open: <paths>; highlighted: ...` before your next message, and gets waiting snips as images with that message, each with a `[Viewer] snip from <file>, near "<heading>"` line, so "what is this?" is enough.
 
 ## Launched from the main app
 
@@ -46,7 +94,7 @@ Everything below runs in one Python process, on one `asyncio` event loop (plus `
 
 ```mermaid
 flowchart TB
-    Run(["python -m assistant"]) --> Main["<b>__main__.main()</b><br/>load_config · setup_logging"]
+    Run(["python -m assistant"]) --> Main["<b>__main__.main()</b><br/>load_config · LogSession · setup_logging"]
     Main --> AppNew["<b>App(MODULES, config)</b><br/>builds CommandRouter, EventBus, Container<br/>resolve_modules → start order<br/>LifecycleManager"]
     AppNew --> AppRun["<b>asyncio.run(app.run())</b>"]
     AppRun --> AppStart["<b>App.start()</b><br/>registers the core's own handlers<br/>(ListModules, ActivateModule, …)"]
@@ -176,13 +224,13 @@ sequenceDiagram
     Note over L: init, in dependency order
     L->>C: init: subscribe ResponseReady
     L->>M: init: build ClaudeSession + SessionTaskAgent, provide ITaskAgent
-    L->>H: init: handle StartTask, SendToTask, CancelTask, GetTaskStatus, ReportTask, ListAgents
-    L->>T: init: build ClaudeSession, subscribe InputReceived + TaskUpdated
+    L->>H: init: handle StartTask, SendToTask, CancelTask, GetTaskStatus, ReportTask, ListAgents, AnswerPermission, SetPermissionMode
+    L->>T: init: build ClaudeSession, subscribe InputReceived + TaskUpdated + PermissionModeChanged
     L->>V: init: subscribe AgentActivity, AgentStateChanged, TaskUpdated
 
     Note over L: start, same order
     L->>C: start: read terminal 1
-    L->>M: start: launch its claude (instant, ~6 s until it can first reply)
+    L->>M: start: launch its claude in Manual (instant, ~6 s until it can first reply)
     L->>H: start: nothing to launch
     L->>T: start: launch its claude (kept warm), start its inbox loop
     L->>V: start: open terminal 2
@@ -190,7 +238,7 @@ sequenceDiagram
 
 - **Order:** `main_assistant` provides `ITaskAgent` and the Hub lists it as optional, so the agent starts before the Hub. `talker` and `assistant_view` depend on nothing; they only send commands and listen to events. The diagram shows one valid order; the actual one is `console_io, main_assistant, talker, assistant_view, agent_hub`.
 - **Stop** runs in reverse, so the Hub stops first: reports an agent sends while shutting down are refused (logged as warnings, harmless). Each session closes its `claude` process: stdin closed, then killed if it hasn't exited within the stop timeout. Terminal 2 is closed.
-- **Runtime control:** deactivating `main_assistant` ends its process; the Hub sees no agents and `StartTask` returns `not_available`. Activating it again starts a fresh session (no memory of before).
+- **Runtime control:** deactivating `main_assistant` ends its process; the Hub sees no agents and `StartTask` returns `not_available`. Activating it again starts a fresh session (no memory of before), back in Manual.
 
 ## Classes
 
@@ -202,6 +250,7 @@ classDiagram
         +start()
         +send(text)
         +interrupt()
+        +set_permission_mode(mode)
         +close()
         +running bool
         +working bool
@@ -213,10 +262,12 @@ classDiagram
         +assign(task) Result
         +message(task_id, text, resume) Result
         +cancel(task_id) Result
+        +answer_permission(allow) Result
+        +set_permission_mode(mode) Result
     }
     class SessionTaskAgent {
         <<infra>>
-        task, mode
+        task, mode, permission_mode
     }
     class MainAssistantModule { <<module>> }
     class TalkerModule {
@@ -240,11 +291,11 @@ classDiagram
 
 The core's lifecycle manager starts all of these modules, and none of them launches another. In the diagram, the arrow with a hollow head means "implements", a plain arrow means "holds and uses", and the dotted arrow means "looks up through the Container".
 
-`ClaudeSession` runs one `claude` process. It knows nothing about tasks or the Talker: it writes messages and interrupts, calls `on_event` for every JSON line, and sets `working` from "message sent" until `result`. `SessionTaskAgent` lives in `infra` too, not in the `main_assistant` module, so a later subagent module can reuse it without importing another module's internals ([principle 3](../architecture/principles.md)).
+`ClaudeSession` runs one `claude` process. It knows nothing about tasks or the Talker: it writes messages and interrupts, calls `on_event` for every JSON line, and sets `working` from "message sent" until `result`. Its command can be a callable, read on every `start`, so each new session gets the current permission mode's flags. `SessionTaskAgent` lives in `infra` too, not in the `main_assistant` module, so a later subagent module can reuse it without importing another module's internals ([principle 3](../architecture/principles.md)).
 
 The Talker and the Main Assistant are both LLM agents. Each has its own `ClaudeSession`, so each runs its own `claude` process with its own model, prompt, and tools. What differs is their role, and the diagram shows it by which one implements `ITaskAgent`:
 
-- `MainAssistantModule` is the worker. In `init` it builds a `ClaudeSession` and a `SessionTaskAgent`, and registers the agent with the Container as an `ITaskAgent`. `SessionTaskAgent` turns the Hub's calls (`assign`, `message`, `cancel`) into messages for its session, and the session's results into reports.
+- `MainAssistantModule` is the worker. In `init` it builds a `ClaudeSession` and a `SessionTaskAgent`, and registers the agent with the Container as an `ITaskAgent`. `SessionTaskAgent` turns the Hub's calls (`assign`, `message`, `cancel`, `set_permission_mode`) into messages for its session, and the session's results into reports.
 - `TalkerModule` talks with you and takes no tasks, so it doesn't implement `ITaskAgent`. When something needs doing, it hands the task to the Hub with a command (`StartTask`, `SendToTask`, …) and hears back through `TaskUpdated` events. Commands and events travel through the core, so they aren't drawn here; they're in [Messaging to and from the main app](#messaging-to-and-from-the-main-app).
 - `AgentHubModule` holds no reference to any agent module. It asks the Container for every `ITaskAgent` and calls the ones it gets back. A future subagent is one more module that provides `ITaskAgent`, and the Hub finds it without any change.
 - `AssistantViewModule` only listens to events, so it has no arrows.
@@ -259,7 +310,21 @@ The Talker is a conversation loop with one **inbox**. Everything that should mak
 | Task update: `done`, `need`, `reply`, `failed` | `TaskUpdated` | `[Task update: done] <text>` |
 | Command result worth telling | its own tags (e.g. `StartTask` refused, `GetTaskStatus`) | `[Status] <text>` |
 
+`ViewerTabsChanged` isn't an inbox item: the Talker keeps the latest and puts `[Viewer] open: <paths>` before your next message. `PermissionModeChanged` for the worker works the same way: `[Mode] worker: auto (from the next task)` goes before your next message, once. Its prompt says the worker starts in Manual at every launch, so it knows the mode, can tell you, and mentions Auto when it hands over a task. A `need` starting with `Risky:` means the worker, in Auto, paused before a risky step: the Talker says so plainly and passes your answer on with `ASK`.
+
+**Usage, always in view.** The Talker is the real interface (voice, glasses later), so it knows both sessions' usage without asking anyone. It keeps the worker's latest [`SessionUsage`](../api/agents.md#sessionusage), reads its own from its session, and puts both, kept apart, before each of your messages:
+
+    [Usage] worker: context 145k, used 2.3M (~$5.10) · you: context 24k, used 0.4M (~$0.30)
+
+"How full are you?" or "what has this cost?" is answered from that line, about either session or both. When either context passes `context_warning` (150k), a `[Status]` tells it once, so it tells you in a sentence and offers a reset; it warns about that session again only after its context has come back under (a reset or a fresh session) and passed the threshold again.
+
 `progress` updates don't go to the inbox: they'd make it chatter. The Hub keeps them and they come back when you ask "how's it going?".
+
+**Peek, don't interrupt.** Every message to the running task interrupts it and costs it a full step at its whole context, plus the automatic "continue". So questions about what it's doing ("what's going on?", "why is it editing that?") are a `LOOK`: the `[Status]` carries the task's last 15 activity lines (its text, and tool calls with their file or command, from [`TaskInfo.activity`](../api/agents.md#taskinfo)). `ASK` is only for answering its question or changing what it does, and never just to say "continue".
+
+**One change per task.** A new request gets its own `WORK` once the running task is done; it isn't folded into the running task with `ASK`, which is what let one task grow to four features and 273k tokens of context (the 2026-10-27 logs). If you ask for new work while a task runs, the Talker says what's running and what pausing or cancelling it would leave unfinished, and you choose: wait, pause it, or cancel it.
+
+**Reset.** `ResetRequested("talker")` (the temp UI's Reset button, or `<<RESET: talker>>`) goes into the inbox, so it happens between turns: the session restarts, and the next message to it starts with `[Context] Your session was just reset…` and the last few exchanges.
 
 ```mermaid
 flowchart TB
@@ -278,12 +343,18 @@ flowchart TB
 | Tag | Hub command |
 |-----|-------------|
 | `<<WORK: task>>` | `StartTask(task, context)`, context = the last few exchanges |
-| `<<LOOK>>` | `GetTaskStatus()`; the result comes back as a `[Status]` item |
+| `<<LOOK>>` | `GetTaskStatus()`; the result, with recent activity, comes back as a `[Status]` item |
+| `<<RESET: talker \| worker>>` | Not a Hub command: publishes `ResetRequested` for itself or the worker, only when you ask |
 | `<<ASK: text>>` | `SendToTask(text, resume=true)`: a question, extra instruction, or your answer to a NEED |
 | `<<PAUSE: text>>` | `SendToTask(text, resume=false)` |
 | `<<CANCEL>>` | `CancelTask()` |
+| `<<ALLOW>>` / `<<DENY>>` | `AnswerPermission(allow=…)`, only after you've said yes or no to a `permission` update |
+| `<<MODE: manual>>` | `SetPermissionMode(worker, manual)`, when you ask to switch the Main Assistant back to Manual. Manual only: any other mode is refused with a `[Status]` saying only you switch to Auto, with the button |
+| `<<SHOW: path>>` | Not a Hub command: `InvokeTool viewer.open(path)`, opening an HTML file in the [HTML viewer](#html-viewer), only when you ask it to open one |
+| `<<SHOW: path \| "quote" \| heading>>` | Not a Hub command: `InvokeTool viewer.highlight(path, text, heading)`, opening the file and highlighting the quoted part, when it's talking about one part of a page. If the quote isn't on the page, a `[Status]` says so |
+| `<<THEME: words>>` | Not a Hub command: in the reply to your first message, up to five words about it, published once as `SessionTheme` for the [log folder](../architecture/core.md#logging) name. Without it, the first words of your message are used |
 
-**Talker prompt, in short:** you're the voice of a personal assistant; keep replies short and conversational; you can't do work yourself, so hand anything substantial over with `WORK`; never claim work is done until a `[Task update: done]` arrives; infer from context whether the user means continue, pause, or cancel, and never ask them for keywords.
+**Talker prompt, in short:** you're the voice of a personal assistant; keep replies short and conversational; you can't do work yourself, so hand anything substantial over with `WORK`; never claim work is done until a `[Task update: done]` arrives; infer from context whether the user means continue, pause, or cancel, and never ask them for keywords. You and the Main Assistant are one assistant to the user. It also gets the facts about the system: what the Main Assistant can read and write, that nobody can grant permissions by chat, the worker's permission mode (Manual at launch; only the user switches to Auto), and where the logs are. It must not state anything about the system beyond those facts. HTML files always open in the HTML viewer: it writes the path (the chat shows an Open in viewer button) and never offers or asks for the default browser. A `[Viewer] snip` line means an image of part of a page is attached; it answers about the image, and hands real work on it to the Main Assistant with the snip's path.
 
 ## The Main Assistant on its own
 
@@ -314,16 +385,53 @@ stateDiagram-v2
   - every `assistant` text or tool call → `AgentActivity` (terminal 2)
   - a text note mid-turn → `ReportTask(progress)`
   - `working` / `busy` changes → `AgentStateChanged`
+  - every call (and each turn's result) → [`SessionUsage`](../api/agents.md#sessionusage), when the numbers changed
 
-**Worker prompt, in short:** you're the Main Assistant doing tasks handed to you; work only in your folder; before each major step write one short progress line; if you need a decision from the user, stop and end your turn with a last line `NEED: <question>`; when finished, end with a short summary of what you did.
+### Fresh sessions and handoffs
+
+Every call resends the session's whole conversation, so the cost of a step grows with everything before it. On 2026-10-27 one task carried four features and grew from 39k to 273k tokens a call. So:
+
+- **A fresh session per task** (`fresh_sessions = true`): `assign` closes a used session and starts a new one, back at the fixed ~31k (system prompt and tools). The task text and its change note in `docs/next-steps/` carry what it needs; decisions live in the docs, not in an old conversation.
+- **Handoffs inside a task:** the prompt asks it to judge whether a task holds separate, big parts. If so, after each part it updates the docs, writes what's done and next into the change note, and ends with `HANDOFF: <note>`. The agent closes the session, starts a fresh one, and sends `Task, continued in a fresh session: <text> … read the handoff in <note> first`. Same task id, so the Hub and Talker see a `progress` report, not a new task. After `max_handoffs` (3) in one task it asks you (`need`) instead.
+- **Reset** ([`SessionTaskAgent.reset`](../api/infra.md#sessiontaskagent), from `ResetRequested`): idle, the session closes now; mid-task, it gets a message asking for a handoff note, and its `HANDOFF:` reply hands off as above.
+- **Debugging and broad searches** go to the `debugger` subagent (Claude Code's own subagents, `.claude/agents/debugger.md`, sonnet): it loops in its own small context and returns only the cause, the fix, and the proof. It runs inside the Main Assistant's process, so the Hub doesn't see it as a task; stopping the Main Assistant stops it too.
+
+```mermaid
+stateDiagram-v2
+    working --> restarting: result ends with HANDOFF (under max) → report progress
+    replying --> restarting: reply ends with HANDOFF (asked to reset)
+    restarting --> working: fresh session → send "continued… read <note>"
+    working --> waiting: HANDOFF after max handoffs → report need
+```
+
+### Permission mode
+
+The Main Assistant runs in one of two [`PermissionMode`](../api/agents.md#permissionmode)s. The mode lives in memory in `SessionTaskAgent`, and every launch starts in **Manual**: it isn't saved.
+
+| Mode | What it does | `claude` flags |
+|------|--------------|----------------|
+| **Manual** (default) | Edits in the repo and the allowed commands run without asking; everything else shows an Allow / Deny card | `--permission-mode acceptEdits`, the `--allowedTools` standing rules, `--permission-prompt-tool stdio` |
+| **Auto** | Full permissions, no cards, except `git push`, which is refused. It pauses on its own before very risky steps | `--permission-mode bypassPermissions`, `--disallowedTools` with `git push` and `git push *` for PowerShell and Bash, the same standing rules and prompt tool, plus the risky-step rule in its prompt |
+
+- **Who switches:** `SetPermissionMode(agent_id, mode)` goes to the Agent Hub, which calls the agent's `set_permission_mode` and publishes `PermissionModeChanged(agent_id, mode, applies)`. Only you switch to Auto, with the temp UI's toggle. The Talker can only switch back to Manual (`<<MODE: manual>>`), and the Main Assistant has no route to the command.
+- **When it takes effect** (`applies`):
+  - **idle:** `now`. The next session's command is built for the new mode, since `ClaudeSession` reads its command on every start.
+  - **to Auto while a task runs:** `next_task`, the next task or the next handoff session, because the risky-step rule lives in the session's prompt, which is fixed at start.
+  - **to Manual while a task runs:** `now` if the running session is in Auto, through the `set_permission_mode` control request (`acceptEdits`). If Auto was still waiting for the next task, the session is already in Manual and nothing is sent. If the request fails, it's `next_task`.
+- **Risky steps in Auto:** the prompt tells it to end its turn with `NEED: Risky: <what and why>` before deleting data beyond the task, rewriting git history, changing secrets or settings, installing or removing packages, spending money or calling a paid service, sending anything outside the machine, or anything else hard to undo, and to ask when unsure. It reuses the normal `need` path; your answer continues the task through `SendToTask`. This rests on the model's judgment, not a hard stop.
+- **The one hard limit:** the `git push` block holds under `bypassPermissions` with no prompt (checked against the real `claude`, 2026-11-02). It only catches a direct `git push`, not `git -C x push` or a script that pushes.
+
+**Worker prompt, in short:** you're the Main Assistant doing tasks handed to you; you and the Talker are one assistant to the user; your exact access is listed (built from config: folders and the allowed commands, by mode: in Manual, if a task needs more, just use the tool and you're asked; in Auto, full permissions except `git push`, plus the risky-step rule above); before each major step write one short progress line; if you need a decision from the user, stop and end your turn with a last line `NEED: <question>`; when finished, end with a short summary of what you did; every step resends the whole conversation, so batch reads and edits, split separate big parts across handoffs (`HANDOFF: <note>`), and keep decisions in the docs; hand debugging loops and broad searches to the `debugger` subagent; to show the user an HTML file, write `<<SHOW: full path>>` on its own line, never open it in the default browser.
 
 **Messages it sends to its session:**
 
 | When | Text |
 |------|------|
-| New task | `New task: <text>` plus `Context: <context>` |
+| New task (in a fresh session) | `New task: <text>` plus `Context: <context>` |
 | Mid-task message | `[The user interrupted your task with a message. Answer it briefly; you'll be told when to continue.] <text>` |
 | Continue | `Continue the task from where you left off.` |
+| After a handoff (in a fresh session) | `Task, continued in a fresh session: <text>` … `wrote a handoff in <note>. Read it first…` plus `Context: <context>` |
+| Reset mid-task (as a mid-task message) | `The user asked to reset your session. … end with the line HANDOFF: <that note's path>.` |
 | Answer to NEED, or resume from pause | the text as is |
 
 ## Talking to each other: a whole conversation

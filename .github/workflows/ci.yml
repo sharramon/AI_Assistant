@@ -37,11 +37,11 @@ jobs:
       - name: Lint
         run: python -m ruff check src tests scripts
       - name: Docs HTML matches the Markdown
-        # Fails if docs/**/*.md changed without rebuilding docs/html.
+        # Fails if docs/**/*.md changed without rebuilding docs/html and docs/html-next-steps.
         run: |
           python scripts/build_docs.py
-          git add -N docs/html
-          git diff --exit-code --stat docs/html || {
-            echo "::error::docs/html is out of date. Run: python scripts/build_docs.py and commit the result."
+          git add -N docs/html docs/html-next-steps
+          git diff --exit-code --stat docs/html docs/html-next-steps || {
+            echo "::error::docs/html or docs/html-next-steps is out of date. Run: python scripts/build_docs.py and commit the result."
             exit 1
           }

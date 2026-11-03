@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML viewer</title>
+<!-- Generated from docs/architecture/html-viewer.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/html-viewer.html"></nav>
+<main>
+<h1 id="html-viewer">HTML viewer</h1>
+<blockquote>
+<p><strong>Status: built (2026-10-27), its own app.</strong> Tabs, double-click to edit, save, undo; write-back to Markdown, highlights, and snip. It's a standalone app (<code>src/html_viewer</code>) that the main app launches through the thin <code>html_viewer</code> module. What was built and where it differs from the plan: <a href="#as-built-v1">As built</a>. Highlight-to-ask is not built. Change notes: base viewer, write-back, highlight, snip, own app.</p>
+</blockquote>
+<p><strong>Asked:</strong> "A html viewer. Whenever you want me to view a html file for these edits, I want you to give me a link in the talker chat I can click on. The module itself is a html viewer that can take any html and I can view it." Then: any HTML, especially flowcharts and diagrams like our docs; tabs, with a running tally of what's open that the Talker knows; later, the assistant scrolls to and highlights what it wants to talk about; later (or early if easy), you snip a region as an image or highlight part of a page and hand it to the assistant.</p>
+<p><strong>Why:</strong> the assistant makes and edits HTML (the docs, diagrams, change notes), but today you have to find the file and open it yourself, and the assistant doesn't know what you're looking at.</p>
+<p><strong>What it touches:</strong></p>
+<ul>
+<li>The viewer app <code>src/html_viewer/</code> (<code>viewer.py</code>, <code>document.py</code>, <code>markdown_source.py</code>, <code>highlight.py</code>, <code>snip.py</code>, <code>page.html</code>, with its window from the shared <code>app_kit.window</code>), which doesn't import the assistant.</li>
+<li>The thin module <code>src/assistant/modules/html_viewer/module.py</code>, with config <code>[modules.html_viewer]</code>.</li>
+<li>Events in <code>src/assistant/contracts/</code>: <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code>.</li>
+<li><code>talker</code> (the <code>&lt;&lt;SHOW: ...&gt;&gt;</code> tag, the open-tabs tally, snips with your next message) and <code>main_assistant</code> (its prompt).</li>
+<li><code>temp_ui</code> (the "Open in viewer" button; snip thumbnails above the input).</li>
+<li>Docs: <a href="../agents/runtime.html">runtime</a>, the <a href="../api/index.html">API</a>, the <a href="index.html#parts">overview</a>, <a href="decisions.html">decisions</a>.</li>
+</ul>
+<h2 id="scope">Scope</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>First version</strong></td>
+<td>Open any HTML file in a tab of one viewer window. The Talker offers an "Open in viewer" button in the chat; you click it and the file opens in a new tab (or the viewer window opens first). Tabs can be closed and switched. The viewer keeps the list of open tabs, and the Talker sees it. Diagrams work as in <code>docs/html</code> (Mermaid, the click-to-zoom view)</td>
+</tr>
+<tr>
+<td><strong>After the architecture is settled</strong></td>
+<td><strong>Highlight to ask:</strong> select text in a page, click "Ask about this", and the Talker gets the text, the file, and the nearest heading</td>
+</tr>
+<tr>
+<td><strong>Built 2026-10-27</strong></td>
+<td><strong>Write-back to Markdown for built pages:</strong> saving a text edit in a page built from Markdown writes it into the source Markdown too, matched by text (note). Converting a whole HTML page back to Markdown is rejected because it rewrites the whole file and loses detail. <strong>Highlight</strong> (was "point at a section"): the assistant opens a page and highlights a quoted part; you clear it by clicking it (note). <strong>Snip:</strong> a button, then drag a box; Edge screenshots it, and the image goes to the Talker with your next message (note). See <a href="#as-built-v1">As built</a></td>
+</tr>
+<tr>
+<td><strong>Later</strong></td>
+<td>Highlights inside diagrams (Mermaid nodes); a label on a highlight</td>
+</tr>
+</tbody>
+</table>
+<h2 id="architecture-state-commands-view">Architecture: state, commands, view</h2>
+<blockquote>
+<p>Added after you asked for double-click editing, saving, and undo (Ctrl+Z and a button on top). Version 1 is built on it; see <a href="#as-built-v1">As built (v1)</a>.</p>
+</blockquote>
+<p>The same split document editors and game editors like Unity's use: <strong>data, commands, and view stay separate.</strong></p>
+<ul>
+<li><strong>Document state is the center.</strong> It's the real data of an open file, like game state or a scene graph: the page's content, plus what's selected. The view only draws the state; it never owns it.</li>
+<li><strong>Commands are the only way to change the state.</strong> A command is a small object that says what to do and how to reverse it, like a recorded input. "Replace this paragraph's text" is one command.</li>
+<li><strong>Tools turn your clicks and selection into commands or read-only actions.</strong> One base <code>Tool</code> (a toolbar button, activate and deactivate, what it does on click or selection), with two kinds under it:</li>
+<li><strong>Viewer tools</strong> only read: highlight-to-ask, point, snip. They send events to the Talker and never change the state.</li>
+<li><strong>Edit tools</strong> change the document: double-click to edit is the first. They only ever produce commands.</li>
+<li><strong>Undo history is a stack of commands</strong>, one per tab. Ctrl+Z and the Undo button both pop it, so they can't disagree. Any edit tool added later gets undo for free.</li>
+<li><strong>Selection and anchors are part of the state.</strong> An anchor is a stable reference to a spot: the selected text plus its location (nearest heading, position). Highlight, point, snip, and edits all use it.</li>
+<li><strong>Saving is serialization</strong>, like a save game. A <strong>document handler</strong> per file type loads the file into state and writes the state back: HTML first, Markdown later. Each handler declares what it supports (<code>render</code>, <code>anchor</code>, <code>edit</code>, <code>save</code>), and a tool hides when the open file's handler can't do it.</li>
+<li><strong>Undo history lives in memory only</strong>, for as long as the tab is open. Saving doesn't clear it, so undo still works after a save. Redo, later, is cheap: it uses the same stack.</li>
+<li><strong>No permanent backups.</strong> As a safety net, each open tab keeps one temporary copy of the file as it was when opened, deleted when the tab closes.</li>
+</ul>
+<pre><code class="language-mermaid">flowchart LR
+    User([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;click · select · double-click&quot;])
+    subgraph Tools[&quot;Tools (one base Tool)&quot;]
+        VT[&quot;&lt;b&gt;Viewer tools&lt;/b&gt;&lt;br/&gt;highlight-to-ask · point · snip&quot;]
+        ET[&quot;&lt;b&gt;Edit tools&lt;/b&gt;&lt;br/&gt;double-click to edit&quot;]
+    end
+    Cmd[&quot;&lt;b&gt;Commands&lt;/b&gt;&lt;br/&gt;what to do + how to reverse it&quot;]
+    State[&quot;&lt;b&gt;Document state&lt;/b&gt;&lt;br/&gt;content · selection · anchors&quot;]
+    View[&quot;&lt;b&gt;View&lt;/b&gt;&lt;br/&gt;draws the state&quot;]
+    Undo[&quot;&lt;b&gt;Undo history&lt;/b&gt;&lt;br/&gt;stack of commands&lt;br/&gt;Ctrl+Z · Undo button pop it&quot;]
+    Handler[&quot;&lt;b&gt;Document handler&lt;/b&gt;&lt;br/&gt;per file type&lt;br/&gt;render · anchor · edit · save&quot;]
+    Disk[&quot;&lt;b&gt;File on disk&lt;/b&gt;&lt;br/&gt;+ temp copy of the original while the tab is open&quot;]
+    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
+
+    User --&gt; VT
+    User --&gt; ET
+    ET --&gt; Cmd
+    Cmd --&gt; State
+    Cmd --&gt; Undo
+    State --&gt; View
+    View --&gt; User
+    State --&gt; Handler
+    Handler --&gt; Disk
+    VT -- events --&gt; Talker
+</code></pre>
+<p><strong>Generated pages.</strong> Pages in <code>docs/html</code> and <code>docs/html-next-steps</code> are generated from the Markdown, and a rebuild overwrites them. The viewer lets you edit and save them, and saving writes your text edits back into the page's Markdown source, so a rebuild keeps them. Edits it can't place in the Markdown get a warning first that the next rebuild will overwrite them (see <a href="#as-built-v1">As built</a>).</p>
+<h2 id="how-it-fits-the-design">How it fits the design</h2>
+<ul>
+<li><strong>Its own app, with a thin module in the main app</strong> (decided 2026-10-27; see <a href="decisions.html#decided">decisions</a>). The viewer is a standalone app (<code>src/html_viewer</code>, <code>python -m html_viewer</code>) that doesn't import the assistant. The hooks go both ways: the main app calls its local HTTP API (open, highlight, tabs), and reads its event stream (tabs and highlights, snips). A thin <code>html_viewer</code> module in the main app starts it on the first show request, turns its events into app events, and stops it when the app shuts down. If you started the viewer yourself, the app connects to it and leaves it running.</li>
+<li><strong>An ordinary tool module, not an agent</strong> (<a href="agents.html">agents</a>: "browser, file, or 3D services can stay ordinary tool modules"). It's also one of the "very different modules" <a href="decisions.html#deliberately-deferred">decisions</a> waits for before adding machinery. When the <a href="decisions.html#open-decisions">UI handler</a> is designed, the viewer becomes one of its UIs. Until then it stands alone, so throwing away <code>temp_ui</code> doesn't touch it.</li>
+<li><strong>Reuses <a href="../api/tools.html#itoolprovider"><code>IToolProvider</code></a> / <a href="../api/tools.html#invoketool"><code>InvokeTool</code></a></strong> instead of new commands. Tools: <code>viewer.open(path)</code> opens the file in a tab (starting the viewer if needed); <code>viewer.highlight(path, text, heading?)</code> opens it and highlights a quoted part; <code>viewer.tabs()</code> lists what's open and its highlights. When agents can call app tools directly, they're already there.</li>
+<li><strong>New events only for what's new:</strong> <code>ViewerTabsChanged(tabs, active, highlights)</code> when a tab or a highlight changes; <code>ViewerClip(id, image_path, file, heading)</code> for a snip, and <code>ViewerClipDropped(id)</code> when you drop one before sending.</li>
+</ul>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant U as temp_ui (chat)
+    participant T as talker
+    participant V as html_viewer module
+    participant P as viewer app
+    T-&gt;&gt;U: ResponseReady: &quot;... docs/html/agents/runtime.html ...&quot;
+    Note over U: an HTML path: an Open in viewer button
+    You-&gt;&gt;U: click Open in viewer
+    U-&gt;&gt;V: InvokeTool viewer.open(path)
+    V-&gt;&gt;P: start it, if it isn't running
+    V-&gt;&gt;P: POST /api/open {path, front: true}
+    P--&gt;&gt;You: the file in a tab, the window in front (opened if none is showing)
+    P--&gt;&gt;V: event stream: tabs
+    V-&gt;&gt;T: ViewerTabsChanged
+    T-&gt;&gt;T: &quot;[Viewer] open: ...&quot; added before your next message
+</code></pre>
+<ul>
+<li><strong>The Main Assistant</strong> can't call tools in the app. It writes <code>&lt;&lt;SHOW: path&gt;&gt;</code> on its own line, or <code>&lt;&lt;SHOW: path | "quoted text" | heading&gt;&gt;</code> to highlight; the <code>html_viewer</code> module sees it in the agent's activity (<code>AgentActivity</code>) and calls <code>viewer.open</code> or <code>viewer.highlight</code>. The Talker uses the same tag. Both prompts say HTML files never open in the default browser.</li>
+<li><strong>To the front:</strong> your click on Open in viewer sends <code>front: true</code>. The viewer finds its Edge window (<code>raise_window</code> in <a href="../api/app_kit.html#window"><code>app_kit.window</code></a>, Windows only, ctypes), restores it if minimized, and brings it to the front, borrowing the input of the window in front (<code>AttachThreadInput</code>) because Windows keeps a background process from doing that. If the window is gone, it opens a new one at once. Pages an agent opens with SHOW don't take focus.</li>
+<li><strong>Full paths:</strong> the Talker always writes an HTML file's full absolute path. The button can't find a bare file name: it would look for it in the app's folder.</li>
+<li><strong>The viewer app:</strong> a stdlib HTTP server on <code>127.0.0.1:8766</code> in its own process. It opens in an Edge app-mode window on its own profile. Each tab is an <code>&lt;iframe&gt;</code> served from the viewer's own address (same origin), so the edit tool and highlights can reach into the page.</li>
+</ul>
+<h2 id="reuse-viewer-and-webview-options">Reuse: viewer and webview options</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Fit</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Edge app window + our page</strong> (what <code>temp_ui</code> does)</td>
+<td>No new dependency; renders anything Edge does; tabs are a little custom HTML</td>
+<td><strong>Recommended</strong> for the first version</td>
+</tr>
+<tr>
+<td><strong>pywebview</strong> (BSD; WebView2 on Windows)</td>
+<td>Native window with a Python ↔ JS bridge; tabs still custom; one more dependency</td>
+<td>Later, if the window should feel like an app</td>
+</tr>
+<tr>
+<td><strong>Electron / Tauri</strong></td>
+<td>Full apps; a second toolchain</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>mark.js</strong> (MIT)</td>
+<td>Highlighting text in a page</td>
+<td>Not needed: a few lines of our own do it</td>
+</tr>
+<tr>
+<td><strong>html2canvas / modern-screenshot</strong> (MIT)</td>
+<td>Snip inside the page; weak on some SVG and cross-origin images</td>
+<td>Not used</td>
+</tr>
+<tr>
+<td><strong>Edge DevTools protocol</strong> (<code>Page.captureScreenshot</code>)</td>
+<td>Pixel-exact snips of the viewer window; needs a debugging port on the viewer's own profile</td>
+<td><strong>Used</strong> for snip</td>
+</tr>
+<tr>
+<td><strong>Hypothesis client</strong> (BSD)</td>
+<td>Full annotation tool</td>
+<td>Too heavy for this</td>
+</tr>
+</tbody>
+</table>
+<p>No existing viewer combines tabs, an open-tabs list the app can read, and the hand-to-assistant features, so the shell is ours and the pieces inside are borrowed.</p>
+<h2 id="file-access-and-permissions">File access and permissions</h2>
+<ul>
+<li><strong>Any file, anywhere</strong> (decided 2026-10-27): the viewer may read and save any file, with no per-folder restriction. Saving is your own action in the viewer, so it doesn't go through the <a href="permissions.html">permissions handler</a>.</li>
+<li><strong>Real paths in URLs:</strong> a file is served at <code>/fs/&lt;its full path&gt;</code>, so a page's relative links, CSS, images, and scripts work as they do from disk. (The plan had short tokens per file; with "any file, anywhere" decided they protected nothing, and they broke links between pages.)</li>
+<li>Listens on <code>127.0.0.1</code> only, and answers only requests addressed to it (the <code>Host</code> header), so a web page can't reach it by DNS tricks. Every POST must be JSON, which a web page can't send to it without the browser asking first.</li>
+<li>Pages run their own scripts (the docs load Mermaid from a CDN), and same-origin tabs can reach the viewer's address. That's acceptable for your own files. Recommend keeping it that way and not opening web pages from the internet in it.</li>
+<li><strong>Snip's DevTools port:</strong> the viewer's Edge window listens for DevTools on <code>127.0.0.1</code> (a port Edge picks). Any program on this PC could control that window through it, as with any local debugging port. It only ever shows the viewer.</li>
+</ul>
+<h2 id="decided">Decided</h2>
+<ol>
+<li><strong>Its own app:</strong> a standalone app and window with a local HTTP API and event stream as two-way hooks, launched by a thin <code>html_viewer</code> module in the main app (see <a href="#how-it-fits-the-design">How it fits the design</a>). First its own process inside the app's package; made fully independent 2026-10-27.</li>
+<li><strong>Files:</strong> read and save any file anywhere; no per-folder restriction.</li>
+<li><strong>In the chat:</strong> an interactive "Open in viewer" button, not a plain link.</li>
+<li><strong>Clicking a file that's already open:</strong> switches to its tab, and reloads it if edits were made.</li>
+<li><strong>Highlight to ask:</strong> wanted, but only after the architecture is settled; not in the base viewer. (Different from <strong>highlight</strong>, the assistant pointing at a part, which is built.)</li>
+<li><strong>Generated pages:</strong> editable; saving into <code>docs/html</code> or <code>docs/html-next-steps</code> writes text edits back to the Markdown source, matched by text, and warns about edits it can't place (2026-10-27; first a warning only). The viewer doesn't rebuild the docs.</li>
+<li><strong>Undo:</strong> in memory only, one stack per tab; no permanent backups; one temporary copy of the original per open tab, deleted when the tab closes. Redo comes later.</li>
+<li><strong>Window code:</strong> first shared in <code>assistant.infra</code>, then copied into the viewer when it became its own app (<code>html_viewer/window.py</code>, which also opens Edge's DevTools port for snip). <strong>Replaced 2026-11-02 (<a href="principles.html">build it once</a>):</strong> one shared copy in <a href="../api/app_kit.html#window"><code>app_kit.window</code></a>, used by the viewer and <code>temp_ui</code>. The thin <code>html_viewer</code> module launches the viewer with <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a> and reads SHOW tags with <a href="../api/infra.html#agent_tags"><code>agent_tags</code></a>. All three are built (2026-11-02).</li>
+<li><strong>HTML opened through the chat goes to the viewer</strong>, never the default browser. The Talker writes the file's path and the chat shows an Open in viewer button; the Main Assistant, which can't call app tools, writes <code>&lt;&lt;SHOW: path&gt;&gt;</code>, and the <code>html_viewer</code> module opens the file, starting the viewer if needed.</li>
+<li><strong>Focus</strong> (2026-10-28): only your click on Open in viewer brings the viewer to the front. Pages an agent opens on its own stay in the background. Agents write full absolute paths, never bare names.</li>
+<li><strong>Highlights</strong> (2026-10-27): the assistant quotes the page's words (plus an optional heading); several can be on a page and stay until you clear them; no labels; page text only, not inside diagrams.</li>
+<li><strong>Snip</strong> (2026-10-27): Edge's own screenshot of the box (DevTools), so diagrams come out exactly; up to 3 snips wait for your next message; thumbnails above the chat input, each with an × to drop it.</li>
+</ol>
+<h2 id="as-built-v1">As built (v1)</h2>
+<p>Code: the app <code>src/html_viewer/</code> (<code>viewer.py</code> server and API, <code>document.py</code>, <code>markdown_source.py</code>, <code>highlight.py</code>, <code>snip.py</code>, <code>page.html</code>; its window comes from <code>src/app_kit/window.py</code>); the thin module <code>src/assistant/modules/html_viewer/module.py</code>, built on <code>app_kit.CompanionApp</code>. Config: <code>[modules.html_viewer]</code> (<code>host</code>, <code>port</code> 8766, <code>window</code>, <code>generated</code>, <code>start_timeout</code>). Run the viewer alone with <code>python -m html_viewer [files...]</code> (or <code>html-viewer</code>, after <code>pip install -e .</code>). It doesn't import the assistant; <code>tests/test_html_viewer.py</code> tests both.</p>
+<p><strong>Where state lives:</strong> the document state, the undo stacks, and the highlights are in the viewer app (Python), one per tab. The page in the window is only the view: it draws the tabs and each tab's state, and sends your actions as commands. So undo and saving don't depend on the page, and they're tested without a browser.</p>
+<pre><code class="language-mermaid">classDiagram
+    direction LR
+    class HtmlViewerModule {
+        &lt;&lt;thin module, in the main app&gt;&gt;
+        +show(path) Result
+        +highlight(path, text, heading) Result
+        +tabs() Result
+        starts / stops the viewer
+        relays tabs → ViewerTabsChanged
+        relays snips → ViewerClip
+        reads &lt;&lt;SHOW: ...&gt;&gt; in AgentActivity
+    }
+    class ViewerServer {
+        &lt;&lt;viewer app&gt;&gt;
+        +open(path)
+        +edit(tab, id, html)
+        +undo(tab)
+        +save(tab, confirm)
+        +highlight(path, text, heading)
+        +clear(tab, id)
+        +snip(tab, box, heading)
+        +focus(tab) / close(tab)
+        HTTP API, events, the window
+    }
+    class Tab {
+        path, temp copy, dirty
+        undo: list~EditText~
+        highlights, focus
+    }
+    class HtmlDocument {
+        &lt;&lt;document state&gt;&gt;
+        source: text with element ids
+        +content(id)
+        +replace_content(id, html)
+        +text
+    }
+    class EditText {
+        &lt;&lt;command&gt;&gt;
+        element_id, old, new
+        +do(doc)
+        +undo(doc)
+    }
+    class HtmlHandler {
+        &lt;&lt;document handler&gt;&gt;
+        supports: render, anchor, edit, save
+        +load(path) HtmlDocument
+        +save(doc, path)
+    }
+    HtmlViewerModule ..&gt; ViewerServer : HTTP API
+    ViewerServer --&gt; Tab : one per open file
+    Tab --&gt; HtmlDocument
+    Tab --&gt; EditText : undo stack
+    Tab --&gt; HtmlHandler
+    EditText ..&gt; HtmlDocument : changes
+</code></pre>
+<ul>
+<li><strong>Anchors:</strong> loading a file gives every element an id (<code>data-hv-id</code>) in the state. The view shows that state, so a double-click in the page names the element by its id, and an edit replaces only that element's content in the file's text. Saving strips the ids; everything you didn't edit is written back byte for byte (line endings, entities, scripts).</li>
+<li><strong>What double-click edits:</strong> text blocks: paragraphs, headings, list items, table cells, and similar. Code blocks, Mermaid diagrams, SVG, and form fields aren't editable. Enter or clicking away keeps the edit; Esc drops it. An element closed implicitly in the file (a <code>&lt;li&gt;</code> without <code>&lt;/li&gt;</code>) can't be edited.</li>
+<li><strong>Opening a file that's already open</strong> switches to its tab, and reloads it if the file changed on disk. If the tab has unsaved edits, it doesn't reload; the page offers "Reload (drop my edits)" instead.</li>
+<li><strong>Links</strong> in a page to another local HTML file open in a new viewer tab; links to the web open in a new window.</li>
+<li><strong>The window:</strong> opens when a file is opened and no viewer page is showing. Closing it doesn't close the tabs: they're still there, with their unsaved edits and undo, when it opens again. The Talker's tally still lists them while the window is closed.</li>
+<li><strong>Write-back to Markdown</strong> (<code>markdown_source.py</code>): saving a page in a <code>generated</code> folder first finds its source from the page's <code>&lt;!-- Generated from docs/... --&gt;</code> line. For each element edited or undone since the last save, it looks for the one Markdown block (heading, paragraph, list item, table cell; code fences skipped) whose rendered text equals the element's old text, and replaces only the changed words in it, growing the match with unchanged text until it's unique. A change at the very start or end of a block goes at the block's edge. Then it writes the Markdown, then the HTML. No match, two matches (repeated table cells are common), or a change across bold or a link: that edit isn't written to the Markdown, and Save warns first, listing it. No source found: the old overwrite warning. The viewer doesn't rebuild the docs.</li>
+<li><strong>Highlights</strong> (<code>highlight.py</code>, and <code>findQuote</code> in <code>page.html</code>, with the same rules): page text only (no scripts, styles, SVG, Mermaid); the quote's words in order, any whitespace between, case ignored; a heading narrows it to that heading's section and is ignored if no heading matches. The viewer app checks the quote is there (<code>found</code>, <code>matches</code>) and keeps the highlight in the tab's state; the page draws it as a blue <code>&lt;mark&gt;</code> with white text (<code>#2f5fa8</code>, readable on dark and light pages) over the first match and scrolls to the newest one (<code>focus</code> in the tab's state, so a window opened later still scrolls). The marks are never in the document: the edit tool removes them before an edit, and they're drawn again after. After an edit, undo, or reload, a highlight whose text is gone is dropped. Click a mark: <strong>Clear</strong> or <strong>Clear all</strong>. Double-click still edits.</li>
+<li><strong>Snip</strong> (<code>snip.py</code>): <strong>Snip</strong> on the toolbar (or Ctrl+Shift+S) dims the tab; drag a box, Esc cancels. The page hides the overlay, then the viewer app asks Edge, through the window's DevTools port, for a screenshot of exactly that box. The PNG goes to the viewer's temp folder and out as a <code>snip</code> event, with the nearest content heading above the box (sidebars and sticky bars skipped). The thin module copies it to the launch's log folder (<code>snips/</code>) and publishes <code>ViewerClip</code>. The Talker keeps up to 3 and sends them as images with your next message, each with a <code>[Viewer] snip from &lt;file&gt;, near "&lt;heading&gt;"</code> line. The temp UI shows them as thumbnails above the input, with an × (<code>ViewerClipDropped</code>). Needs <code>window = "app"</code>; otherwise snip says why.</li>
+<li><strong>Not built:</strong> highlight-to-ask, highlights inside diagrams, redo, opening Markdown files.</li>
+</ul>
+<footer>Generated from <code>docs/architecture/html-viewer.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

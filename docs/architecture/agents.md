@@ -2,7 +2,7 @@
 
 How the AI side fits the system: an **Agent Hub** coordinates a **Talker**, a **Main Assistant**, and **subagents**. Back to the [overview](README.md). How we actually run and test the agents is in the [Agents tab](../agents/README.md).
 
-> **Status: built (2026-10-25)** for the Talker, one Main Assistant, and the Hub; subagents are still to come. The [spike](../agents/spike.md) confirmed the interrupt the design relies on. API: [Agents](../api/agents.md).
+> **Status: built (2026-10-25)** for the Talker, one Main Assistant, and the Hub. Hub subagents are still to come; for now the Main Assistant uses Claude Code's own subagents (a `debugger`) inside its session. Since 2026-10-27 the Main Assistant starts a fresh session per task and hands off between big parts ([runtime](../agents/runtime.md#fresh-sessions-and-handoffs)). The [spike](../agents/spike.md) confirmed the interrupt the design relies on. API: [Agents](../api/agents.md).
 
 ## The idea
 
@@ -53,7 +53,7 @@ The picture shows **logical relationships, not containment or mandatory paths**.
 
 **The Hub manages who is doing what, not how the work is done.** Not every capability needs to be an agent: browser, file, or 3D services can stay ordinary tool modules.
 
-A Claude Code session can also spawn its own internal subagents. Those are its own business; **Hub subagents** are separate, registered modules.
+A Claude Code session can also spawn its own internal subagents. Those are its own business; **Hub subagents** are separate, registered modules. Today the Main Assistant uses an internal one, `debugger`, so debugging loops run in their own small context; the Hub can't list or stop it separately. Hub subagents come when stopping one at a time is needed.
 
 ## Startup
 
@@ -115,7 +115,7 @@ sequenceDiagram
     T->>You: "The coding agent is on the renderer"
 ```
 
-The Main Assistant isn't interrupted or asked for routine status.
+The Main Assistant isn't interrupted or asked for routine status. The status carries the task's last activity lines (the Hub keeps them from `AgentActivity`), and the Talker always has both sessions' usage (`SessionUsage`), so "what is it doing?" and "how full is it?" never need an interrupt.
 
 ### Clarification
 
@@ -248,6 +248,7 @@ stateDiagram-v2
 8. **Independent execution.** Subagents can eventually work in parallel without blocking the Talker.
 9. **Authoritative task state.** Status and results never depend only on events, which may be dropped.
 10. **Minimal first.** No scheduling, queues, or distributed machinery until needed.
+11. **Full paths for files you should see.** When an agent's reply points you to an HTML file, it writes the full absolute path, never a bare file name. The chat turns the path into an Open in viewer button, and a bare name is looked for in the app's folder and fails with "No such file". Pages agents open on their own stay in the background; only your click brings the viewer to the front ([HTML viewer](html-viewer.md)).
 
 ## State, context, transcripts, events
 

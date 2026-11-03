@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permissions</title>
+<!-- Generated from docs/architecture/permissions.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/permissions.html"></nav>
+<main>
+<h1 id="permissions">Permissions</h1>
+<p>Who may use what: location, the microphone, files, accounts. Back to the <a href="index.html">overview</a>.</p>
+<blockquote>
+<p><strong>Status: planned (designed 2026-10-26).</strong> Not built. Today only the Main Assistant asks for permission, through the Agent Hub (permission requests); this design replaces that with one handler every module uses. Change note: permissions handler.</p>
+<p><strong>First, a stand-in (planned now, decided 2026-11-02):</strong> <code>ctx.permissions</code> on every module's context, with <code>has</code> and <code>request</code>, and the manifest's <code>permissions</code> / <code>optional_permissions</code> fields. With no handler, it applies the <a href="#what-happens-when-one-is-missing">no handler running</a> rule: allow, and log a warning naming the module. The handler later plugs in behind the same calls, so no module changes. Built in the core's <code>ScopedContext</code> (<a href="../api/modules.html#modulecontextpermissions">API</a>).</p>
+<p><strong>Built: the <a href="#permission-mode-built">permission mode</a></strong> (2026-11-02): Manual or Auto for the Main Assistant, switched with a button.</p>
+</blockquote>
+<h2 id="the-idea">The idea</h2>
+<p>Permissions are per module, not per app. A map module may get your location; a notes module doesn't. If a module lacks something it needs, only that module stops or loses a feature; everything else runs.</p>
+<p>One <strong>permissions handler</strong> module knows three things:</p>
+<ol>
+<li><strong>What the app has:</strong> real capabilities it can check, such as Windows location being on, a microphone being present, or a Google account being connected. Each comes from a permission source.</li>
+<li><strong>What each module needs:</strong> declared in its manifest, as required or optional.</li>
+<li><strong>What you've granted each module:</strong> saved across restarts, for example "map: location yes" and "main_assistant: write <code>docs/</code> yes".</li>
+</ol>
+<p>A module may use a permission only when the app has it <strong>and</strong> you've granted it to that module.</p>
+<p><strong>Responsible for:</strong> checking, asking you, remembering grants, and announcing changes. <strong>Not responsible for:</strong> operating-system prompts (Windows grants those to the whole process) or enforcing anything inside a module. See <a href="#the-limit">the limit</a>.</p>
+<h2 id="how-a-module-uses-it">How a module uses it</h2>
+<p>Every module uses the same two calls on its own context, <code>ctx.permissions</code>:</p>
+<pre><code>if ctx.permissions.has("location"):
+    ...
+allowed = await ctx.permissions.request("files.write:src", reason="Fix the bug you asked about")
+</code></pre>
+<p>A module never finds the handler or passes its own id. The core's <a href="core.html#communication-internals"><code>ScopedContext</code></a> already belongs to one module, so it fills in the caller's id and forwards the call to the handler. This is how Android, iOS, and browsers do it: one standard call, and the system, not the app, says who is asking. No module can ask in another's name.</p>
+<p>The core only stamps the caller's id. All the logic lives in the handler, which is an ordinary module and can be replaced.</p>
+<h2 id="permission-names">Permission names</h2>
+<p>Plain strings, with a scope where one is needed:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>location</code></td>
+<td>Your location</td>
+</tr>
+<tr>
+<td><code>microphone</code>, <code>camera</code></td>
+<td>The device</td>
+</tr>
+<tr>
+<td><code>network</code></td>
+<td>Reaching the internet</td>
+</tr>
+<tr>
+<td><code>google.calendar</code></td>
+<td>A connected account</td>
+</tr>
+<tr>
+<td><code>files.read:&lt;area&gt;</code>, <code>files.write:&lt;area&gt;</code></td>
+<td>Reading or writing an area, such as <code>repo</code>, <code>docs</code>, or <code>src</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-happens-when-one-is-missing">What happens when one is missing</h2>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A <strong>required</strong> permission is missing at start</td>
+<td>That module doesn't start; its state is <code>blocked</code> with the reason ("needs location"). Everything else starts normally</td>
+</tr>
+<tr>
+<td>An <strong>optional</strong> permission is missing</td>
+<td>The module runs with that feature off</td>
+</tr>
+<tr>
+<td>A module needs one <strong>in the moment</strong></td>
+<td>It calls <code>request</code>; you get an Allow / Deny card or the Talker asks. Allow once or always</td>
+</tr>
+<tr>
+<td>You <strong>revoke</strong> one</td>
+<td><code>PermissionChanged</code> is published; the module turns that feature off, or is turned off</td>
+</tr>
+<tr>
+<td>Nobody answers</td>
+<td>Denied after a timeout (10 minutes, as today)</td>
+</tr>
+<tr>
+<td><strong>No handler running</strong> (the <code>permissions</code> module is off)</td>
+<td>Everything is allowed, and each check is logged as a warning ("no permissions handler: allowing main_assistant location"). Decided 2026-10-26 for now, while developing. This is what the stand-in does (planned)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="classes">Classes</h2>
+<pre><code class="language-mermaid">classDiagram
+    class Manifest {
+        &lt;&lt;modified&gt;&gt;
+        +permissions: tuple~str~
+        +optional_permissions: tuple~str~
+    }
+    class ModuleContext {
+        &lt;&lt;modified&gt;&gt;
+        +permissions: ModulePermissions
+    }
+    class ModulePermissions {
+        &lt;&lt;new&gt;&gt;
+        +has(name) bool
+        +request(name, reason) bool
+    }
+    class ScopedContext {
+        &lt;&lt;modified&gt;&gt;
+        builds ModulePermissions with its module id
+    }
+    class LifecycleManager {
+        &lt;&lt;modified&gt;&gt;
+        checks required permissions before start
+    }
+    class IPermissions {
+        &lt;&lt;new contract&gt;&gt;
+        +check(module_id, name) PermissionState
+        +request(module_id, name, reason) bool
+        +revoke(module_id, name)
+    }
+    class IPermissionSource {
+        &lt;&lt;new contract, multiple&gt;&gt;
+        +names() tuple~str~
+        +available(name) bool
+    }
+    class PermissionsModule {
+        &lt;&lt;new module&gt;&gt;
+        grants in data/permissions.toml
+    }
+    class PermissionState {
+        &lt;&lt;new enum&gt;&gt;
+        granted
+        denied
+        ask
+        unavailable
+    }
+    ModuleContext --&gt; ModulePermissions
+    ScopedContext ..|&gt; ModuleContext
+    ModulePermissions --&gt; IPermissions : forwards with module id
+    LifecycleManager --&gt; IPermissions : required?
+    PermissionsModule ..|&gt; IPermissions
+    PermissionsModule --&gt; IPermissionSource : what the app has
+    IPermissions --&gt; PermissionState
+</code></pre>
+<p><strong>Messages</strong></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PermissionRequested(request_id, module_id, name, reason)</code></td>
+<td>event</td>
+<td>A module is asking; UIs and the Talker show it</td>
+</tr>
+<tr>
+<td><code>AnswerPermissionRequest(request_id, allow, remember)</code></td>
+<td>command</td>
+<td>Your answer; <code>remember</code> makes it "always"</td>
+</tr>
+<tr>
+<td><code>PermissionChanged(module_id, name, state)</code></td>
+<td>event</td>
+<td>A grant was given, revoked, or a source changed</td>
+</tr>
+<tr>
+<td><code>ListPermissions()</code></td>
+<td>command</td>
+<td>Every module's needs and grants, for the control panel</td>
+</tr>
+</tbody>
+</table>
+<p>A permission source is anything that knows whether the app has a capability, such as <code>WindowsLocation</code> or <code>Microphone</code>. A source can be its own module, so a new device or account adds a source and nothing else changes.</p>
+<h2 id="flows">Flows</h2>
+<h3 id="a-module-asks">A module asks</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor You
+    participant M as Module
+    participant S as ScopedContext
+    participant P as Permissions handler
+    participant U as UI / Talker
+    M-&gt;&gt;S: ctx.permissions.request(&quot;location&quot;, why)
+    S-&gt;&gt;P: request(&quot;map&quot;, &quot;location&quot;, why)
+    P-&gt;&gt;P: 1. a source has it? no → False
+    P-&gt;&gt;P: 2. saved grant? → answer
+    P--&gt;&gt;U: 3. otherwise PermissionRequested
+    U-&gt;&gt;You: card or voice: &quot;Map wants your location. OK?&quot;
+    You-&gt;&gt;U: Allow (always)
+    U-&gt;&gt;P: AnswerPermissionRequest(allow, remember)
+    P--&gt;&gt;U: PermissionChanged
+    P-&gt;&gt;S: True
+    S-&gt;&gt;M: True
+</code></pre>
+<h3 id="a-module-starts">A module starts</h3>
+<pre><code class="language-mermaid">flowchart LR
+    Start([&quot;Activate module&quot;]) --&gt; Req{&quot;Required&lt;br/&gt;permissions?&quot;}
+    Req -- none --&gt; Run[&quot;Start it&quot;]
+    Req -- some --&gt; Check{&quot;All granted&lt;br/&gt;and available?&quot;}
+    Check -- yes --&gt; Run
+    Check -- no --&gt; Blocked[&quot;State: blocked&lt;br/&gt;reason shown&quot;]
+    Run --&gt; Opt[&quot;Optional ones missing&lt;br/&gt;→ those features off&quot;]
+</code></pre>
+<p>Startup never asks you; a module that's blocked waits until you grant the permission (in the control panel, or by telling the Talker) and is activated again.</p>
+<h2 id="the-main-assistant">The Main Assistant</h2>
+<p>The Main Assistant uses the handler like any other module:</p>
+<ul>
+<li>Its standing rules become saved grants (<code>files.read:repo</code>, <code>files.write:docs</code>), turned into <code>--allowedTools</code> rules when its session starts (<a href="../api/infra.html#path_rule"><code>path_rule</code></a>).</li>
+<li>A <code>can_use_tool</code> request from <code>claude</code> becomes <code>ctx.permissions.request("files.write:&lt;path&gt;")</code>.</li>
+<li>The agent-specific <a href="../api/agents.html#answerpermission"><code>AnswerPermission</code></a> command, <code>ReportKind.PERMISSION</code>, and the Hub's part in permissions go away. The Allow / Deny cards and the Talker's <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> tags stay, and answer the handler instead.</li>
+<li>Its <a href="#permission-mode-built">permission mode</a> becomes a grant per module ("main_assistant: auto"), and the handler handles <code>SetPermissionMode</code> in place of the Hub.</li>
+</ul>
+<h2 id="permission-mode-built">Permission mode (built)</h2>
+<p>Built 2026-11-02 (change note). What the Main Assistant may do without asking, switched while the app runs:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Manual</strong> (every launch)</td>
+<td>Its standing rules, and an Allow / Deny card for anything else</td>
+</tr>
+<tr>
+<td><strong>Auto</strong></td>
+<td>Full permissions (<code>bypassPermissions</code>), no cards, except <code>git push</code>, which is refused (<code>--disallowedTools</code>; checked against the real <code>claude</code> to hold under bypass). It's told to stop and ask (<code>NEED: Risky: …</code>) before very risky steps: deleting beyond the task, rewriting git history, changing secrets or settings, installing software, spending money, sending anything off the machine, anything hard to undo</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Only you switch to Auto</strong>, with the stand-in button in the temp UI's Talker pane, after a confirm dialog. The Talker can only switch back to Manual; the Main Assistant can't switch at all.</li>
+<li><strong>It's not a guarantee.</strong> The risky-step pause is the model's own judgment. The one hard limit is <code>git push</code>, and it only catches a direct <code>git push</code>, not <code>git -C x push</code> or a script that pushes.</li>
+<li><strong>Through the Agent Hub for now:</strong> <a href="../api/agents.html#setpermissionmode"><code>SetPermissionMode</code></a> → <a href="../api/agents.html#itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></a> → <a href="../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>. How a switch takes effect: <a href="../agents/runtime.html#permission-mode">runtime</a>.</li>
+</ul>
+<h2 id="repo-zones">Repo zones</h2>
+<p>The index of which part of the repo is the core app and which is modules, and what an agent may write in each. The Main Assistant reads all of it.</p>
+<table>
+<thead>
+<tr>
+<th>Zone</th>
+<th>Paths</th>
+<th>Writes by an agent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Protected</strong></td>
+<td><code>src/assistant/modules/permissions/</code>, <code>data/permissions.toml</code>, <code>config/</code>, <code>.claude/settings*</code></td>
+<td>Never, even if you say yes; otherwise it could grant itself permissions</td>
+</tr>
+<tr>
+<td><strong>Core</strong></td>
+<td><code>src/assistant/core/</code>, <code>src/assistant/contracts/</code>, <code>src/assistant/infra/</code>, <code>src/assistant/__main__.py</code>, <code>scripts/</code>, <code>.github/</code>, <code>pyproject.toml</code></td>
+<td>On its branch; asks</td>
+</tr>
+<tr>
+<td><strong>Modules</strong></td>
+<td><code>src/assistant/modules/&lt;id&gt;/</code> and that module's tests</td>
+<td>On its branch; asks</td>
+</tr>
+<tr>
+<td><strong>Docs and skills</strong></td>
+<td><code>docs/</code> (not <code>docs/html/</code>), <code>.claude/skills/</code></td>
+<td><code>docs/</code> is a standing grant; skills ask</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Not enforced yet:</strong> until the handler and the branch workflow are built, the Main Assistant edits any file in the repo, with the same access as Claude Code. In Auto nothing asks first, so its risky-step rule names <code>config/</code> and <code>.claude/settings*</code> as steps to ask about.</li>
+<li><strong>For now Core and Modules have the same rule</strong> (decided 2026-10-26: everything is still being built). The split is recorded so the rules can differ later, for example "always" grants allowed for a module but never for the core.</li>
+<li><strong>The handler holds the same list in code</strong>, in the protected zone, so an agent can't edit its own guardrails. This table mirrors it; if they disagree, the code wins and this table gets fixed.</li>
+<li><strong>Enforced by <code>claude</code>:</strong> protected paths are never in an agent's rules and its requests for them are denied without asking you; other <code>src/</code> paths are never standing rules, so each write arrives as a request.</li>
+<li><strong>Branch edits happen in a git worktree</strong> (a separate copy of the repo on its own branch, e.g. <code>../AI_Assistant-work</code>), so the running app on <code>main</code> is never touched. The app, not the agent, does the git work: branch, commit, tests, and merge when you say so. This is step 4 of <a href="../agents/self-improvement.html#steps">self-improvement</a>.</li>
+</ul>
+<h2 id="the-limit">The limit</h2>
+<p>Inside one process, this only holds if modules use it: a module could call the operating system directly. Real enforcement needs a separate process, as the <code>claude</code> agents have today: their own session enforces their rules. For our own modules, using <code>ctx.permissions</code> is the rule, and code review keeps to it.</p>
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li><strong>Changing a grant of a running agent:</strong> its <code>--allowedTools</code> are fixed when the session starts, so a new "always" grant applies from its next session; until then the handler answers its requests directly.</li>
+</ul>
+<footer>Generated from <code>docs/architecture/permissions.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

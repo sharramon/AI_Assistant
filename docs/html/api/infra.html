@@ -5,83 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Infrastructure</title>
 <!-- Generated from docs/api/infra.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<style>
-:root {
-  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
-  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
-nav {
-  background: var(--panel); border-right: 1px solid var(--border);
-  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
-}
-nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
-nav h2:first-child { margin-top: 0; }
-nav ul { list-style: none; margin: 0; padding: 0; }
-nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
-nav a:hover { background: var(--border); }
-nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
-main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
-h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
-h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-h3 { font-size: 1.1rem; margin: 28px 0 8px; }
-a { color: var(--accent); }
-code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
-pre code { background: none; padding: 0; }
-table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
-th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
-th { background: var(--panel); }
-.diagram {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
-}
-.diagram svg { max-width: 100%; height: auto; }
-.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
-.diagram:not(.offline) { cursor: zoom-in; }
-.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
-.zoom.dragging { cursor: grabbing; }
-.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.zoom-stage svg { display: block; max-width: none !important; }
-.zoom-close {
-  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
-  font-size: 22px; line-height: 1; cursor: pointer;
-}
-.zoom-close:hover { background: var(--border); }
-footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
-@media (max-width: 760px) {
-  .layout { grid-template-columns: 1fr; }
-  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
-  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
-  main { padding: 20px 16px 48px; }
-}
-</style>
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="../agents/index.html">Overview</a></li><li><a href="../agents/runtime.html">Agent runtime</a></li><li><a href="../agents/spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="index.html">Overview</a></li><li><a href="modules.html">Modules</a></li><li><a href="messaging.html">Messaging</a></li><li><a href="tools.html">Tools</a></li><li><a href="control.html">Module control</a></li><li><a href="agents.html">Agents</a></li><li><a href="infra.html" aria-current="page">Infrastructure</a></li><li><a href="core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<nav data-root="../" data-page="api/infra.html"></nav>
 <main>
 <h1 id="infrastructure">Infrastructure</h1>
-<p>Shared services. All items: <code>from assistant.infra import ...</code>. Back to the <a href="index.html">API index</a>.</p>
+<p>Shared services for the main app's modules. All items: <code>from assistant.infra import ...</code>. Back to the <a href="index.html">API index</a>. Entries marked <strong>Reusable</strong> are listed in the <a href="reusable.html">reusable parts index</a>. What the independent apps share too is in <a href="app_kit.html">App kit</a>.</p>
 <h2 id="load_config"><code>load_config</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>__main__</code>, tests</p>
 <p><code>load_config(config_dir: str | Path | None = None) -&gt; dict[str, Any]</code></p>
-<p>Load <code>default.toml</code>, then deep-merge <code>local.toml</code> over it if it exists. Tables merge key by key; other values (including lists) are replaced.</p>
+<p>Load <code>default.toml</code>, then deep-merge <code>local.toml</code> over it if it exists. Tables merge key by key; other values (including lists) are replaced. A thin wrapper over <a href="app_kit.html#load_layered"><code>app_kit.load_layered</code></a>.</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>
@@ -106,8 +41,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <p><strong>Defined in:</strong> <code>src/assistant/infra/config.py</code>
 <strong>See also:</strong> <a href="../architecture/core.html#configuration">configuration keys</a></p>
 <h2 id="setup_logging"><code>setup_logging</code></h2>
-<p><code>setup_logging(settings: dict[str, Any]) -&gt; None</code></p>
-<p>Configure root logging from the <code>[logging]</code> config section. Replaces any existing configuration.</p>
+<p><strong>Reusable</strong> · Used by: <code>__main__</code>, tests</p>
+<p><code>setup_logging(settings: dict[str, Any], extra: Sequence[logging.Handler] = ()) -&gt; None</code></p>
+<p>Configure root logging from the <code>[logging]</code> config section. Replaces any existing configuration. <code>extra</code> handlers (e.g. <a href="#logsession"><code>LogSession.handler</code></a>) are added with the same format.</p>
 <p><strong>Settings</strong></p>
 <table>
 <thead>
@@ -135,11 +71,96 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </tr>
 </tbody>
 </table>
-<p>With neither <code>file</code> nor <code>stderr</code>, logs are discarded.</p>
+<p>With no <code>file</code>, <code>stderr</code>, or <code>extra</code>, logs are discarded. In the app, <code>[logging]</code> also has <code>dir</code> (default <code>"logs"</code>), and <code>file</code> is a file name: <code>__main__</code> takes both for the <a href="#logsession"><code>LogSession</code></a> and removes <code>file</code>, so the app log goes through <code>LogSession.handler</code> instead.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/log.py</code></p>
+<h2 id="logsession"><code>LogSession</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>__main__</code> (the app log and every transcript)</p>
+<p><code>LogSession(root: str | Path = "logs", now: datetime | None = None, app_log: str = "assistant.log")</code></p>
+<p>The log handler: owns <em>where</em> one app launch's logs go. Nothing reaches disk until the first message's theme: then it creates <code>root/&lt;start time&gt;_&lt;theme&gt;/</code> (e.g. <code>logs/2026-10-26_03-06-52_can-you-split-the-logs/</code>; <code>-2</code>, <code>-3</code>… added after the time if the name is taken) and writes what its sinks held. A launch without a theme leaves no folder. Design: <a href="../architecture/core.html#logging">Logging</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>root: Path</code></td>
+<td>The logs folder</td>
+</tr>
+<tr>
+<td><code>path: Path | None</code></td>
+<td>The session folder, <code>None</code> until <code>set_theme</code></td>
+</tr>
+<tr>
+<td><code>handler: logging.Handler</code></td>
+<td>The app log (<code>app_log</code>): pass it to <a href="#setup_logging"><code>setup_logging</code></a></td>
+</tr>
+<tr>
+<td><code>sink(name) -&gt; LogSink</code></td>
+<td>The <a href="#logsink"><code>LogSink</code></a> for the file <code>name</code> in the session folder; one per name</td>
+</tr>
+<tr>
+<td><code>folder() -&gt; Path</code></td>
+<td><code>path</code> once it exists, else <code>root</code> (for the temp UI's Logs button)</td>
+</tr>
+<tr>
+<td><code>set_theme(text)</code></td>
+<td>Make the theme folder-safe with <a href="#theme_slug"><code>theme_slug</code></a>, create the folder, write what's held. The first usable theme wins; an unusable one (<code>"?!"</code>) is ignored</td>
+</tr>
+<tr>
+<td><code>finish() -&gt; Path | None</code></td>
+<td>Close the files; returns <code>path</code>. Without a theme, drops what was held, unless the app log had a warning or error: then it's appended to <code>root/no-chat.log</code>. Never raises</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>session = LogSession("logs")
+setup_logging({}, [session.handler])            # held in memory
+session.set_theme("Can you split the logs per session?")
+session.finish()   # logs/2026-10-26_03-06-52_can-you-split-the-logs
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/log.py</code></p>
+<h2 id="logsink"><code>LogSink</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>ClaudeSession</code> transcripts (Talker, Main Assistant)</p>
+<p>One log file of a <a href="#logsession"><code>LogSession</code></a>, from <code>LogSession.sink(name)</code>. Holds what's written in memory until the session folder exists, then writes it to the file, and everything after it directly. Thread-safe.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write(text)</code></td>
+<td>Append <code>text</code> (include the newline)</td>
+</tr>
+<tr>
+<td><code>held() -&gt; str</code></td>
+<td>What was written while the folder didn't exist</td>
+</tr>
+<tr>
+<td><code>close()</code></td>
+<td>Close the file; a later <code>write</code> opens it again</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>transcript = session.sink("talker.jsonl")
+ClaudeSession(command, transcript=transcript)
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/log.py</code></p>
+<h2 id="theme_slug"><code>theme_slug</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>LogSession</code>, <code>talker</code></p>
+<p><code>theme_slug(text: str, max_words: int = 5) -&gt; str</code></p>
+<p>A folder-safe theme: lowercase ASCII letters and digits, words joined by hyphens, at most <code>max_words</code> words. <code>"Session log folders?!"</code> → <code>"session-log-folders"</code>. Returns <code>""</code> if nothing usable is left.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/log.py</code></p>
 <h2 id="claudesession"><code>ClaudeSession</code></h2>
-<p><code>ClaudeSession(command: Sequence[str], cwd: str | Path | None = None, log: Logger | None = None, on_event: Callable[[dict], None] | None = None)</code></p>
-<p>One long-lived <code>claude -p</code> stream-json process. Knows nothing about tasks or agents: it writes messages and interrupts as JSON lines on stdin and hands every JSON line from stdout to <code>on_event</code>, in order. Build <code>command</code> with <a href="#claude_command"><code>claude_command</code></a>.</p>
+<p><strong>Reusable</strong> · Used by: <code>talker</code>, <code>main_assistant</code> (a callable command, for the permission mode), <code>SessionTaskAgent</code> (<code>set_permission_mode</code>)</p>
+<p><code>ClaudeSession(command: Sequence[str] | Callable[[], Sequence[str]], cwd: str | Path | None = None, log: Logger | None = None, on_event: Callable[[dict], None] | None = None, transcript: str | Path | LogSink | None = None)</code></p>
+<p>One long-lived <code>claude -p</code> stream-json process. Knows nothing about tasks or agents: it writes messages and interrupts as JSON lines on stdin and hands every JSON line from stdout to <code>on_event</code>, in order. Build <code>command</code> with <a href="#claude_command"><code>claude_command</code></a>. <strong><code>command</code> may be a callable</strong> returning the command line: it's called on every <code>start</code>, so each new process gets the settings of that moment (the Main Assistant's permission mode). With <code>transcript</code>, every line in and out (and stderr) is appended to that file as <code>{"t", "dir": "in" | "out" | "stderr", "msg"}</code> JSON lines, for debugging. <code>transcript</code> may be a file path or a <a href="#logsink"><code>LogSink</code></a>. Modules pass their <code>transcript</code> setting, which <code>__main__</code> has replaced with the session's sink.</p>
 <table>
 <thead>
 <tr>
@@ -150,19 +171,27 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tbody>
 <tr>
 <td><code>async start()</code></td>
-<td>Launch the process (no-op if running). Raises <code>FileNotFoundError</code> if <code>claude</code> isn't installed</td>
+<td>Launch the process (no-op if running), reading <code>command</code> if it's a callable. Raises <code>FileNotFoundError</code> if <code>claude</code> isn't installed</td>
 </tr>
 <tr>
-<td><code>async send(text)</code></td>
-<td>Send a user message, starting a turn. Raises <code>RuntimeError</code> if not running</td>
+<td><code>async send(text, images=())</code></td>
+<td>Send a user message, starting a turn. <code>images</code> are PNG or JPEG files sent with it as image blocks, so the model sees them; the transcript records their paths, not their data. Raises <code>RuntimeError</code> if not running, <code>OSError</code> if an image can't be read</td>
 </tr>
 <tr>
 <td><code>async interrupt()</code></td>
 <td>Interrupt the turn, like Esc. The turn still ends with a <code>result</code> (<code>is_error: true</code>)</td>
 </tr>
 <tr>
+<td><code>async set_permission_mode(mode)</code></td>
+<td>Switch the running process's <code>--permission-mode</code> (e.g. <code>acceptEdits</code>) with a <code>set_permission_mode</code> control request, as the Agent SDK does. Applies from the next tool use; the prompt stays as it started. Checked against the real <code>claude</code> (2026-11-02). Raises <code>RuntimeError</code> if not running</td>
+</tr>
+<tr>
+<td><code>async answer_permission(request, allow, message=...)</code></td>
+<td>Answer a <code>can_use_tool</code> control request (the whole event); deny sends <code>message</code></td>
+</tr>
+<tr>
 <td><code>async close(timeout=3.0)</code></td>
-<td>Close stdin, wait, kill if it doesn't exit. <code>start</code> works again afterwards</td>
+<td>Close stdin, wait, kill if it doesn't exit. <code>start</code> works again afterwards. Lines still arriving while it closes are logged, not passed on</td>
 </tr>
 <tr>
 <td><code>running: bool</code></td>
@@ -171,6 +200,18 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tr>
 <td><code>working: bool</code></td>
 <td>From <code>send</code> until the turn's <code>result</code></td>
+</tr>
+<tr>
+<td><code>context_tokens: int</code></td>
+<td>The latest call's input size, cached or not (from each assistant line's <code>usage</code>): what every further call resends. 0 after <code>start</code></td>
+</tr>
+<tr>
+<td><code>used: dict[str, int]</code></td>
+<td>Tokens by kind (<code>input</code>, <code>cache_write</code>, <code>cache_read</code>, <code>output</code>), every call since construction, across restarts. Input counts each call once (by message id). Output comes from each turn's <code>result</code>: the streamed lines undercount it (2.5k against 129k in one real session) and only stand in while a turn runs</td>
+</tr>
+<tr>
+<td><code>cost_usd: float</code></td>
+<td><code>claude</code>'s estimate (<code>total_cost_usd</code>, which counts per process) added up across restarts</td>
 </tr>
 <tr>
 <td><code>on_event</code></td>
@@ -185,20 +226,41 @@ await session.send("Hello")
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code></p>
 <h2 id="claude_command"><code>claude_command</code></h2>
-<p><code>claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, system_prompt: str | None = None, program: Sequence[str] = ("claude",)) -&gt; list[str]</code></p>
-<p>The command line for a stream-json <code>claude -p</code> session. Always adds <code>--strict-mcp-config</code> (otherwise your claude.ai MCP connectors load). <code>tools=""</code> means no tools; <code>system_prompt</code> goes in as <code>--append-system-prompt</code>. <code>program</code> is replaceable so tests can run a fake.</p>
+<p><strong>Reusable</strong> · Used by: <code>talker</code>, <code>main_assistant</code> (<code>disallowed</code> for Auto's <code>git push</code> block)</p>
+<p><code>claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, allowed: Sequence[str] = (), disallowed: Sequence[str] = (), permission_prompts: bool = False, system_prompt: str | None = None, program: Sequence[str] = ("claude",)) -&gt; list[str]</code></p>
+<p>The command line for a stream-json <code>claude -p</code> session. Always adds <code>--strict-mcp-config</code> (otherwise your claude.ai MCP connectors load). <code>tools=""</code> means no tools; <code>allowed</code> are permission rules passed as <code>--allowedTools</code> (build path rules with <a href="#path_rule"><code>path_rule</code></a>); <code>disallowed</code> rules (e.g. <code>PowerShell(git push *)</code>) go in as <code>--disallowedTools</code>, one argument each, and are refused outright, even under <code>bypassPermissions</code> (checked against the real <code>claude</code>, 2026-11-02); <code>permission_prompts</code> adds <code>--permission-prompt-tool stdio</code>, so anything the rules don't allow arrives as a <code>can_use_tool</code> control request instead of being refused; <code>system_prompt</code> goes in as <code>--append-system-prompt</code>. <code>program</code> is replaceable so tests can run a fake.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code></p>
+<h2 id="path_rule"><code>path_rule</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code> (one user so far; any agent that gets folder rules)</p>
+<p><code>path_rule(tool: str, folder: str | Path) -&gt; str</code></p>
+<p>A permission rule for everything under <code>folder</code>: <code>path_rule("Edit", "docs")</code> → <code>Edit(//c/Chang/.../docs/**)</code>. <code>claude</code> matches absolute paths in POSIX form with a leading <code>//</code>, so Windows <code>C:\x</code> becomes <code>//c/x</code>. <code>Read</code> rules cover Read, Glob, and Grep; <code>Edit</code> rules cover Edit and Write. Checked against a real session: reads and writes inside the rule's folder work without a prompt; writes elsewhere are refused.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code> (<code>from assistant.infra.claude_session import path_rule</code>)</p>
 <h2 id="sessiontaskagent"><code>SessionTaskAgent</code></h2>
-<p><code>SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0)</code></p>
-<p>An <a href="agents.html#itaskagent"><code>ITaskAgent</code></a> backed by one <code>ClaudeSession</code>: the shared part every task agent is built from. Turns <code>assign</code>, <code>message</code>, and <code>cancel</code> into session messages, and the session's events into <a href="agents.html#reporttask"><code>ReportTask</code></a>, <a href="agents.html#agentactivity"><code>AgentActivity</code></a>, and <a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a>. Sets itself as the session's <code>on_event</code>. Every method returns once its message or interrupt is written. A turn whose last line is <code>NEED: &lt;question&gt;</code> is reported as <code>need</code>. If a cancel's interrupt doesn't end the turn within <code>cancel_timeout</code>, the session is closed and the next task starts a fresh one. Behavior: <a href="../agents/runtime.html#the-main-assistant-on-its-own">The Main Assistant on its own</a>.</p>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>; every task agent later (the decided pattern)</p>
+<p><code>SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits")</code></p>
+<p>An <a href="agents.html#itaskagent"><code>ITaskAgent</code></a> backed by one <code>ClaudeSession</code>: the shared part every task agent is built from. Turns <code>assign</code>, <code>message</code>, and <code>cancel</code> into session messages, and the session's events into <a href="agents.html#reporttask"><code>ReportTask</code></a>, <a href="agents.html#agentactivity"><code>AgentActivity</code></a>, <a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, and <a href="agents.html#sessionusage"><code>SessionUsage</code></a>. Sets itself as the session's <code>on_event</code>. Every method returns once its message or interrupt is written. A turn whose last line is <code>NEED: &lt;question&gt;</code> is reported as <code>need</code>. If a cancel's interrupt doesn't end the turn within <code>cancel_timeout</code>, the session is closed and the next task starts a fresh one. A <code>can_use_tool</code> request is reported as <code>permission</code> and held until <a href="agents.html#itaskagentanswer_permission"><code>answer_permission</code></a>; after <code>permission_timeout</code> seconds it's denied. Behavior: <a href="../agents/runtime.html#the-main-assistant-on-its-own">The Main Assistant on its own</a>.</p>
+<p><strong>Fresh sessions and handoffs.</strong> With <code>fresh_sessions</code>, each task starts in a new <code>claude</code> process, so its context holds only that task. A turn (or a reply) whose last line is <code>HANDOFF: &lt;note path&gt;</code> continues the same task in a fresh session told to read that note; it's reported as <code>progress</code> "Handed off to a fresh session (n): <note>". After <code>max_handoffs</code> in one task it asks you instead (<code>need</code>).</p>
+<p><strong>Permission mode.</strong> It holds the <a href="agents.html#permissionmode"><code>PermissionMode</code></a> in memory, Manual at every launch. The owning module builds each session's command for <code>permission_mode</code> (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Mid-task, a switch to Manual sends <code>ClaudeSession.set_permission_mode(manual_claude_mode)</code> when the running session is in Auto. Every switch is logged, published as <code>AgentActivity</code>, and published as <a href="agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>.</p>
 <table>
 <thead>
 <tr>
-<th>Method</th>
+<th>Member</th>
 <th>Does</th>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>permission_mode: PermissionMode</code></td>
+<td>(property) The mode the next session starts in</td>
+</tr>
+<tr>
+<td><code>async set_permission_mode(mode) -&gt; Result</code></td>
+<td>Set it. No task: <code>now</code>. Mid-task: Manual applies at once (<code>now</code>; <code>next_task</code> if the control request fails), Auto from the next task or handoff session (<code>next_task</code>). Always <code>ok</code></td>
+</tr>
+<tr>
+<td><code>async reset() -&gt; Result</code></td>
+<td>Start fresh. Idle: close the session now; the next task starts a new one. With a task: ask it (as a message) to write a handoff note, which continues it in a fresh session. <code>not_available</code> while a cancelled turn is still stopping</td>
+</tr>
 <tr>
 <td><code>async close()</code></td>
 <td>Stop its background tasks. The owning module closes the session itself</td>
@@ -207,93 +269,53 @@ await session.send("Hello")
 </table>
 <p><strong>Example:</strong> see <a href="agents.html#itaskagent"><code>ITaskAgent</code></a>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/session_agent.py</code></p>
+<h2 id="session_usage"><code>session_usage</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code>, <code>talker</code></p>
+<p><code>session_usage(agent_id: str, session: ClaudeSession) -&gt; SessionUsage</code></p>
+<p><code>session</code>'s usage so far (<a href="#claudesession"><code>ClaudeSession</code></a> <code>context_tokens</code>, <code>used</code>, <code>cost_usd</code>) as a <a href="agents.html#sessionusage"><code>SessionUsage</code></a> event; context 0 when the session isn't running. Used by <code>SessionTaskAgent</code> and the Talker.</p>
+<p><strong>Example</strong></p>
+<pre><code>ctx.publish(session_usage("talker", self._session))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/session_agent.py</code></p>
+<h2 id="agent_tags"><code>agent_tags</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>talker</code> (<code>find_tags</code>, <code>parse_show</code>), <code>html_viewer</code> module (<code>find_tags</code>, <code>parse_show</code>), <code>SessionTaskAgent</code> (<code>last_line</code>) · built 2026-11-02</p>
+<p><code>from assistant.infra import find_tags, last_line, parse_show, Tag, ShowTag</code></p>
+<p>Reads the tags agents write in their text, the same way everywhere. Replaced the two SHOW parsers (Talker, <code>html_viewer</code> module), which handled quotes differently, and <code>SessionTaskAgent</code>'s own last-line reader.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find_tags(text, names) -&gt; list[Tag]</code></td>
+<td>Every <code>&lt;&lt;NAME&gt;&gt;</code> or <code>&lt;&lt;NAME: argument&gt;&gt;</code> in <code>text</code> whose name is in <code>names</code>, in order. <code>Tag(name, argument, start, end)</code>: the argument stripped (empty if none), <code>start</code>/<code>end</code> to slice it out of a reply. Names are case-sensitive; an unclosed tag, or an argument without a colon, isn't a tag</td>
+</tr>
+<tr>
+<td><code>last_line(text, prefix) -&gt; str | None</code></td>
+<td>The rest of the last non-empty line if it starts with <code>prefix</code> (<code>"NEED:"</code>, <code>"HANDOFF:"</code>, any case; <code>*</code> and backticks around it ignored), else <code>None</code></td>
+</tr>
+<tr>
+<td><code>parse_show(argument) -&gt; ShowTag</code></td>
+<td>A SHOW argument, <code>path | "quote" | heading</code>, as <code>ShowTag(path, quote, heading)</code>; empty parts are <code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Quotes:</strong> every quote mark around the path goes (paths never contain them). Around the quote and the heading only <strong>one matching pair</strong> goes (<code>"…"</code>, <code>'…'</code>, <code>“…”</code>, <code>‘…’</code>), so the page's own apostrophes and quote marks stay: <code>"the users' files"</code> → <code>the users' files</code>. An unclosed double quote mark at one end is dropped; a lone apostrophe is kept.</p>
+<p><strong>Example</strong></p>
+<pre><code>for tag in find_tags(reply, ("SHOW",)):
+    show = parse_show(tag.argument)   # ShowTag(path='C:\\d\\x.html', quote='Parts', heading=None)
+question = last_line(text, "NEED:")   # "Which folder?" or None
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/agent_tags.py</code> · <strong>Tests:</strong> <code>tests/test_agent_tags.py</code></p>
+<p>The Edge window functions (<code>open_app_window</code>, <code>close_app_windows</code>) moved to <a href="app_kit.html#window">App kit</a>; they aren't re-exported here.</p>
 <footer>Generated from <code>docs/api/infra.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
+<script src="../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script>
-(function () {
-  var blocks = document.querySelectorAll("pre > code.language-mermaid");
-  blocks.forEach(function (code) {
-    var div = document.createElement("div");
-    div.className = "diagram";
-    div.textContent = code.textContent;
-    code.parentElement.replaceWith(div);
-  });
-  if (!window.mermaid) {
-    // Offline: show the diagram source instead.
-    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
-    return;
-  }
-  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
-  mermaid.run({ querySelector: ".diagram" });
-
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
-  var overlay = null, stage, scale, x, y;
-  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
-  function close() {
-    if (!overlay) return;
-    overlay.remove();
-    overlay = null;
-    document.body.style.overflow = "";
-  }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
-    overlay = document.createElement("div");
-    overlay.className = "zoom";
-    var btn = document.createElement("button");
-    btn.className = "zoom-close";
-    btn.setAttribute("aria-label", "Close");
-    btn.textContent = "\u00d7";
-    btn.addEventListener("click", close);
-    stage = document.createElement("div");
-    stage.className = "zoom-stage";
-    stage.appendChild(clone);
-    overlay.appendChild(btn);
-    overlay.appendChild(stage);
-    document.body.appendChild(overlay);
-    document.body.style.overflow = "hidden";
-    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
-    x = (innerWidth - w * scale) / 2;
-    y = (innerHeight - h * scale) / 2;
-    place();
-    overlay.addEventListener("wheel", function (e) {
-      e.preventDefault();
-      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
-      f = s / scale;
-      x = e.clientX - (e.clientX - x) * f;
-      y = e.clientY - (e.clientY - y) * f;
-      scale = s;
-      place();
-    }, { passive: false });
-    var drag = null;
-    overlay.addEventListener("pointerdown", function (e) {
-      if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
-      overlay.setPointerCapture(e.pointerId);
-      overlay.classList.add("dragging");
-    });
-    overlay.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      x = drag.x + e.clientX - drag.px;
-      y = drag.y + e.clientY - drag.py;
-      place();
-    });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
-  }
-  document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
-    var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
-  });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-})();
-</script>
+<script src="../site.js"></script>
 </body>
 </html>

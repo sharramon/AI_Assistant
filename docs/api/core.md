@@ -65,7 +65,7 @@ Select the `enabled` modules and return them in start order: providers before th
 
 `ScopedContext(manifest, router, bus, container, config, log)`
 
-The [`ModuleContext`](modules.md#modulecontext) implementation. Records every subscription, handler, and provided contract made through it.
+The [`ModuleContext`](modules.md#modulecontext) implementation. Records every subscription, handler, and provided contract made through it. Planned: builds the module's [`ctx.permissions`](modules.md#modulecontextpermissions) stand-in with its module id (allow and log until a permissions handler runs).
 
 | Method | Description |
 |--------|-------------|

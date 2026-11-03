@@ -4,6 +4,8 @@ Capabilities invocable by name, by the AI or any module. All items: `from assist
 
 ## `IToolProvider`
 
+**Reusable** · Used by: `html_viewer` provides; the core's `dispatch_tool`, `talker` and `temp_ui` call through `InvokeTool`
+
 `class IToolProvider(Contract)`
 
 A contract for modules that offer tools. Any number of modules may provide it (`multiple = True`). Declare it in `manifest.provides` and call `ctx.provide(IToolProvider, self)` in `init`.
@@ -74,3 +76,11 @@ Run the tool called `name`. Handled by the core, which routes it to the provider
     result = await ctx.send(InvokeTool(name="add", args={"a": 1, "b": 2}), timeout=10)
 
 **Defined in:** `src/assistant/contracts/tools.py`
+
+## Tools offered today
+
+| Tool | Provider | Args | Returns |
+|------|----------|------|---------|
+| `viewer.open` | `html_viewer` | `{"path": str, "front"?: bool}` | Opens an HTML file in the [HTML viewer](../architecture/html-viewer.md), starting it if needed; switches to the file's tab if it's open, and reloads it if the file changed. `path` should be absolute: a relative one resolves against the app's folder. `front` (default false; the chat's button sends true) brings the viewer window to the front, or opens a new one if it was closed; leave it off for pages an agent opens on its own. `ok({"tab", "path", "reloaded"})`; `invalid_arguments` for a missing file; `failed` if the viewer can't start or refuses the file (not HTML) |
+| `viewer.highlight` | `html_viewer` | `{"path": str, "text": str, "heading"?: str, "front"?: bool}` | Opens the file like `viewer.open` (including `front`) and highlights `text`, a short quote of the page's words (case and whitespace ignored), in `heading`'s section if given; scrolls to it. Highlights stay until you clear them and are never saved into the file. `ok({"tab", "path", "found", "matches"})`; `found` false means the file is open but the quote isn't on the page; `invalid_arguments` without a path or text, or for a missing file |
+| `viewer.tabs` | `html_viewer` | none | `ok([{"path", "active", "unsaved", "highlights"}])` (`highlights`: the quoted texts), empty if the viewer isn't running |

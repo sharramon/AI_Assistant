@@ -5,82 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agents</title>
 <!-- Generated from docs/agents/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<style>
-:root {
-  --bg: #fbfbfa; --panel: #f2f1ee; --text: #1f2328; --muted: #5d6470;
-  --border: #dedcd6; --accent: #2f62c8; --code-bg: #ecebe6;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-    --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #16181c; --panel: #1d2025; --text: #e6e6e3; --muted: #9aa1ab;
-  --border: #30343b; --accent: #82aaff; --code-bg: #23272e;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
-nav {
-  background: var(--panel); border-right: 1px solid var(--border);
-  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
-}
-nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
-nav h2:first-child { margin-top: 0; }
-nav ul { list-style: none; margin: 0; padding: 0; }
-nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; }
-nav a:hover { background: var(--border); }
-nav a[aria-current="page"] { background: var(--accent); color: var(--bg); }
-main { padding: 32px 40px 64px; max-width: 980px; width: 100%; }
-h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 16px; }
-h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-h3 { font-size: 1.1rem; margin: 28px 0 8px; }
-a { color: var(--accent); }
-code { font: 0.88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
-pre code { background: none; padding: 0; }
-table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
-th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
-th { background: var(--panel); }
-.diagram {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
-}
-.diagram svg { max-width: 100%; height: auto; }
-.diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
-.diagram:not(.offline) { cursor: zoom-in; }
-.zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
-.zoom.dragging { cursor: grabbing; }
-.zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.zoom-stage svg { display: block; max-width: none !important; }
-.zoom-close {
-  position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
-  font-size: 22px; line-height: 1; cursor: pointer;
-}
-.zoom-close:hover { background: var(--border); }
-footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
-@media (max-width: 760px) {
-  .layout { grid-template-columns: 1fr; }
-  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 16px; }
-  nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
-  main { padding: 20px 16px 48px; }
-}
-</style>
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
 <div class="layout">
-<nav><h2>Architecture</h2><ul><li><a href="../architecture/index.html">Overview</a></li><li><a href="../architecture/principles.html">Principles</a></li><li><a href="../architecture/core.html">Core host</a></li><li><a href="../architecture/communication.html">Communication</a></li><li><a href="../architecture/agents.html">Agents</a></li><li><a href="../architecture/remote-clients.html">Remote clients</a></li><li><a href="../architecture/decisions.html">Decisions</a></li></ul><h2>Agents</h2><ul><li><a href="index.html" aria-current="page">Overview</a></li><li><a href="runtime.html">Agent runtime</a></li><li><a href="spike.html">Two-Claude spike</a></li></ul><h2>API Reference</h2><ul><li><a href="../api/index.html">Overview</a></li><li><a href="../api/modules.html">Modules</a></li><li><a href="../api/messaging.html">Messaging</a></li><li><a href="../api/tools.html">Tools</a></li><li><a href="../api/control.html">Module control</a></li><li><a href="../api/agents.html">Agents</a></li><li><a href="../api/infra.html">Infrastructure</a></li><li><a href="../api/core.html">Core host (internal)</a></li></ul><h2>Next steps</h2><ul><li><a href="../next-steps/index.html">Next steps</a></li></ul></nav>
+<nav data-root="../" data-page="agents/index.html"></nav>
 <main>
 <h1 id="agents">Agents</h1>
 <p>How we run and work with the agents: setup, experiments, and what we've learned. How they fit the system is on the <a href="../architecture/agents.html">Agents architecture page</a>.</p>
 <blockquote>
-<p><strong>Status:</strong> built (2026-10-25): Talker, Main Assistant, Agent Hub, and terminal 2, launched by <code>python -m assistant</code>. See <a href="runtime.html">Agent runtime</a>.</p>
+<p><strong>Status:</strong> built (2026-10-25): Talker, Main Assistant, and Agent Hub, launched by <code>python -m assistant</code>, shown in the <a href="runtime.html#temp-ui">temp UI</a>. See <a href="runtime.html">Agent runtime</a>. Next: <a href="self-improvement.html">self-improvement</a>.</p>
 </blockquote>
 <h2 id="roles">Roles</h2>
 <table>
@@ -105,14 +39,16 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <tr>
 <td><strong>Subagents</strong></td>
 <td>Specialized workers the Main Assistant delegates to</td>
-<td>Later</td>
+<td>Claude Code's own subagents, inside the Main Assistant's process: <code>debugger</code> (<code>.claude/agents/debugger.md</code>, sonnet) for debugging loops and broad searches. Hub subagents (separate tasks you can stop one by one) later, if needed</td>
 </tr>
 </tbody>
 </table>
 <h2 id="how-the-sessions-run">How the sessions run</h2>
 <ul>
-<li>Each agent is one <strong>long-lived</strong> <code>claude -p --input-format stream-json --output-format stream-json</code> process, so it keeps its conversation.</li>
-<li>Messages in and out are <strong>JSON lines</strong> over stdin and stdout. The owning module (later: through <code>infra/ClaudeSession</code>) writes the agent's input and reads its event stream.</li>
+<li>Each agent is one <code>claude -p --input-format stream-json --output-format stream-json</code> process. The Talker's is <strong>long-lived</strong>, so it keeps the conversation. The Main Assistant gets a <strong>fresh one per task</strong>, and per handoff within a task, so a task's context holds only that task (<a href="runtime.html#fresh-sessions-and-handoffs">fresh sessions and handoffs</a>).</li>
+<li><strong>Usage:</strong> each session's context now (what every call resends) and its tokens and ~$ since launch, worker and Talker apart. The Talker always knows both and warns you past 150k; the temp UI shows both live. A Reset starts either one fresh.</li>
+<li>Messages in and out are <strong>JSON lines</strong> over stdin and stdout. The owning module, through <a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>, writes the agent's input and reads its event stream.</li>
+<li><strong>Transcripts for debugging:</strong> every line in and out goes to <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> (<code>transcript</code> in each module's config, a file name), next to the app's own <code>assistant.log</code>, in one folder per launch: <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code> (<a href="../architecture/core.html#logging">Logging</a>).</li>
 <li>Agents never talk to each other directly; everything goes through the Hub and the core.</li>
 <li>Started with <code>--strict-mcp-config</code>, so your claude.ai MCP connectors aren't loaded.</li>
 <li>Runs on your <strong>Claude subscription</strong> (terms checked for personal use). The session layer stays swappable to an API key.</li>
@@ -120,8 +56,34 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <h2 id="permissions">Permissions</h2>
 <ul>
 <li><strong>Talker:</strong> no tools.</li>
-<li><strong>Main Assistant:</strong> file tools only (<code>Read,Write,Edit,Glob,Grep</code>), no shell, <code>acceptEdits</code> mode: it reads anywhere and writes only inside its <code>workspace/</code> folder (other writes are refused, since nobody can approve them), until a confirmation mechanism exists.</li>
+<li><strong>Main Assistant:</strong> for now, the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (<code>tools = "default"</code>, shell included), <code>acceptEdits</code> mode, and the repo as its working folder, so it loads <code>CLAUDE.md</code> and reads the docs like Claude Code does. Settings in <code>[modules.main_assistant]</code> (<code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>):</li>
 </ul>
+<table>
+<thead>
+<tr>
+<th>Access</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Read and write, without asking</td>
+<td>the whole repo, including its own source, plus <code>.claude/skills</code> and <code>.claude/agents</code> (listed in <code>write_dirs</code> because <code>claude</code> treats <code>.claude/</code> as sensitive)</td>
+</tr>
+<tr>
+<td>Run, without asking</td>
+<td><code>allowed_commands</code>: the tests (<code>.\.venv\Scripts\python -m pytest</code>), <code>.\.venv\Scripts\ruff check</code>, the docs build, read-only git (<code>git status</code>, <code>git diff</code>, <code>git log</code>, <code>git show</code>), and <code>Get-ChildItem</code>, <code>Get-Content</code>, <code>Select-String</code>, with any arguments (added 2026-11-02)</td>
+</tr>
+<tr>
+<td><strong>Asks you, each time</strong></td>
+<td>other shell commands (git commit, push, reset, checkout, deleting files, installs, network, scripts it writes itself), the rest of <code>.claude/</code>, anything outside the repo</td>
+</tr>
+</tbody>
+</table>
+<p>Its <code>debugger</code> subagent works under the same rules; its requests come to you the same way (checked 2026-10-27).</p>
+<p>Both agents' prompts state these permissions, so they don't have to find out by trying. The <a href="../architecture/permissions.html#repo-zones">repo zones</a> are recorded but not enforced until the permissions handler and branch workflow are built.
+- <strong>Permission requests:</strong> when it uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (<code>permission_timeout</code>). The Talker never answers on its own. How it works: the note.
+- <strong>"You" means both.</strong> To you the Talker and the Main Assistant are one assistant, and both prompts say so.</p>
 <h2 id="first-implementation-limits">First implementation limits</h2>
 <ul>
 <li>One Main Assistant and <strong>one active task</strong>; another request gets "busy". No queue.</li>
@@ -130,95 +92,14 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 <h2 id="pages">Pages</h2>
 <ul>
 <li><a href="runtime.html">Agent runtime</a>: how the two agents are spawned, behave, and talk to each other</li>
+<li><a href="self-improvement.html">Self-improvement</a>: the plan for the assistant to read and change its own code and docs, and how permissions get granted</li>
 <li><a href="spike.html">Two-Claude spike</a>: the disposable experiment and its findings</li>
 </ul>
 <footer>Generated from <code>docs/agents/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
+<script src="../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script>
-(function () {
-  var blocks = document.querySelectorAll("pre > code.language-mermaid");
-  blocks.forEach(function (code) {
-    var div = document.createElement("div");
-    div.className = "diagram";
-    div.textContent = code.textContent;
-    code.parentElement.replaceWith(div);
-  });
-  if (!window.mermaid) {
-    // Offline: show the diagram source instead.
-    document.querySelectorAll(".diagram").forEach(function (d) { d.classList.add("offline"); });
-    return;
-  }
-  var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
-  mermaid.run({ querySelector: ".diagram" });
-
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
-  var overlay = null, stage, scale, x, y;
-  function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
-  function close() {
-    if (!overlay) return;
-    overlay.remove();
-    overlay = null;
-    document.body.style.overflow = "";
-  }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
-    overlay = document.createElement("div");
-    overlay.className = "zoom";
-    var btn = document.createElement("button");
-    btn.className = "zoom-close";
-    btn.setAttribute("aria-label", "Close");
-    btn.textContent = "\u00d7";
-    btn.addEventListener("click", close);
-    stage = document.createElement("div");
-    stage.className = "zoom-stage";
-    stage.appendChild(clone);
-    overlay.appendChild(btn);
-    overlay.appendChild(stage);
-    document.body.appendChild(overlay);
-    document.body.style.overflow = "hidden";
-    scale = Math.min(innerWidth * 0.92 / w, innerHeight * 0.92 / h);
-    x = (innerWidth - w * scale) / 2;
-    y = (innerHeight - h * scale) / 2;
-    place();
-    overlay.addEventListener("wheel", function (e) {
-      e.preventDefault();
-      var f = Math.exp(-e.deltaY * 0.0015), s = Math.min(40, Math.max(0.05, scale * f));
-      f = s / scale;
-      x = e.clientX - (e.clientX - x) * f;
-      y = e.clientY - (e.clientY - y) * f;
-      scale = s;
-      place();
-    }, { passive: false });
-    var drag = null;
-    overlay.addEventListener("pointerdown", function (e) {
-      if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
-      overlay.setPointerCapture(e.pointerId);
-      overlay.classList.add("dragging");
-    });
-    overlay.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      x = drag.x + e.clientX - drag.px;
-      y = drag.y + e.clientY - drag.py;
-      place();
-    });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
-  }
-  document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
-    var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
-  });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-})();
-</script>
+<script src="../site.js"></script>
 </body>
 </html>
