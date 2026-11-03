@@ -60,7 +60,7 @@
 <h2 id="manifest"><code>Manifest</code></h2>
 <p><strong>Reusable</strong> · Used by: every module</p>
 <p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = ())</code></p>
-<p>Frozen dataclass describing a module. Dependencies are on contracts, never on other modules. (<code>permissions</code> and <code>optional_permissions</code> are planned, with the <a href="#modulecontextpermissions"><code>ctx.permissions</code></a> stand-in.)</p>
+<p>Frozen dataclass describing a module. Dependencies are on contracts, never on other modules. <code>permissions</code> and <code>optional_permissions</code> are declarations only until the permissions handler runs; the <a href="#modulecontextpermissions"><code>ctx.permissions</code></a> stand-in allows everything.</p>
 <p><strong>Fields</strong></p>
 <table>
 <thead>
@@ -100,13 +100,13 @@
 <td><code>permissions</code></td>
 <td><code>tuple[str, ...]</code></td>
 <td>no</td>
-<td>Planned. <a href="../architecture/permissions.html#permission-names">Permission names</a> the module can't run without</td>
+<td><a href="../architecture/permissions.html#permission-names">Permission names</a> the module can't run without</td>
 </tr>
 <tr>
 <td><code>optional_permissions</code></td>
 <td><code>tuple[str, ...]</code></td>
 <td>no</td>
-<td>Planned. Permissions it asks for in the moment; without them a feature is off (<code>voice_in</code>: <code>("microphone",)</code>)</td>
+<td>Permissions it asks for in the moment; without them a feature is off (<code>voice_in</code>: <code>("microphone",)</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -144,12 +144,13 @@
 <tr>
 <td><code>permissions</code></td>
 <td><code>ModulePermissions</code></td>
-<td>Planned. This module's permission checks; see below</td>
+<td>This module's permission checks; see below</td>
 </tr>
 </tbody>
 </table>
 <h3 id="modulecontextpermissions"><code>ModuleContext.permissions</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (planned); every module that needs a permission · <strong>planned</strong> (decided 2026-11-02)</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (planned); every module that needs a permission · built 2026-11-02 (stand-in)</p>
+<p><code>class ModulePermissions(ABC)</code>, in <code>assistant.contracts</code>.</p>
 <table>
 <thead>
 <tr>
@@ -168,7 +169,7 @@
 </tr>
 </tbody>
 </table>
-<p>The caller's id is filled in by the core; a module never passes it. Until the <a href="../architecture/permissions.html">permissions handler</a> runs, the stand-in allows everything and logs a warning ("no permissions handler: allowing voice_in microphone"). The handler later plugs in behind the same calls.</p>
+<p>The caller's id is filled in by the core; a module never passes it. Until the <a href="../architecture/permissions.html">permissions handler</a> runs, the stand-in (<a href="core.html#allowallpermissions"><code>AllowAllPermissions</code></a>) allows everything and logs a warning the first time each module uses each permission ("no permissions handler: allowing voice_in microphone (You clicked the mic)"), then debug lines. Required permissions aren't checked at start yet. The handler later plugs in behind the same calls.</p>
 <pre><code>if not await ctx.permissions.request("microphone", reason="You clicked the mic"):
     return Result.failed("microphone not allowed")
 </code></pre>

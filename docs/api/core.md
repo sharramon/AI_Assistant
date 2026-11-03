@@ -65,13 +65,21 @@ Select the `enabled` modules and return them in start order: providers before th
 
 `ScopedContext(manifest, router, bus, container, config, log)`
 
-The [`ModuleContext`](modules.md#modulecontext) implementation. Records every subscription, handler, and provided contract made through it. Planned: builds the module's [`ctx.permissions`](modules.md#modulecontextpermissions) stand-in with its module id (allow and log until a permissions handler runs).
+The [`ModuleContext`](modules.md#modulecontext) implementation. Records every subscription, handler, and provided contract made through it. Sets the module's [`ctx.permissions`](modules.md#modulecontextpermissions) to an [`AllowAllPermissions`](#allowallpermissions) bound to its module id.
 
 | Method | Description |
 |--------|-------------|
 | `close()` | Remove everything this module registered |
 
 **Defined in:** `src/assistant/core/context.py`
+
+## `AllowAllPermissions`
+
+`AllowAllPermissions(module_id: str)`
+
+The `ctx.permissions` stand-in, a [`ModulePermissions`](modules.md#modulecontextpermissions): `has` and `request` always return `True`. The first use of each permission logs a warning on `assistant.core.permissions` ("no permissions handler: allowing voice_in microphone (You clicked the mic)"); later uses of the same one log at debug. Replaced by a forwarder to the [permissions handler](../architecture/permissions.md) once it exists.
+
+**Defined in:** `src/assistant/core/permissions.py`
 
 ## `CommandRouter`
 

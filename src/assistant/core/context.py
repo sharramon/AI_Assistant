@@ -8,6 +8,7 @@ from typing import Any
 from assistant.contracts import Command, Contract, Event, Manifest, ModuleContext, Result
 from assistant.core.bus import EventBus, Subscription
 from assistant.core.container import Container
+from assistant.core.permissions import AllowAllPermissions
 from assistant.core.router import CommandHandler, CommandRouter
 
 
@@ -24,6 +25,7 @@ class ScopedContext(ModuleContext):
         self.module_id = manifest.id
         self.config = config
         self.log = log
+        self.permissions = AllowAllPermissions(manifest.id)
         self._manifest = manifest
         self._router = router
         self._bus = bus

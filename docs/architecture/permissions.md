@@ -4,7 +4,7 @@ Who may use what: location, the microphone, files, accounts. Back to the [overvi
 
 > **Status: planned (designed 2026-10-26).** Not built. Today only the Main Assistant asks for permission, through the Agent Hub ([permission requests](../next-steps/permission-requests.md)); this design replaces that with one handler every module uses. Change note: [permissions handler](../next-steps/permissions-handler.md).
 >
-> **First, a stand-in (planned now, decided 2026-11-02):** `ctx.permissions` on every module's context, with `has` and `request`, and the manifest's `permissions` / `optional_permissions` fields. With no handler, it applies the [no handler running](#what-happens-when-one-is-missing) rule: allow, and log a warning naming the module. The handler later plugs in behind the same calls, so no module changes. Built in the core's `ScopedContext` ([API](../api/modules.md#modulecontextpermissions)).
+> **Built: the stand-in** (2026-11-02, [change note](../next-steps/permissions-stand-in.md)): `ctx.permissions` on every module's context, with `has` and `request`, and the manifest's `permissions` / `optional_permissions` fields. With no handler, it applies the [no handler running](#what-happens-when-one-is-missing) rule: allow, and log a warning naming the module the first time each module uses each permission (debug after that). Required permissions aren't checked at start yet; the handler adds that. The handler later plugs in behind the same calls, so no module changes. Built as `AllowAllPermissions` (`core/permissions.py`), set by the core's `ScopedContext` ([API](../api/modules.md#modulecontextpermissions)).
 >
 > **Built: the [permission mode](#permission-mode-built)** (2026-11-02): Manual or Auto for the Main Assistant, switched with a button.
 
@@ -55,7 +55,7 @@ Plain strings, with a scope where one is needed:
 | A module needs one **in the moment** | It calls `request`; you get an Allow / Deny card or the Talker asks. Allow once or always |
 | You **revoke** one | `PermissionChanged` is published; the module turns that feature off, or is turned off |
 | Nobody answers | Denied after a timeout (10 minutes, as today) |
-| **No handler running** (the `permissions` module is off) | Everything is allowed, and each check is logged as a warning ("no permissions handler: allowing main_assistant location"). Decided 2026-10-26 for now, while developing. This is what the stand-in does (planned) |
+| **No handler running** (the `permissions` module is off) | Everything is allowed, and each check is logged as a warning ("no permissions handler: allowing main_assistant location"). Decided 2026-10-26 for now, while developing. This is what the stand-in does (built 2026-11-02; warns once per module and permission, then debug) |
 
 ## Classes
 

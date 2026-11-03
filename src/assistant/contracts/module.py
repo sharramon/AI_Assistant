@@ -35,6 +35,26 @@ class Manifest:
     provides: tuple[type[Contract], ...] = ()
     requires: tuple[type[Contract], ...] = ()
     optional: tuple[type[Contract], ...] = ()
+    #: Permission names the module can't run without (checked once a permissions handler exists).
+    permissions: tuple[str, ...] = ()
+    #: Permissions asked for in the moment; without them a feature is off.
+    optional_permissions: tuple[str, ...] = ()
+
+
+class ModulePermissions(ABC):
+    """One module's permission checks, reached as `ctx.permissions`.
+
+    The core binds it to the calling module, so a module never passes its own id
+    and can't ask in another module's name.
+    """
+
+    @abstractmethod
+    def has(self, name: str) -> bool:
+        """Whether this module may use `name` now, without asking."""
+
+    @abstractmethod
+    async def request(self, name: str, reason: str = "") -> bool:
+        """Ask for `name` in the moment; `reason` is shown to the user. True if allowed."""
 
 
 class ModuleContext(ABC):
@@ -47,6 +67,7 @@ class ModuleContext(ABC):
     module_id: str
     config: dict[str, Any]
     log: Logger
+    permissions: ModulePermissions
 
     @abstractmethod
     def subscribe(self, event_type: type[E], handler: Callable[[E], Awaitable[None]]) -> None:

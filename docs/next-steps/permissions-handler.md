@@ -1,6 +1,6 @@
 # Permissions handler
 
-> **Status: proposed (2026-10-26).** Design: [Permissions](../architecture/permissions.md). Since 2026-11-02 ([reusable parts](reusable-parts.md#decided)) the `ctx.permissions` stand-in comes first (allow and log); this handler later plugs in behind it, with no module changes.
+> **Status: proposed (2026-10-26).** Design: [Permissions](../architecture/permissions.md). Since 2026-11-02 ([reusable parts](reusable-parts.md#decided)) the `ctx.permissions` stand-in comes first (allow and log; built 2026-11-02, [note](permissions-stand-in.md)); this handler later plugs in behind it, with no module changes.
 
 **Asked:** "Should permissions work through its own permissions handler? Since different sub-apps / functionality will need different permissions?" Each module should get only what it needs (a map feature gets location, nothing else does), and a missing permission should only affect the module that needs it.
 

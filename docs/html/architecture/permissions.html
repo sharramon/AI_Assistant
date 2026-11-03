@@ -15,7 +15,7 @@
 <p>Who may use what: location, the microphone, files, accounts. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
 <p><strong>Status: planned (designed 2026-10-26).</strong> Not built. Today only the Main Assistant asks for permission, through the Agent Hub (permission requests); this design replaces that with one handler every module uses. Change note: permissions handler.</p>
-<p><strong>First, a stand-in (planned now, decided 2026-11-02):</strong> <code>ctx.permissions</code> on every module's context, with <code>has</code> and <code>request</code>, and the manifest's <code>permissions</code> / <code>optional_permissions</code> fields. With no handler, it applies the <a href="#what-happens-when-one-is-missing">no handler running</a> rule: allow, and log a warning naming the module. The handler later plugs in behind the same calls, so no module changes. Built in the core's <code>ScopedContext</code> (<a href="../api/modules.html#modulecontextpermissions">API</a>).</p>
+<p><strong>Built: the stand-in</strong> (2026-11-02, change note): <code>ctx.permissions</code> on every module's context, with <code>has</code> and <code>request</code>, and the manifest's <code>permissions</code> / <code>optional_permissions</code> fields. With no handler, it applies the <a href="#what-happens-when-one-is-missing">no handler running</a> rule: allow, and log a warning naming the module the first time each module uses each permission (debug after that). Required permissions aren't checked at start yet; the handler adds that. The handler later plugs in behind the same calls, so no module changes. Built as <code>AllowAllPermissions</code> (<code>core/permissions.py</code>), set by the core's <code>ScopedContext</code> (<a href="../api/modules.html#modulecontextpermissions">API</a>).</p>
 <p><strong>Built: the <a href="#permission-mode-built">permission mode</a></strong> (2026-11-02): Manual or Auto for the Main Assistant, switched with a button.</p>
 </blockquote>
 <h2 id="the-idea">The idea</h2>
@@ -99,7 +99,7 @@ allowed = await ctx.permissions.request("files.write:src", reason="Fix the bug y
 </tr>
 <tr>
 <td><strong>No handler running</strong> (the <code>permissions</code> module is off)</td>
-<td>Everything is allowed, and each check is logged as a warning ("no permissions handler: allowing main_assistant location"). Decided 2026-10-26 for now, while developing. This is what the stand-in does (planned)</td>
+<td>Everything is allowed, and each check is logged as a warning ("no permissions handler: allowing main_assistant location"). Decided 2026-10-26 for now, while developing. This is what the stand-in does (built 2026-11-02; warns once per module and permission, then debug)</td>
 </tr>
 </tbody>
 </table>

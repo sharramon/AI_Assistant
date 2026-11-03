@@ -45,7 +45,7 @@ from assistant.contracts.messages import (
     ViewerClipDropped,
     ViewerTabsChanged,
 )
-from assistant.contracts.module import Contract, Manifest, Module, ModuleContext
+from assistant.contracts.module import Contract, Manifest, Module, ModuleContext, ModulePermissions
 from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
 
 __all__ = [
@@ -70,6 +70,7 @@ __all__ = [
     "Module",
     "ModuleContext",
     "ModuleInfo",
+    "ModulePermissions",
     "ModuleState",
     "ModuleStateChanged",
     "PermissionMode",

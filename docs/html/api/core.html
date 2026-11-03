@@ -115,7 +115,7 @@
 <p><strong>Defined in:</strong> <code>src/assistant/core/lifecycle.py</code></p>
 <h2 id="scopedcontext"><code>ScopedContext</code></h2>
 <p><code>ScopedContext(manifest, router, bus, container, config, log)</code></p>
-<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it. Planned: builds the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> stand-in with its module id (allow and log until a permissions handler runs).</p>
+<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it. Sets the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> to an <a href="#allowallpermissions"><code>AllowAllPermissions</code></a> bound to its module id.</p>
 <table>
 <thead>
 <tr>
@@ -131,6 +131,10 @@
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/context.py</code></p>
+<h2 id="allowallpermissions"><code>AllowAllPermissions</code></h2>
+<p><code>AllowAllPermissions(module_id: str)</code></p>
+<p>The <code>ctx.permissions</code> stand-in, a <a href="modules.html#modulecontextpermissions"><code>ModulePermissions</code></a>: <code>has</code> and <code>request</code> always return <code>True</code>. The first use of each permission logs a warning on <code>assistant.core.permissions</code> ("no permissions handler: allowing voice_in microphone (You clicked the mic)"); later uses of the same one log at debug. Replaced by a forwarder to the <a href="../architecture/permissions.html">permissions handler</a> once it exists.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/permissions.py</code></p>
 <h2 id="commandrouter"><code>CommandRouter</code></h2>
 <p><code>CommandRouter(default_timeout: float = 30.0, timeouts: dict[str, float] | None = None)</code></p>
 <p><code>timeouts</code> maps command class names to per-type timeouts.</p>

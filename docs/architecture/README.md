@@ -95,7 +95,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 | HTML viewer | Its own app: view, edit, highlight, and snip HTML files. The main app launches it through the thin `html_viewer` module, with `CompanionApp` | `src/html_viewer/` | [HTML viewer](html-viewer.md) |
 | Voice handler | Speech to text: a shared `voice_service` app (mic and engine) and the thin `voice_in` module that sends the final text to the Talker; built on `CompanionApp` and `load_layered` (planned) | _TBD_ `src/voice_service/`, `modules/voice_in/` | [voice](voice.md) |
 | Agent Hub | Coordinates the agents: who is doing what, task state, routing, clarifications | `src/assistant/modules/agent_hub/` | [agents](agents.md) |
-| Permissions handler | Knows what the app has, what each module needs, and what you've granted; asks you otherwise. Modules call it through `ctx.permissions`; a stand-in that allows and logs comes first (both planned) | _TBD_ `modules/permissions/` | [permissions](permissions.md) |
+| Permissions handler | Knows what the app has, what each module needs, and what you've granted; asks you otherwise. Modules call it through `ctx.permissions`; today a stand-in that allows and logs answers (built), the handler is planned | _TBD_ `modules/permissions/` | [permissions](permissions.md) |
 | Control panel | UI module to turn modules on and off while running, through the core's control interface (planned) | _TBD_ module | [core](core.md#runtime-module-control) |
 | Gateway module | Relays messages to and from remote clients over WebSocket | _TBD_ | |
 | Remote clients | Device apps with their own UI logic (Quest 3 first) | `clients/` | |
