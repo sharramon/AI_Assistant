@@ -52,7 +52,7 @@ Project skills in `.claude/skills/`, used by Claude Code and the Main Assistant 
 |-------|---------------|------|
 | `batching` | The batching rules that keep the step count and per-step cost down | Before any multi-step task (several reads, edits, builds, or questions) |
 | `architecture-first` | Confirms the use-case, checks the architecture docs and API reference so code gets reused, keeps those docs updated | Before non-trivial edits, or a change touching more than one function or file |
-| `architecture-check` | Checks what was just built for modularity, reuse, and fit with the main app; the final report gets an "Architecture check" section | After each big chunk of a multi-chunk build, and before the final report |
+| `architecture-check` | Checks what was just built for modularity, reuse, and fit with the main app, then updates the architecture docs and flowcharts to match (built and planned marked); the final report gets an "Architecture check" section naming the diagrams updated | After each big chunk of a multi-chunk build, and before the final report |
 | `docs-html` | Regenerates the browsable HTML in `docs/html/` | Whenever a file under `docs/` (Markdown) is created, edited, renamed, or deleted |
 
 ## Pages

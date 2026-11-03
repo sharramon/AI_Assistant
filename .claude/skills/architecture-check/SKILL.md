@@ -1,6 +1,6 @@
 ---
 name: architecture-check
-description: Use during and at the end of any multi-chunk build. After each big chunk is done (the chunks planned with the batching skill), and once more before the final report, stop and check what was just built against the philosophy, structure, and flow of the whole app: modularity, reuse, and fit with the main app. The final report gets a short "Architecture check" section.
+description: Use during and at the end of any multi-chunk build. After each big chunk is done (the chunks planned with the batching skill), and once more before the final report, stop and check what was just built against the philosophy, structure, and flow of the whole app: modularity, reuse, and fit with the main app. Then update the architecture docs and flowcharts to match what was built. The final report gets a short "Architecture check" section.
 ---
 
 # Architecture Check
@@ -31,6 +31,16 @@ Once per task, not once per check: `docs/architecture/principles.md`, `docs/arch
    - Do the commands, events, and protocol still fit how the main app talks to its parts: commands with one handler and a `Result`, events for notifications, plain serializable data across boundaries (principle 9)?
    - Is it clear how the next step connects: which contract, command, or endpoint it will call, and with what? If you can't say it in a sentence, that's a finding.
 
+## Then update the docs and flowcharts
+
+After the checks, make the architecture docs match what was just built, so the next agent understands the flow from the docs alone:
+
+- **The overview** (`docs/architecture/README.md`): the bird's-eye diagram and the Parts table. Keep it bird's-eye only: blocks, arrows, and one line per part; details go on the area's page.
+- **The area's own page** (`docs/architecture/<area>.md`): its flow diagrams (flowchart, sequence) show the new steps, messages, and errors.
+- **Built and planned:** mark both in every diagram you touch (the planned and later classes, or labels), so nothing planned reads as built.
+
+Rebuild with the `docs-html` skill once, with the other doc edits.
+
 ## What to do with a finding
 
 - **Small drift** (a missed Used by line, a stray import, a name that breaks the conventions, a doc line that's now wrong): fix it on the spot, in the pending edits for that file (see `batching`: one edit per file).
@@ -38,13 +48,14 @@ Once per task, not once per check: `docs/architecture/principles.md`, `docs/arch
 
 ## In the final report
 
-Add a short **Architecture check** section: when the checks ran, and one line each for **Modularity**, **Reuse**, and **Fit with the main app** saying what was checked and what was found (OK, fixed on the spot, or open). End with any structure choice the user should look at.
+Add a short **Architecture check** section: when the checks ran, and one line each for **Modularity**, **Reuse**, and **Fit with the main app** saying what was checked and what was found (OK, fixed on the spot, or open), and a **Diagrams** line naming the diagrams updated. End with any structure choice the user should look at.
 
 ```markdown
 **Architecture check** (after the server worked, and at the end):
 - **Modularity:** OK. `voice_service` imports only `app_kit`, pydantic, and FastAPI; the test scans the whole package.
 - **Reuse:** fixed one: added the fake engine to the index with its Used by line.
 - **Fit with the main app:** OK. Protocol unchanged; step 3 connects with `CompanionApp("voice_service", ...)` and one WebSocket per mic session.
+- **Diagrams:** the overview shows Voice in as built; the Voice page's flowchart and sequence diagram show the service, built and planned marked.
 - **To look at:** the service's parts are documented on the Messaging page, not their own page.
 ```
 
