@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Chang/Git_projects/AI_Assistant/.venv/Scripts/python.exe",
+            "args": ["C:/Chang/Git_projects/AI_Assistant/scripts/hooks/edit_tracker.py"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -8,7 +8,7 @@ The architecture overview and the API index are loaded below. Use them to unders
 2. Read its detail page: `docs/architecture/<area>.md` and `docs/api/<group>.md`.
 3. Only then use Grep/Glob: to confirm against the code, or to find what the docs don't cover. If the docs and the code disagree, trust the code and fix the docs.
 
-Before writing a new function, check the API reference for one that already does the job.
+Before writing a new function, check the [reusable parts index](docs/api/reusable.md) and the API reference for one that already does the job. After building a reusable part, add it to the index with its Used by line ("Build it once", principle 13).
 
 What we're working on now is in `docs/next-steps/README.md`.
 
@@ -16,6 +16,7 @@ For agent work (Talker, Main Assistant, Agent Hub, subagents), also read `docs/a
 
 ## Workflow
 
+- Any multi-step task: follow the `batching` skill.
 - Making a change that touches more than one function or file: use the `architecture-first` skill.
 - After editing anything in `docs/**/*.md`: use the `docs-html` skill (rebuild with `.\.venv\Scripts\python scripts\build_docs.py`). Never edit `docs/html/` by hand.
 - Discuss proposed doc or structure changes with the user before editing.
