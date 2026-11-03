@@ -1,7 +1,8 @@
-"""Run the voice service, or download a model.
+"""Run the voice service, download a model, or check this machine's mic.
 
     python -m voice_service [--config F] [--host H] [--port P]
     python -m voice_service download zipformer [--config F]
+    python -m voice_service check [--seconds S] [--no-model] [--config F]
 """
 
 from __future__ import annotations
@@ -21,6 +22,10 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     if argv[:1] == ["download"]:
         parser.add_argument("command", choices=["download"])
         parser.add_argument("engine", help="the engine whose model to fetch: zipformer")
+    elif argv[:1] == ["check"]:
+        parser.add_argument("command", choices=["check"])
+        parser.add_argument("--seconds", type=float, default=3.0, help="how long to listen (default 3)")
+        parser.add_argument("--no-model", action="store_true", help="skip loading the model")
     return parser.parse_args(argv)
 
 
@@ -51,6 +56,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"voice_service: download failed: {exc}", file=sys.stderr)
             return 1
         return 0
+
+    if getattr(args, "command", None) == "check":
+        from .check import run_check
+
+        return 0 if run_check(config, args.seconds, model=not args.no_model) else 1
 
     import uvicorn
 

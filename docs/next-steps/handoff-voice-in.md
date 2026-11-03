@@ -1,5 +1,60 @@
 # Handoff: voice in, after step 3 (the voice_in module)
 
+## Update 2026-11-03, later: step 6 built
+
+**Done and committed:** "Voice in step 6: mic check and unplug detection".
+- **`python -m voice_service check`:** wired in. On this laptop, privacy is Allow everywhere, the default mic is the Realtek array (MME), and the model loads in 1.9 s. The mic opens in 12 ms with the first audio at 50 ms, and decoding runs at 0.03× real time.
+- **The level:** near silent (rms 0, peak 1) on every device and every host API (MME, DirectSound, WASAPI, WDM-KS). Chunks arrive on time and the values aren't exact zeros, so this isn't the privacy block. It's either a quiet room behind Realtek's noise suppression, or a mic muted by the key or the input volume. Only the user speaking can tell which.
+- **Through the real service** (real model and mic): `started` came 283 ms after `start`, and the final 78 ms after `stop`. 5 s of live mic gave no false stall.
+- **Stall watchdog:** `[audio] stall_seconds = 2` in `session.py`, with tests for a stall that recovers, one that doesn't, and a steady source. The test configs default it to 0.
+- **Device refresh:** `MicSource.stale_devices` is set by the finished callback, or by a `stop` while the mic had been quiet for over 1 s. The next `start` calls `sd._terminate()` and `sd._initialize()`. Tested with a stand-in sounddevice.
+- **Results:** ruff is clean and 231 tests pass.
+
+**Decisions:**
+- No NEED for privacy: Windows already allows the mic.
+- The quiet level goes on the user's checklist rather than in a fix.
+- `check` stays inside the service: it isn't reusable, so it isn't in the index.
+
+**Left, for the user only:** speak during `check`; click the mic and speak, noting the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence. **Next for the build:** step 7, the engine comparison.
+
+## Update 2026-11-03: step 4 done, step 6 (the real mic) in progress
+
+The task runs in **full auto**: the user pre-approved everything. Decide from the docs, record each decision here or in the change note, commit locally per finished chunk (short messages like recent commits), never push, never touch git config. Run ruff and the full tests, plus the `architecture-check` skill, after each chunk. The final report includes a Diagrams line, the relaunch steps (ask whether to relaunch), and a checklist for the user.
+
+**Done and committed:** step 4, the temp UI's mic button and live line (`b22be25`, [note](voice-temp-ui.md), with 7 decisions). `voice_in` is in `enabled`. Ruff is clean and 226 tests pass. The architecture check passed, and the Voice flowchart, the sequence diagram, and the runtime temp UI flowchart are updated.
+
+**Found on this laptop (step 6):**
+- The voice extra is installed: sounddevice 0.5.6, sherpa-onnx 2.0.1.
+- The Zipformer model is present in `%LOCALAPPDATA%\AI_Assistant\voice_models`, both the int8 and the full-precision files.
+- The default input is device 1, "Microphone Array (Realtek(R) Au…)" on MME. The Oculus virtual headset mic is also listed.
+- The real-mic level probe hasn't run yet. PowerShell mangles `python -c` quotes, so the probe is being made a command instead.
+
+**In progress (uncommitted):**
+- `src/voice_service/check.py` is written but not wired in yet. `run_check(config, seconds, model)` checks the extra, Windows' mic privacy registry values (read only), the devices, the model's load time, and a level check through the real `MicSource`. It also transcribes what it heard and reports the decode speed.
+- `__main__.py` has only the docstring line so far. Still to do: in `_parse`, accept `check` with `--seconds` (default 3) and `--no-model`. In `main`, call `run_check` and return 0 if it passes, else 1.
+
+**Next:**
+1. **Wire up and run `check`:**
+   - Wire `check` in `__main__.py`, then run `.\.venv\Scripts\python -m voice_service check --seconds 3`.
+   - If the result is all zeros or the privacy setting is Deny, give the user the exact Settings path with a `NEED:` line: Settings > Privacy & security > Microphone, then "Microphone access" and "Let desktop apps access your microphone".
+   - Add a test for `level()` and `mic_privacy()`, and for `run_check` with a fake recorder if it stays cheap.
+2. **Fix an unplug that isn't reported (decided):**
+   - Add a stall watchdog in `ListenSession`, plus `[audio] stall_seconds = 2` (0 turns it off) in `config.py` and `config/voice_service.toml`.
+   - `_on_chunk` records `self._last_chunk`, and `_open_source` resets it.
+   - In `_listen`, while the source is open, not stopping and not lost, and no chunk has arrived for `stall_seconds`, set `self._lost = "no audio from the mic for 2 s"`. The existing recovery then runs.
+   - Exact zeros don't count as a drop, since a mute key sends zeros too.
+   - Check that the existing FakeSource tests don't trip it. Set `stall_seconds = 0` in the tests that idle, and add a stall test.
+3. **Fix the stale device list on reopen (decided):**
+   - PortAudio reads its device list once, at import, so a reopen after an unplug can fail even when another mic exists.
+   - In `MicSource`, set a class-level "needs refresh" flag when a source is lost. The next `start` calls `sd._terminate(); sd._initialize()`, guarded with `getattr`, before it opens. Clear the flag after an open succeeds.
+4. **Measure, commit, write the docs:**
+   - Measure what's possible without speech: open time, first chunk, and `check`'s decode speed. Startup to `started` through the real service is optional.
+   - Commit: "Voice in step 6: mic check and unplug detection".
+   - Docs: on the Voice page, add `check`, `stall_seconds` in the config block, the errors table row for a stall, and the step 6 status. Update the API messaging page ("Voice service parts"), the reusable index if `check` counts as reusable (probably not), and Next steps. Then rebuild the docs.
+5. **Report:**
+   - The relaunch steps.
+   - A user checklist: run `check` while speaking; click the mic and speak; note the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence and look for the drop symbol, then the mic coming back or failing.
+
 > **Written 2026-11-03** at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on [Voice](../architecture/voice.md) (built parts are marked there); the step's note is [voice-in-module.md](voice-in-module.md), with what was built differently at its top. The step list is in [Next steps](README.md#next-voice-in-phase-1).
 
 ## Done

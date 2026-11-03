@@ -359,7 +359,12 @@
 <tr>
 <td><code>MicSource(device="", chunk_ms=32)</code></td>
 <td>class (<code>audio</code>)</td>
-<td>The mic through a sounddevice <code>RawInputStream</code> (int16, 16 kHz, mono); a stream that ends without <code>stop</code> calls <code>on_lost</code>. sounddevice is imported only in <code>start</code></td>
+<td>The mic through a sounddevice <code>RawInputStream</code> (int16, 16 kHz, mono); a stream that ends without <code>stop</code> calls <code>on_lost</code>. sounddevice is imported only in <code>start</code>. After a lost mic, or one stopped while it had gone quiet, the next <code>start</code> reloads PortAudio's device list (<code>MicSource.stale_devices</code>)</td>
+</tr>
+<tr>
+<td><code>run_check(config, seconds=3.0, model=True, out=print) -&gt; bool</code>, <code>level(samples)</code>, <code>mic_privacy()</code></td>
+<td>functions (<code>check</code>)</td>
+<td><code>python -m voice_service check</code>: the voice extra, Windows' mic privacy values (read only), the input devices, the model's load time, and a real-mic level check through <code>MicSource</code>, transcribing what it heard. True if sound arrived (and the model loaded)</td>
 </tr>
 <tr>
 <td><code>FakeSource(chunks=(), *, interval=0, fail_on_open=False, lose_after=None)</code>, <code>FakeSource.from_wav(path, *, chunk_ms=32, realtime=True)</code></td>

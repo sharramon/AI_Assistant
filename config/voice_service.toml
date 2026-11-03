@@ -12,6 +12,7 @@ chunk_ms = 32               # 512 frames at 16 kHz. Rate and format are fixed: 1
 queue_seconds = 10          # how far the engine may fall behind before audio is dropped
 silence_stop_seconds = 120  # no speech detected for this long: the session stops itself, like a stop (a forgotten mic). No limit while you talk
 mic_recovery_seconds = 15   # the mic drops mid-session: keep the session and try to reopen it this long (mic_dropped, then mic_back). 0 = end at once (mic_lost)
+stall_seconds = 2           # no audio chunks at all for this long counts as a lost mic (an unplug Windows didn't report). Silence and a muted mic still send chunks. 0 = off
 
 [engine]
 name = "zipformer"          # "zipformer" or "fake"

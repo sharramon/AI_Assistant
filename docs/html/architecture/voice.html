@@ -19,6 +19,10 @@
 <p><strong>Built: step 2, the voice service</strong> (2026-11-03, change note): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
 <p><strong>Built: step 3, the <code>voice_in</code> module</strong> (2026-11-03, change note): <code>src/assistant/modules/voice_in/</code>, off by default, as designed in <a href="#the-voice_in-module">the voice_in module</a>, plus two additions you asked for. <strong>A dropped mic is waited for:</strong> the service keeps the session and tries to reopen the mic for <code>mic_recovery_seconds</code> (15 s), sending <code>mic_dropped</code> and then <code>mic_back</code>. If the mic doesn't come back, the session ends and its text is dropped. <strong>A quick <code>/health</code> check</strong> runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.</p>
 <p><strong>Built: step 4, the temp UI's mic button</strong> (2026-11-03, change note): the button sends <code>StartListening</code> / <code>StopListening</code> and shows <code>VoiceState</code>; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. <code>voice_in</code> is now in <code>[modules] enabled</code>. Details: <a href="../agents/runtime.html#temp-ui">runtime: temp UI</a>.</p>
+<p><strong>Built: step 6, the real mic on this laptop</strong> (2026-11-03, handoff). <strong><code>python -m voice_service check</code></strong> tells whether this machine is ready. It checks the voice extra, Windows' mic privacy switches (read only), the input devices, the model's load time, and a few seconds of the real mic through <code>MicSource</code>, and it transcribes anything said during the check. Two fixes came out of it:
+- <strong>An unreported unplug counts as a drop.</strong> No chunks at all for <code>[audio] stall_seconds</code> (2 s) starts the same recovery as a reported unplug. Silence and a muted mic still send chunks, so they don't trip it.
+- <strong>The device list is reloaded after a drop.</strong> PortAudio reads it only once, so a replugged or other mic couldn't open. <code>MicSource</code> now reloads it on the next open after a lost or stalled mic.</p>
+<p>Measured on this laptop, without speech: privacy allows desktop apps, and the default mic is the Realtek array (MME). The model loads in 1.9 s. The mic opens in 12 ms and the first audio arrives at 50 ms. <code>started</code> comes 283 ms after <code>start</code>, the final 78 ms after <code>stop</code>, and decoding runs at 0.03× real time. A live mic ran 5 s without a false drop. The room read almost silent on every device and audio API (rms 0 to 1), so the next check is you speaking. Delays with real speech, and a real unplug, are yours to try.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
 <ul>
@@ -241,6 +245,8 @@
 ├── __init__.py
 ├── __main__.py             # CLI: `python -m voice_service [--config F] [--host H] [--port P]`
 │                           #      `python -m voice_service download &lt;engine&gt;`
+│                           #      `python -m voice_service check [--seconds S] [--no-model]`
+├── check.py                # run_check: extra, mic privacy, devices, model, a real-mic level check (step 6)
 ├── config.py               # ServiceConfig from app_kit.load_layered(path, local), plus overrides
 ├── protocol.py             # message models (pydantic) and the error codes
 ├── server.py               # create_app(config, engine, source_factory) → FastAPI
@@ -320,6 +326,7 @@ chunk_ms = 32               # 512 frames at 16 kHz. Rate and format are fixed: 1
 queue_seconds = 10          # how far the engine may fall behind before audio is dropped
 silence_stop_seconds = 120  # no speech detected for this long: the session stops itself, like a stop (a forgotten mic). No limit while you talk
 mic_recovery_seconds = 15   # the mic drops mid-session: keep the session and try to reopen it this long (mic_dropped, then mic_back). 0 = end at once (mic_lost)
+stall_seconds = 2           # no audio chunks at all for this long counts as a lost mic (an unplug Windows didn't report). Silence and a muted mic still send chunks. 0 = off
 
 [engine]
 name = &quot;zipformer&quot;          # &quot;zipformer&quot; or &quot;fake&quot;
@@ -366,6 +373,11 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 <td><strong>Mic lost mid-session</strong> (unplugged: the stream's finished callback fires, or the callback reports an error)</td>
 <td>Keeps the session and its text (revised 2026-11-03). It sends the last partial, then <code>mic_dropped</code>, and tries a fresh source from the factory about once a second (the silence timer is paused). If one opens: <code>mic_back</code>, and listening carries on. If none opens within <code>mic_recovery_seconds</code>, or the app sends <code>stop</code> meanwhile: <code>final</code> with <code>complete: false</code>, then <code>error mic_lost</code>. With <code>mic_recovery_seconds = 0</code>, it ends at once as before</td>
 <td><em>dropped</em>: the drop symbol and a countdown while it waits. If the mic doesn't come back: <em>failed: mic disconnected</em>, and the text heard so far is <strong>dropped</strong> (cleared from the live line, kept only as its length in the log, never sent to the Talker)</td>
+</tr>
+<tr>
+<td><strong>Mic goes quiet without a report</strong> (an unplug Windows doesn't signal: the stream stays open but no chunks come; added in step 6)</td>
+<td>After <code>stall_seconds</code> (2 s) with no chunk at all, the same as a lost mic, with the detail "no audio from the mic for 2 s". <code>MicSource</code> reloads PortAudio's device list on the next open, so a replugged mic is found</td>
+<td>The same as a lost mic</td>
 </tr>
 <tr>
 <td><strong>Model didn't load</strong> (missing files, bad model, sherpa-onnx missing)</td>
@@ -507,7 +519,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
         S--&gt;&gt;V: partial
         V--&gt;&gt;U: VoiceTranscript(final=False)
     end
-    opt the mic drops
+    opt the mic drops (reported, or no chunks for stall_seconds)
         S--&gt;&gt;V: mic_dropped {wait_seconds}
         V--&gt;&gt;U: VoiceState(dropped): drop symbol, countdown
         alt a mic reopens within mic_recovery_seconds

@@ -76,6 +76,8 @@ class ListenSession:
         self._chunks: queue.Queue[bytes] = queue.Queue(max(1, int(audio.queue_seconds * 1000 / audio.chunk_ms)))
         self._silence = audio.silence_stop_seconds
         self._recovery = audio.mic_recovery_seconds
+        self._stall = audio.stall_seconds
+        self._last_chunk = 0.0  # when the source last delivered a chunk (the stall watchdog)
         self._interval = config.engine.partial_interval_ms / 1000
         self._abort = threading.Event()
         self._stopping = threading.Event()
@@ -122,6 +124,7 @@ class ListenSession:
     # --- the source's thread ---
 
     def _on_chunk(self, pcm: bytes) -> None:
+        self._last_chunk = time.monotonic()
         try:
             self._chunks.put_nowait(pcm)
         except queue.Full:
@@ -135,6 +138,7 @@ class ListenSession:
     def _open_source(self) -> None:
         """A fresh source from the factory, started. Raises what its `start` raises."""
         source = self._factory()
+        self._last_chunk = time.monotonic()
         source.start(self._on_chunk, self._on_lost)
         with self._source_lock:
             self._source = source
@@ -220,6 +224,10 @@ class ListenSession:
                     self._close_source()
                     ended_by = "silence"
                     break
+                if self._stall > 0 and self._lost is None and now - self._last_chunk >= self._stall:
+                    # No chunks at all (silence still sends them): an unplug Windows didn't report.
+                    self._lost = f"no audio from the mic for {self._stall:g} s"
+                    log.warning("%s: treating it as a lost mic", self._lost)
             if ended_by == "silence" or self._stopping.is_set() or self._abort.is_set():
                 break
             if pending:  # the mic was lost: show the text so far before the drop

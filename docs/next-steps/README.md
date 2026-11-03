@@ -62,7 +62,7 @@ Changes you asked for, each with a note written before anything is built ([`app-
 
 ## Next: voice in, phase 1
 
-The next thing to build. The design is [Voice](../architecture/voice.md), with the code-level design (threads, files, config, errors, the `voice_in` manifest and contracts) in its [Code design (phase 1)](../architecture/voice.md#code-design-phase-1) section, approved 2026-11-02. Follow `app-update` and `architecture-first`. Steps 1 to 4 are built; your own mic (step 6) is next. Where the build stands: [handoff](handoff-voice-in.md).
+The next thing to build. The design is [Voice](../architecture/voice.md), with the code-level design (threads, files, config, errors, the `voice_in` manifest and contracts) in its [Code design (phase 1)](../architecture/voice.md#code-design-phase-1) section, approved 2026-11-02. Follow `app-update` and `architecture-first`. Steps 1 to 4 are built. Step 6 is built: the `check` command and the unplug fixes. What's left of it is you speaking and unplugging a mic. Step 7, the engine comparison, is next. Where the build stands: [handoff](handoff-voice-in.md).
 
 **The first version includes:** the shared `voice_service` app with the recorder, the receiver, and the Streaming Zipformer engine. It also includes the thin `voice_in` module, a mic button and a live-text line in the temp UI, one message to the Talker when the mic turns off, and latency per utterance in the log.
 

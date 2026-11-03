@@ -40,7 +40,24 @@ class AudioSource(ABC):
 
 
 class MicSource(AudioSource):
-    """The mic, through a sounddevice `RawInputStream`: int16, 16 kHz, mono, `chunk_ms` per callback."""
+    """The mic, through a sounddevice `RawInputStream`: int16, 16 kHz, mono, `chunk_ms` per callback.
+
+    PortAudio reads the device list once. After a mic is lost, the next `start` reloads it, so a
+    replugged or other mic can open (`stale_devices`).
+    """
+
+    stale_devices = False  # set when any MicSource is lost; the next start refreshes PortAudio
+
+    @staticmethod
+    def _refresh_devices(sd: Any) -> None:
+        terminate, initialize = getattr(sd, "_terminate", None), getattr(sd, "_initialize", None)
+        if terminate is None or initialize is None:
+            return
+        try:
+            terminate()
+            initialize()
+        except Exception:  # keep the old list; the open below reports any real problem
+            pass
 
     def __init__(self, device: str | int = "", chunk_ms: int = 32) -> None:
         if isinstance(device, str) and device.isdigit():
@@ -49,6 +66,7 @@ class MicSource(AudioSource):
         self.frames = SAMPLE_RATE * chunk_ms // 1000
         self._stream: Any = None
         self._stopping = False
+        self._last_audio = 0.0
 
     def start(self, on_chunk: OnChunk, on_lost: OnLost) -> None:
         name = self.device if self.device is not None else "the default mic"
@@ -58,12 +76,17 @@ class MicSource(AudioSource):
             raise MicUnavailable(f"{name}: sounddevice is not available ({exc})") from exc
 
         def callback(indata, frames, time_info, status) -> None:  # PortAudio's thread: copy and queue, nothing else
+            self._last_audio = time.monotonic()
             on_chunk(bytes(indata))
 
         def finished() -> None:
             if not self._stopping:
+                MicSource.stale_devices = True
                 on_lost(f"{name} stopped (unplugged or turned off)")
 
+        if MicSource.stale_devices:
+            self._refresh_devices(sd)
+        self._last_audio = time.monotonic()
         try:
             self._stream = sd.RawInputStream(
                 samplerate=SAMPLE_RATE,
@@ -75,6 +98,7 @@ class MicSource(AudioSource):
                 finished_callback=finished,
             )
             self._stream.start()
+            MicSource.stale_devices = False
         except Exception as exc:
             self._stream = None
             raise MicUnavailable(f"{name}: {exc}") from exc
@@ -83,6 +107,8 @@ class MicSource(AudioSource):
         self._stopping = True
         stream, self._stream = self._stream, None
         if stream is not None:
+            if time.monotonic() - self._last_audio > 1.0:  # stopped while it had gone quiet: likely unplugged
+                MicSource.stale_devices = True
             stream.stop()
             stream.close()
 

@@ -31,6 +31,7 @@ class AudioConfig(_Section):
     queue_seconds: float = Field(10.0, gt=0)
     silence_stop_seconds: float = 120.0  # 0 or less: never stop on silence
     mic_recovery_seconds: float = 15.0  # a lost mic: try to reopen it this long; 0 or less: end the session at once
+    stall_seconds: float = 2.0  # no audio at all for this long counts as a lost mic (an unplug Windows didn't report); 0: off
 
 
 class ZipformerConfig(_Section):

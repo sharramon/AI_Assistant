@@ -33,6 +33,7 @@ CHUNK = bytes(1024)  # 32 ms of silence: 512 frames of PCM16
 
 
 def make_config(**audio) -> ServiceConfig:
+    audio = {"stall_seconds": 0, **audio}  # fake sources go quiet after their chunks: no stall watchdog unless asked
     return ServiceConfig.model_validate({"engine": {"name": "fake", "partial_interval_ms": 0}, "audio": audio})
 
 
@@ -273,6 +274,93 @@ def test_the_silence_timer_pauses_while_the_mic_is_dropped(monkeypatch):
     with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
         assert start(ws) == Started()
         assert not any(isinstance(m, Final) for m in until(ws, MicBack))
+
+
+def test_a_mic_that_goes_quiet_without_a_report_counts_as_dropped(fast_retry):
+    """An unplug Windows doesn't report: the stream stays open but no chunks come (the stall watchdog)."""
+    factory = take(FakeSource([CHUNK] * 2), FakeSource([CHUNK] * 2))  # both go quiet after their chunks
+    config = make_config(mic_recovery_seconds=5, stall_seconds=0.2)
+    with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        messages = until(ws, MicBack)
+        dropped = next(m for m in messages if isinstance(m, MicDropped))
+        assert dropped.detail == "no audio from the mic for 0.2 s"
+        stop(ws)
+        assert isinstance(until(ws, Final)[-1], Final)
+
+
+def test_a_stall_that_doesnt_recover_ends_with_mic_lost(fast_retry):
+    factory = take(FakeSource([CHUNK] * 2), FakeSource(fail_on_open=True))
+    config = make_config(mic_recovery_seconds=0.2, stall_seconds=0.2)
+    with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        final, error = until(ws, Error)[-2:]
+        assert final.complete is False and error.reason is ErrorCode.MIC_LOST and "no audio" in error.detail
+
+
+def test_a_steady_source_never_stalls():
+    config = make_config(stall_seconds=0.2)
+    source = FakeSource([CHUNK] * 30, interval=0.02)  # 0.6 s of steady chunks, longer than the stall limit
+    with make_client(source=lambda: source, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        time.sleep(0.5)
+        stop(ws)
+        messages = until(ws, Final)
+        assert not any(isinstance(m, MicDropped) for m in messages) and messages[-1].complete is True
+
+
+# --- MicSource (with a stand-in sounddevice) and the check command ---
+
+
+class _FakeSd:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        sd = self
+
+        class RawInputStream:
+            def __init__(self, **kwargs) -> None:
+                sd.calls.append("open")
+
+            def start(self) -> None: ...
+            def stop(self) -> None: ...
+            def close(self) -> None: ...
+
+        self.RawInputStream = RawInputStream
+
+    def _terminate(self) -> None:
+        self.calls.append("terminate")
+
+    def _initialize(self) -> None:
+        self.calls.append("initialize")
+
+
+def test_mic_source_reloads_the_device_list_after_a_lost_mic(monkeypatch):
+    from voice_service.audio import MicSource
+
+    fake = _FakeSd()
+    monkeypatch.setitem(sys.modules, "sounddevice", fake)
+    monkeypatch.setattr(MicSource, "stale_devices", False)
+    source = MicSource()
+    source.start(lambda pcm: None, lambda reason: None)
+    assert fake.calls == ["open"]  # a normal open: no reload
+    source._last_audio = time.monotonic() - 5  # went quiet, then the session closed it (the stall case)
+    source.stop()
+    assert MicSource.stale_devices is True
+    MicSource().start(lambda pcm: None, lambda reason: None)
+    assert fake.calls == ["open", "terminate", "initialize", "open"] and MicSource.stale_devices is False
+
+
+def test_check_level_and_privacy():
+    from array import array
+
+    from voice_service.check import level, mic_privacy
+
+    assert level(array("h")) == (0.0, 0, 1.0)
+    rms, peak, zeros = level(array("h", [0, 0, 3, -4]))
+    assert (round(rms, 2), peak, zeros) == (2.5, 4, 0.5)
+    privacy = mic_privacy()  # reads only; whatever this machine says
+    assert set(privacy) <= {"machine", "you", "desktop apps"}
+    assert all(isinstance(v, str) for v in privacy.values())
 
 
 # --- config ---

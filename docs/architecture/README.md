@@ -75,7 +75,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 - [Remote clients](remote-clients.md): Quest, glasses, the gateway
 - [Decisions](decisions.md): decided, open, and deferred
 - [HTML viewer](html-viewer.md): viewing and editing HTML in tabs; state, commands, view
-- [Voice](voice.md): speech to text through a shared voice service (service, `voice_in` and the temp UI's mic button built; your own mic is next)
+- [Voice](voice.md): speech to text through a shared voice service (service, `voice_in`, the temp UI's mic button and the real-mic check built; the engine comparison is next)
 
 ## Parts
 

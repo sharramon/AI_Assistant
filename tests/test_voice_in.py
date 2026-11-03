@@ -55,6 +55,7 @@ class Service:
     """The real voice service app on a free local port, in a thread."""
 
     def __init__(self, engine=None, source=(), **audio) -> None:
+        audio = {"stall_seconds": 0, **audio}  # fake sources go quiet after their chunks
         config = ServiceConfig.model_validate({"engine": {"name": "fake", "partial_interval_ms": 0}, "audio": audio})
         factory = source if callable(source) else (lambda: FakeSource(list(source), interval=0.005))
         self.port = free_port()
