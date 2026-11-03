@@ -19,7 +19,7 @@ class ErrorCode(StrEnum):
 
     BUSY = "busy"  # another app is listening
     MIC_UNAVAILABLE = "mic_unavailable"  # no mic, or it couldn't be opened
-    MIC_LOST = "mic_lost"  # the mic went away mid-session
+    MIC_LOST = "mic_lost"  # the mic went away mid-session (and didn't come back within mic_recovery_seconds)
     ENGINE_FAILED = "engine_failed"  # the model didn't load, or the engine crashed
     BAD_MESSAGE = "bad_message"  # unknown or malformed message
 
@@ -63,6 +63,25 @@ class Partial(_Message):
     text: str
 
 
+class MicDropped(_Message):
+    """The mic went away mid-session; the service tries to reopen it for `wait_seconds`.
+
+    The session stays open and keeps its text. `mic_back` follows if a mic opens in time;
+    otherwise `final` (`complete: false`) then `error mic_lost`. Never sent when the
+    service's `mic_recovery_seconds` is 0.
+    """
+
+    type: Literal["mic_dropped"] = "mic_dropped"
+    detail: str = ""
+    wait_seconds: float
+
+
+class MicBack(_Message):
+    """A mic opened again after `mic_dropped`; listening carries on with the same text."""
+
+    type: Literal["mic_back"] = "mic_back"
+
+
 class Final(_Message):
     """The finished text after a stop; empty if nothing was heard.
 
@@ -86,7 +105,7 @@ class Error(_Message):
 
 
 ClientMessage = Start | Stop
-ServiceMessage = Started | Partial | Final | Error
+ServiceMessage = Started | Partial | MicDropped | MicBack | Final | Error
 
 _client = TypeAdapter(Annotated[ClientMessage, Field(discriminator="type")])
 _service = TypeAdapter(Annotated[ServiceMessage, Field(discriminator="type")])

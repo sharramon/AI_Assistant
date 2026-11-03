@@ -18,6 +18,7 @@ class ListeningState(StrEnum):
     IDLE = "idle"  # mic off, nothing happening
     STARTING = "starting"  # clicked; the service may be launching, the mic opening
     LISTENING = "listening"  # mic open, text coming
+    DROPPED = "dropped"  # the mic went away mid-session; waiting for it to come back (then listening, or failed)
     FAILED = "failed"  # went wrong; `reason` and `detail` say what
 
 
@@ -35,8 +36,10 @@ class StopListening(Command):
 class VoiceState(Event):
     """The mic's state changed.
 
-    `reason`: the service's error code, `"service_stopped"`, or `"silence"` on an
-    idle after a silence stop. `detail`: a short sentence for the button.
+    `reason`: the service's error code (`busy`, `mic_unavailable`, `mic_lost`,
+    `engine_failed`), one of the app's own (`not_allowed`, `service_unavailable`,
+    `service_stopped`, `timed_out`), `"mic_dropped"` on a dropped state, or
+    `"silence"` on an idle after a silence stop. `detail`: a short sentence for the button.
     """
 
     state: ListeningState

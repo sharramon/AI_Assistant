@@ -69,6 +69,11 @@
 <td><code>python -m html_viewer --port 8766 --window app --profile &lt;its Edge profile&gt; --generated docs/html …</code>: the standalone viewer app, an HTTP server plus its own Edge app window (with a DevTools port on 127.0.0.1, for snip). Stopped (<code>POST /api/quit</code>, then killed) when the app stops</td>
 </tr>
 <tr>
+<td>Voice service (not drawn above; <code>voice_in</code> is off by default)</td>
+<td><code>voice_in</code> module, on the first <code>StartListening</code>, not in <code>start</code>, through <code>CompanionApp</code>. One you started yourself is used (after a quick <code>/health</code> check) and left running</td>
+<td><code>python -m voice_service --host 127.0.0.1 --port 8767 [--config &lt;file&gt;]</code>, with no console: the mic and the speech engine, an HTTP and WebSocket server (<a href="../architecture/voice.html#the-voice_in-module">Voice</a>). Stopped (<code>POST /quit</code>, wait 5 s, then killed) when the module stops, only if it launched it</td>
+</tr>
+<tr>
 <td>Terminal 2 (off by default; the <a href="#temp-ui">temp UI</a> replaces it)</td>
 <td><code>assistant_view</code> module, in <code>start</code></td>
 <td><code>python -m assistant.modules.assistant_view.viewer</code> in a new console window, its stdin a pipe from the app. It writes to its own window (<code>CONOUT$</code>), because its inherited stdout is terminal 1. Windows only for now</td>

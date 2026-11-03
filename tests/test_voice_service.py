@@ -16,8 +16,18 @@ from voice_service.download import download_model
 from voice_service.engines import EngineError, load_engine
 from voice_service.engines.fake import FakeEngine
 from voice_service.engines.zipformer import ZipformerEngine
-from voice_service.protocol import Error, ErrorCode, Final, Partial, Started, parse_service_message
+from voice_service.protocol import (
+    Error,
+    ErrorCode,
+    Final,
+    MicBack,
+    MicDropped,
+    Partial,
+    Started,
+    parse_service_message,
+)
 from voice_service.server import create_app
+from voice_service.session import ListenSession
 
 CHUNK = bytes(1024)  # 32 ms of silence: 512 frames of PCM16
 
@@ -194,14 +204,75 @@ def test_mic_that_cannot_open_is_mic_unavailable():
         assert client.get("/health").json()["ready"] is True
 
 
-def test_lost_mic_sends_an_incomplete_final_then_mic_lost():
-    with make_client(source=lambda: FakeSource([CHUNK] * 10, lose_after=4)) as client:
+def test_lost_mic_without_recovery_sends_an_incomplete_final_then_mic_lost():
+    config = make_config(mic_recovery_seconds=0)
+    with make_client(source=lambda: FakeSource([CHUNK] * 10, lose_after=4), config=config) as client:
         with client.websocket_connect("/ws/listen") as ws:
             assert start(ws) == Started()
             messages = until(ws, Error)
+            assert not any(isinstance(m, MicDropped) for m in messages)  # today's behavior, unchanged
             final, error = messages[-2:]
             assert isinstance(final, Final) and final.complete is False and final.text == "hello big"
             assert error.reason is ErrorCode.MIC_LOST and "unplugged" in error.detail
+
+
+def take(*sources):
+    """A source factory handing these out in turn; the last one repeats."""
+    pending = list(sources)
+    return lambda: pending.pop(0) if len(pending) > 1 else pending[0]
+
+
+@pytest.fixture
+def fast_retry(monkeypatch):
+    monkeypatch.setattr(ListenSession, "retry_seconds", 0.02)
+
+
+def test_dropped_mic_comes_back_and_the_text_carries_on(fast_retry):
+    factory = take(FakeSource([CHUNK] * 2, lose_after=2), FakeSource(fail_on_open=True), FakeSource([CHUNK] * 4))
+    config = make_config(mic_recovery_seconds=5)
+    with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        messages = until(ws, MicBack)
+        dropped = next(m for m in messages if isinstance(m, MicDropped))
+        assert "unplugged" in dropped.detail and dropped.wait_seconds == 5
+        assert Partial(text="hello") in messages
+        while recv(ws) != Partial(text="hello big world"):  # the new mic's words carry on from "hello"
+            pass
+        stop(ws)
+        final = recv(ws)
+        assert isinstance(final, Final) and (final.text, final.complete) == ("hello big world", True)
+
+
+def test_mic_that_doesnt_come_back_ends_with_mic_lost(fast_retry):
+    factory = take(FakeSource([CHUNK] * 2, lose_after=2), FakeSource(fail_on_open=True))
+    config = make_config(mic_recovery_seconds=0.2)
+    with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        messages = until(ws, Error)
+        assert any(isinstance(m, MicDropped) for m in messages) and not any(isinstance(m, MicBack) for m in messages)
+        final, error = messages[-2:]
+        assert isinstance(final, Final) and (final.text, final.complete) == ("hello", False)
+        assert error.reason is ErrorCode.MIC_LOST
+
+
+def test_stop_while_dropped_ends_with_mic_lost(fast_retry):
+    factory = take(FakeSource([CHUNK] * 2, lose_after=2), FakeSource(fail_on_open=True))
+    config = make_config(mic_recovery_seconds=30)
+    with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        until(ws, MicDropped)
+        stop(ws)
+        final, error = until(ws, Error)[-2:]
+        assert isinstance(final, Final) and final.complete is False and error.reason is ErrorCode.MIC_LOST
+
+
+def test_the_silence_timer_pauses_while_the_mic_is_dropped(monkeypatch):
+    monkeypatch.setattr(ListenSession, "retry_seconds", 0.5)  # the drop lasts longer than the silence limit
+    factory = take(FakeSource([CHUNK] * 2, lose_after=2), FakeSource([CHUNK] * 2))
+    config = make_config(mic_recovery_seconds=5, silence_stop_seconds=0.3)
+    with make_client(source=factory, config=config) as client, client.websocket_connect("/ws/listen") as ws:
+        assert start(ws) == Started()
+        assert not any(isinstance(m, Final) for m in until(ws, MicBack))
 
 
 # --- config ---

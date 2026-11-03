@@ -51,7 +51,7 @@ def test_kinds_and_defaults():
 
 
 def test_listening_state_values():
-    assert [m.value for m in ListeningState] == ["idle", "starting", "listening", "failed"]
+    assert [m.value for m in ListeningState] == ["idle", "starting", "listening", "dropped", "failed"]
 
 
 def test_voice_state_accepts_plain_string_and_rejects_unknown():

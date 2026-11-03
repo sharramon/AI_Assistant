@@ -18,6 +18,7 @@ from assistant.modules.html_viewer import HtmlViewerModule
 from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.talker import TalkerModule
 from assistant.modules.temp_ui import TempUIModule
+from assistant.modules.voice_in import VoiceInModule
 
 # Every module the app can run. Which ones actually start is set by
 # `modules.enabled` in config.
@@ -30,6 +31,7 @@ MODULES = [
     AssistantViewModule,
     TempUIModule,
     HtmlViewerModule,
+    VoiceInModule,
 ]
 
 log = logging.getLogger("assistant")

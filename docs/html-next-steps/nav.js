@@ -106,8 +106,16 @@
         "href": "voice-service.html"
       },
       {
+        "name": "Voice in: the voice_in module (step 3)",
+        "href": "voice-in-module.html"
+      },
+      {
         "name": "Permission mode button",
         "href": "permission-mode-button.html"
+      },
+      {
+        "name": "Handoff: voice in, after step 3 (the voice_in module)",
+        "href": "handoff-voice-in.html"
       },
       {
         "name": "HTML viewer as its own app",

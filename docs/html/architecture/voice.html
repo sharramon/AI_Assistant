@@ -17,6 +17,7 @@
 <p><strong>Status: being built (designed 2026-10-28; code design added and approved 2026-11-02).</strong> Phase 1 below is built in steps, listed in the next-steps list. The code-level design is under <a href="#code-design-phase-1">Code design (phase 1)</a>.</p>
 <p><strong>Built: step 1, the contracts</strong> (2026-11-03, change note): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
 <p><strong>Built: step 2, the voice service</strong> (2026-11-03, change note): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
+<p><strong>Built: step 3, the <code>voice_in</code> module</strong> (2026-11-03, change note): <code>src/assistant/modules/voice_in/</code>, off by default, as designed in <a href="#the-voice_in-module">the voice_in module</a>, plus two additions you asked for. <strong>A dropped mic is waited for:</strong> the service keeps the session and tries to reopen the mic for <code>mic_recovery_seconds</code> (15 s), sending <code>mic_dropped</code> and then <code>mic_back</code>. If the mic doesn't come back, the session ends and its text is dropped. <strong>A quick <code>/health</code> check</strong> runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
 <ul>
@@ -36,20 +37,29 @@
         Rec --&gt; Eng
     end
     subgraph Main[&quot;Main app&quot;]
-        UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&lt;br/&gt;mic button · live text&quot;]
-        Handler[&quot;&lt;b&gt;3. Voice handler&lt;/b&gt;&lt;br/&gt;thin module voice_in&quot;]
+        UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&lt;br/&gt;mic button · live text&lt;br/&gt;(step 4, planned)&quot;]
+        Handler[&quot;&lt;b&gt;3. Voice handler&lt;/b&gt;&lt;br/&gt;thin module voice_in&lt;br/&gt;(built, off by default)&quot;]
         Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
     end
     Other[&quot;Other apps (later)&lt;br/&gt;own thin client&quot;]
     Quest[&quot;Quest recorder (later)&quot;]
     You --&gt; UI
     UI -- &quot;StartListening / StopListening&quot; --&gt; Handler
-    Handler &lt;-- &quot;start · stop / partial · final&quot; --&gt; Svc
-    Handler -- &quot;VoiceTranscript&quot; --&gt; UI
+    Handler -- &quot;launch · /health&lt;br/&gt;(CompanionApp)&quot; --&gt; Svc
+    Handler &lt;-- &quot;WS: start · stop /&lt;br/&gt;started · partial · mic_dropped · mic_back · final · error&quot; --&gt; Svc
+    Handler -- &quot;VoiceState · VoiceTranscript&quot; --&gt; UI
     Handler -- &quot;InputReceived(source=voice)&quot; --&gt; Talker
     Other &lt;-. &quot;same protocol&quot; .-&gt; Svc
     Quest -. &quot;audio in&quot; .-&gt; Eng
+
+    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    class UI planned
+    class Other,Quest later
+    class You person
 </code></pre>
+<p><strong>Built (2026-11-03):</strong> the service (recorder and receiver) and <code>voice_in</code>. <strong>Purple:</strong> planned next (the temp UI's mic button, step 4). <strong>Dashed:</strong> later. Until step 4, nothing in the app sends <code>StartListening</code>, and <code>voice_in</code> is off by default.</p>
 <table>
 <thead>
 <tr>
@@ -131,8 +141,18 @@
 </tr>
 <tr>
 <td>service → app</td>
+<td><code>{"type": "mic_dropped", "detail", "wait_seconds"}</code></td>
+<td>The mic went away mid-session. The session stays open with its text, and the service tries to reopen the mic for <code>wait_seconds</code> (added 2026-11-03; never sent with <code>mic_recovery_seconds = 0</code>)</td>
+</tr>
+<tr>
+<td>service → app</td>
+<td><code>{"type": "mic_back"}</code></td>
+<td>A mic opened again; listening carries on with the same text (added 2026-11-03)</td>
+</tr>
+<tr>
+<td>service → app</td>
 <td><code>{"type": "final", "text", "latency_ms", "complete", "ended_by"}</code></td>
-<td>The finished text after <code>stop</code>; empty if nothing was heard. <code>complete</code> is false when the session ended early (mic lost). <code>ended_by</code> is <code>"stop"</code> (the app sent <code>stop</code>) or <code>"silence"</code> (the service stopped itself after a long silence, see <a href="#the-voice-service-config">config</a>); a silence stop needs no <code>stop</code> from the app</td>
+<td>The finished text after <code>stop</code>; empty if nothing was heard. <code>complete</code> is false when the session ended early (the mic was lost and didn't come back, or you stopped while it was dropped). <code>ended_by</code> is <code>"stop"</code> (the app sent <code>stop</code>) or <code>"silence"</code> (the service stopped itself after a long silence, see <a href="#the-voice-service-config">config</a>); a silence stop needs no <code>stop</code> from the app</td>
 </tr>
 <tr>
 <td>service → app</td>
@@ -141,15 +161,15 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Error codes:</strong> <code>busy</code> (another app is listening), <code>mic_unavailable</code> (no mic, or it couldn't be opened), <code>mic_lost</code> (the mic went away mid-session), <code>engine_failed</code> (the model didn't load), <code>bad_message</code> (unknown or malformed message). After any error except <code>bad_message</code> the session is over and the service is idle again.</p>
+<p><strong>Error codes:</strong> <code>busy</code> (another app is listening), <code>mic_unavailable</code> (no mic, or it couldn't be opened), <code>mic_lost</code> (the mic went away mid-session and didn't come back within <code>mic_recovery_seconds</code>), <code>engine_failed</code> (the model didn't load), <code>bad_message</code> (unknown or malformed message). After any error except <code>bad_message</code> the session is over and the service is idle again.</p>
 <p><strong><code>/ws/audio</code></strong> (remote recorders, later): <code>start</code> (format <code>pcm16</code>, rate <code>16000</code>, mono), binary audio frames, <code>stop</code>; the replies are the same as above.</p>
 <h2 id="the-app-side">The app side</h2>
 <ul>
-<li><strong>New contracts</strong> (planned, Messaging group; fields in <a href="#the-voice_in-module">the voice_in module</a>): commands <code>StartListening</code> and <code>StopListening</code>, handled by <code>voice_in</code>; events <code>VoiceState</code> (<code>idle</code>, <code>starting</code>, <code>listening</code>, <code>failed</code> with a reason) for the button, and <code>VoiceTranscript</code> (the live text). Any UI can send the commands: the temp UI today, the real <a href="decisions.html#open-decisions">UI handler</a> or the Quest later.</li>
+<li><strong>Contracts</strong> (built, Messaging group; fields in <a href="#the-voice_in-module">the voice_in module</a>): commands <code>StartListening</code> and <code>StopListening</code>, handled by <code>voice_in</code>; events <code>VoiceState</code> (<code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code>, <code>failed</code> with a reason) for the button, and <code>VoiceTranscript</code> (the live text). Any UI can send the commands: the temp UI today, the real <a href="decisions.html#open-decisions">UI handler</a> or the Quest later.</li>
 <li><strong>The Event Bus is the stream</strong> (decided 2026-11-02): no <code>Streamable</code> class. <code>VoiceTranscript</code> is the public output; any module that wants voice text calls <code>ctx.subscribe(VoiceTranscript, ...)</code>. <code>InputReceived</code> is only the Talker's way in.</li>
 <li><strong><code>send_as_input: bool = True</code></strong> on <code>StartListening</code> (decided 2026-11-02): with <code>False</code> (dictating into a text box, say), the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker.</li>
 <li><strong>Where you see the text:</strong> while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.</li>
-<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>), off by default; the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
+<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>), off by default; the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
 <li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, sounddevice) go in an optional <code>voice</code> extra, so the app installs without them. Model files download once.</li>
 </ul>
 <h2 id="the-mic-permission">The mic permission</h2>
@@ -255,7 +275,7 @@
     class MicSource {
         sounddevice RawInputStream
         int16 · 16 kHz · mono · 512 frames
-        on device lost → mic_lost
+        on device lost → on_lost (the session waits for a new mic)
     }
     class FakeSource {
         chunks from a WAV or a list
@@ -299,6 +319,7 @@ device = &quot;&quot;                 # &quot;&quot; = Windows' default mic; or 
 chunk_ms = 32               # 512 frames at 16 kHz. Rate and format are fixed: 16 kHz mono PCM16
 queue_seconds = 10          # how far the engine may fall behind before audio is dropped
 silence_stop_seconds = 120  # no speech detected for this long: the session stops itself, like a stop (a forgotten mic). No limit while you talk
+mic_recovery_seconds = 15   # the mic drops mid-session: keep the session and try to reopen it this long (mic_dropped, then mic_back). 0 = end at once (mic_lost)
 
 [engine]
 name = &quot;zipformer&quot;          # &quot;zipformer&quot; or &quot;fake&quot;
@@ -343,8 +364,8 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </tr>
 <tr>
 <td><strong>Mic lost mid-session</strong> (unplugged: the stream's finished callback fires, or the callback reports an error)</td>
-<td>Finishes with what it has: <code>final</code> with <code>complete: false</code>, then <code>error mic_lost</code></td>
-<td><em>failed: mic disconnected</em>. The partial text shows in the live line and goes to the log, but <strong>isn't sent to the Talker</strong> (it may be half a thought)</td>
+<td>Keeps the session and its text (revised 2026-11-03). It sends the last partial, then <code>mic_dropped</code>, and tries a fresh source from the factory about once a second (the silence timer is paused). If one opens: <code>mic_back</code>, and listening carries on. If none opens within <code>mic_recovery_seconds</code>, or the app sends <code>stop</code> meanwhile: <code>final</code> with <code>complete: false</code>, then <code>error mic_lost</code>. With <code>mic_recovery_seconds = 0</code>, it ends at once as before</td>
+<td><em>dropped</em>: the drop symbol and a countdown while it waits. If the mic doesn't come back: <em>failed: mic disconnected</em>, and the text heard so far is <strong>dropped</strong> (cleared from the live line, kept only as its length in the log, never sent to the Talker)</td>
 </tr>
 <tr>
 <td><strong>Model didn't load</strong> (missing files, bad model, sherpa-onnx missing)</td>
@@ -411,7 +432,7 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 <tr>
 <td><code>StopListening</code></td>
 <td>none</td>
-<td><code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>. Nothing listening: <code>ok</code> with <code>None</code></td>
+<td><code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>. Nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (the text is dropped), the service stopped, or no final came within <code>reply_timeout</code></td>
 </tr>
 </tbody>
 </table>
@@ -427,8 +448,8 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 <tbody>
 <tr>
 <td><code>VoiceState</code></td>
-<td><code>state: ListeningState</code> (a <code>StrEnum</code>: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>failed</code>; decided 2026-11-03), <code>reason: str | None</code> (the error code, <code>"service_stopped"</code>, or <code>"silence"</code> on an idle after a silence stop), <code>detail: str | None</code> (a short sentence for the button)</td>
-<td>Every change. <code>starting</code> from the click until <code>started</code> (the service may be launching)</td>
+<td><code>state: ListeningState</code> (a <code>StrEnum</code>: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code> (added 2026-11-03), <code>failed</code>; decided 2026-11-03), <code>reason: str | None</code> (the service's error code; the app's own <code>not_allowed</code>, <code>service_unavailable</code>, <code>service_stopped</code>, <code>timed_out</code>; <code>"mic_dropped"</code> on <code>dropped</code>; or <code>"silence"</code> on an idle after a silence stop), <code>detail: str | None</code> (a short sentence for the button)</td>
+<td>Every change. <code>starting</code> from the click until <code>started</code> (the service may be launching). <code>dropped</code> from <code>mic_dropped</code> until <code>mic_back</code> (then <code>listening</code>) or the end (<code>failed</code>, <code>mic_lost</code>)</td>
 </tr>
 <tr>
 <td><code>VoiceTranscript</code></td>
@@ -450,13 +471,16 @@ host = &quot;127.0.0.1&quot;
 port = 8767
 start_timeout = 20.0      # seconds for the service to answer /health after launch
 service_config = &quot;&quot;       # optional path passed as --config to the service
+reply_timeout = 10.0      # seconds to wait for `started` after start, and for the final after stop (added 2026-11-03)
 </code></pre>
+<p>The wait for a dropped mic is the service's setting (<code>[audio] mic_recovery_seconds</code>), since only the service can reopen the mic; <code>voice_in</code> gets it in <code>mic_dropped</code>'s <code>wait_seconds</code>.</p>
 <p><strong>How it launches and watches the service</strong> (the <a href="reusable-parts.html#companion-app-checklist">companion app</a> pattern, through the shared <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a>, revised 2026-11-02; no launch code of its own):</p>
 <ul>
 <li><strong><code>CompanionApp.ensure_running</code></strong>, on each <code>StartListening</code>, under a lock: ping <code>/health</code>. If it answers, use it (a service you started yourself is used and left running). Otherwise launch <code>sys.executable -m voice_service --host --port [--config]</code> with no console, and poll <code>/health</code> every 100 ms until <code>start_timeout</code>, failing early if the process exits. <code>ready: false</code> with an error is <code>engine_failed</code>, not a timeout.</li>
-<li><strong>One WebSocket per mic session</strong>, with the <code>websockets</code> client: connect, send <code>start</code>, and a reader task maps every message. <code>started</code> → <code>VoiceState(listening)</code>; <code>partial</code> → <code>VoiceTranscript</code>; <code>final</code> → <code>VoiceTranscript(final=True)</code>, then <code>InputReceived</code> if non-empty, complete, and <code>send_as_input</code>, then <code>VoiceState(idle)</code> (with <code>reason="silence"</code> and a short <code>detail</code> when <code>ended_by</code> is <code>"silence"</code>), then close. A silence stop needs no <code>StopListening</code>; a later <code>StopListening</code> finds nothing listening; <code>error</code> → <code>VoiceState(failed)</code> and close.</li>
+<li><strong>A quick health check when reusing a running service</strong> (added 2026-11-03): when <code>ensure_running</code> didn't launch it just now, <code>GET /health</code> (2 s). <code>ready: false</code> with an error fails at once with <code>engine_failed</code>, without opening a WebSocket. Still loading: carry on, because the service buffers the audio. No answer: <code>ensure_running</code> again, which relaunches it. A fresh launch skips the check, since <code>CompanionApp</code> has just pinged it.</li>
+<li><strong>One WebSocket per mic session</strong>, with the <code>websockets</code> client: connect, send <code>start</code>, and a reader task maps every message. <code>started</code> → <code>VoiceState(listening)</code>; <code>partial</code> → <code>VoiceTranscript</code>; <code>mic_dropped</code> → <code>VoiceState(dropped)</code>; <code>mic_back</code> → <code>VoiceState(listening)</code>; a <code>final</code> with <code>complete: false</code> → the text is dropped: <code>VoiceTranscript(final=True, text="")</code> clears the line, then <code>VoiceState(failed, "mic_lost")</code>; <code>final</code> → <code>VoiceTranscript(final=True)</code>, then <code>InputReceived</code> if non-empty, complete, and <code>send_as_input</code>, then <code>VoiceState(idle)</code> (with <code>reason="silence"</code> and a short <code>detail</code> when <code>ended_by</code> is <code>"silence"</code>), then close. A silence stop needs no <code>StopListening</code>; a later <code>StopListening</code> finds nothing listening; <code>error</code> → <code>VoiceState(failed)</code> and close.</li>
 <li><strong>Watching:</strong> there's no separate watchdog in phase 1. A crash mid-session shows up as the socket closing without a final: <code>VoiceState(failed, "service_stopped")</code>, nothing sent. The next click runs <code>ensure_running</code> again, which relaunches it; that's the lazy launch, not the left-out auto-restart.</li>
-<li><strong>Logging:</strong> each session logs its start (the stand-in logs the permission warning), the final's length, <code>latency_ms</code>, and the audio length. The final text itself goes in the log too, like typed input.</li>
+<li><strong>Logging:</strong> each session logs its start (the stand-in logs the permission warning), the final's length, <code>latency_ms</code>, and how it ended; the service's <code>detail</code> on every error. The service's own log has the audio length and the text (the protocol doesn't carry the audio length, so <code>voice_in</code> doesn't log it).</li>
 <li><strong><code>stop()</code></strong> (app shutdown or deactivation): abort an open session (close the socket, no <code>InputReceived</code>), then <code>CompanionApp.stop()</code>: only if this module launched the service, <code>POST /quit</code>, wait 5 s, then kill.</li>
 <li><strong>The <code>websockets</code> client</strong> is in the optional <code>voice</code> extra and imported in <code>init</code>; without it the module fails to start with "install the voice extra: pip install -e .[voice]", and the rest of the app runs.</li>
 </ul>
@@ -466,31 +490,148 @@ service_config = &quot;&quot;       # optional path passed as --config to the se
     participant V as voice_in
     participant S as voice_service
     participant T as talker
-    You-&gt;&gt;U: click mic
+    You-&gt;&gt;U: click mic (temp_ui: step 4, planned)
     U-&gt;&gt;V: StartListening
+    Note over V: one session at a time (a lock);&lt;br/&gt;already listening → ok, same session
     V--&gt;&gt;U: VoiceState(starting)
-    V-&gt;&gt;S: GET /health (launch it first if no answer)
+    V-&gt;&gt;V: ctx.permissions.request(&quot;microphone&quot;)&lt;br/&gt;denied → failed, not_allowed
+    alt service not running
+        V-&gt;&gt;S: CompanionApp: launch python -m voice_service, poll /health
+    else already running (reused)
+        V-&gt;&gt;S: GET /health (2 s): ready:false + error → failed, engine_failed
+    end
     V-&gt;&gt;S: WS /ws/listen: start
-    S--&gt;&gt;V: started
+    S--&gt;&gt;V: started (or error → failed with its code)
     V--&gt;&gt;U: VoiceState(listening)
     loop while you speak
         S--&gt;&gt;V: partial
         V--&gt;&gt;U: VoiceTranscript(final=False)
+    end
+    opt the mic drops
+        S--&gt;&gt;V: mic_dropped {wait_seconds}
+        V--&gt;&gt;U: VoiceState(dropped): drop symbol, countdown
+        alt a mic reopens within mic_recovery_seconds
+            S--&gt;&gt;V: mic_back
+            V--&gt;&gt;U: VoiceState(listening), the text carries on
+        else it doesn't (or you stop meanwhile)
+            S--&gt;&gt;V: final {complete: false}, error mic_lost
+            V--&gt;&gt;U: VoiceTranscript(final=True, text=&quot;&quot;) clears the line
+            V--&gt;&gt;U: VoiceState(failed, mic_lost): the text is dropped
+        end
     end
     You-&gt;&gt;U: click mic
     U-&gt;&gt;V: StopListening
     V-&gt;&gt;S: stop
     S--&gt;&gt;V: final {text, latency_ms, complete}
     V--&gt;&gt;U: VoiceTranscript(final=True)
-    V-&gt;&gt;T: InputReceived(source=&quot;voice&quot;) if text
+    V-&gt;&gt;T: InputReceived(source=&quot;voice&quot;) if text and send_as_input
     V--&gt;&gt;U: VoiceState(idle)
 </code></pre>
+<p><strong>The tests</strong> (<code>tests/test_voice_in.py</code>) run this flow against the real service app with <code>FakeEngine</code> and <code>FakeSource</code>, under Uvicorn on a free local port in a thread (no mic, no model). They cover every row of <a href="#the-voice_in-module-how-errors-reach-the-button">the errors</a> and the mic drop. A small stub of <code>CompanionApp</code> checks which calls the health check makes.</p>
+<h4 id="the-voice_in-module-how-errors-reach-the-button">The voice_in module: how errors reach the button</h4>
+<p>Every failure ends the session: <code>VoiceState(failed, reason, detail)</code>, the socket closed, the module ready for the next click, and nothing sent to the Talker.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th><code>reason</code></th>
+<th><code>detail</code> (the button)</th>
+<th><code>StartListening</code> result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Permission denied</td>
+<td><code>not_allowed</code></td>
+<td>microphone not allowed</td>
+<td><code>failed</code></td>
+</tr>
+<tr>
+<td>The service can't launch (the process exits)</td>
+<td><code>service_unavailable</code></td>
+<td>voice service didn't start</td>
+<td><code>not_available</code>, retryable</td>
+</tr>
+<tr>
+<td>The service never answers <code>/health</code> within <code>start_timeout</code></td>
+<td><code>service_unavailable</code></td>
+<td>voice service didn't answer</td>
+<td><code>not_available</code>, retryable</td>
+</tr>
+<tr>
+<td>The WebSocket won't connect</td>
+<td><code>service_unavailable</code></td>
+<td>voice service didn't answer</td>
+<td><code>not_available</code>, retryable</td>
+</tr>
+<tr>
+<td>No <code>started</code> within <code>reply_timeout</code></td>
+<td><code>timed_out</code></td>
+<td>voice service didn't answer</td>
+<td><code>not_available</code>, retryable</td>
+</tr>
+<tr>
+<td><code>/health</code> on a reused service: <code>ready: false</code> with an error, or <code>error engine_failed</code> at start</td>
+<td><code>engine_failed</code></td>
+<td>speech model not installed</td>
+<td><code>not_available</code>, retryable</td>
+</tr>
+<tr>
+<td><code>error busy</code></td>
+<td><code>busy</code></td>
+<td>another app is using the mic</td>
+<td><code>failed</code></td>
+</tr>
+<tr>
+<td><code>error mic_unavailable</code></td>
+<td><code>mic_unavailable</code></td>
+<td>no microphone (or blocked in Windows settings)</td>
+<td><code>not_available</code>, retryable</td>
+</tr>
+<tr>
+<td><code>error engine_failed</code> mid-session</td>
+<td><code>engine_failed</code></td>
+<td>speech engine error</td>
+<td>(already <code>ok</code>)</td>
+</tr>
+<tr>
+<td>The mic didn't come back (<code>final complete: false</code>)</td>
+<td><code>mic_lost</code></td>
+<td>mic disconnected; what you said was dropped</td>
+<td>(already <code>ok</code>); a waiting <code>StopListening</code> → <code>failed</code></td>
+</tr>
+<tr>
+<td>The socket closes with no final</td>
+<td><code>service_stopped</code></td>
+<td>voice service stopped</td>
+<td>a waiting <code>StopListening</code> → <code>failed</code>, retryable</td>
+</tr>
+<tr>
+<td>No final within <code>reply_timeout</code> after stop</td>
+<td><code>timed_out</code></td>
+<td>voice service didn't answer</td>
+<td><code>StopListening</code> → <code>failed</code></td>
+</tr>
+<tr>
+<td><code>error bad_message</code>, or a frame that won't parse</td>
+<td>no change: logged, the session carries on</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>stop()</code> (app shutdown) with a session open</td>
+<td><code>idle</code>, <code>service_stopped</code></td>
+<td>voice input stopped</td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <h3 id="for-you-to-check">For you to check</h3>
 <p>Small additions to the agreed design, each needed by the error handling. <strong>Decided by you, 2026-11-02:</strong></p>
 <ol>
 <li><strong>A <code>started</code> reply</strong> in the protocol, so the app knows the mic actually opened. <strong>Approved.</strong></li>
 <li><strong>A <code>starting</code> state</strong> in <code>VoiceState</code>, for the seconds the first click may take to launch the service and load the model. <strong>Approved</strong> (with item 1).</li>
-<li><strong><code>detail</code> on errors and <code>complete</code> on the final.</strong> On a lost mic, the text heard so far is shown and logged but not sent to the Talker. <strong>Approved.</strong></li>
+<li><strong><code>detail</code> on errors and <code>complete</code> on the final.</strong> On a lost mic, the text heard so far is shown and logged but not sent to the Talker. <strong>Approved. Revised 2026-11-03:</strong> a lost mic is waited for (<code>mic_dropped</code>, <code>mic_back</code>, <code>mic_recovery_seconds</code>); if it doesn't come back, the text is dropped.</li>
 <li><strong>A silence stop</strong> instead of the proposed flat two-minute cap: a session stops itself only after a long silence (<code>silence_stop_seconds</code>, default 120 s with no speech detected), and stays on with no limit while you talk. The final says <code>ended_by: "silence"</code> and the text is sent as usual. <strong>Changed as you asked</strong>: a flat cap would cut you off mid-sentence.</li>
 <li><strong>Port 8767</strong> for the service, and models in <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, fetched once by a <code>download</code> command. <strong>Approved.</strong></li>
 </ol>

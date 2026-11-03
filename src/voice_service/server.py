@@ -107,7 +107,7 @@ def create_app(config: ServiceConfig, engine: SttEngine, source_factory: Callabl
                     if loader.error:
                         await send(Error(reason=ErrorCode.ENGINE_FAILED, detail=loader.error))
                         continue
-                    session = ListenSession(loader, source_factory(), config, asyncio.get_running_loop())
+                    session = ListenSession(loader, source_factory, config, asyncio.get_running_loop())
                     slot.session = session
                     try:
                         await asyncio.to_thread(session.start)

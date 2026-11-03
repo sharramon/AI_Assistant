@@ -90,7 +90,7 @@ A module's only access to the rest of the app, passed to `init`. Everything regi
 
 ### `ModuleContext.permissions`
 
-**Reusable** · Used by: `voice_in` first (planned); every module that needs a permission · built 2026-11-02 (stand-in)
+**Reusable** · Used by: `voice_in` first (`microphone`, built 2026-11-03); every module that needs a permission · built 2026-11-02 (stand-in)
 
 `class ModulePermissions(ABC)`, in `assistant.contracts`.
 

@@ -77,7 +77,7 @@ Handlers normally return only `ok`, `invalid_arguments`, `not_available`, or `fa
 
 ## `InputReceived`
 
-**Reusable** · Used by: `console_io`, `temp_ui`, `voice_in` (planned) publish; `talker`, `echo_orchestrator` subscribe
+**Reusable** · Used by: `console_io`, `temp_ui`, `voice_in` (`source="voice"`) publish; `talker`, `echo_orchestrator` subscribe
 
 `InputReceived(text: str, source: str, conversation_id: str | None = None)` (event)
 
@@ -144,41 +144,41 @@ You dropped a snip before sending it (the × on its thumbnail). The Talker forge
 
 ## Voice
 
-Voice input ([design](../architecture/voice.md#the-voice_in-module)). Any UI sends the commands; `voice_in` handles them and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id), so a UI can drop a stale session's updates. Built 2026-11-03; `voice_in` itself is planned.
+Voice input ([design](../architecture/voice.md#the-voice_in-module)). Any UI sends the commands; `voice_in` handles them and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id), so a UI can drop a stale session's updates. Built 2026-11-03; `voice_in` built 2026-11-03 ([change note](../next-steps/voice-in-module.md)), off by default until the temp UI's mic button (step 4).
 
 ### `StartListening`
 
-**Reusable** · Used by: `temp_ui` (planned) sends; `voice_in` (planned) handles
+**Reusable** · Used by: `temp_ui` (planned) sends; `voice_in` handles
 
 `StartListening(send_as_input: bool = True)` (command)
 
-Turn the mic on. With `send_as_input=False` (dictating into a text box, say) the text goes only to `VoiceTranscript` subscribers, never to the Talker. **Result:** `ok` once the service says `started`, value `{"session_id"}`; already listening: `ok` with the same session. `not_available` (retryable) if the service couldn't start or the mic or engine failed; `failed` for `busy` or a denied `microphone` permission.
+Turn the mic on. With `send_as_input=False` (dictating into a text box, say) the text goes only to `VoiceTranscript` subscribers, never to the Talker. **Result:** `ok` once the service says `started`, value `{"session_id"}`; already listening: `ok` with the same session. `not_available` (retryable) if the service couldn't start or the mic or engine failed; `failed` for `busy` or a denied `microphone` permission. A running service that `voice_in` reuses gets a quick `/health` check first, so a failed model fails at once with `engine_failed`.
 
 ### `StopListening`
 
-**Reusable** · Used by: `temp_ui` (planned) sends; `voice_in` (planned) handles
+**Reusable** · Used by: `temp_ui` (planned) sends; `voice_in` handles
 
 `StopListening()` (command)
 
-Turn the mic off. **Result:** `ok` after the final arrives, value `{"text", "latency_ms"}`; nothing listening: `ok` with `None`.
+Turn the mic off. **Result:** `ok` after the final arrives, value `{"text", "latency_ms"}`; nothing listening: `ok` with `None`. `failed` if the mic was lost (its text is dropped), the service stopped, or no final came within `reply_timeout`.
 
 ### `ListeningState`
 
 **Reusable** · Used by: `VoiceState`
 
-`StrEnum`: `idle` (mic off), `starting` (clicked; the service may be launching, the mic opening), `listening` (mic open, text coming), `failed` (went wrong; the event's `reason` and `detail` say what).
+`StrEnum`: `idle` (mic off), `starting` (clicked; the service may be launching, the mic opening), `listening` (mic open, text coming), `dropped` (the mic went away mid-session; waiting for it to come back, then `listening` or `failed`; added 2026-11-03), `failed` (went wrong; the event's `reason` and `detail` say what).
 
 ### `VoiceState`
 
-**Reusable** · Used by: `voice_in` (planned) publishes; `temp_ui` (planned) subscribes
+**Reusable** · Used by: `voice_in` publishes; `temp_ui` (planned) subscribes
 
 `VoiceState(state: ListeningState, reason: str | None = None, detail: str | None = None)` (event)
 
-The mic's state changed. `reason` is the service's error code, `"service_stopped"`, or `"silence"` on an idle after a silence stop; `detail` is a short sentence for the button.
+The mic's state changed. `reason` is the service's error code (`busy`, `mic_unavailable`, `mic_lost`, `engine_failed`), one of the app's own (`not_allowed`, `service_unavailable`, `service_stopped`, `timed_out`), `"mic_dropped"` on `dropped`, or `"silence"` on an idle after a silence stop; `detail` is a short sentence for the button (on `dropped`: *mic dropped, waiting 15 s for it to come back*).
 
 ### `VoiceTranscript`
 
-**Reusable** · Used by: `voice_in` (planned) publishes; `temp_ui` (planned) and any module that wants voice text subscribe
+**Reusable** · Used by: `voice_in` publishes; `temp_ui` (planned) and any module that wants voice text subscribe
 
 `VoiceTranscript(session_id: str, text: str, final: bool = False)` (event)
 
@@ -188,7 +188,7 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 
 ### The voice service protocol
 
-**Reusable** · Used by: `voice_service` server (`server.py`, `session.py`), `voice_in` client (planned)
+**Reusable** · Used by: `voice_service` server (`server.py`, `session.py`), `voice_in` client (`module.py`)
 
 `from voice_service.protocol import ...` (not `assistant.contracts`: the service never imports the assistant). The [`/ws/listen` protocol](../architecture/voice.md#the-protocol) as frozen pydantic models, one JSON object per text frame, so the service and its Python clients share one definition. `voice_service/__init__.py` is empty, so importing it doesn't pull in FastAPI or sherpa-onnx.
 
@@ -197,7 +197,9 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 | `Start`, `Stop` | app → service | `{"type": "start"}`, `{"type": "stop"}` |
 | `Started` | service → app | The mic is open |
 | `Partial(text)` | service → app | The text so far |
-| `Final(text, latency_ms, complete=True, ended_by="stop")` | service → app | The finished text; `ended_by` is `"stop"` or `"silence"` |
+| `MicDropped(detail="", wait_seconds)` | service → app | The mic went away; the service tries to reopen it for `wait_seconds` (added 2026-11-03) |
+| `MicBack` | service → app | A mic opened again; the session carries on (added 2026-11-03) |
+| `Final(text, latency_ms, complete=True, ended_by="stop")` | service → app | The finished text; `ended_by` is `"stop"` or `"silence"`; `complete` is false after a mic that didn't come back |
 | `Error(reason: ErrorCode, detail="")` | service → app | A fixed code and a sentence for the log |
 | `ErrorCode` | `StrEnum` | `busy`, `mic_unavailable`, `mic_lost`, `engine_failed`, `bad_message` |
 | `parse_client_message(raw)` | function | A frame from the app: `Start \| Stop`. Raises `ProtocolError` |

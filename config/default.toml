@@ -68,6 +68,17 @@ window = "app"            # "app" (own window, via Edge), "browser" (a tab), or 
 generated = ["docs/html", "docs/html-next-steps"]
 start_timeout = 10.0      # seconds to wait for the viewer to answer after starting it
 
+[modules.voice_in]
+# Voice input (off by default until the temp UI has a mic button): launches the voice service
+# (its own app, `python -m voice_service`) on the first mic click and quits it with the app
+# (one you started yourself is left running). The service's own settings, such as how long it
+# waits for a dropped mic, are in config/voice_service.toml.
+host = "127.0.0.1"
+port = 8767
+start_timeout = 20.0      # seconds for the service to answer /health after launching it
+service_config = ""       # optional path passed to the service as --config
+reply_timeout = 10.0      # seconds to wait for the service's `started` after start, and its final text after stop
+
 [core]
 command_timeout = 30.0        # seconds; default for every command
 module_stop_timeout = 5.0     # seconds each module gets to stop
@@ -77,6 +88,7 @@ event_handler_timeout = 10.0  # seconds before a stuck event handler is cancelle
 [core.command_timeouts]
 # Per command type, by class name, e.g.
 # InvokeTool = 60.0
+StartListening = 30.0         # may launch the voice service and wait for its model
 
 [logging]
 # Each launch logs into its own folder, dir/<start time>_<theme of your first question>/,

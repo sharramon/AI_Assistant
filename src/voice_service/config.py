@@ -30,6 +30,7 @@ class AudioConfig(_Section):
     chunk_ms: int = Field(32, gt=0)  # rate and format are fixed: 16 kHz mono PCM16
     queue_seconds: float = Field(10.0, gt=0)
     silence_stop_seconds: float = 120.0  # 0 or less: never stop on silence
+    mic_recovery_seconds: float = 15.0  # a lost mic: try to reopen it this long; 0 or less: end the session at once
 
 
 class ZipformerConfig(_Section):

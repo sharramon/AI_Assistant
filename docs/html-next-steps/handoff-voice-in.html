@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: voice in, after step 3 (the voice_in module)</title>
+<!-- Generated from docs/next-steps/handoff-voice-in.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-voice-in.html"></nav>
+<main>
+<h1 id="handoff-voice-in-after-step-3-the-voice_in-module">Handoff: voice in, after step 3 (the voice_in module)</h1>
+<blockquote>
+<p><strong>Written 2026-11-03</strong> at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on <a href="../html/architecture/voice.html">Voice</a> (built parts are marked there); the step's note is <a href="voice-in-module.html">voice-in-module.md</a>, with what was built differently at its top. The step list is in <a href="index.html#next-voice-in-phase-1">Next steps</a>.</p>
+</blockquote>
+<h2 id="done">Done</h2>
+<ul>
+<li><strong>Steps 1 and 2</strong> (committed earlier): the voice contracts, the protocol, and the <code>voice_service</code> app.</li>
+<li><strong>Step 3, <code>voice_in</code></strong> (built, not committed): <code>src/assistant/modules/voice_in/</code>, listed in <code>MODULES</code> and off by default.</li>
+<li><strong>Launch and stop:</strong> it uses <code>CompanionApp("voice_service", ping="/health", quit="/quit")</code>. The service is launched on the first <code>StartListening</code>, not in <code>start</code>. At <code>stop()</code>, an open session is aborted (nothing goes to the Talker), and the service is quit only if this module launched it.</li>
+<li><strong>One session at a time:</strong> <code>StartListening</code> and <code>StopListening</code> run under one <code>asyncio.Lock</code>. Starting again while a session is open returns that session's id.</li>
+<li><strong>Steps per start:</strong> <code>VoiceState(starting)</code>, then <code>ctx.permissions.request("microphone")</code>, then <code>_ensure_service()</code> (the health check below). Then it connects the WebSocket, sends <code>start</code>, and waits up to <code>reply_timeout</code> for <code>started</code>. A reader task maps every frame after that.</li>
+<li><strong>Health check:</strong> it runs only when <code>ensure_running()</code> didn't launch the service just now. It sends <code>GET /health</code> with a 2 s timeout:<ul>
+<li><code>ready: false</code> with an error fails at once with <code>engine_failed</code>.</li>
+<li>Still loading: carry on.</li>
+<li>No answer: <code>ensure_running()</code> again, which relaunches the service.</li>
+</ul>
+</li>
+<li><strong>Error mapping:</strong> the table under <a href="../html/architecture/voice.html#the-voice_in-module-how-errors-reach-the-button">Voice: how errors reach the button</a>.</li>
+<li><strong>Mic-drop recovery, a change to the step 2 service:</strong></li>
+<li><strong>Config:</strong> <code>[audio] mic_recovery_seconds = 15</code> in <code>config/voice_service.toml</code> and <code>config.py</code>. Setting it to 0 keeps the old behavior.</li>
+<li><strong>Protocol:</strong> two new service messages, <code>MicDropped(detail, wait_seconds)</code> and <code>MicBack</code>. Every other message is unchanged.</li>
+<li><strong>Session (<code>session.py</code>):</strong> <code>ListenSession</code> now takes the server's <code>source_factory</code>. On <code>on_lost</code>, it reads what's queued, sends the last partial and then <code>mic_dropped</code>, and tries a fresh source every <code>retry_seconds</code> (1 s). The silence timer is paused meanwhile. If a source opens, it sends <code>mic_back</code> and keeps the same engine stream. On a timeout, or a <code>stop</code> while dropped, it sends <code>final complete=false</code> and then <code>error mic_lost</code>.</li>
+<li><strong><code>voice_in</code>:</strong> <code>mic_dropped</code> becomes <code>VoiceState(dropped, "mic_dropped", "mic dropped, waiting 15 s…")</code> and <code>mic_back</code> becomes <code>listening</code>. An incomplete final drops the text: <code>VoiceTranscript(final=True, text="")</code> clears the line, then <code>VoiceState(failed, mic_lost)</code>, and nothing goes to the Talker.</li>
+<li><strong>Contract:</strong> a new <code>ListeningState.DROPPED</code>.</li>
+<li><strong>Tests:</strong></li>
+<li><code>tests/test_voice_in.py</code> (21 test functions, 23 cases) runs the real service app with <code>FakeEngine</code> and <code>FakeSource</code> under Uvicorn, on a free local port in a thread.</li>
+<li><code>tests/test_voice_service.py</code> has 4 new mic-drop tests.</li>
+<li>Results: ruff is clean, and 224 tests pass (1 deselected).</li>
+<li><strong>Docs:</strong></li>
+<li>Updated: Voice (the status, the protocol table, config, errors, the voice_in section, the three-part flowchart with built and planned marks, the full sequence diagram, and the error table), the overview (diagram, Built today, Parts, Modules, Pages), Messaging, the reusable index, App kit, Modules, runtime (the voice service process), and Next steps.</li>
+<li>Rebuilt with <code>scripts/build_docs.py</code>.</li>
+</ul>
+<h2 id="decisions-made-with-the-user">Decisions made with the user</h2>
+<ol>
+<li><strong>Tests: option A.</strong> They use the real <code>voice_service</code> app with its fake engine and fake mic on a local port, not a hand-written fake server. This is the stand-in until the user tries their own mic.</li>
+<li><strong>Health check</strong> only when reusing an already-running service. A fresh launch is already pinged by <code>CompanionApp</code>.</li>
+<li><strong>A lost mic:</strong> try to recover it for a short, configurable wait (<code>mic_recovery_seconds</code>, 15 s). If it comes back, carry on. If not, end the session and discard its text, and send nothing to the Talker.</li>
+<li><strong>Process rule:</strong> after each big chunk of a build, update the architecture docs and their flowcharts as the build goes (diagrams included, built versus planned marked), not only at the end, and run the <code>architecture-check</code> skill.</li>
+</ol>
+<h2 id="files-touched-uncommitted">Files touched (uncommitted)</h2>
+<ul>
+<li><strong>New:</strong> <code>src/assistant/modules/voice_in/__init__.py</code>, <code>module.py</code>; <code>tests/test_voice_in.py</code>; this note.</li>
+<li><strong>Changed, code:</strong> <code>src/voice_service/protocol.py</code>, <code>session.py</code>, <code>config.py</code>, <code>server.py</code>; <code>config/voice_service.toml</code>; <code>src/assistant/contracts/voice.py</code>; <code>src/assistant/__main__.py</code>; <code>config/default.toml</code>; <code>tests/test_voice_service.py</code>, <code>tests/test_voice_contracts.py</code>.</li>
+<li><strong>Changed, docs:</strong> <code>docs/architecture/voice.md</code>, <code>docs/architecture/README.md</code>, <code>docs/api/messaging.md</code>, <code>docs/api/reusable.md</code>, <code>docs/api/app_kit.md</code>, <code>docs/api/modules.md</code>, <code>docs/agents/runtime.md</code>, <code>docs/next-steps/README.md</code>, <code>docs/next-steps/voice-in-module.md</code>, and the regenerated <code>docs/html/</code> and <code>docs/html-next-steps/</code>.</li>
+</ul>
+<h2 id="half-finished-or-open">Half-finished or open</h2>
+<ul>
+<li>Nothing is half-built. The code, tests and docs match.</li>
+<li><strong>Not covered:</strong> if Windows doesn't report an unplug (the mic just goes quiet), no drop is detected. A "no audio for 2 s counts as a drop" check would cover it. Decide in step 6.</li>
+<li><strong>Possible reusable part:</strong> the <code>Service</code> harness in <code>tests/test_voice_in.py</code> (the real service on a free port). If step 4's temp UI tests need it, move it to <code>tests/support.py</code> and list it in the <a href="../html/api/reusable.html">reusable index</a>.</li>
+</ul>
+<h2 id="next">Next</h2>
+<ol>
+<li><strong>Step 4, the temp UI:</strong>
+   - The mic button sends <code>StartListening</code> and <code>StopListening</code>, and shows <code>VoiceState</code>: <em>starting</em> as a spinner, <em>dropped</em> as an amber crossed-out mic with a countdown and the word count of the last partial, and <em>failed</em> with its <code>detail</code>.
+   - The grey live line comes from <code>VoiceTranscript</code>. Drop updates whose <code>correlation_id</code> isn't the current session's, and clear the line on <code>final=True</code>.
+   - Show <code>InputReceived(source="voice")</code> as your own message.
+   - Add <code>voice_in</code> to <code>enabled</code>.</li>
+<li><strong>Step 6, the user's real mic on this laptop.</strong> Needed:
+   - The <code>voice</code> extra installed (it is in this venv).
+   - The Zipformer model in <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code> (downloaded in step 2).
+   - Windows' microphone privacy setting allowing desktop apps.
+   - <code>voice_in</code> enabled, and step 4's button to click. Without step 4, start <code>python -m voice_service</code> alone and drive <code>/ws/listen</code> by hand.
+   - Check the latency and the partials, and unplug a USB or Bluetooth mic mid-sentence to see <code>mic_dropped</code> and <code>mic_back</code>, and whether Windows reports the unplug at all.</li>
+<li><strong>Step 7:</strong> Nemotron and the engine comparison. It needs no change to <code>voice_in</code>.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/handoff-voice-in.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

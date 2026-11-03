@@ -57,7 +57,7 @@
 <p><strong>Raises:</strong> <code>FileNotFoundError</code> if <code>base</code> is missing; <code>tomllib.TOMLDecodeError</code> for invalid TOML.</p>
 <p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
 <h2 id="companionapp"><code>CompanionApp</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, and the relay of the viewer's event stream); <code>voice_in</code> (planned); any app that launches <code>voice_service</code></p>
+<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, and the relay of the viewer's event stream); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it); any app that launches <code>voice_service</code></p>
 <p><code>CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)</code></p>
 <p>Launches and talks to a local <a href="../architecture/reusable-parts.html#companion-app-checklist">companion app</a>. Relies on its convention: the ping answers <code>{"app": "&lt;name&gt;", ...}</code> (<code>name</code> defaults to <code>module</code>), and a JSON <code>POST</code> to <code>quit</code> quits it.</p>
 <table>

@@ -39,7 +39,7 @@ Load the TOML file `base`, then deep-merge `local` over it if it exists (default
 
 ## `CompanionApp`
 
-**Reusable** · Used by: `html_viewer` module (launch, calls, and the relay of the viewer's event stream); `voice_in` (planned); any app that launches `voice_service`
+**Reusable** · Used by: `html_viewer` module (launch, calls, and the relay of the viewer's event stream); `voice_in` (launch on the first mic click, `/health` calls, quit at stop if it launched it); any app that launches `voice_service`
 
 `CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)`
 
