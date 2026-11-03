@@ -141,7 +141,7 @@ def test_error_codes_are_fixed():
 
 
 def test_protocol_never_imports_assistant():
-    for path in Path(protocol.__file__).parent.glob("*.py"):
+    for path in Path(protocol.__file__).parent.rglob("*.py"):  # the whole voice_service package
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 names = [a.name for a in node.names]

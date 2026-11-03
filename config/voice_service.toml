@@ -1,0 +1,31 @@
+# The voice service's config (src/voice_service). Override any value in
+# config/voice_service.local.toml (not committed), or with --config, --host, --port.
+# Spec: docs/architecture/voice.md#the-voice-service-config
+
+[server]
+host = "127.0.0.1"
+port = 8767                 # temp_ui is 8765, the HTML viewer 8766
+
+[audio]
+device = ""                 # "" = Windows' default mic; or a device name or index
+chunk_ms = 32               # 512 frames at 16 kHz. Rate and format are fixed: 16 kHz mono PCM16
+queue_seconds = 10          # how far the engine may fall behind before audio is dropped
+silence_stop_seconds = 120  # no speech detected for this long: the session stops itself, like a stop (a forgotten mic). No limit while you talk
+
+[engine]
+name = "zipformer"          # "zipformer" or "fake"
+models_dir = ""             # "" = %LOCALAPPDATA%\AI_Assistant\voice_models; env VOICE_SERVICE_MODELS overrides
+partial_interval_ms = 100
+
+[engine.zipformer]
+model = "sherpa-onnx-streaming-zipformer-en-2023-06-26"   # folder under models_dir
+num_threads = 2
+decoding = "greedy_search"
+int8 = true                 # false = the full-precision model files (slower on a CPU, slightly more accurate)
+
+[engine.fake]
+text = "hello from the fake engine"
+
+[logging]
+level = "INFO"
+file = ""                   # "" = stderr only

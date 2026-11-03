@@ -188,7 +188,7 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 
 ### The voice service protocol
 
-**Reusable** · Used by: `voice_service` server (planned), `voice_in` client (planned)
+**Reusable** · Used by: `voice_service` server (`server.py`, `session.py`), `voice_in` client (planned)
 
 `from voice_service.protocol import ...` (not `assistant.contracts`: the service never imports the assistant). The [`/ws/listen` protocol](../architecture/voice.md#the-protocol) as frozen pydantic models, one JSON object per text frame, so the service and its Python clients share one definition. `voice_service/__init__.py` is empty, so importing it doesn't pull in FastAPI or sherpa-onnx.
 
@@ -206,3 +206,31 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 | `ProtocolError` | exception (`ValueError`) | Not JSON, not an object, unknown `type`, a missing or bad field, or the wrong direction; the service answers `bad_message` |
 
 **Defined in:** `src/voice_service/protocol.py`
+
+### The voice service's parts
+
+**Reusable** · Used by: `voice_service` (`server.py`, `session.py`, `__main__.py`); the Nemotron engine (step 7, planned) adds an `SttEngine`; `RemoteSource` for `/ws/audio` (later) adds an `AudioSource`
+
+The service's own API, inside `src/voice_service/` (its own app: never imported by the assistant; `voice_in` uses only the protocol above). Built 2026-11-03 ([change note](../next-steps/voice-service.md)); design: [Voice: files and classes](../architecture/voice.md#the-voice-service-files-and-classes).
+
+| Item | Kind | Summary |
+|------|------|---------|
+| `SttEngine` | ABC (`engines`) | A speech engine: `name`, `load()` (blocking, once, raises on failure; default no-op), `new_stream() -> SttStream` |
+| `SttStream` | ABC (`engines`) | One session's recognition: `accept(pcm: bytes)` (PCM16, 16 kHz mono), `partial() -> str`, `finish() -> str` (flush, final text) |
+| `load_engine(name, config) -> SttEngine` | function (`engines`) | The only place that knows engine names: `"zipformer"` or `"fake"`; configured, not loaded. Raises `EngineError` for an unknown name |
+| `EngineError` | exception (`RuntimeError`) | The engine can't be used (unknown, model missing, sherpa-onnx missing); the message is the `engine_failed` detail |
+| `ZipformerEngine(model_dir, config)` | class (`engines.zipformer`) | Streaming Zipformer EN through sherpa-onnx; int8 or full-precision files per `[engine.zipformer] int8`; `model_files()` finds them, and a missing model names the `download` command. sherpa-onnx is imported only in `load` |
+| `FakeEngine(text, *, chunks_per_word=2, fail_on_load=False, fail_on_accept=False, load_gate=None)` | class (`engines.fake`) | For tests: one more word every `chunks_per_word` chunks; can fail on load, or once on accept; `load_gate` holds the load |
+| `AudioSource` | ABC (`audio`) | `start(on_chunk, on_lost)` (raises `MicUnavailable`), `stop()`; `on_chunk` comes from the source's thread and must not block |
+| `MicSource(device="", chunk_ms=32)` | class (`audio`) | The mic through a sounddevice `RawInputStream` (int16, 16 kHz, mono); a stream that ends without `stop` calls `on_lost`. sounddevice is imported only in `start` |
+| `FakeSource(chunks=(), *, interval=0, fail_on_open=False, lose_after=None)`, `FakeSource.from_wav(path, *, chunk_ms=32, realtime=True)` | class (`audio`) | Chunks from a list or a 16 kHz mono WAV, for tests and offline checks; can fail to open or "unplug" after N chunks |
+| `MicUnavailable` | exception (`RuntimeError`) | The source couldn't open; the message names the device and the reason |
+| `create_app(config, engine, source_factory) -> FastAPI` | function (`server`) | `GET /health`, `POST /quit`, `WS /ws/listen`, one listener at a time; loads the engine on a background thread at startup. Set `app.state.on_quit` to what ends the server |
+| `ServiceConfig`, `load_service_config(path=None, *, host=None, port=None)`, `models_dir(config)` | model, functions (`config`) | Built-in defaults, then `config/voice_service.toml` and its `.local.toml` through `load_layered`, then flags; the models folder (env `VOICE_SERVICE_MODELS`, `[engine] models_dir`, else `%LOCALAPPDATA%\AI_Assistant\voice_models`) |
+| `download_model(engine, config, *, fetch=None) -> Path` | function (`download`) | Fetch and extract a model once (tarfile's safe `data` filter); does nothing if it's there. `python -m voice_service download zipformer` |
+
+**Example** (an offline check on a recording, the whole service path, no mic):
+
+    app = create_app(config, load_engine("zipformer", config), lambda: FakeSource.from_wav("0.wav"))
+
+**Defined in:** `src/voice_service/` (`engines/`, `audio.py`, `server.py`, `config.py`, `download.py`)

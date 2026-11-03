@@ -235,7 +235,7 @@
 <p>The live text: each partial (<code>final=False</code>), then once the final text (<code>final=True</code>; empty clears the line). This is the public stream of voice text; <code>InputReceived(source="voice")</code> is only the Talker's way in.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/voice.py</code></p>
 <h3 id="the-voice-service-protocol">The voice service protocol</h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_service</code> server (planned), <code>voice_in</code> client (planned)</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_service</code> server (<code>server.py</code>, <code>session.py</code>), <code>voice_in</code> client (planned)</p>
 <p><code>from voice_service.protocol import ...</code> (not <code>assistant.contracts</code>: the service never imports the assistant). The <a href="../architecture/voice.html#the-protocol"><code>/ws/listen</code> protocol</a> as frozen pydantic models, one JSON object per text frame, so the service and its Python clients share one definition. <code>voice_service/__init__.py</code> is empty, so importing it doesn't pull in FastAPI or sherpa-onnx.</p>
 <table>
 <thead>
@@ -299,6 +299,89 @@
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/voice_service/protocol.py</code></p>
+<h3 id="the-voice-services-parts">The voice service's parts</h3>
+<p><strong>Reusable</strong> · Used by: <code>voice_service</code> (<code>server.py</code>, <code>session.py</code>, <code>__main__.py</code>); the Nemotron engine (step 7, planned) adds an <code>SttEngine</code>; <code>RemoteSource</code> for <code>/ws/audio</code> (later) adds an <code>AudioSource</code></p>
+<p>The service's own API, inside <code>src/voice_service/</code> (its own app: never imported by the assistant; <code>voice_in</code> uses only the protocol above). Built 2026-11-03 (change note); design: <a href="../architecture/voice.html#the-voice-service-files-and-classes">Voice: files and classes</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SttEngine</code></td>
+<td>ABC (<code>engines</code>)</td>
+<td>A speech engine: <code>name</code>, <code>load()</code> (blocking, once, raises on failure; default no-op), <code>new_stream() -&gt; SttStream</code></td>
+</tr>
+<tr>
+<td><code>SttStream</code></td>
+<td>ABC (<code>engines</code>)</td>
+<td>One session's recognition: <code>accept(pcm: bytes)</code> (PCM16, 16 kHz mono), <code>partial() -&gt; str</code>, <code>finish() -&gt; str</code> (flush, final text)</td>
+</tr>
+<tr>
+<td><code>load_engine(name, config) -&gt; SttEngine</code></td>
+<td>function (<code>engines</code>)</td>
+<td>The only place that knows engine names: <code>"zipformer"</code> or <code>"fake"</code>; configured, not loaded. Raises <code>EngineError</code> for an unknown name</td>
+</tr>
+<tr>
+<td><code>EngineError</code></td>
+<td>exception (<code>RuntimeError</code>)</td>
+<td>The engine can't be used (unknown, model missing, sherpa-onnx missing); the message is the <code>engine_failed</code> detail</td>
+</tr>
+<tr>
+<td><code>ZipformerEngine(model_dir, config)</code></td>
+<td>class (<code>engines.zipformer</code>)</td>
+<td>Streaming Zipformer EN through sherpa-onnx; int8 or full-precision files per <code>[engine.zipformer] int8</code>; <code>model_files()</code> finds them, and a missing model names the <code>download</code> command. sherpa-onnx is imported only in <code>load</code></td>
+</tr>
+<tr>
+<td><code>FakeEngine(text, *, chunks_per_word=2, fail_on_load=False, fail_on_accept=False, load_gate=None)</code></td>
+<td>class (<code>engines.fake</code>)</td>
+<td>For tests: one more word every <code>chunks_per_word</code> chunks; can fail on load, or once on accept; <code>load_gate</code> holds the load</td>
+</tr>
+<tr>
+<td><code>AudioSource</code></td>
+<td>ABC (<code>audio</code>)</td>
+<td><code>start(on_chunk, on_lost)</code> (raises <code>MicUnavailable</code>), <code>stop()</code>; <code>on_chunk</code> comes from the source's thread and must not block</td>
+</tr>
+<tr>
+<td><code>MicSource(device="", chunk_ms=32)</code></td>
+<td>class (<code>audio</code>)</td>
+<td>The mic through a sounddevice <code>RawInputStream</code> (int16, 16 kHz, mono); a stream that ends without <code>stop</code> calls <code>on_lost</code>. sounddevice is imported only in <code>start</code></td>
+</tr>
+<tr>
+<td><code>FakeSource(chunks=(), *, interval=0, fail_on_open=False, lose_after=None)</code>, <code>FakeSource.from_wav(path, *, chunk_ms=32, realtime=True)</code></td>
+<td>class (<code>audio</code>)</td>
+<td>Chunks from a list or a 16 kHz mono WAV, for tests and offline checks; can fail to open or "unplug" after N chunks</td>
+</tr>
+<tr>
+<td><code>MicUnavailable</code></td>
+<td>exception (<code>RuntimeError</code>)</td>
+<td>The source couldn't open; the message names the device and the reason</td>
+</tr>
+<tr>
+<td><code>create_app(config, engine, source_factory) -&gt; FastAPI</code></td>
+<td>function (<code>server</code>)</td>
+<td><code>GET /health</code>, <code>POST /quit</code>, <code>WS /ws/listen</code>, one listener at a time; loads the engine on a background thread at startup. Set <code>app.state.on_quit</code> to what ends the server</td>
+</tr>
+<tr>
+<td><code>ServiceConfig</code>, <code>load_service_config(path=None, *, host=None, port=None)</code>, <code>models_dir(config)</code></td>
+<td>model, functions (<code>config</code>)</td>
+<td>Built-in defaults, then <code>config/voice_service.toml</code> and its <code>.local.toml</code> through <code>load_layered</code>, then flags; the models folder (env <code>VOICE_SERVICE_MODELS</code>, <code>[engine] models_dir</code>, else <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>)</td>
+</tr>
+<tr>
+<td><code>download_model(engine, config, *, fetch=None) -&gt; Path</code></td>
+<td>function (<code>download</code>)</td>
+<td>Fetch and extract a model once (tarfile's safe <code>data</code> filter); does nothing if it's there. <code>python -m voice_service download zipformer</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong> (an offline check on a recording, the whole service path, no mic):</p>
+<pre><code>app = create_app(config, load_engine("zipformer", config), lambda: FakeSource.from_wav("0.wav"))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/voice_service/</code> (<code>engines/</code>, <code>audio.py</code>, <code>server.py</code>, <code>config.py</code>, <code>download.py</code>)</p>
 <footer>Generated from <code>docs/api/messaging.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

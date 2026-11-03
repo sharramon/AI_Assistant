@@ -55,11 +55,12 @@ Changes you asked for, each with a note written before anything is built ([`app-
 | [Reusable parts as a core principle](reusable-parts.md) | approved; permanent docs done; `app_kit` and `agent_tags` built (2026-11-02); permissions stand-in built (2026-11-02); next: the voice build | 2026-11-02 |
 | [Permissions stand-in (`ctx.permissions`)](permissions-stand-in.md) | done | 2026-11-02 |
 | [Voice in: contracts (step 1)](voice-contracts.md) | done | 2026-11-03 |
+| [Voice in: the voice service app (step 2)](voice-service.md) | done | 2026-11-03 |
 | [Permission mode button (Manual / Auto)](permission-mode-button.md) | done (spike passed: `git push` blocked under bypass; button on the Talker side; restart the app to get it) | 2026-11-02 |
 
 ## Next: voice in, phase 1
 
-The next thing to build. The design is [Voice](../architecture/voice.md), with the code-level design (threads, files, config, errors, the `voice_in` manifest and contracts) in its [Code design (phase 1)](../architecture/voice.md#code-design-phase-1) section, approved 2026-11-02. Follow `app-update` and `architecture-first`. No voice code exists yet.
+The next thing to build. The design is [Voice](../architecture/voice.md), with the code-level design (threads, files, config, errors, the `voice_in` manifest and contracts) in its [Code design (phase 1)](../architecture/voice.md#code-design-phase-1) section, approved 2026-11-02. Follow `app-update` and `architecture-first`. Steps 1 and 2 are built; `voice_in` (step 3) is next.
 
 **The first version includes:** the shared `voice_service` app with the recorder, the receiver, and the Streaming Zipformer engine. It also includes the thin `voice_in` module, a mic button and a live-text line in the temp UI, one message to the Talker when the mic turns off, and latency per utterance in the log.
 
@@ -69,10 +70,10 @@ The next thing to build. The design is [Voice](../architecture/voice.md), with t
 
 **Steps:**
 1. ~~**Contracts:** `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript` in `src/assistant/contracts/voice.py`, and the protocol's messages in `src/voice_service/protocol.py`, with entries in the [Messaging API](../api/messaging.md#voice).~~ Done 2026-11-03 ([note](voice-contracts.md)).
-2. **`src/voice_service/`** (doesn't import the assistant): the [files and classes](../architecture/voice.md#the-voice-service-files-and-classes), [threads](../architecture/voice.md#the-voice-service-threads-and-audio-flow), [config](../architecture/voice.md#the-voice-service-config) (`config/voice_service.toml`), and [error handling](../architecture/voice.md#the-voice-service-errors) in the design. FastAPI + Uvicorn on `127.0.0.1:8767`, `/health`, `/quit`, `/ws/listen` per the [protocol](../architecture/voice.md#the-protocol); `SttEngine` / `SttStream` with `zipformer` and `fake`; `MicSource` and `FakeSource`; the `download` command. Runs alone with `python -m voice_service`.
+2. ~~**`src/voice_service/`** (doesn't import the assistant): the [files and classes](../architecture/voice.md#the-voice-service-files-and-classes), [threads](../architecture/voice.md#the-voice-service-threads-and-audio-flow), [config](../architecture/voice.md#the-voice-service-config) (`config/voice_service.toml`), and [error handling](../architecture/voice.md#the-voice-service-errors) in the design. FastAPI + Uvicorn on `127.0.0.1:8767`, `/health`, `/quit`, `/ws/listen` per the [protocol](../architecture/voice.md#the-protocol); `SttEngine` / `SttStream` with `zipformer` and `fake`; `MicSource` and `FakeSource`; the `download` command. Runs alone with `python -m voice_service`.~~ Done 2026-11-03 ([note](voice-service.md)): int8 Zipformer by default, the model downloaded outside the repo, checked on the model's test recordings.
 3. **`src/assistant/modules/voice_in/`:** per [the voice_in module](../architecture/voice.md#the-voice_in-module): launches the service through the shared `CompanionApp`, asks `ctx.permissions.request("microphone", ...)` on each start (the stand-in logs the warning), one WebSocket per mic session using `voice_service.protocol`, handles the two commands, publishes `VoiceState` and `VoiceTranscript`, and sends the final text as `InputReceived(source="voice")`. Off by default; `[modules.voice_in]` in `config/default.toml`, plus `core.command_timeouts.StartListening = 30`.
 4. **`temp_ui`:** the mic button (shows *listening* or *failed*) and a grey live-text line above the input box.
-5. **`pyproject.toml`:** an optional `voice` extra (FastAPI, Uvicorn, sherpa-onnx, sounddevice, and `websockets` for `voice_in`'s client).
+5. ~~**`pyproject.toml`:** an optional `voice` extra (FastAPI, Uvicorn, sherpa-onnx, sounddevice, and `websockets` for `voice_in`'s client).~~ Done with step 2; CI installs it too.
 6. **Tests and check:** the service with the `fake` engine and a fake recorder; `voice_in` against a fake service. No real mic or model in CI. Run `pytest` and `ruff`, then try it on your mic. That's the first real test of the latency targets. Update the docs (Voice: planned → built, the overview's Parts table, the [runtime](../agents/runtime.md) page) and rebuild.
 7. **Next:** a Nemotron Speech Streaming EN 0.6B INT8 engine, and a comparison script on a folder of recordings with reference text (word error rate, latency, CPU per engine).
 

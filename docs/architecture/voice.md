@@ -2,9 +2,11 @@
 
 Speech to text, so you can talk to the assistant instead of typing. It's **Voice in** in the [overview](README.md). Voice out (the Talker speaking back) is a separate, later part.
 
-> **Status: planned (designed 2026-10-28; code design added and approved 2026-11-02).** Not built. The first build is phase 1 below; its steps are in the next-steps list. The code-level design is under [Code design (phase 1)](#code-design-phase-1).
+> **Status: being built (designed 2026-10-28; code design added and approved 2026-11-02).** Phase 1 below is built in steps, listed in the next-steps list. The code-level design is under [Code design (phase 1)](#code-design-phase-1).
 >
-> **Built: step 1, the contracts** (2026-11-03, [change note](../next-steps/voice-contracts.md)): `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript` in `contracts/voice.py`, and the protocol's messages in `voice_service/protocol.py`, which `voice_in` will import ([API](../api/messaging.md#voice)). The service and `voice_in` are next.
+> **Built: step 1, the contracts** (2026-11-03, [change note](../next-steps/voice-contracts.md)): `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript` in `contracts/voice.py`, and the protocol's messages in `voice_service/protocol.py`, which `voice_in` will import ([API](../api/messaging.md#voice)). `voice_in` is next.
+>
+> **Built: step 2, the voice service** (2026-11-03, [change note](../next-steps/voice-service.md)): `src/voice_service/` as designed below, run alone with `python -m voice_service` (or `voice-service`); `python -m voice_service download zipformer` fetched the model (310 MB) into `%LOCALAPPDATA%\AI_Assistant\voice_models`, outside the repo. Tested with the fake engine and fake sources ([API](../api/messaging.md#the-voice-services-parts)). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after `stop`. The first partial came about 1.1 s after `start`; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only *dishonored* for *dishonoured*) and were slower (62 to 93 ms), so int8 stays the default.
 
 ## Rules
 
@@ -110,7 +112,7 @@ The **voice handler** asks, once, when you click the mic and before it sends `st
 | **Main** | Uvicorn's asyncio loop: `/health`, `/quit`, `/ws/listen`, the one-listener slot | Never decodes or touches the mic directly |
 | **Mic callback** (PortAudio's own thread) | `MicSource`'s sounddevice callback, every 32 ms | Copies the chunk's bytes and `put_nowait`s them on the session's chunk queue. Nothing else: no locks, no logging, no engine calls |
 | **Engine** (one per session, `voice-engine`) | `ListenSession._run`: takes chunks, `accept`s them, reads `partial()` | Hands results to the loop with `loop.call_soon_threadsafe`, never awaits anything |
-| **Model load** (once, at service start) | `load_engine` via `asyncio.to_thread` | Sets the `ready` event, or records the load error |
+| **Model load** (once, at service start) | `SttEngine.load` on a daemon thread, `voice-model-load` (built so instead of `asyncio.to_thread`, so a shutdown never waits on a load) | Sets the `ready` event, or records the load error |
 
 ```mermaid
 flowchart LR
@@ -233,6 +235,7 @@ partial_interval_ms = 100
 model = "sherpa-onnx-streaming-zipformer-en-2023-06-26"   # folder under models_dir
 num_threads = 2
 decoding = "greedy_search"
+int8 = true                 # false = the full-precision model files (slower on a CPU, slightly more accurate)
 
 [engine.fake]
 text = "hello from the fake engine"

@@ -51,7 +51,7 @@
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/app_kit/window.py</code></p>
 <h2 id="load_layered"><code>load_layered</code></h2>
-<p><strong>Reusable</strong> · Used by: <a href="infra.html#load_config"><code>assistant.infra.load_config</code></a> (as a thin wrapper), <code>voice_service</code> (planned)</p>
+<p><strong>Reusable</strong> · Used by: <a href="infra.html#load_config"><code>assistant.infra.load_config</code></a> (as a thin wrapper), <code>voice_service</code> (<code>config.py</code>: <code>config/voice_service.toml</code> and its <code>.local.toml</code>)</p>
 <p><code>load_layered(base: str | Path, local: str | Path | None = None) -&gt; dict[str, Any]</code></p>
 <p>Load the TOML file <code>base</code>, then deep-merge <code>local</code> over it if it exists (default: <code>base</code> with <code>.local</code> before the suffix, e.g. <code>voice_service.local.toml</code>). Tables merge key by key; other values, lists included, are replaced.</p>
 <p><strong>Raises:</strong> <code>FileNotFoundError</code> if <code>base</code> is missing; <code>tomllib.TOMLDecodeError</code> for invalid TOML.</p>

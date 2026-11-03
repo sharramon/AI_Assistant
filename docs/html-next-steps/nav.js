@@ -102,6 +102,10 @@
         "href": "voice-contracts.html"
       },
       {
+        "name": "Voice in: the voice service app (step 2)",
+        "href": "voice-service.html"
+      },
+      {
         "name": "Permission mode button",
         "href": "permission-mode-button.html"
       },

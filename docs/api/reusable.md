@@ -26,13 +26,16 @@ Every reusable part, one line each. **Check here before writing a helper**; afte
 | [`VoiceState`](messaging.md#voicestate) | event | The mic's state changed, for the button | `contracts/voice.py` | `voice_in` (*planned*) → `temp_ui` (*planned*) |
 | [`VoiceTranscript`](messaging.md#voicetranscript) | event | Live and final voice text; the public stream | `contracts/voice.py` | `voice_in` (*planned*) → `temp_ui` (*planned*), any subscriber |
 
-## Voice service: `voice_service.protocol`
+## Voice service: `voice_service`
 
-Shared by the service and its Python clients; never imports `assistant`.
+Its own app; never imports `assistant`. The protocol is shared with its Python clients; the rest is used inside the service and is where new engines and audio sources plug in.
 
 | Name | Kind | Purpose | Where | Used by |
 |------|------|---------|-------|---------|
-| [Voice service protocol](messaging.md#the-voice-service-protocol) | models, functions | The `/ws/listen` messages, `ErrorCode`, `parse_client_message`, `parse_service_message`, `dump`, `ProtocolError` | `voice_service/protocol.py` | `voice_service` server (*planned*), `voice_in` client (*planned*) |
+| [Voice service protocol](messaging.md#the-voice-service-protocol) | models, functions | The `/ws/listen` messages, `ErrorCode`, `parse_client_message`, `parse_service_message`, `dump`, `ProtocolError` | `voice_service/protocol.py` | `voice_service` server (`server.py`, `session.py`), `voice_in` client (*planned*) |
+| [`SttEngine`, `SttStream`](messaging.md#the-voice-services-parts) | ABCs | A speech engine (`load`, `new_stream`) and one session's stream (`accept`, `partial`, `finish`); `load_engine` picks one by name | `voice_service/engines/__init__.py` | `ZipformerEngine`, `FakeEngine`, `ListenSession`; the Nemotron engine (step 7, *planned*) |
+| [`AudioSource`](messaging.md#the-voice-services-parts) | ABC | Where a session's PCM16 chunks come from: `start(on_chunk, on_lost)`, `stop()` | `voice_service/audio.py` | `MicSource`, `FakeSource`, `ListenSession`; `RemoteSource` for `/ws/audio` (later) |
+| [`FakeSource`, `FakeEngine`](messaging.md#the-voice-services-parts) | classes | Audio from a list or a WAV file; an engine that reveals a set text. Test and offline-check doubles | `voice_service/audio.py`, `voice_service/engines/fake.py` | `tests/test_voice_service.py`, offline engine checks (`FakeSource.from_wav`); the engine comparison (step 7, *planned*) |
 
 ## Main-app helpers: `assistant.infra`
 
@@ -54,5 +57,5 @@ Shared by the service and its Python clients; never imports `assistant`.
 | Name | Kind | Purpose | Where | Used by |
 |------|------|---------|-------|---------|
 | [`window`](app_kit.md#window) | functions | Edge app window: open, close, raise, DevTools port | `app_kit/window.py` | `temp_ui`, HTML viewer app (`viewer.py`, `snip.py`) |
-| [`load_layered`](app_kit.md#load_layered) | function | A TOML file plus its `.local` override | `app_kit/config.py` | `load_config`, `voice_service` (*planned*) |
-| [`CompanionApp`](app_kit.md#companionapp) | class | Launch, call, stream, and quit a companion app | `app_kit/companion.py` | `html_viewer` module, `voice_in` (*planned*) |
+| [`load_layered`](app_kit.md#load_layered) | function | A TOML file plus its `.local` override | `app_kit/config.py` | `load_config`, `voice_service` (`config.py`) |
+| [`CompanionApp`](app_kit.md#companionapp) | class | Launch, call, stream, and quit a companion app | `app_kit/companion.py` | `html_viewer` module, `voice_in` (*planned*; `voice_service` answers its `/health` ping and JSON `POST /quit`) |

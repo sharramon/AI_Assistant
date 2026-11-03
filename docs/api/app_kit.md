@@ -27,7 +27,7 @@ One copy of the Edge app-window code, merged from `assistant/infra/app_window.py
 
 ## `load_layered`
 
-**Reusable** · Used by: [`assistant.infra.load_config`](infra.md#load_config) (as a thin wrapper), `voice_service` (planned)
+**Reusable** · Used by: [`assistant.infra.load_config`](infra.md#load_config) (as a thin wrapper), `voice_service` (`config.py`: `config/voice_service.toml` and its `.local.toml`)
 
 `load_layered(base: str | Path, local: str | Path | None = None) -> dict[str, Any]`
 

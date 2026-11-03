@@ -13,7 +13,7 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 **Check the [reusable parts index](reusable.md) before writing a helper.** One line per part (name, kind, purpose, where, used by), sorted by where it lives:
 
 - **Contracts** (`assistant.contracts`): `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
-- **Voice service** (`voice_service.protocol`): the `/ws/listen` messages
+- **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream` and `AudioSource` / `FakeSource`
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `agent_tags`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `CompanionApp`
 
@@ -53,6 +53,7 @@ Commands, events, and results. `from assistant.contracts import ...`
 | [`VoiceState`](messaging.md#voicestate) | event | ♻ The mic's state changed, for the button |
 | [`VoiceTranscript`](messaging.md#voicetranscript) | event | ♻ Live and final voice text, for any subscriber |
 | [Voice service protocol](messaging.md#the-voice-service-protocol) | models | ♻ `/ws/listen` messages shared by `voice_service` and `voice_in` (`from voice_service.protocol import ...`) |
+| [Voice service parts](messaging.md#the-voice-services-parts) | classes | ♻ Inside the service app: `SttEngine` / `SttStream`, `AudioSource` (`MicSource`, `FakeSource`), `create_app`, `load_engine`, `load_service_config`, `download_model` |
 
 ### [Tools](tools.md)
 Capabilities invocable by name. `from assistant.contracts import ...`

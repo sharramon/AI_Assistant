@@ -4,6 +4,10 @@ __pycache__/
 .pytest_cache/
 logs/
 config/local.toml
+config/*.local.toml
 spikes/workspace/
 workspace/
 .claude/state/
+# Speech models are downloaded (python -m voice_service download zipformer), never committed.
+# The default place is %LOCALAPPDATA%\AI_Assistant\voice_models, outside the repo; this covers a models_dir inside it.
+voice_models/

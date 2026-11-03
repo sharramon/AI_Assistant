@@ -14,8 +14,9 @@
 <h1 id="voice">Voice</h1>
 <p>Speech to text, so you can talk to the assistant instead of typing. It's <strong>Voice in</strong> in the <a href="index.html">overview</a>. Voice out (the Talker speaking back) is a separate, later part.</p>
 <blockquote>
-<p><strong>Status: planned (designed 2026-10-28; code design added and approved 2026-11-02).</strong> Not built. The first build is phase 1 below; its steps are in the next-steps list. The code-level design is under <a href="#code-design-phase-1">Code design (phase 1)</a>.</p>
-<p><strong>Built: step 1, the contracts</strong> (2026-11-03, change note): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). The service and <code>voice_in</code> are next.</p>
+<p><strong>Status: being built (designed 2026-10-28; code design added and approved 2026-11-02).</strong> Phase 1 below is built in steps, listed in the next-steps list. The code-level design is under <a href="#code-design-phase-1">Code design (phase 1)</a>.</p>
+<p><strong>Built: step 1, the contracts</strong> (2026-11-03, change note): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
+<p><strong>Built: step 2, the voice service</strong> (2026-11-03, change note): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
 <ul>
@@ -190,7 +191,7 @@
 </tr>
 <tr>
 <td><strong>Model load</strong> (once, at service start)</td>
-<td><code>load_engine</code> via <code>asyncio.to_thread</code></td>
+<td><code>SttEngine.load</code> on a daemon thread, <code>voice-model-load</code> (built so instead of <code>asyncio.to_thread</code>, so a shutdown never waits on a load)</td>
 <td>Sets the <code>ready</code> event, or records the load error</td>
 </tr>
 </tbody>
@@ -308,6 +309,7 @@ partial_interval_ms = 100
 model = &quot;sherpa-onnx-streaming-zipformer-en-2023-06-26&quot;   # folder under models_dir
 num_threads = 2
 decoding = &quot;greedy_search&quot;
+int8 = true                 # false = the full-precision model files (slower on a CPU, slightly more accurate)
 
 [engine.fake]
 text = &quot;hello from the fake engine&quot;
