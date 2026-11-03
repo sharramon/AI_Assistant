@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,6 +26,18 @@ class Task(BaseModel):
     context: str = ""
 
 
+class PermissionMode(StrEnum):
+    """What a task agent may do without asking. Every launch starts in `manual`; it isn't saved.
+
+    `manual`: its standing rules, and you're asked about anything else. `auto`: full
+    permissions with no prompts, except what the agent hard-blocks (`git push` for the
+    Main Assistant); it pauses on its own to ask before very risky steps.
+    """
+
+    MANUAL = "manual"
+    AUTO = "auto"
+
+
 class AgentInfo(BaseModel):
     """Who an agent is. `busy`: it has an unfinished task. `working`: its session is in a turn now."""
 
@@ -35,6 +48,7 @@ class AgentInfo(BaseModel):
     capabilities: tuple[str, ...] = ()
     busy: bool = False
     working: bool = False
+    permission_mode: PermissionMode = PermissionMode.MANUAL
 
 
 class TaskState(StrEnum):
@@ -54,12 +68,14 @@ class ReportKind(StrEnum):
     PROGRESS = "progress"
     REPLY = "reply"
     NEED = "need"
+    PERMISSION = "permission"  # asks to use a tool it isn't allowed; answered with AnswerPermission
     DONE = "done"
     FAILED = "failed"
 
 
 class TaskInfo(BaseModel):
-    """A task as the Hub knows it. `recent` holds the latest reports, newest last."""
+    """A task as the Hub knows it. `recent` holds the latest reports, `activity` the agent's
+    latest text and tool calls (from `AgentActivity`), both newest last."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -68,6 +84,7 @@ class TaskInfo(BaseModel):
     text: str
     state: TaskState
     recent: tuple[str, ...] = ()
+    activity: tuple[str, ...] = ()
     question: str | None = None
     result: str | None = None
 
@@ -97,6 +114,15 @@ class ITaskAgent(Contract):
     @abstractmethod
     async def cancel(self, task_id: str) -> Result:
         """Stop the task, like Esc. The session and its memory survive."""
+
+    @abstractmethod
+    async def answer_permission(self, task_id: str, allow: bool) -> Result:
+        """Answer the task's open permission request. `invalid_arguments` if none is open."""
+
+    async def set_permission_mode(self, mode: PermissionMode) -> Result:
+        """Switch what the agent may do, and publish `PermissionModeChanged`. Agents without
+        modes keep this default, which refuses."""
+        return Result.not_available("This agent has no permission modes")
 
 
 class ListAgents(Command):
@@ -133,6 +159,22 @@ class CancelTask(Command):
     task_id: str
 
 
+class AnswerPermission(Command):
+    """Allow or deny the task's open permission request (a `permission` report), once."""
+
+    task_id: str
+    allow: bool
+
+
+class SetPermissionMode(Command):
+    """Switch a task agent between Manual and Auto. Handled by the Agent Hub (later by the
+    permissions handler). Only you switch to Auto (the UI button); the Talker may only
+    switch to Manual. `invalid_arguments` for an unknown agent."""
+
+    agent_id: str
+    mode: PermissionMode
+
+
 class ReportTask(Command):
     """Agent → Hub. A command, not an event, so the Hub's state never misses it."""
 
@@ -158,9 +200,47 @@ class AgentStateChanged(Event):
     working: bool
 
 
+class PermissionModeChanged(Event):
+    """A task agent's permission mode was set. `applies`: `now`, or `next_task` when the
+    running session can't switch (to Auto mid-task, or a live switch that failed)."""
+
+    agent_id: str
+    mode: PermissionMode
+    applies: Literal["now", "next_task"] = "now"
+
+
 class AgentActivity(Event):
     """An agent's raw activity (its text and tool calls), for viewers."""
 
     agent_id: str
     task_id: str | None = None
     text: str
+
+
+class SessionUsage(Event):
+    """One agent's `claude` usage, so you know when to reset it and what it has cost.
+    `agent_id` is "talker" or a task agent's id; agents are never added together.
+
+    `context_tokens`: what each call sends now (the latest call's input, cached or not);
+    0 when no session runs. The rest count every call since the app started, across fresh
+    sessions and resets. `cost_usd` is `claude`'s own estimate (API prices).
+    """
+
+    agent_id: str
+    context_tokens: int
+    input_tokens: int = 0
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+
+    @property
+    def used_tokens(self) -> int:
+        return self.input_tokens + self.cache_write_tokens + self.cache_read_tokens + self.output_tokens
+
+
+class ResetRequested(Event):
+    """Asks the session behind `agent_id` to start fresh. The Talker keeps its last few
+    exchanges; a task agent resets at once when idle, and hands off when it has a task."""
+
+    agent_id: str

@@ -99,3 +99,40 @@ class ShutdownRequested(Event):
     """Asks the host to shut down cleanly."""
 
     reason: str = ""
+
+
+class SessionTheme(Event):
+    """A few words about what this app session is about, for its log folder name."""
+
+    text: str
+
+
+class ViewerTabsChanged(Event):
+    """The HTML viewer's open tabs changed: a tab opened, closed, or was switched to.
+
+    `tabs` are the open files' full paths, in tab order; `active` is the one shown.
+    `highlights` are `(path, quoted text)` for each highlight on an open page.
+    """
+
+    tabs: tuple[str, ...] = ()
+    active: str | None = None
+    highlights: tuple[tuple[str, str], ...] = ()
+
+
+class ViewerClip(Event):
+    """You snipped part of a page in the HTML viewer: an image for the assistant.
+
+    `image_path` is the PNG (in the launch's log folder); `file` the page it's from;
+    `heading` the nearest heading above the box, if any. `id` names it, e.g. to drop it.
+    """
+
+    id: str
+    image_path: str
+    file: str
+    heading: str | None = None
+
+
+class ViewerClipDropped(Event):
+    """You dropped a snip before sending it (the × on its thumbnail in the chat)."""
+
+    id: str

@@ -2,6 +2,10 @@
 
 Finds agents through `ITaskAgent` and never imports an agent module. Task state
 changes only here, and only from commands, so dropped events can't corrupt it.
+Each task's recent `AgentActivity` is kept too, so a status check can say what
+the agent is doing without interrupting it; that is only a view, not state.
+It also routes `SetPermissionMode` to the agent, until the permissions handler
+takes that over.
 """
 
 from __future__ import annotations
@@ -11,6 +15,8 @@ from dataclasses import dataclass, field
 from uuid import uuid4
 
 from assistant.contracts import (
+    AgentActivity,
+    AnswerPermission,
     CancelTask,
     GetTaskStatus,
     ITaskAgent,
@@ -22,6 +28,7 @@ from assistant.contracts import (
     ReportTask,
     Result,
     SendToTask,
+    SetPermissionMode,
     StartTask,
     Status,
     Task,
@@ -31,6 +38,7 @@ from assistant.contracts import (
 )
 
 RECENT_REPORTS = 10
+RECENT_ACTIVITY = 15
 RECENT_FINISHED = 5
 
 
@@ -41,13 +49,15 @@ class _TaskRecord:
     text: str
     state: TaskState = TaskState.RUNNING
     recent: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_REPORTS))
+    activity: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_ACTIVITY))
     question: str | None = None
     result: str | None = None
 
     def info(self) -> TaskInfo:
         return TaskInfo(
             id=self.id, agent_id=self.agent_id, text=self.text, state=self.state,
-            recent=tuple(self.recent), question=self.question, result=self.result,
+            recent=tuple(self.recent), activity=tuple(self.activity),
+            question=self.question, result=self.result,
         )
 
 
@@ -63,6 +73,14 @@ class AgentHubModule(Module):
         ctx.handle(SendToTask, self._send_to_task)
         ctx.handle(CancelTask, self._cancel_task)
         ctx.handle(ReportTask, self._report_task)
+        ctx.handle(AnswerPermission, self._answer_permission)
+        ctx.handle(SetPermissionMode, self._set_permission_mode)
+        ctx.subscribe(AgentActivity, self._on_activity)
+
+    async def _on_activity(self, event: AgentActivity) -> None:
+        record = self._tasks.get(event.task_id) if event.task_id else None
+        if record is not None:
+            record.activity.append(event.text)
 
     async def _list_agents(self, command: ListAgents) -> Result:
         return Result.ok([agent.info() for agent in self._ctx.get_all(ITaskAgent)])
@@ -132,6 +150,9 @@ class AgentHubModule(Module):
             case ReportKind.NEED:
                 record.state = TaskState.WAITING_FOR_INPUT
                 record.question = command.text
+            case ReportKind.PERMISSION:
+                record.state = TaskState.WAITING_FOR_INPUT
+                record.question = f"Permission: {command.text}"
             case ReportKind.DONE:
                 self._finish(record, TaskState.DONE, command.kind, command.text)
                 return Result.ok()
@@ -140,6 +161,26 @@ class AgentHubModule(Module):
                 return Result.ok()
         self._updated(record, command.kind, command.text)
         return Result.ok()
+
+    async def _answer_permission(self, command: AnswerPermission) -> Result:
+        record = self._open_task(command.task_id)
+        if isinstance(record, Result):
+            return record
+        agent = self._agent(record.agent_id)
+        if agent is None:
+            return Result.not_available(f"{record.agent_id} is no longer running")
+        result = await agent.answer_permission(record.id, command.allow)
+        if result.is_ok:
+            record.state = TaskState.RUNNING
+            record.question = None
+            self._updated(record, None, "permission allowed" if command.allow else "permission denied")
+        return result
+
+    async def _set_permission_mode(self, command: SetPermissionMode) -> Result:
+        agent = self._agent(command.agent_id)
+        if agent is None:
+            return Result.invalid_arguments(f"No agent {command.agent_id!r}")
+        return await agent.set_permission_mode(command.mode)
 
     def _open_task(self, task_id: str) -> _TaskRecord | Result:
         """The unfinished task with this id, or an invalid_arguments Result."""

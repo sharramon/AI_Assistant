@@ -1,19 +1,24 @@
 """The agent runtime against a fake `claude`: ClaudeSession, the Main Assistant, the Hub, and the Talker."""
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
 import pytest
 
 from assistant.contracts import (
+    AnswerPermission,
     CancelTask,
     GetTaskStatus,
     InputReceived,
     ListAgents,
     ReportKind,
+    ResetRequested,
     ResponseReady,
     SendToTask,
+    SessionTheme,
+    SessionUsage,
     StartTask,
     Status,
     TaskState,
@@ -21,8 +26,10 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.infra import ClaudeSession, claude_command
+from assistant.infra.claude_session import path_rule
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
+from assistant.modules.main_assistant.module import command_rules
 from assistant.modules.talker import TalkerModule
 from assistant.modules.talker.module import split_tags
 from tests.support import wait_until
@@ -67,6 +74,51 @@ async def test_session_interrupt_ends_the_turn_with_an_error():
     await session.close()
 
 
+async def test_session_writes_a_transcript(tmp_path):
+    transcript = tmp_path / "logs" / "talker.jsonl"
+    events: list[dict] = []
+    session = ClaudeSession(FAKE, on_event=events.append, transcript=transcript)
+    await session.start()
+    await session.send("hello")
+    await wait_until(lambda: any(e["type"] == "result" for e in events), TIMEOUT)
+    await session.close()
+    lines = [json.loads(line) for line in transcript.read_text(encoding="utf-8").splitlines()]
+    assert lines[0]["dir"] == "in" and lines[0]["msg"]["type"] == "user"
+    assert lines[-1]["dir"] == "out" and lines[-1]["msg"]["type"] == "result"
+
+
+async def test_session_tracks_context_now_and_usage_across_restarts():
+    events: list[dict] = []
+    session = ClaudeSession(FAKE, on_event=events.append)
+
+    async def turn(text: str) -> None:
+        events.clear()
+        await session.send(text)
+        await wait_until(lambda: any(e["type"] == "result" for e in events), TIMEOUT)
+
+    await session.start()
+    assert session.context_tokens == 0 and sum(session.used.values()) == 0
+    await turn("hello")
+    events.clear()
+    await session.send("SLOW")  # two lines of one call, counted once; ends when interrupted
+    await wait_until(lambda: sum(e["type"] == "assistant" for e in events) == 2, TIMEOUT)
+    await session.interrupt()
+    await wait_until(lambda: any(e["type"] == "result" for e in events), TIMEOUT)
+    # The fake: input 1000 per message so far, 25 output per turn (from the result, not the
+    # streamed 10), $0.01 per message.
+    assert session.context_tokens == 2000
+    assert session.used == {"input": 4, "cache_write": 0, "cache_read": 2996, "output": 50}
+    assert session.cost_usd == pytest.approx(0.02)
+    await session.close()
+    await session.start()  # a fresh process: context starts over, usage keeps adding up
+    assert session.context_tokens == 0
+    await turn("again")
+    assert session.context_tokens == 1000
+    assert sum(session.used.values()) == 3000 + 1000 + 75
+    assert session.cost_usd == pytest.approx(0.03)
+    await session.close()
+
+
 async def test_session_reports_an_unexpected_exit():
     events: list[dict] = []
     session = ClaudeSession(FAKE, on_event=events.append)
@@ -82,17 +134,32 @@ def test_claude_command_always_skips_mcp_connectors():
     assert command[:2] == ["claude", "-p"]
     assert "--strict-mcp-config" in command
     assert command[command.index("--tools") + 1] == ""
+    assert "--allowedTools" not in command
+
+
+def test_path_rules(tmp_path):
+    rule = path_rule("Edit", tmp_path / "docs")
+    assert rule.startswith("Edit(//") and rule.endswith("/docs/**)")
+    assert "\\" not in rule and ":" not in rule
+    command = claude_command(allowed=[rule, path_rule("Read", tmp_path)])
+    assert command[command.index("--allowedTools") + 1].count("(//") == 2
+
+
+def test_command_rules_allow_any_arguments():
+    exact, with_args = command_rules(r".\.venv\Scripts\ruff check")
+    assert exact.endswith(r"(.\.venv\Scripts\ruff check)")
+    assert with_args.endswith(r"(.\.venv\Scripts\ruff check *)")
+    assert exact.split("(")[0] in ("PowerShell", "Bash")
 
 
 # --- Hub + Main Assistant ---
 
 
-@pytest.fixture
-async def hub(tmp_path):
+async def start_hub(tmp_path, **main_config):
     config = {
         "modules": {
             "enabled": ["agent_hub", "main_assistant"],
-            "main_assistant": {"program": FAKE, "workspace": str(tmp_path)},
+            "main_assistant": {"program": FAKE, "workspace": str(tmp_path), **main_config},
         },
         "core": {},
     }
@@ -100,6 +167,12 @@ async def hub(tmp_path):
     updates: asyncio.Queue[TaskUpdated] = asyncio.Queue()
     app.bus.subscribe(TaskUpdated, updates.put)
     await app.start()
+    return app, updates
+
+
+@pytest.fixture
+async def hub(tmp_path):
+    app, updates = await start_hub(tmp_path)
     yield app, updates
     await app.stop()
 
@@ -188,6 +261,114 @@ async def test_finished_tasks_refuse_messages(hub):
     assert result.status is Status.INVALID_ARGUMENTS
 
 
+async def test_permission_request_allowed(hub):
+    app, updates = hub
+    task_id = (await app.router.send(StartTask(text="PERMIT a skill"))).value
+    asked = await next_matching(updates, report(ReportKind.PERMISSION))
+    assert asked.text == "Write .claude/skills/x/SKILL.md"
+    status = (await app.router.send(GetTaskStatus(task_id=task_id))).value[0]
+    assert status.state is TaskState.WAITING_FOR_INPUT and status.question.startswith("Permission:")
+    assert (await app.router.send(AnswerPermission(task_id=task_id, allow=True))).is_ok
+    done = await next_matching(updates, report(ReportKind.DONE))
+    assert done.text == "allowed"
+
+
+async def test_permission_request_denied_and_only_answered_once(hub):
+    app, updates = hub
+    task_id = (await app.router.send(StartTask(text="PERMIT a skill"))).value
+    await next_matching(updates, report(ReportKind.PERMISSION))
+    assert (await app.router.send(AnswerPermission(task_id=task_id, allow=False))).is_ok
+    again = await app.router.send(AnswerPermission(task_id=task_id, allow=True))
+    assert again.status is Status.INVALID_ARGUMENTS
+    done = await next_matching(updates, report(ReportKind.DONE))
+    assert done.text == "denied: The user denied this."
+
+
+async def test_unanswered_permission_is_denied(tmp_path):
+    app, updates = await start_hub(tmp_path, permission_timeout=0.2)
+    try:
+        await app.router.send(StartTask(text="PERMIT a skill"))
+        done = await next_matching(updates, report(ReportKind.DONE))
+        assert done.text.startswith("denied: Nobody answered")
+    finally:
+        await app.stop()
+
+
+async def test_each_task_gets_a_fresh_session(hub):
+    app, updates = hub
+    sizes: asyncio.Queue[SessionUsage] = asyncio.Queue()
+    app.bus.subscribe(SessionUsage, sizes.put)
+    for used in (1025, 2050):
+        await app.router.send(StartTask(text="a task"))
+        await next_matching(updates, report(ReportKind.DONE))
+        # The fake counts 1000 tokens per message its process has had: a fresh one is back at 1000,
+        # while "used" keeps adding up across sessions.
+        size = await next_matching(sizes, lambda e, used=used: e.used_tokens == used)
+        assert size.agent_id == "main_assistant" and size.context_tokens == 1000
+
+
+async def test_handoff_continues_the_task_in_a_fresh_session(hub):
+    app, updates = hub
+    task_id = (await app.router.send(StartTask(text="HANDOFFONCE build two parts"))).value
+    handed = await next_matching(updates, report(ReportKind.PROGRESS))
+    while not handed.text.startswith("Handed off"):
+        handed = await next_matching(updates, report(ReportKind.PROGRESS))
+    assert handed.text == "Handed off to a fresh session (1): docs/next-steps/part.md"
+    done = await next_matching(updates, report(ReportKind.DONE))
+    assert done.task_id == task_id
+    assert done.text.startswith("Task, continued in a fresh session: HANDOFFONCE build two parts")
+    assert "handoff in docs/next-steps/part.md" in done.text
+
+
+async def test_too_many_handoffs_ask_the_user(tmp_path):
+    app, updates = await start_hub(tmp_path, max_handoffs=2)
+    try:
+        await app.router.send(StartTask(text="HANDOFFALWAYS"))
+        need = await next_matching(updates, report(ReportKind.NEED))
+        assert need.text.startswith("I've handed this task off 2 times")
+        assert need.state is TaskState.WAITING_FOR_INPUT
+    finally:
+        await app.stop()
+
+
+async def test_reset_mid_task_hands_off(hub):
+    app, updates = hub
+    task_id = (await app.router.send(StartTask(text="SLOW job"))).value
+    await next_matching(updates, lambda e: e.text == "started")
+    app.bus.publish(ResetRequested(agent_id="main_assistant"))
+    handed = await next_matching(updates, lambda e: e.text.startswith("Handed off"))
+    assert handed.text.endswith("docs/next-steps/reset.md") and handed.task_id == task_id
+    await app.router.send(CancelTask(task_id=task_id))
+
+
+async def test_reset_when_idle_closes_the_session(hub):
+    app, updates = hub
+    sizes: asyncio.Queue[SessionUsage] = asyncio.Queue()
+    app.bus.subscribe(SessionUsage, sizes.put)
+    await app.router.send(StartTask(text="quick"))
+    await next_matching(updates, report(ReportKind.DONE))
+    await next_matching(sizes, lambda e: e.context_tokens > 0)
+    app.bus.publish(ResetRequested(agent_id="main_assistant"))
+    after = await next_matching(sizes, lambda e: e.context_tokens == 0)
+    assert after.used_tokens == 1025  # usage isn't reset
+    assert (await app.router.send(StartTask(text="after the reset"))).is_ok  # starts a new session
+    await next_matching(updates, report(ReportKind.DONE))
+
+
+async def test_status_shows_recent_activity_without_interrupting(hub):
+    app, updates = hub
+    task_id = (await app.router.send(StartTask(text="SLOW job"))).value
+
+    async def activity():
+        return (await app.router.send(GetTaskStatus(task_id=task_id))).value[0].activity
+
+    async with asyncio.timeout(TIMEOUT):
+        while not any(line.startswith("→ Write slow.txt") for line in await activity()):
+            await asyncio.sleep(0.01)
+    assert (await app.router.send(GetTaskStatus(task_id=task_id))).value[0].state is TaskState.RUNNING
+    await app.router.send(CancelTask(task_id=task_id))
+
+
 async def test_no_agent_means_not_available():
     app = App([AgentHubModule], {"modules": {"enabled": ["agent_hub"]}, "core": {}})
     await app.start()
@@ -202,7 +383,38 @@ def test_split_tags():
     text, tags = split_tags("On it! <<WORK: write\ntwo poems>> I'll tell you. <<LOOK>>")
     assert text == "On it!  I'll tell you."
     assert tags == [("WORK", "write\ntwo poems"), ("LOOK", "")]
+    assert split_tags("Okay, allowing it. <<ALLOW>>") == ("Okay, allowing it.", [("ALLOW", "")])
     assert split_tags("Just chatting.") == ("Just chatting.", [])
+    assert split_tags("Hi! <<THEME: log folders>>") == ("Hi!", [("THEME", "log folders")])
+    # A page opened for you always shows its path (so the chat offers its button), once.
+    assert split_tags("Here it is. <<SHOW: C:\\d\\x.html>>")[0] == "Here it is.\nC:\\d\\x.html"
+    assert split_tags("See C:\\d\\x.html <<SHOW: C:\\d\\x.html | \"Parts\" | Intro>>")[0] == "See C:\\d\\x.html"
+    assert split_tags("<<SHOW: C:\\d\\x.html>>")[0] == "C:\\d\\x.html"
+
+
+@pytest.mark.parametrize(("first", "theme"), [
+    ("Hello <<THEME: session log folders>>", "session log folders"),
+    ("Can you split the logs?", "Can you split the logs?"),  # no tag: the message itself
+    ("Logs <<THEME: ?!>>", "Logs <<THEME: ?!>>"),  # an unusable tag: the message itself
+])
+async def test_talker_sends_the_session_theme_once(first, theme):
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
+    app = App([TalkerModule], config)
+    themes: asyncio.Queue[SessionTheme] = asyncio.Queue()
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(SessionTheme, themes.put)
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        # The fake Talker repeats what it's sent, so the input is its reply.
+        app.bus.publish(InputReceived(text=first, source="test"))
+        assert (await asyncio.wait_for(themes.get(), TIMEOUT)).text == theme
+        app.bus.publish(InputReceived(text="Second <<THEME: other>>", source="test"))
+        await next_matching(replies, lambda e: e.text == "Second")
+        await asyncio.sleep(0.05)
+        assert themes.empty()
+    finally:
+        await app.stop()
 
 
 async def test_talker_hands_off_work_and_relays_the_question(tmp_path):
@@ -231,6 +443,62 @@ async def test_talker_hands_off_work_and_relays_the_question(tmp_path):
         app.bus.publish(InputReceived(text="<<ASK: modern>>", source="test"))
         done = await next_matching(replies, lambda e: e.text.startswith("[Task update: done]"))
         assert done.text.endswith("modern")
+    finally:
+        await app.stop()
+
+
+async def test_talker_sees_both_usages_and_warns_once():
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE, "context_warning": 150_000}}, "core": {}}
+    app = App([TalkerModule], config)
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        # The fake Talker repeats what it's sent (with SHOWUSAGE, the [Usage] line too).
+        app.bus.publish(InputReceived(text="SHOWUSAGE hi", source="test"))
+        first = await next_matching(replies, lambda e: "hi" in e.text)
+        assert first.text.startswith("[Usage] worker: not started · you: context 0k, used 0k (~$0.00)")
+
+        def worker(context: int) -> SessionUsage:
+            return SessionUsage(agent_id="main_assistant", context_tokens=context,
+                                cache_read_tokens=2_300_000, output_tokens=5_000, cost_usd=5.1)
+
+        # Past the warning: the Talker is told once, and sees both numbers, kept apart.
+        app.bus.publish(worker(152_000))
+        warning = await next_matching(replies, lambda e: e.text.startswith("[Status]"))
+        assert warning.text.startswith("[Status] The worker's context is at 152k tokens, past the 150k warning")
+        app.bus.publish(worker(160_000))  # still over: no second warning
+        app.bus.publish(InputReceived(text="SHOWUSAGE how full?", source="test"))
+        line = (await next_matching(replies, lambda e: "how full?" in e.text)).text.splitlines()[0]
+        assert line.startswith("[Usage] worker: context 160k, used 2.3M (~$5.10) · you: context 2k, used ")
+
+        # Back under (a reset or a fresh session), then over again: warned again.
+        app.bus.publish(worker(0))
+        app.bus.publish(worker(151_000))
+        again = await next_matching(replies, lambda e: e.text.startswith("[Status]"))
+        assert "151k tokens" in again.text
+        await asyncio.sleep(0.1)
+        assert replies.empty()
+    finally:
+        await app.stop()
+
+
+async def test_talker_reset_keeps_recent_exchanges():
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
+    app = App([TalkerModule], config)
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        # The fake Talker repeats what it's sent, so its replies show its prompts.
+        app.bus.publish(InputReceived(text="hello there", source="test"))
+        await next_matching(replies, lambda e: e.text == "hello there")
+
+        app.bus.publish(ResetRequested(agent_id="talker"))
+        app.bus.publish(InputReceived(text="still there?", source="test"))
+        after = await next_matching(replies, lambda e: "still there?" in e.text)
+        assert after.text.startswith("[Context] Your session was just reset")
+        assert "User: hello there" in after.text
     finally:
         await app.stop()
 
