@@ -7,10 +7,13 @@ name = "assistant"
 version = "0.1.0"
 description = "Modular personal AI assistant"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7"]
+dependencies = ["pydantic>=2.7", "markdown>=3.6"]
+
+[project.scripts]
+html-viewer = "html_viewer.viewer:main"  # the HTML viewer, a standalone app (src/html_viewer)
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "markdown>=3.6", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -39,4 +42,4 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["assistant", "tests"]
+known-first-party = ["app_kit", "assistant", "html_viewer", "tests"]
