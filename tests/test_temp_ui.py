@@ -11,10 +11,13 @@ from assistant.contracts import (
     Manifest,
     Module,
     ModuleContext,
+    ModuleState,
+    ModuleStateChanged,
     ReportKind,
     ResponseReady,
     Result,
     StartListening,
+    Status,
     StopListening,
     TaskState,
     TaskUpdated,
@@ -102,18 +105,32 @@ class FakeVoiceIn(Module):
     manifest = Manifest(id="voice_in")
 
     async def init(self, ctx: ModuleContext) -> None:
-        self.ctx, self.session = ctx, None
+        self.ctx, self.session, self.commands = ctx, None, []
+        self.fail: tuple[str, str] | None = None  # (reason, detail): the next start fails so
         ctx.handle(StartListening, self.listen)
         ctx.handle(StopListening, self.stop_listening)
 
     async def listen(self, command: StartListening) -> Result:
+        self.commands.append(command)
         self.session = command.id
         self.ctx.publish(VoiceState(state=ListeningState.STARTING, correlation_id=command.id))
+        if self.fail:
+            reason, detail = self.fail
+            self.ctx.publish(VoiceState(state=ListeningState.FAILED, reason=reason, detail=detail, correlation_id=command.id))
+            self.session = None
+            return Result(status=Status.NOT_AVAILABLE, error=detail, retryable=True)
         self.ctx.publish(VoiceState(state=ListeningState.LISTENING, correlation_id=command.id))
         return Result.ok({"session_id": command.id})
 
     async def stop_listening(self, command: StopListening) -> Result:
+        self.commands.append(command)
         sid = self.session
+        if sid is None:
+            return Result.ok(None)
+        if command.discard:
+            self.ctx.publish(VoiceTranscript(session_id=sid, text="", final=True, correlation_id=sid))
+            self.ctx.publish(VoiceState(state=ListeningState.IDLE, reason="cleared", detail="cleared", correlation_id=sid))
+            return Result.ok({"text": "", "discarded": True})
         self.ctx.publish(VoiceTranscript(session_id=sid, text="hello there", final=True, correlation_id=sid))
         self.ctx.publish(InputReceived(text="hello there", source="voice"))
         self.ctx.publish(VoiceState(state=ListeningState.IDLE, correlation_id=sid))
@@ -176,6 +193,65 @@ async def test_mic_button_round_trip():
         await app.stop()
 
 
+async def test_mic_settled_text_reaches_the_page_and_finishing_keeps_the_line():
+    config = {"modules": {"enabled": ["temp_ui", "voice_in"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule, FakeVoiceIn], config)
+    await app.start()
+    port = ui_port(app)
+    try:
+        events, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
+        await next_item(events, voice("idle"))
+        await post(port, "/mic", {"on": True})
+        await next_item(events, voice("listening"))
+        sid = app._lifecycle._active["voice_in"][0].session
+        app.bus.publish(VoiceTranscript(session_id=sid, text="Hello there. HOW", settled_chars=12, correlation_id=sid))
+        assert (await next_item(events, lambda i: i.get("kind") == "voice" and i["text"]))["settled"] == 12
+        app.bus.publish(VoiceState(state=ListeningState.FINISHING, detail="cleaning up…", correlation_id=sid))
+        finishing = await next_item(events, voice("finishing"))
+        assert (finishing["text"], finishing["settled"], finishing["detail"]) == ("Hello there. HOW", 12, "cleaning up…")
+        app.bus.publish(VoiceTranscript(session_id=sid, text="Hello there. How?", final=True, correlation_id=sid))
+        app.bus.publish(VoiceState(state=ListeningState.IDLE, correlation_id=sid))
+        idle = await next_item(events, voice("idle"))
+        assert (idle["text"], idle["settled"]) == ("", 0)
+        writer.close()
+    finally:
+        await app.stop()
+
+
+async def test_mic_clear_drops_the_text_and_keeps_listening():
+    config = {"modules": {"enabled": ["temp_ui", "voice_in"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule, FakeVoiceIn], config)
+    await app.start()
+    port = ui_port(app)
+    try:
+        fake = app._lifecycle._active["voice_in"][0]
+        events, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
+        await next_item(events, voice("idle"))
+        await post(port, "/mic", {"on": True})
+        await next_item(events, voice("listening"))
+        first = fake.session
+        app.bus.publish(VoiceTranscript(session_id=first, text="someone else", correlation_id=first))
+        await next_item(events, lambda i: i.get("kind") == "voice" and i["text"] == "someone else")
+
+        assert (await post(port, "/mic", {"clear": True}))["ok"]
+        assert (await next_item(events, voice("idle")))["text"] == ""  # the line clears
+        listening = await next_item(events, voice("listening"))  # and the mic carries on, in a new session
+        assert listening["text"] == "" and fake.session != first
+        kinds = [type(c).__name__ + ("(discard)" if getattr(c, "discard", False) else "") for c in fake.commands]
+        assert kinds == ["StartListening", "StopListening(discard)", "StartListening"]
+
+        # Clear with nothing listening doesn't turn the mic on.
+        fake.session = None
+        fake.commands.clear()
+        await post(port, "/mic", {"on": False})
+        fake.commands.clear()
+        assert (await post(port, "/mic", {"clear": True}))["ok"]
+        assert [type(c).__name__ for c in fake.commands] == ["StopListening"]
+        writer.close()
+    finally:
+        await app.stop()
+
+
 async def test_mic_without_voice_in_says_it_is_off():
     config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
     app = App([TempUIModule], config)
@@ -183,9 +259,51 @@ async def test_mic_without_voice_in_says_it_is_off():
     port = ui_port(app)
     try:
         events, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
-        await next_item(events, voice("idle"))
+        first = await next_item(events, voice("idle"))
+        assert (first["available"], first["why"], first["retry"]) == (False, "The voice module is off", False)
         assert not (await post(port, "/mic", {"on": True}))["ok"]
         assert (await next_item(events, voice("failed")))["detail"] == "voice input is off"
+        writer.close()
+    finally:
+        await app.stop()
+
+
+def voice_item(match):
+    return lambda i: i.get("kind") == "voice" and match(i)
+
+
+async def test_mic_says_why_it_is_unavailable():
+    config = {"modules": {"enabled": ["temp_ui", "voice_in"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule, FakeVoiceIn], config)
+    await app.start()
+    port = ui_port(app)
+    try:
+        events, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
+        await next_item(events, voice_item(lambda i: i["available"]))
+
+        # The voice module is reloaded: not clickable, through its starting, until it's active.
+        app.bus.publish(ModuleStateChanged(module_id="voice_in", state=ModuleState.RELOADING))
+        reloading = await next_item(events, voice_item(lambda i: not i["available"]))
+        assert "being reloaded" in reloading["why"] and not reloading["retry"]
+        app.bus.publish(ModuleStateChanged(module_id="voice_in", state=ModuleState.STARTING))
+        app.bus.publish(ModuleStateChanged(module_id="voice_in", state=ModuleState.ACTIVE))
+        assert (await next_item(events, voice_item(lambda i: True)))["available"]  # no "starting" in between
+
+        # Another part of the app's session (voice notes) failing doesn't touch this button.
+        app.bus.publish(VoiceState(state=ListeningState.STARTING, correlation_id="notes"))
+        app.bus.publish(VoiceState(state=ListeningState.FAILED, reason="service_unavailable",
+                                   detail="not ours", correlation_id="notes"))  # fmt: skip
+
+        # The voice app isn't running: crossed out, but a click retries; the next start clears it.
+        fake = app._lifecycle._active["voice_in"][0]
+        fake.fail = ("service_unavailable", "voice service didn't start")
+        await post(port, "/mic", {"on": True})
+        down = await next_item(events, voice("failed"))
+        assert down["why"] == "The voice app isn't running: voice service didn't start. Click to try starting it again"
+        assert (down["available"], down["retry"]) == (False, True)
+        fake.fail = None
+        await post(port, "/mic", {"on": True})
+        assert (await next_item(events, voice("starting")))["available"]
         writer.close()
     finally:
         await app.stop()

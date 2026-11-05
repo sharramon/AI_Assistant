@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app_kit import load_layered
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "voice_service.toml"
+WHISPER_PREFIX = "faster-whisper-"  # whisper model folders: faster-whisper-<size>, e.g. faster-whisper-small.en
 
 
 class _Section(BaseModel):
@@ -32,6 +33,7 @@ class AudioConfig(_Section):
     silence_stop_seconds: float = 120.0  # 0 or less: never stop on silence
     mic_recovery_seconds: float = 15.0  # a lost mic: try to reopen it this long; 0 or less: end the session at once
     stall_seconds: float = 2.0  # no audio at all for this long counts as a lost mic (an unplug Windows didn't report); 0: off
+    speech_rms: float = 300.0  # a chunk this loud (RMS, int16 scale) counts as speech, for the silence stop when the engine gives no live text
 
 
 class ZipformerConfig(_Section):
@@ -41,16 +43,40 @@ class ZipformerConfig(_Section):
     int8: bool = True  # False: the full-precision model files
 
 
+class WhisperConfig(_Section):
+    model: str = "faster-whisper-small.en"  # folder under models_dir (`python -m voice_service download whisper`)
+    device: str = "cpu"  # "cuda" later
+    compute_type: str = "int8"
+    beam_size: int = 5
+    cpu_threads: int = 8
+
+
 class FakeConfig(_Section):
     text: str = "hello from the fake engine"
 
 
+EngineName = Literal["zipformer", "whisper", "fake"]
+
+
 class EngineConfig(_Section):
-    name: Literal["zipformer", "fake"] = "zipformer"
+    name: EngineName = "zipformer"  # the live engine: listens, fills the live line. Changing it restarts a running service
+    final: EngineName | Literal[""] = "whisper"  # the final engine: cleans each piece; "" (or the same as name) = one engine
+    final_timeout_seconds: float = Field(20.0, gt=0)  # after stop: pieces not cleaned by then keep their live words
     models_dir: str = ""  # "" = %LOCALAPPDATA%\AI_Assistant\voice_models; env VOICE_SERVICE_MODELS overrides
     partial_interval_ms: int = 100
     zipformer: ZipformerConfig = ZipformerConfig()
+    whisper: WhisperConfig = WhisperConfig()
     fake: FakeConfig = FakeConfig()
+
+
+class PiecesConfig(_Section):
+    """Where the live audio is cut into pieces for the final engine. Read per session (a save applies to the next one)."""
+
+    pause_seconds: float = Field(0.7, gt=0)  # this long below speech_rms, after speech, ends a piece
+    min_seconds: float = Field(4.0, ge=0)  # a pause before this doesn't cut
+    max_seconds: float = Field(20.0, gt=0)  # this much after the piece's first speech with no pause: cut at the quietest chunk
+    cut_search_seconds: float = Field(3.0, gt=0)  # a forced cut looks this far back for the quietest chunk
+    prompt_previous: bool = True  # give the final engine the previous piece's text, so the joins read on
 
 
 class LoggingConfig(_Section):
@@ -62,7 +88,14 @@ class ServiceConfig(_Section):
     server: ServerConfig = ServerConfig()
     audio: AudioConfig = AudioConfig()
     engine: EngineConfig = EngineConfig()
+    pieces: PiecesConfig = PiecesConfig()
     logging: LoggingConfig = LoggingConfig()
+
+
+def final_engine_name(config: ServiceConfig) -> str:
+    """The final engine's name, or "" for one engine (`final` empty or the same as `name`)."""
+    final = config.engine.final
+    return "" if final == config.engine.name else final
 
 
 def load_service_config(
@@ -92,3 +125,9 @@ def models_dir(config: ServiceConfig) -> Path:
         return Path(config.engine.models_dir)
     base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
     return Path(base) / "AI_Assistant" / "voice_models"
+
+
+def whisper_folder(model: str) -> str:
+    """A whisper model's folder name under models_dir: `small.en` → `faster-whisper-small.en` (a folder name stays)."""
+    model = model.replace("/", "--")  # a Hugging Face repo id
+    return model if model.startswith(WHISPER_PREFIX) else WHISPER_PREFIX + model

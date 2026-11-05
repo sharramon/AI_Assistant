@@ -22,10 +22,20 @@ Serves `page.html` on http://127.0.0.1:<port>/ (standard library only):
   context now, used since launch, ~$); each pane's Reset button sends
   `POST /reset` `{"agent": "worker" | "talker"}`, which publishes `ResetRequested`
 - the mic button: `POST /mic` `{"on": true | false}` sends `StartListening` / `StopListening`
-  (handled by `voice_in`). `VoiceState` and `VoiceTranscript` of the current session (the one
-  that sent `starting`) make the `voice` SSE state item: the button's state, the live text, and
+  (handled by `voice_in`); the ✕ next to it, `{"clear": true}`, sends
+  `StopListening(discard=True)` and then `StartListening`, so the mic carries on. Only sessions
+  this page started are followed (by the `StartListening` command's id); another part of the app's
+  session (voice notes) is ignored. When another part takes the mic (`idle`, `taken_over`), the
+  line clears, the button says cancelled and stays live, and no stop is sent for that session.
+  `VoiceState` and `VoiceTranscript` of the current own session (the latest that sent `starting`) make the `voice` SSE state item: the button's state, the live text with
+  its `settled` length (two passes: the page shows the settled start normal, the rough rest
+  dimmed; *finishing* keeps the text until the final clears it), and
   for *dropped* the countdown's end (`until`, read from the state's detail). Spoken input
-  (`InputReceived(source="voice")`) shows as your message, marked spoken
+  (`InputReceived(source="voice")`) shows as your message, marked spoken. The item also has
+  `available`, `why` and `retry`: from `voice_in`'s `ModuleStateChanged` (off, starting,
+  reloading, failed: unavailable with a reason, no click) and from a `failed` `VoiceState` with
+  `service_unavailable` / `service_stopped` (the voice app isn't running: unavailable, but
+  `retry` keeps it clickable). The page shows a crossed-out mic with `why` as its title
 
 `window = "app"` opens it in its own window (Edge app mode: no tabs or address
 bar); `"browser"` opens a browser tab; `"none"` opens nothing.
@@ -59,9 +69,12 @@ from assistant.contracts import (
     InputReceived,
     InvokeTool,
     ListeningState,
+    ListModules,
     Manifest,
     Module,
     ModuleContext,
+    ModuleState,
+    ModuleStateChanged,
     PermissionMode,
     PermissionModeChanged,
     ReportKind,
@@ -84,6 +97,17 @@ HISTORY = 500
 MAX_SNIPS = 3  # as many as the Talker sends with one message
 RISKY = "Risky:"  # a need starting with this is the worker pausing before a risky step (Auto)
 WAIT = re.compile(r"(\d+(?:\.\d+)?)\s*s\b")  # the wait in a dropped mic's detail ("waiting 15 s for it…")
+VOICE_MODULE = "voice_in"
+# Why the mic is unavailable, by the voice module's state (active: available). Not clickable.
+MODULE_WHY = {
+    ModuleState.RELOADING: "The voice module is being reloaded with new code; back in a moment",
+    ModuleState.STARTING: "The voice module is starting",
+    ModuleState.STOPPING: "The voice module is off",
+    ModuleState.INACTIVE: "The voice module is off",
+    ModuleState.FAILED: "The voice module failed to start",
+}
+APP_DOWN = ("service_unavailable", "service_stopped")  # VoiceState reasons: the voice app isn't running
+TAKEN_OVER = "taken_over"  # VoiceState reason: another part of the app took the mic (the second press wins)
 
 
 class TempUIModule(Module):
@@ -112,8 +136,15 @@ class TempUIModule(Module):
         self._mode = {"kind": "mode", "mode": str(PermissionMode.MANUAL), "applies": "now"}
         # The mic button and live line (an SSE item), following one voice session at a time.
         self._voice_session: str | None = None
-        self._voice: dict[str, Any] = {"kind": "voice", "state": str(ListeningState.IDLE), "detail": None, "text": "", "until": None}
+        self._voice_mine: set[str] = set()  # ids of the StartListening commands this page sent
+        self._voice_open = False  # the followed session is starting or on: a stop has something to stop
+        self._voice: dict[str, Any] = {"kind": "voice", "state": str(ListeningState.IDLE), "detail": None, "text": "", "settled": 0,
+                                       "until": None, "available": True, "why": None, "retry": False}  # fmt: skip
+        # Whether the mic can be used: the voice module's state, and whether the voice app is running.
+        self._voice_module: ModuleState | None = None
+        self._app_why: str | None = None
         ctx.subscribe(VoiceState, self._on_voice_state)
+        ctx.subscribe(ModuleStateChanged, self._on_module_state)
         ctx.subscribe(VoiceTranscript, self._on_voice_text)
         ctx.subscribe(InputReceived, self._on_input)
         ctx.subscribe(SessionUsage, self._on_usage)
@@ -125,7 +156,11 @@ class TempUIModule(Module):
         ctx.subscribe(PermissionModeChanged, self._on_mode)
 
     async def start(self) -> None:
-        self._server = await asyncio.start_server(self._serve, self._host, self._port)
+        listed = await self._ctx.send(ListModules())  # the voice module's state now; changes come as events
+        if listed.is_ok:
+            state = next((m.state for m in listed.value if m.id == VOICE_MODULE), ModuleState.INACTIVE)
+            self._voice_module_state(state)
+        self._server =await asyncio.start_server(self._serve, self._host, self._port)
         self.url = f"http://{self._host}:{self._server.sockets[0].getsockname()[1]}/"
         self._ctx.log.info("Temp UI at %s", self.url)
         if self._window == "app":
@@ -201,34 +236,74 @@ class TempUIModule(Module):
     # --- voice: the mic button and the live line ---
 
     async def _on_voice_state(self, event: VoiceState) -> None:
+        if event.correlation_id not in self._voice_mine:
+            return  # another part of the app's session (voice notes)
         if event.state is ListeningState.STARTING:  # a new session: follow it, forget the last one
             self._voice_session = event.correlation_id
-            self._voice["text"] = ""
+            self._voice.update(text="", settled=0)
         elif event.correlation_id != self._voice_session:
             return  # a stale session's update
+        self._voice_open = event.state not in (ListeningState.IDLE, ListeningState.FAILED)
+        detail = event.detail
+        if event.reason == TAKEN_OVER:
+            detail = f"cancelled: {event.detail or 'another part of the app took the mic'}"
         until = None
         if event.state is ListeningState.DROPPED and (wait := WAIT.search(event.detail or "")):
             until = (time.time() + float(wait[1])) * 1000  # the page counts down to this (ms, like Date.now())
-        if event.state in (ListeningState.IDLE, ListeningState.FAILED):
-            self._voice["text"] = ""
-        self._set_voice(state=str(event.state), detail=event.detail, until=until)
+        if event.state in (ListeningState.IDLE, ListeningState.FAILED):  # FINISHING keeps the line
+            self._voice.update(text="", settled=0)
+        if event.state is ListeningState.FAILED and event.reason in APP_DOWN:
+            self._app_why = f"The voice app isn't running: {event.detail}. Click to try starting it again"
+        elif event.state in (ListeningState.STARTING, ListeningState.LISTENING):
+            self._app_why = None
+        self._set_voice(state=str(event.state), detail=detail, until=until, **self._availability())
+
+    async def _on_module_state(self, event: ModuleStateChanged) -> None:
+        if event.module_id == VOICE_MODULE:
+            self._voice_module_state(event.state)
+
+    def _voice_module_state(self, state: ModuleState) -> None:
+        if state is ModuleState.STARTING and self._voice_module is ModuleState.RELOADING:
+            return  # part of the reload: keep saying so
+        self._voice_module = state
+        self._app_why = None  # a new instance tries the voice app afresh
+        self._set_voice(**self._availability())
+
+    def _availability(self) -> dict[str, Any]:
+        """The SSE item's `available`, `why`, and `retry` (clickable while unavailable: the click retries)."""
+        module_why = MODULE_WHY.get(self._voice_module) if self._voice_module else None
+        why = module_why or self._app_why
+        return {"available": why is None, "why": why, "retry": module_why is None and why is not None}
 
     async def _on_voice_text(self, event: VoiceTranscript) -> None:
         if event.correlation_id == self._voice_session:
-            self._set_voice(text="" if event.final else event.text)
+            if event.final:
+                self._set_voice(text="", settled=0)
+            else:
+                self._set_voice(text=event.text, settled=getattr(event, "settled_chars", 0))
 
     def _set_voice(self, **changes: Any) -> None:
         self._voice = {**self._voice, **changes}
         self._push_state(self._voice)
 
-    async def _mic(self, on: bool) -> dict[str, Any]:
+    async def _mic(self, on: bool, clear: bool = False) -> dict[str, Any]:
+        if (clear or not on) and not self._voice_open:
+            return {"ok": True, "error": None}  # nothing of ours is on (it ended, or was taken over): stop nothing
+        if clear:  # the ✕: throw the session away, then carry on listening in a new one
+            self._set_voice(text="", settled=0)
+            result = await self._ctx.send(StopListening(discard=True))
+            if not result.is_ok or result.value is None:  # failed, or nothing was listening: don't turn it on
+                return {"ok": result.is_ok, "error": result.error}
+            on = True
         command = StartListening() if on else StopListening()
+        if on:
+            self._voice_mine.add(command.id)  # before sending: its first state comes while it's handled
         result = await self._ctx.send(command)
         if on and not result.is_ok and self._voice_session != command.id:
             # No VoiceState came for it: nothing handled the command (voice_in is off), or it failed first.
             detail = "voice input is off" if result.status is Status.NOT_AVAILABLE else result.error
             self._voice_session = command.id
-            self._set_voice(state=str(ListeningState.FAILED), detail=detail, text="", until=None)
+            self._set_voice(state=str(ListeningState.FAILED), detail=detail, text="", settled=0, until=None)
         return {"ok": result.is_ok, "error": result.error}
 
     async def _on_response(self, event: ResponseReady) -> None:
@@ -315,7 +390,7 @@ class TempUIModule(Module):
                 await self._respond(writer, 204, "text/plain", b"")
             elif method == "POST" and path == "/mic":
                 body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")
-                answer = await self._mic(bool(body.get("on")))
+                answer = await self._mic(bool(body.get("on")), clear=bool(body.get("clear")))
                 await self._respond(writer, 200, "application/json", json.dumps(answer).encode())
             elif method == "POST" and path == "/open-logs":
                 self._open_logs()

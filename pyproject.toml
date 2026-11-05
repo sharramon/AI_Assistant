@@ -15,8 +15,8 @@ voice-service = "voice_service.__main__:main"  # the voice service, a standalone
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "httpx>=0.27"]
-# Voice input: the voice service (FastAPI, Uvicorn, sherpa-onnx, sounddevice) and voice_in's client (websockets).
-voice = ["fastapi>=0.110", "uvicorn>=0.29", "sherpa-onnx>=1.10", "sounddevice>=0.4.6", "websockets>=12"]
+# Voice input: the voice service (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) and voice_in's client (websockets).
+voice = ["fastapi>=0.110", "uvicorn>=0.29", "sherpa-onnx>=1.10", "faster-whisper>=1.2", "sounddevice>=0.4.6", "websockets>=12"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -13,9 +13,12 @@ queue_seconds = 10          # how far the engine may fall behind before audio is
 silence_stop_seconds = 120  # no speech detected for this long: the session stops itself, like a stop (a forgotten mic). No limit while you talk
 mic_recovery_seconds = 15   # the mic drops mid-session: keep the session and try to reopen it this long (mic_dropped, then mic_back). 0 = end at once (mic_lost)
 stall_seconds = 2           # no audio chunks at all for this long counts as a lost mic (an unplug Windows didn't report). Silence and a muted mic still send chunks. 0 = off
+speech_rms = 300            # a chunk this loud (RMS, 0-32768) counts as speech for the silence stop, with an engine that gives no live text (whisper)
 
 [engine]
-name = "zipformer"          # "zipformer" or "fake"
+name = "zipformer"          # the live engine: "zipformer" (live text), "whisper" (text when you stop) or "fake". Changing it restarts a running service once nothing is listening
+final = "whisper"           # the final engine: cleans each piece while you talk and writes the text sent; "" = one engine (as before). Also restarts an idle service
+final_timeout_seconds = 20.0  # after stop: pieces not cleaned by then keep their live words
 models_dir = ""             # "" = %LOCALAPPDATA%\AI_Assistant\voice_models; env VOICE_SERVICE_MODELS overrides
 partial_interval_ms = 100
 
@@ -25,8 +28,22 @@ num_threads = 2
 decoding = "greedy_search"
 int8 = true                 # false = the full-precision model files (slower on a CPU, slightly more accurate)
 
+[engine.whisper]
+model = "faster-whisper-small.en"  # folder under models_dir: python -m voice_service download whisper [--model base.en]
+device = "cpu"              # "cuda" later
+compute_type = "int8"
+beam_size = 5
+cpu_threads = 8
+
 [engine.fake]
 text = "hello from the fake engine"
+
+[pieces]                    # two passes: where the audio is cut into pieces for the final engine (read per session)
+pause_seconds = 0.7         # this long below speech_rms, after speech, ends a piece
+min_seconds = 4.0           # a pause before this doesn't cut (a short piece costs whisper almost as much as a long one)
+max_seconds = 20.0          # no pause by then: cut anyway, at the quietest chunk
+cut_search_seconds = 3.0    # a forced cut looks this far back for the quietest chunk
+prompt_previous = true      # give the final engine the previous piece's text, so the joins read on
 
 [logging]
 level = "INFO"

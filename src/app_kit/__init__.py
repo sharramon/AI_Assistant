@@ -5,6 +5,6 @@ The window functions are imported from `app_kit.window`.
 """
 
 from app_kit.companion import CompanionApp
-from app_kit.config import load_layered
+from app_kit.config import load_layered, local_path
 
-__all__ = ["CompanionApp", "load_layered"]
+__all__ = ["CompanionApp", "load_layered", "local_path"]

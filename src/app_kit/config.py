@@ -7,15 +7,21 @@ from pathlib import Path
 from typing import Any
 
 
+def local_path(base: str | Path) -> Path:
+    """The local override's path for `base`: `.local` before the suffix (`voice.toml` → `voice.local.toml`)."""
+    base = Path(base)
+    return base.with_name(f"{base.stem}.local{base.suffix}")
+
+
 def load_layered(base: str | Path, local: str | Path | None = None) -> dict[str, Any]:
     """Load the TOML file `base`, then deep-merge `local` over it if that file exists.
 
-    `local` defaults to `base` with `.local` before the suffix (`voice.toml` → `voice.local.toml`).
+    `local` defaults to `local_path(base)` (`voice.toml` → `voice.local.toml`).
     Tables merge key by key; other values, lists included, are replaced.
     Raises `FileNotFoundError` if `base` is missing, `tomllib.TOMLDecodeError` for invalid TOML.
     """
     base = Path(base)
-    local = Path(local) if local is not None else base.with_name(f"{base.stem}.local{base.suffix}")
+    local = Path(local) if local is not None else local_path(base)
     config = _read(base)
     if local.exists():
         config = _merge(config, _read(local))

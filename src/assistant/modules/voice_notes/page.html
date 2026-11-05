@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voice notes</title>
+<style>
+  body { margin: 0; font: 15px/1.5 "Segoe UI", system-ui, sans-serif; background: #faf9f6; color: #1d1d1b;
+         display: flex; flex-direction: column; height: 100vh; }
+  header { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid #e2e0da; }
+  h1 { font-size: 16px; margin: 0 auto 0 0; font-weight: 600; }
+  button { font: inherit; padding: 5px 14px; border: 1px solid #b9b6ad; border-radius: 6px; background: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #record.on { background: #c0392b; border-color: #c0392b; color: #fff; }
+  #status { min-height: 1.5em; padding: 6px 14px; color: #8a877c; font-size: 13px; border-bottom: 1px solid #eeece6; }
+  #notes { flex: 1; margin: 0; padding: 14px; outline: none; overflow-y: auto; white-space: pre-wrap;
+           overflow-wrap: anywhere; }
+  #notes:empty::before { content: attr(data-placeholder); color: #a8a59b; }
+  /* The recording's not-yet-cleaned words: inline right after the cleaned ones, never saved or copied. */
+  #notes .tail { color: #8a877c; font-style: italic; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Voice notes</h1>
+  <button id="record">● Record</button>
+  <button id="copy">Copy</button>
+</header>
+<div id="status"></div>
+<div id="notes" contenteditable="plaintext-only" spellcheck="false"
+     data-placeholder="Press Record and speak, or type here."></div>
+<script>
+const KEY = "voice_notes.text";
+const notes = document.getElementById("notes"), status = document.getElementById("status");
+const record = document.getElementById("record"), copy = document.getElementById("copy");
+let voice = { state: "idle", detail: null, text: "", settled: 0 };
+let caret = null;  // the last cursor or selection in the notes: where the next recording goes
+let rec = null;    // the recorded stretch while it's open: { el, clean, tail, lead, trail }
+let endTimer = null;
+
+notes.textContent = localStorage.getItem(KEY) || "";
+
+// The notes' text: the grey tail left out; with a marker, the open stretch replaced by it.
+function plain(node = notes, marker) {
+  let s = "";
+  for (const n of node.childNodes) {
+    if (n.nodeType === Node.TEXT_NODE) s += n.nodeValue;
+    else if (n.nodeName === "BR") s += "\n";
+    else if (n.nodeType !== Node.ELEMENT_NODE || n.classList.contains("tail")) continue;
+    else if (marker !== undefined && rec && n === rec.el) s += marker;
+    else {
+      if ((n.nodeName === "DIV" || n.nodeName === "P") && s && !s.endsWith("\n")) s += "\n";
+      s += plain(n, marker);
+    }
+  }
+  return s;
+}
+const save = () => localStorage.setItem(KEY, plain());
+notes.addEventListener("input", save);
+
+document.addEventListener("selectionchange", () => {
+  const sel = getSelection();
+  if (!rec && sel.rangeCount && notes.contains(sel.getRangeAt(0).commonAncestorContainer)) caret = sel.getRangeAt(0).cloneRange();
+});
+
+function openStretch() {  // at the cursor (replacing a selection), or at the end
+  if (rec) closeStretch(rec.clean.textContent);
+  let range = caret && notes.contains(caret.commonAncestorContainer) ? caret : null;
+  if (!range) { range = document.createRange(); range.selectNodeContents(notes); range.collapse(false); }
+  range.deleteContents();
+  const el = document.createElement("span"), clean = document.createElement("span"), tail = document.createElement("span");
+  tail.className = "tail";
+  el.append(clean, tail);
+  range.insertNode(el);
+  rec = { el, clean, tail };
+  const [before, after] = plain(notes, "\u0000").split("\u0000");
+  rec.lead = before && !/\s$/.test(before) ? " " : "";
+  rec.trail = after && !/^\s/.test(after) ? " " : "";
+  notes.contentEditable = "false";  // locked while recording, so typing can't break the stretch
+}
+
+function showStretch(text, settled) {
+  if (!rec || !text) return;  // an empty line (finishing, before the final) keeps what's shown
+  const n = Math.min(settled || 0, text.length);
+  rec.clean.textContent = n ? rec.lead + text.slice(0, n) : "";
+  rec.tail.textContent = (n ? "" : rec.lead) + text.slice(n) + rec.trail;
+  save();
+}
+
+function closeStretch(text) {  // the stretch becomes plain text (none: dropped); the cursor goes after it
+  if (!rec) return;
+  clearTimeout(endTimer);
+  const words = text.trim() ? rec.lead + text.trim() : "";
+  const node = document.createTextNode(words ? words + rec.trail : "");
+  rec.el.replaceWith(node);
+  rec = null;
+  notes.normalize();
+  notes.contentEditable = "plaintext-only";
+  save();
+  caret = document.createRange();
+  if (node.isConnected) caret.setStart(node, Math.min(words.length, node.length));
+  else { caret.selectNodeContents(notes); caret.collapse(false); }
+  caret.collapse(true);
+  notes.focus();
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(caret);
+}
+
+function insert(text) {  // a final with no open stretch (the page was reloaded mid-recording)
+  if (!text) return;
+  openStretch();
+  closeStretch(text);
+}
+
+function show(v) {
+  voice = v;
+  const on = v.state === "listening" || v.state === "dropped" || v.state === "starting";
+  record.classList.toggle("on", on);
+  record.disabled = v.state === "starting" || v.state === "finishing";
+  record.textContent = v.state === "finishing" ? "Finishing…" : on ? "■ Stop" : "● Record";
+  if (v.state === "listening") status.textContent = "Listening…";
+  else if (v.state === "finishing") status.textContent = v.detail || "Finishing…";
+  else if (v.state === "starting") status.textContent = "Starting the mic…";
+  else if (v.state === "dropped") status.textContent = "Mic dropped" + (v.detail ? ": " + v.detail : "");
+  else status.textContent = v.detail ? "Mic: " + v.detail : "";
+  if (["listening", "finishing", "dropped"].includes(v.state)) showStretch(v.text, v.settled);
+  else if (rec && (v.state === "idle" || v.state === "failed")) {
+    if ((v.detail || "").startsWith("cancelled")) closeStretch("");  // taken over: its words are dropped
+    else {  // the final normally comes now; if it never does, keep the cleaned words
+      clearTimeout(endTimer);
+      endTimer = setTimeout(() => rec && closeStretch(rec.clean.textContent), 5000);
+    }
+  }
+}
+
+record.addEventListener("click", async () => {
+  const on = !(voice.state === "listening" || voice.state === "dropped");
+  if (on) { openStretch(); show({ ...voice, state: "starting", text: "", settled: 0, detail: null }); }
+  const r = await fetch("/record", { method: "POST", body: JSON.stringify({ on }) })
+    .then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
+  if (!r.ok && r.error === "no connection") show({ ...voice, state: "failed", detail: "no connection to the app" });
+  if (!r.ok && on) closeStretch("");
+});
+
+copy.addEventListener("click", async () => {
+  await navigator.clipboard.writeText(plain());
+  copy.textContent = "Copied";
+  setTimeout(() => (copy.textContent = "Copy"), 1200);
+});
+
+const events = new EventSource("/events");
+events.onmessage = (e) => {
+  const item = JSON.parse(e.data);
+  if (item.kind === "voice") show(item);
+  else if (item.kind === "final") rec ? closeStretch(item.text) : insert(item.text);
+};
+events.onerror = () => show({ ...voice, state: "failed", detail: "no connection to the app" });
+</script>
+</body>
+</html>

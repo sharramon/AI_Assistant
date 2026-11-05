@@ -36,9 +36,13 @@ class _Message(BaseModel):
 
 
 class Start(_Message):
-    """Open the mic and start transcribing."""
+    """Open the mic and start transcribing.
+
+    `partials: false` asks for no live text even from an engine that gives it (the text on send).
+    """
 
     type: Literal["start"] = "start"
+    partials: bool = True
 
 
 class Stop(_Message):
@@ -51,9 +55,15 @@ class Stop(_Message):
 
 
 class Started(_Message):
-    """The mic is open."""
+    """The mic is open. `partials` says whether live text will come this session (false: only the final).
+
+    `clean_pieces`: the live text is cleaned piece by piece (`cleaned` messages), `refining` comes
+    after stop, and the final is the cleaned text. False: one engine, as before.
+    """
 
     type: Literal["started"] = "started"
+    partials: bool = True
+    clean_pieces: bool = False
 
 
 class Partial(_Message):
@@ -61,6 +71,36 @@ class Partial(_Message):
 
     type: Literal["partial"] = "partial"
     text: str
+
+
+Fallback = Literal["", "failed", "empty", "timed_out"]
+
+
+class Cleaned(_Message):
+    """Piece `piece` is done: the live words `[start, end)` (split on spaces, counted from the session's
+    start) are replaced by `text`.
+
+    With `fallback` set, `text` is empty and the span keeps its live words: `failed` (the final
+    engine raised), `empty` (it heard nothing where the live engine had words), `timed_out` (not
+    done within the timeout after stop). Sent in piece order; spans run back to back from word 0.
+    Only sent when `started.clean_pieces` and `partials` are both true.
+    """
+
+    type: Literal["cleaned"] = "cleaned"
+    piece: int
+    start: int
+    end: int
+    text: str = ""
+    fallback: Fallback = ""
+
+
+class Refining(_Message):
+    """After stop, when `clean_pieces`: the live engine's final `text` (empty with `partials` off),
+    and how many pieces are still being cleaned. `final` follows."""
+
+    type: Literal["refining"] = "refining"
+    text: str = ""
+    pending: int = 0
 
 
 class MicDropped(_Message):
@@ -82,11 +122,21 @@ class MicBack(_Message):
     type: Literal["mic_back"] = "mic_back"
 
 
+class FinalPart(_Message):
+    """One piece of a two-pass final: its `text`, and whether it's the final engine's (`cleaned`) or
+    kept its live words (`fallback` says why)."""
+
+    text: str
+    cleaned: bool = True
+    fallback: Fallback = ""
+
+
 class Final(_Message):
     """The finished text after a stop; empty if nothing was heard.
 
     `complete` is False when the session ended early (mic lost). `ended_by` is
-    `"stop"` (the app sent stop) or `"silence"` (the service stopped itself).
+    `"stop"` (the app sent stop) or `"silence"` (the service stopped itself). `parts`: with
+    `clean_pieces`, each piece's text in order (`text` is them joined with spaces); empty otherwise.
     """
 
     type: Literal["final"] = "final"
@@ -94,6 +144,7 @@ class Final(_Message):
     latency_ms: int
     complete: bool = True
     ended_by: Literal["stop", "silence"] = "stop"
+    parts: tuple[FinalPart, ...] = ()
 
 
 class Error(_Message):
@@ -105,7 +156,7 @@ class Error(_Message):
 
 
 ClientMessage = Start | Stop
-ServiceMessage = Started | Partial | MicDropped | MicBack | Final | Error
+ServiceMessage = Started | Partial | Cleaned | Refining | MicDropped | MicBack | Final | Error
 
 _client = TypeAdapter(Annotated[ClientMessage, Field(discriminator="type")])
 _service = TypeAdapter(Annotated[ServiceMessage, Field(discriminator="type")])

@@ -5,7 +5,7 @@
 # Which of the modules listed in src/assistant/__main__.py are active at startup.
 # The others can be turned on at runtime (ActivateModule). Swap the orchestrator
 # by changing this list.
-enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "html_viewer", "voice_in"]
+enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "html_viewer", "voice_in", "voice_notes"]
 
 # Per-module settings go in [modules.<module id>].
 [modules.console_io]
@@ -17,6 +17,8 @@ turn_timeout = 120.0      # seconds before a Talker turn is interrupted
 context_exchanges = 6     # recent exchanges passed to the Main Assistant with a task
 context_warning = 150000  # tokens: it tells you once when its own or the worker's context passes this
 transcript = "talker.jsonl"  # every line to and from its claude, in the session's log folder
+restart_note = ".claude/state/reset-instructions.md"  # reset instructions kept across a restart, used once
+restart_timeout = 120.0   # seconds to wait for the worker's reset instructions before restarting anyway
 # cwd = "..."             # the Talker's working directory (it has no tools)
 
 [modules.main_assistant]
@@ -46,6 +48,8 @@ allowed_commands = [
 # Allow / Deny in the temp UI, or by telling the Talker.
 fresh_sessions = true     # each task starts in a new claude session, so its context holds only that task
 max_handoffs = 3          # fresh sessions a task may hand off to (HANDOFF: <note>) before it asks you
+context_reminder = 150000  # tokens: once past this, the worker is reminded to find a reset point and hand off (0 = off)
+edit_note = true          # the edit hook's once-per-file batching note for the worker (false = off; the prompt line stays)
 permission_prompts = true
 permission_timeout = 600.0  # seconds; an unanswered request is denied
 transcript = "main_assistant.jsonl"  # in the session's log folder
@@ -78,17 +82,33 @@ port = 8767
 start_timeout = 20.0      # seconds for the service to answer /health after launching it
 service_config = ""       # optional path passed to the service as --config
 reply_timeout = 10.0      # seconds to wait for the service's `started` after start, and its final text after stop
+live_text = true          # false = the text appears when you stop, even with a live engine (whisper is always on send)
+final_timeout_on_send = 90.0  # seconds to wait for the final when the text comes on send (whisper decodes it all at the stop)
+cleanup = true            # sentence case for the engine's all-caps text, one end mark per final; cased text (whisper) keeps its case (false = raw text)
+# Words the cleanup writes back as given instead of lowercasing; set your own list in config/local.toml.
+terms = ["Isaac Sim", "USD", "glTF", "Unity", "Unitree", "Zipformer"]
+
+[modules.voice_notes]
+# Voice notes v1: a page at http://127.0.0.1:8770/ with Record / Stop, a live line, and Copy. The words
+# go only to the page (kept in its local storage), never to the Talker. Needs voice_in on.
+# The second press wins: Record cancels the chat mic's recording, and the other way round.
+port = 8770
+window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"
 
 [core]
 command_timeout = 30.0        # seconds; default for every command
 module_stop_timeout = 5.0     # seconds each module gets to stop
 event_queue_size = 100        # per subscriber; events beyond this are dropped
 event_handler_timeout = 10.0  # seconds before a stuck event handler is cancelled
+reload_idle_timeout = 300.0   # seconds a ReloadModule waits for a busy module (replying, mid-task)
 
 [core.command_timeouts]
 # Per command type, by class name, e.g.
 # InvokeTool = 60.0
 StartListening = 30.0         # may launch the voice service and wait for its model
+StopListening = 120.0         # above voice_in's final_timeout_on_send: whisper decodes the whole message at the stop
+ReloadModule = 330.0          # may wait up to reload_idle_timeout for a busy module, then swap
+AddModule = 60.0
 
 [logging]
 # Each launch logs into its own folder, dir/<start time>_<theme of your first question>/,

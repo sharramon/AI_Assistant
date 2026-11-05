@@ -45,13 +45,13 @@ def test_kinds_and_defaults():
     assert issubclass(VoiceState, Event) and issubclass(VoiceTranscript, Event)
     assert StartListening().send_as_input is True
     t = VoiceTranscript(session_id="s1", text="hi", correlation_id="s1")
-    assert t.final is False and t.correlation_id == "s1"
+    assert t.final is False and t.correlation_id == "s1" and t.settled_chars == 0
     s = VoiceState(state=ListeningState.IDLE)
     assert s.reason is None and s.detail is None
 
 
 def test_listening_state_values():
-    assert [m.value for m in ListeningState] == ["idle", "starting", "listening", "dropped", "failed"]
+    assert [m.value for m in ListeningState] == ["idle", "starting", "listening", "dropped", "finishing", "failed"]
 
 
 def test_voice_state_accepts_plain_string_and_rejects_unknown():
@@ -74,7 +74,8 @@ def test_contracts_are_frozen():
 @pytest.mark.parametrize(
     ("message", "wire"),
     [
-        (Start(), {"type": "start"}),
+        (Start(), {"type": "start", "partials": True}),
+        (Start(partials=False), {"type": "start", "partials": False}),
         (Stop(), {"type": "stop"}),
     ],
 )
@@ -86,15 +87,16 @@ def test_client_messages_round_trip(message, wire):
 @pytest.mark.parametrize(
     ("message", "wire"),
     [
-        (Started(), {"type": "started"}),
+        (Started(), {"type": "started", "partials": True, "clean_pieces": False}),
+        (Started(partials=False), {"type": "started", "partials": False, "clean_pieces": False}),
         (Partial(text="hel"), {"type": "partial", "text": "hel"}),
         (
             Final(text="hello", latency_ms=120),
-            {"type": "final", "text": "hello", "latency_ms": 120, "complete": True, "ended_by": "stop"},
+            {"type": "final", "text": "hello", "latency_ms": 120, "complete": True, "ended_by": "stop", "parts": []},
         ),
         (
             Final(text="", latency_ms=5, complete=False, ended_by="silence"),
-            {"type": "final", "text": "", "latency_ms": 5, "complete": False, "ended_by": "silence"},
+            {"type": "final", "text": "", "latency_ms": 5, "complete": False, "ended_by": "silence", "parts": []},
         ),
         (
             Error(reason=ErrorCode.BUSY, detail="another app"),
@@ -109,6 +111,9 @@ def test_service_messages_round_trip(message, wire):
 
 def test_parse_accepts_bytes_and_minimal_fields():
     assert parse_service_message(b'{"type": "error", "reason": "mic_lost"}') == Error(reason=ErrorCode.MIC_LOST)
+    # An older service's frames without the flag: live text, as before.
+    assert parse_service_message('{"type": "started"}').partials is True
+    assert parse_client_message('{"type": "start"}').partials is True
 
 
 @pytest.mark.parametrize(

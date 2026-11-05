@@ -1,8 +1,9 @@
 """Audio sources: where a session's PCM16, 16 kHz mono chunks come from.
 
-`MicSource` is the real mic (sounddevice, imported only in `start`). `FakeSource` feeds
-chunks from a list or a WAV file, for tests and offline checks. A remote recorder
-(`/ws/audio`, later) becomes a third `AudioSource`.
+`MicSource` is the real mic (sounddevice, imported only in `start`). `FileSource` reads a
+16 kHz mono WAV, for transcribing recordings (`transcribe.py`) or feeding the service as if
+it were a mic. `FakeSource` feeds chunks from a list, for tests. A remote recorder
+(`/ws/audio`, later) becomes another `AudioSource`.
 """
 
 from __future__ import annotations
@@ -113,43 +114,21 @@ class MicSource(AudioSource):
             stream.close()
 
 
-class FakeSource(AudioSource):
-    """Feeds `chunks` on its own thread, `interval` seconds apart, then stays open until `stop`.
+class _ChunkFeeder(AudioSource):
+    """Feeds a list of chunks on its own thread, `interval` seconds apart, then stays open until `stop`.
 
-    `fail_on_open` makes `start` raise `MicUnavailable`; `lose_after=N` ends it after N chunks
-    as if the mic was unplugged.
+    `lose_after=N` ends it after N chunks as if the mic was unplugged.
     """
 
-    def __init__(
-        self,
-        chunks: Sequence[bytes] = (),
-        *,
-        interval: float = 0.0,
-        fail_on_open: bool = False,
-        lose_after: int | None = None,
-    ) -> None:
+    def __init__(self, chunks: Sequence[bytes] = (), *, interval: float = 0.0, lose_after: int | None = None) -> None:
         self.chunks = list(chunks)
         self.interval = interval
-        self.fail_on_open = fail_on_open
         self.lose_after = lose_after
         self._stopped = threading.Event()
         self._thread: threading.Thread | None = None
 
-    @classmethod
-    def from_wav(cls, path: str | Path, *, chunk_ms: int = 32, realtime: bool = True) -> FakeSource:
-        """Chunks from a 16 kHz mono 16-bit WAV file, fed at the speed of speech if `realtime`."""
-        with wave.open(str(path), "rb") as wav:
-            if (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) != (SAMPLE_RATE, 1, 2):
-                raise ValueError(f"{path}: needs 16 kHz mono 16-bit audio")
-            data = wav.readframes(wav.getnframes())
-        size = SAMPLE_RATE * chunk_ms // 1000 * 2
-        chunks = [data[i : i + size] for i in range(0, len(data), size)]
-        return cls(chunks, interval=chunk_ms / 1000 if realtime else 0.0)
-
     def start(self, on_chunk: OnChunk, on_lost: OnLost) -> None:
-        if self.fail_on_open:
-            raise MicUnavailable("fake mic: failed to open")
-        self._thread = threading.Thread(target=self._feed, args=(on_chunk, on_lost), name="fake-source", daemon=True)
+        self._thread = threading.Thread(target=self._feed, args=(on_chunk, on_lost), name="chunk-feeder", daemon=True)
         self._thread.start()
 
     def _feed(self, on_chunk: OnChunk, on_lost: OnLost) -> None:
@@ -168,3 +147,53 @@ class FakeSource(AudioSource):
         self._stopped.set()
         if self._thread is not None and self._thread is not threading.current_thread():
             self._thread.join(timeout=5)
+
+
+class FileSource(_ChunkFeeder):
+    """A 16 kHz mono PCM16 WAV file, in chunks of `chunk_ms`.
+
+    Read whole with `chunks` (what `transcribe` does), or `start`ed like a mic: fed at the speed
+    of speech with `realtime=True`, as fast as taken otherwise. Any other format raises `ValueError`.
+    """
+
+    def __init__(self, path: str | Path, *, chunk_ms: int = 32, realtime: bool = False) -> None:
+        self.path = Path(path)
+        with wave.open(str(self.path), "rb") as wav:
+            if (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) != (SAMPLE_RATE, 1, 2):
+                raise ValueError(
+                    f"{self.path}: needs 16 kHz mono 16-bit WAV, got {wav.getframerate()} Hz, "
+                    f"{wav.getnchannels()} channel(s), {8 * wav.getsampwidth()}-bit"
+                )
+            data = wav.readframes(wav.getnframes())
+        size = SAMPLE_RATE * chunk_ms // 1000 * 2
+        super().__init__([data[i : i + size] for i in range(0, len(data), size)], interval=chunk_ms / 1000 if realtime else 0.0)
+        self.seconds = len(data) / 2 / SAMPLE_RATE  # the recording's length
+
+
+class FakeSource(_ChunkFeeder):
+    """Feeds `chunks` on its own thread, `interval` seconds apart, then stays open until `stop`.
+
+    `fail_on_open` makes `start` raise `MicUnavailable`; `lose_after=N` ends it after N chunks
+    as if the mic was unplugged.
+    """
+
+    def __init__(
+        self,
+        chunks: Sequence[bytes] = (),
+        *,
+        interval: float = 0.0,
+        fail_on_open: bool = False,
+        lose_after: int | None = None,
+    ) -> None:
+        super().__init__(chunks, interval=interval, lose_after=lose_after)
+        self.fail_on_open = fail_on_open
+
+    @classmethod
+    def from_wav(cls, path: str | Path, *, chunk_ms: int = 32, realtime: bool = True) -> FakeSource:
+        """Chunks from a 16 kHz mono 16-bit WAV file (read by `FileSource`), fed at the speed of speech if `realtime`."""
+        return cls(FileSource(path, chunk_ms=chunk_ms).chunks, interval=chunk_ms / 1000 if realtime else 0.0)
+
+    def start(self, on_chunk: OnChunk, on_lost: OnLost) -> None:
+        if self.fail_on_open:
+            raise MicUnavailable("fake mic: failed to open")
+        super().start(on_chunk, on_lost)

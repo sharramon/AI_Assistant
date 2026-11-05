@@ -1,13 +1,14 @@
 """The engine interface and the one place that knows the engine names.
 
-The server, the session, and the protocol see only `SttEngine` / `SttStream`.
+The server, the session, and the protocol see only `SttEngine` / `SttStream`. An engine works
+by itself, with no mic and no server (`voice_service.transcribe`).
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..config import ServiceConfig, models_dir
+from ..config import ServiceConfig, models_dir, whisper_folder
 
 
 class EngineError(RuntimeError):
@@ -23,17 +24,28 @@ class SttStream(ABC):
 
     @abstractmethod
     def partial(self) -> str:
-        """The text so far."""
+        """The text so far. Never called when the engine's `live_partials` is False."""
 
     @abstractmethod
     def finish(self) -> str:
         """No more audio: flush the model and return the final text."""
 
+    def set_prompt(self, text: str) -> None:
+        """Optional: the text said just before this audio, so the engine carries on in its style. Default: ignored."""
+
+    def cancel(self) -> None:
+        """Optional, from another thread: stop a running `finish` early; its result is thrown away. Default: nothing."""
+
 
 class SttEngine(ABC):
-    """A speech-to-text engine: the model, loaded once; one `SttStream` per session."""
+    """A speech-to-text engine: the model, loaded once; one `SttStream` per session.
+
+    `live_partials`: whether its streams give text while audio comes in. False (whisper): the
+    text comes only from `finish`, so the session sends no partials and finds speech by level.
+    """
 
     name: str = ""
+    live_partials: bool = True
 
     def load(self) -> None:
         """Load the model. Blocking, called once in the background. Raises on failure."""
@@ -54,4 +66,9 @@ def load_engine(name: str, config: ServiceConfig) -> SttEngine:
 
         zipformer = config.engine.zipformer
         return ZipformerEngine(models_dir(config) / zipformer.model, zipformer)
-    raise EngineError(f"unknown engine {name!r}; choose 'zipformer' or 'fake'")
+    if name == "whisper":
+        from .whisper import WhisperEngine
+
+        whisper = config.engine.whisper
+        return WhisperEngine(models_dir(config) / whisper_folder(whisper.model), whisper)
+    raise EngineError(f"unknown engine {name!r}; choose 'zipformer', 'whisper' or 'fake'")

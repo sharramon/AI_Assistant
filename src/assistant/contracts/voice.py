@@ -19,6 +19,7 @@ class ListeningState(StrEnum):
     STARTING = "starting"  # clicked; the service may be launching, the mic opening
     LISTENING = "listening"  # mic open, text coming
     DROPPED = "dropped"  # the mic went away mid-session; waiting for it to come back (then listening, or failed)
+    FINISHING = "finishing"  # mic off; the last piece is being cleaned (two passes), then idle with the text
     FAILED = "failed"  # went wrong; `reason` and `detail` say what
 
 
@@ -30,7 +31,14 @@ class StartListening(Command):
 
 
 class StopListening(Command):
-    """Turn the mic off; the result carries the final text."""
+    """Turn the mic off; the result carries the final text.
+
+    With `discard=True` (a clear button) the session is thrown away instead: nothing goes to
+    the Talker, an empty final `VoiceTranscript` clears the live line, and the state is
+    `idle` with reason `"cleared"`. A UI that wants to carry on sends `StartListening` next.
+    """
+
+    discard: bool = False
 
 
 class VoiceState(Event):
@@ -49,8 +57,13 @@ class VoiceState(Event):
 
 class VoiceTranscript(Event):
     """Live text: each partial (`final=False`), then once the final text
-    (`final=True`; empty clears the line)."""
+    (`final=True`; empty clears the line).
+
+    `settled_chars`: how many characters from the start of `text` are settled (cleaned by the
+    final engine, or given up on); the rest is rough live text. 0 with one engine.
+    """
 
     session_id: str
     text: str
     final: bool = False
+    settled_chars: int = 0

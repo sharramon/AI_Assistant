@@ -7,6 +7,7 @@ No microphone and no model: the service runs in this process under Uvicorn, in a
 from __future__ import annotations
 
 import ast
+import asyncio
 import socket
 import sys
 import threading
@@ -32,6 +33,7 @@ from tests.support import wait_until
 from voice_service.audio import FakeSource
 from voice_service.config import ServiceConfig
 from voice_service.engines.fake import FakeEngine
+from voice_service.protocol import Error, ErrorCode, Final
 from voice_service.server import create_app
 from voice_service.session import ListenSession
 
@@ -54,12 +56,13 @@ def take(*sources):
 class Service:
     """The real voice service app on a free local port, in a thread."""
 
-    def __init__(self, engine=None, source=(), **audio) -> None:
+    def __init__(self, engine=None, source=(), final=None, pieces=None, **audio) -> None:
         audio = {"stall_seconds": 0, **audio}  # fake sources go quiet after their chunks
-        config = ServiceConfig.model_validate({"engine": {"name": "fake", "partial_interval_ms": 0}, "audio": audio})
+        raw = {"engine": {"name": "fake", "partial_interval_ms": 0}, "audio": audio, "pieces": pieces or {}}
+        config = ServiceConfig.model_validate(raw)
         factory = source if callable(source) else (lambda: FakeSource(list(source), interval=0.005))
         self.port = free_port()
-        app = create_app(config, engine or FakeEngine(TEXT), factory)
+        app = create_app(config, engine or FakeEngine(TEXT), factory, final_engine=final)
         self.server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=self.port, log_level="warning"))
         self.thread = threading.Thread(target=self.server.run, name="voice-service-test", daemon=True)
         self.thread.start()
@@ -121,7 +124,7 @@ class Recorder:
 
 
 async def start_app(port: int, module=Probe, **settings) -> tuple[App, Recorder]:
-    section = {"host": "127.0.0.1", "port": port, "reply_timeout": 3.0, **settings}
+    section = {"host": "127.0.0.1", "port": port, "reply_timeout": 3.0, "cleanup": False, **settings}
     app = App([module], {"modules": {"enabled": ["voice_in"], "voice_in": section}, "core": {}})
     recorder = Recorder(app)
     await app.start()
@@ -158,6 +161,23 @@ async def test_start_partials_stop_final_and_the_talker_gets_it(service):
         await app.stop()
 
 
+async def test_the_cleanup_gives_sentence_case_live_and_final(service, caplog):
+    svc = service(FakeEngine("WHAT IS USD"), source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port, cleanup=True, terms=["USD"])
+    try:
+        await app.router.send(StartListening())
+        await rec.wait(has_text("What is USD"))  # the live line: cleaned, no end mark
+        with caplog.at_level("INFO"):
+            result = await app.router.send(StopListening())
+        assert result.value["text"] == "What is USD?"
+        await rec.wait(lambda r: r.of(InputReceived))
+        assert [i.text for i in rec.of(InputReceived)] == ["What is USD?"]
+        assert all(t.text == t.text.capitalize() or "USD" in t.text for t in rec.of(VoiceTranscript))
+        assert "raw: 'WHAT IS USD' -> clean: 'What is USD?'" in caplog.text
+    finally:
+        await app.stop()
+
+
 async def test_send_as_input_off_keeps_the_text_from_the_talker(service):
     svc = service(source=[CHUNK] * 6)
     app, rec = await start_app(svc.port)
@@ -171,17 +191,52 @@ async def test_send_as_input_off_keeps_the_text_from_the_talker(service):
         await app.stop()
 
 
-async def test_start_twice_is_one_session_and_stop_with_none_is_ok(service):
-    svc = service(source=[CHUNK] * 2)
+def of_session(rec: Recorder, kind, command) -> list:
+    return [e for e in rec.of(kind) if e.correlation_id == command.id]
+
+
+async def test_a_second_start_takes_the_mic_and_the_first_text_is_dropped(service):
+    svc = service(source=[CHUNK] * 6)
     app, rec = await start_app(svc.port)
     try:
         assert (await app.router.send(StopListening())).value is None
-        first = await app.router.send(StartListening())
-        second = await app.router.send(StartListening(send_as_input=False))
-        assert first.value == second.value
-        await app.router.send(StopListening())
-        await rec.wait(lambda r: r.of(InputReceived))  # the first start's send_as_input stayed
-        assert rec.states().count("starting") == 1
+        first = StartListening()  # the chat's mic: its text would go to the Talker
+        await app.router.send(first)
+        await rec.wait(lambda r: any(t.text for t in of_session(r, VoiceTranscript, first)))
+        old = Probe.last._session
+        second = StartListening(send_as_input=False)  # voice notes
+        assert (await app.router.send(second)).value == {"session_id": second.id}
+        await rec.wait(lambda r: of_session(r, VoiceState, first)[-1].state is ListeningState.IDLE)
+        ended = of_session(rec, VoiceState, first)[-1]
+        assert (ended.reason, ended.detail) == ("taken_over", "another part of the app took the mic")
+        cleared = of_session(rec, VoiceTranscript, first)[-1]
+        assert (cleared.text, cleared.final) == ("", True)
+        Probe.last._finish(old, Final(text="late words", latency_ms=5))  # the cancelled session's late final
+        await rec.wait(lambda r: any(t.text == TEXT for t in of_session(r, VoiceTranscript, second)))
+        assert (await app.router.send(StopListening())).value["text"] == TEXT
+        await rec.wait(lambda r: r.states()[-1] == "idle")
+        assert rec.of(InputReceived) == []  # neither the cancelled text nor the notes' text
+        assert not any(t.text == "late words" for t in rec.of(VoiceTranscript))
+    finally:
+        await app.stop()
+
+
+async def test_a_stop_waiting_when_the_mic_is_taken_gets_taken_over(service):
+    svc = service(source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port)
+    try:
+        await app.router.send(StartListening())
+        session = Probe.last._session
+
+        async def swallow(_message) -> None:  # the stop never reaches the service: it waits for its final
+            pass
+
+        session.ws.send = swallow
+        stop = asyncio.create_task(app.router.send(StopListening()))
+        await asyncio.sleep(0.05)
+        await app.router.send(StartListening(send_as_input=False))
+        assert (await stop).value == {"text": "", "taken_over": True}
+        assert rec.of(InputReceived) == []
     finally:
         await app.stop()
 
@@ -194,6 +249,83 @@ async def test_an_empty_final_clears_the_line_and_sends_nothing(service):
         assert (await app.router.send(StopListening())).value["text"] == ""
         await rec.wait(lambda r: r.states()[-1] == "idle")
         assert rec.of(VoiceTranscript)[-1].final is True and rec.of(InputReceived) == []
+    finally:
+        await app.stop()
+
+
+# --- the clear button: StopListening(discard=True) ---
+
+
+async def test_clear_drops_the_text_and_the_next_session_starts_at_once(service):
+    svc = service(source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port)
+    try:
+        first = StartListening()
+        await app.router.send(first)
+        await rec.wait(has_text(TEXT))
+        result = await app.router.send(StopListening(discard=True))
+        assert result.is_ok and result.value == {"text": "", "discarded": True}
+        cleared = last_state(rec)
+        assert (cleared.state, cleared.reason, cleared.correlation_id) == (ListeningState.IDLE, "cleared", first.id)
+        final = rec.of(VoiceTranscript)[-1]
+        assert (final.text, final.final, final.correlation_id) == ("", True, first.id)  # the line clears
+        assert rec.of(InputReceived) == []
+
+        # Carry on: a new session starts straight away (no `busy`), and its text is sent as usual.
+        second = StartListening()
+        assert (await app.router.send(second)).is_ok
+        await rec.wait(lambda r: any(t.text == TEXT and t.correlation_id == second.id for t in r.of(VoiceTranscript)))
+        assert (await app.router.send(StopListening())).value["text"] == TEXT
+        await rec.wait(lambda r: r.of(InputReceived))
+        assert [i.text for i in rec.of(InputReceived)] == [TEXT]
+        assert rec.states() == ["starting", "listening", "idle", "starting", "listening", "idle"]
+    finally:
+        await app.stop()
+
+
+async def test_a_final_after_the_clear_is_not_sent(service):
+    svc = service(source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port)
+    try:
+        await app.router.send(StartListening())
+        await rec.wait(has_text(TEXT))
+        session = Probe.last._session
+        await app.router.send(StopListening(discard=True))
+        Probe.last._finish(session, Final(text="someone else talking", latency_ms=5))  # a late final
+        assert rec.of(InputReceived) == []
+        assert not any(t.text == "someone else talking" for t in rec.of(VoiceTranscript))
+        assert rec.states()[-1] == "idle" and Probe.last._session is None
+    finally:
+        await app.stop()
+
+
+async def test_clear_with_nothing_listening_is_ok_none(service):
+    svc = service(source=[])
+    app, rec = await start_app(svc.port)
+    try:
+        assert (await app.router.send(StopListening(discard=True))).value is None
+        assert rec.events == []
+    finally:
+        await app.stop()
+
+
+async def test_a_busy_start_right_after_a_clear_is_tried_once_more(service, monkeypatch):
+    import assistant.modules.voice_in.module as voice_module
+
+    svc = service(source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port)
+    monkeypatch.setattr(voice_module, "CLEAR_RETRY_WAIT", 0.01)
+    replies = [Error(reason=ErrorCode.BUSY, detail="another app is listening")]
+    real = Probe.last._send_start
+
+    async def send_start(session):
+        return replies.pop(0) if replies else await real(session)
+
+    monkeypatch.setattr(Probe.last, "_send_start", send_start)
+    try:
+        Probe.last._cleared_at = time.monotonic()  # as if the ✕ was just clicked
+        assert (await app.router.send(StartListening())).is_ok
+        assert rec.states() == ["starting", "listening"]
     finally:
         await app.stop()
 
@@ -457,6 +589,144 @@ def test_voice_in_imports_only_the_protocol_from_the_service():
             elif isinstance(node, ast.Import):
                 imported.update(a.name for a in node.names)
     assert {m for m in imported if m.split(".")[0] == "voice_service"} == {"voice_service.protocol"}
+
+
+async def test_a_reload_keeps_the_voice_app_and_leaves_the_chat_alone(service):
+    from assistant.contracts import ReloadModule
+    from assistant.modules.temp_ui import TempUIModule
+
+    svc = service(source=[CHUNK] * 2)
+    voice = {"host": "127.0.0.1", "port": svc.port, "reply_timeout": 3.0}
+    config = {"modules": {"enabled": ["voice_in", "temp_ui"], "voice_in": voice,
+                          "temp_ui": {"port": 0, "window": "none"}}, "core": {}}  # fmt: skip
+    app = App([VoiceInModule, TempUIModule], config)
+    await app.start()
+    try:
+        old, ui = app._lifecycle._active["voice_in"][0], app._lifecycle._active["temp_ui"][0]
+        await wait_until(lambda: ui._voice["available"])
+        result = await app.router.send(ReloadModule(module_id="voice_in"))
+        assert result.is_ok, result.error
+        new = app._lifecycle._active["voice_in"][0]
+        assert new is not old and type(new) is not VoiceInModule  # fresh code
+        assert new._app is old._app  # the same voice app, not quit
+        assert app._lifecycle._active["temp_ui"][0] is ui  # the chat window wasn't touched
+        await wait_until(lambda: ui._voice["available"])
+        assert (await app.router.send(StartListening())).is_ok  # the new code listens
+        assert (await app.router.send(StopListening())).is_ok
+    finally:
+        await app.stop()
+
+
+# --- text on send (an engine without live text, or live_text = false) ---
+
+
+class _SlowFinish:
+    """A fake stream whose final takes `delay` seconds, like whisper decoding at the stop."""
+
+    def __init__(self, inner, delay: float) -> None:
+        self._inner, self._delay = inner, delay
+
+    def accept(self, pcm: bytes) -> None:
+        self._inner.accept(pcm)
+
+    def partial(self) -> str:
+        return self._inner.partial()
+
+    def finish(self) -> str:
+        time.sleep(self._delay)
+        return self._inner.finish()
+
+
+class OnSendEngine(FakeEngine):
+    live_partials = False
+
+    def __init__(self, *args, delay: float = 0.0, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.delay = delay
+
+    def new_stream(self):
+        return _SlowFinish(super().new_stream(), self.delay)
+
+
+async def test_live_text_off_sends_only_the_final_and_says_so(service):
+    import asyncio
+
+    svc = service(source=[CHUNK] * 6)  # a live engine, but voice_in asks for the text on send
+    app, rec = await start_app(svc.port, live_text=False)
+    try:
+        assert (await app.router.send(StartListening())).is_ok
+        assert last_state(rec).state.value == "listening"
+        assert last_state(rec).detail == "text appears when you stop"
+        await asyncio.sleep(0.2)
+        assert (await app.router.send(StopListening())).value["text"] == TEXT
+        await rec.wait(lambda r: r.of(InputReceived))
+        assert [(t.text, t.final) for t in rec.of(VoiceTranscript)] == [(TEXT, True)]
+    finally:
+        await app.stop()
+
+
+async def test_an_on_send_engine_gets_the_longer_final_wait(service):
+    svc = service(OnSendEngine(TEXT, delay=1.0), source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port, reply_timeout=0.5, final_timeout_on_send=5)
+    try:
+        assert (await app.router.send(StartListening())).is_ok
+        assert last_state(rec).detail == "text appears when you stop"  # the engine has no live text
+        import asyncio
+
+        await asyncio.sleep(0.2)  # let the six chunks arrive
+        result = await app.router.send(StopListening())  # 1 s of decoding: past reply_timeout, within the on-send wait
+        assert result.is_ok and result.value["text"] == TEXT
+        assert [t.final for t in rec.of(VoiceTranscript)] == [True]
+    finally:
+        await app.stop()
+
+
+# --- two passes: the final engine cleans the line piece by piece ---
+
+FAST_PIECES = {"pause_seconds": 0.1, "min_seconds": 0.3, "max_seconds": 1.0, "cut_search_seconds": 0.2}
+
+
+async def test_two_passes_settle_the_line_and_send_the_cleaned_text(service):
+    import asyncio
+
+    from tests.test_voice_pieces import TALK, LiveEngine, PieceEngine
+
+    final = PieceEngine(slow={2}, slow_seconds=1.0)  # the last piece takes 1 s: past reply_timeout
+    svc = service(LiveEngine(), source=TALK, final=final, pieces=FAST_PIECES)
+    app, rec = await start_app(svc.port, reply_timeout=0.5, final_timeout_on_send=5)
+    try:
+        assert (await app.router.send(StartListening())).is_ok
+        await rec.wait(lambda r: any(t.settled_chars for t in r.of(VoiceTranscript)))
+        await asyncio.sleep(0.3)  # the rest of the talk arrives
+        result = await app.router.send(StopListening())
+        assert result.is_ok and result.value["text"] == "Piece0. Piece1. Piece2."
+        await rec.wait(lambda r: r.of(InputReceived) and r.states()[-1] == "idle")
+        assert rec.states() == ["starting", "listening", "finishing", "idle"]
+        assert next(s for s in rec.of(VoiceState) if s.state.value == "finishing").detail == "cleaning up…"
+        assert [i.text for i in rec.of(InputReceived)] == ["Piece0. Piece1. Piece2."]
+        first = next(t for t in rec.of(VoiceTranscript) if t.settled_chars)
+        assert first.text.startswith("Piece0.") and first.settled_chars == len("Piece0.") and not first.final
+    finally:
+        await app.stop()
+
+
+async def test_a_failed_piece_keeps_its_live_words_in_the_sent_text(service, caplog):
+    import asyncio
+
+    from tests.test_voice_pieces import TALK, LiveEngine, PieceEngine
+
+    svc = service(LiveEngine(), source=TALK, final=PieceEngine(fail={1}), pieces=FAST_PIECES)
+    app, rec = await start_app(svc.port)
+    try:
+        assert (await app.router.send(StartListening())).is_ok
+        await rec.wait(lambda r: any(t.settled_chars for t in r.of(VoiceTranscript)))
+        await asyncio.sleep(0.3)  # the rest of the talk arrives (every partial after piece 0 is settled too)
+        result = await app.router.send(StopListening())
+        middle = " ".join(f"w{i}" for i in range(8, 16))  # piece 1's live words
+        assert result.value["text"] == f"Piece0. {middle} Piece2."
+        assert "kept its live words (failed)" in caplog.text
+    finally:
+        await app.stop()
 
 
 async def test_without_websockets_init_names_the_extra(monkeypatch):
