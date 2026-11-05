@@ -14,6 +14,8 @@ description: Use during and at the end of any multi-chunk build. After each big 
 
 Small one-chunk changes skip the mid-build check but still get the end check.
 
+**Never skipped for the sake of batching.** Grouping edits means fewer edit rounds, not fewer checks: the end check, the tests and ruff always run.
+
 ## Read first
 
 Once per task, not once per check: `docs/architecture/principles.md`, `docs/architecture/reusable-parts.md` (with its companion app checklist), `docs/api/reusable.md`, and the architecture page for the area being built. Re-read only what changed since.

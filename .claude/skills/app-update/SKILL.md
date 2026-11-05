@@ -34,10 +34,10 @@ Keep it short; the user reads it before anything happens.
 ## 3. Build it, after the user's check
 
 - Apply their corrections to the note first, then set its status to `approved`.
-- Build it. For anything touching more than one function or file, follow `architecture-first`. Run the tests and `ruff`.
+- Set it to `building` and build it. For anything touching more than one function or file, follow `architecture-first`. Run the tests and `ruff`.
 - Update the docs it affects, and rebuild them.
-- Set the note's status to `done (<date>)`, both in the note and in the Pending changes table.
-- If you can't make the change yourself (e.g. the app's Main Assistant can't write `src/`), set the status to `ready to build` and say so; the next Claude Code session picks it up from the table.
+- Set the note's status, both in the note and in the Pending changes table: `built (waiting on you)` if a restart or the user's check is left (say which), else `done (<date>)`. The status values and archiving a done note are in the `next-steps-html` skill.
+- If you can't make the change yourself (e.g. the app's Main Assistant can't write `src/`), leave the status at `approved` and say so in the row; the next Claude Code session picks it up from the table.
 
 ## 4. Offer to relaunch
 

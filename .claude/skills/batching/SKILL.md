@@ -18,4 +18,8 @@ Every step resends the whole conversation, so each extra step costs the full con
 5. **One docs build, at the end.**
 6. **Group edits across files** into one tool batch, and **ask one consolidated question**, not several.
 7. **End-of-task check.** In the report, list every file you edited more than once and why. If none, say "no file edited twice".
-8. **Reset the session between tasks**, so the next task doesn't resend this one's context.
+8. **Fresh sessions.** The Main Assistant gets a fresh session per task on its own, and is reminded at 150k to hand off (`HANDOFF:`) to a fresh session by itself. In your own Claude Code sessions, reset between tasks so the next task doesn't resend this one's context.
+
+**Never skip checks.** Grouping edits means fewer edit rounds, not fewer checks: the architecture-check, the tests and ruff always run.
+
+**The hook's note.** An edit hook (`scripts/hooks/edit_tracker.py`) adds a note to your second edit of a file (for the Main Assistant: once per file per task, across `Edit`, `Write`, `MultiEdit` and `NotebookEdit`). When you see it, stop editing that file again: fold any remaining changes into one pass, and list the file in the end-of-task check.
