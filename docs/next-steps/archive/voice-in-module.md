@@ -1,6 +1,6 @@
 # Voice in: the voice_in module (step 3)
 
-> **Status: done (2026-11-03).** Approved and built, not committed. Ruff is clean, and 224 tests pass (1 deselected). Where the build stands and what's next: [handoff](handoff-voice-in.md). The permanent design is on [Voice](../architecture/voice.md#the-voice_in-module).
+> **Status: done (2026-11-03).** Approved and built, not committed. Ruff is clean, and 224 tests pass (1 deselected). Where the build stands and what's next: [handoff](../handoff-voice-in.md). The permanent design is on [Voice](../../architecture/voice.md#the-voice_in-module).
 >
 > **Built differently from this note** (decided with you or found while building):
 > - **A mic that doesn't come back drops the text** (your answer: "let it try to recover for a bit, but lose the text"). `voice_in` publishes `VoiceTranscript(final=True, text="")`, which clears the line, and then `VoiceState(failed, mic_lost)`. The text isn't kept as a last partial or greyed out, and a waiting `StopListening` gets `failed`, not `ok`. The service still sends `final complete=false` then `error mic_lost`, so the protocol is unchanged for that case.
@@ -11,11 +11,11 @@
 >
 > **Changed after your first check:** a lost mic now waits for the mic to come back ([When the mic drops](#when-the-mic-drops-mid-session-new)), and a quick `/health` check runs before reusing a running service ([The health check](#the-health-check-before-reusing-a-running-service-new)).
 
-**Asked:** step 3 of [voice in](README.md#next-voice-in-phase-1): the thin `voice_in` module in the main app. It launches the `voice_service` through `CompanionApp`, handles `StartListening` and `StopListening`, asks for the microphone through `ctx.permissions`, opens one WebSocket per mic session using `voice_service.protocol`, publishes `VoiceState` and `VoiceTranscript`, and with `send_as_input` on, sends the final text to the Talker as `InputReceived`. It only launches, calls and relays. It has no speech logic, and it imports nothing from `voice_service` except `protocol`. No UI button (step 4).
+**Asked:** step 3 of [voice in](../README.md#next-voice-in-phase-1): the thin `voice_in` module in the main app. It launches the `voice_service` through `CompanionApp`, handles `StartListening` and `StopListening`, asks for the microphone through `ctx.permissions`, opens one WebSocket per mic session using `voice_service.protocol`, publishes `VoiceState` and `VoiceTranscript`, and with `send_as_input` on, sends the final text to the Talker as `InputReceived`. It only launches, calls and relays. It has no speech logic, and it imports nothing from `voice_service` except `protocol`. No UI button (step 4).
 
 **Why:** steps 1 and 2 built the contracts and the service. This module connects them to the app, so any UI can turn the mic on, and the Talker gets what you said.
 
-**The design is already approved** ([the voice_in module](../architecture/voice.md#the-voice_in-module)). This note says how it gets built, fills a few gaps the design left open (marked **new**), and ends with three choices for you.
+**The design is already approved** ([the voice_in module](../../architecture/voice.md#the-voice_in-module)). This note says how it gets built, fills a few gaps the design left open (marked **new**), and ends with three choices for you.
 
 ## Touches
 
@@ -26,7 +26,7 @@
   - `src/assistant/contracts/voice.py`: a new `ListeningState.DROPPED`, for the mic drop (below), and the `VoiceState` docstring listing the three new app-side reasons. No fields change.
   - **The voice service (step 2, already committed), for the mic drop only:** `protocol.py` (two new messages), `session.py` (the recovery wait), `config.py` (one setting), `server.py` (it passes the source factory to the session), and their tests in `tests/test_voice_service.py`. The `/health` reply already fits.
 - **Not changed:** `app_kit` (`CompanionApp` already does it all), the Talker (it already takes `InputReceived` from any source), `pyproject.toml` (`websockets` is already in the `voice` extra).
-- **Docs:** [Voice](../architecture/voice.md) (step 3 built), [Messaging](../api/messaging.md#voice) (the reasons and who handles the commands), the [reusable parts index](../api/reusable.md) and [App kit](../api/app_kit.md) (Used by lines: `voice_in` no longer *planned*), the overview's Parts table (the `voice_in` location), the [runtime](../agents/runtime.md) page's module list, and [Next steps](README.md). Then rebuild.
+- **Docs:** [Voice](../../architecture/voice.md) (step 3 built), [Messaging](../../api/messaging.md#voice) (the reasons and who handles the commands), the [reusable parts index](../../api/reusable.md) and [App kit](../../api/app_kit.md) (Used by lines: `voice_in` no longer *planned*), the overview's Parts table (the `voice_in` location), the [runtime](../../agents/runtime.md) page's module list, and [Next steps](../README.md). Then rebuild.
 
 ## Manifest and config
 

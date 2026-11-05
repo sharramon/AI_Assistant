@@ -7,9 +7,9 @@
 **Asked:** "I thought I asked you to make it so that you can ask me for permission in-app to fix this." The Main Assistant should ask you when it needs access it doesn't have, and you approve or refuse right there.
 
 **Why:**
-- Today anything outside the [standing rules](../agents/README.md#permissions) is refused at once, and saying "yes" in chat changes nothing.
+- Today anything outside the [standing rules](../../agents/README.md#permissions) is refused at once, and saying "yes" in chat changes nothing.
 - Some paths can't be opened by standing rules at all: `claude` treats `.claude/` as sensitive, so the worker's write to `.claude/skills/app-update/SKILL.md` was refused even though `.claude/skills` is in its write rules.
-- This is steps 2 and 3 of the [self-improvement plan](../agents/self-improvement.md#steps) (the in-the-moment asks).
+- This is steps 2 and 3 of the [self-improvement plan](../../agents/self-improvement.md#steps) (the in-the-moment asks).
 
 **Touches:** `ClaudeSession`, `SessionTaskAgent`, the agents contracts (`ReportKind`, a new command), `agent_hub`, `talker` (a tag and prompt), `temp_ui` (buttons), and the docs for each.
 

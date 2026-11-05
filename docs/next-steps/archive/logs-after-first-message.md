@@ -6,7 +6,7 @@
 
 **Why:** today `LogSession` makes `logs/<start time>/` at startup and the transcripts open right away, so every launch leaves a folder, even if you never typed anything. Relaunches make this worse: `relaunch.ps1` force-kills the app, so `finish()` never runs and those folders also never get their theme.
 
-**Touches:** `src/assistant/infra/log.py` (`LogSession`), `src/assistant/infra/claude_session.py` (transcript), `src/assistant/__main__.py`, `src/assistant/modules/talker/module.py`, `temp_ui`'s Logs button, tests, the [logging docs](../architecture/core.md#logging) and [`LogSession` API](../api/infra.md#logsession).
+**Touches:** `src/assistant/infra/log.py` (`LogSession`), `src/assistant/infra/claude_session.py` (transcript), `src/assistant/__main__.py`, `src/assistant/modules/talker/module.py`, `temp_ui`'s Logs button, tests, the [logging docs](../../architecture/core.md#logging) and [`LogSession` API](../../api/infra.md#logsession).
 
 **Approach:** create the folder when the theme arrives, already named, and hold everything in memory until then.
 

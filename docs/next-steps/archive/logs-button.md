@@ -6,7 +6,7 @@
 
 **Why:** the transcripts (`logs/talker.jsonl`, `logs/main_assistant.jsonl`) and `logs/assistant.log` are the main debugging tool, and finding the folder by hand is slow.
 
-**Touches:** `temp_ui` only (`module.py`, `page.html`), plus one config key. Throwaway like the rest of the [temp UI](../agents/runtime.md#temp-ui).
+**Touches:** `temp_ui` only (`module.py`, `page.html`), plus one config key. Throwaway like the rest of the [temp UI](../../agents/runtime.md#temp-ui).
 
 **Approach:**
 - A small **Logs** button in the header, right side, next to the connection status, with a folder icon.

@@ -1,6 +1,6 @@
 # HTML viewer as its own app
 
-> **Status: done (2026-10-27).** You directed it (decided in an earlier session, never saved): the viewer is its own app, launchable on its own, launched by the main app, with two-way hooks. Recorded in [decisions](../architecture/decisions.md#decided). `pytest` and `ruff` pass.
+> **Status: done (2026-10-27).** You directed it (decided in an earlier session, never saved): the viewer is its own app, launchable on its own, launched by the main app, with two-way hooks. Recorded in [decisions](../../architecture/decisions.md#decided). `pytest` and `ruff` pass.
 
 **Asked:** the HTML viewer should not be tied to the main app: a separate app that can launch on its own, is launched by the main app, and passes information both ways (tools, events like `ViewerTabsChanged`, open and highlight requests).
 

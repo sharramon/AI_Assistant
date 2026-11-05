@@ -29,36 +29,24 @@ The [Agent runtime](../agents/runtime.md) is built and runs: `.\.venv\Scripts\py
 
 ## Pending changes
 
-Changes you asked for, each with a note written before anything is built ([`app-update`](../../.claude/skills/app-update/SKILL.md) skill). Statuses: proposed → approved → done (or ready to build).
+Changes you asked for, each with a note written before anything is built ([`app-update`](../../.claude/skills/app-update/SKILL.md) skill). Statuses: **proposed** · **approved** · **building** · **built (waiting on you)** (a restart or your check is left) · **done**. A note that is done with nothing waiting on you moves to the [archive](archive/README.md).
 
 | Change | Status | Date |
 |--------|--------|------|
-| [Logs per session](session-logs.md) | done | 2026-10-26 |
-| [Permission requests on the Talker side](permission-on-talker-side.md) | done | 2026-10-26 |
 | [Permissions handler](permissions-handler.md) | proposed | 2026-10-26 |
-| [Worker gets full access](worker-access.md) | done | 2026-10-26 |
-| [Permission requests in the app](permission-requests.md) | done | 2026-10-26 |
-| [Logs button](logs-button.md) | done | 2026-10-26 |
-| [Relaunch opens one fresh window](relaunch-keeps-window.md) | done | 2026-10-26 |
-| [No logs until the first message](logs-after-first-message.md) | done | 2026-10-26 |
-| [Base HTML viewer](base-html-viewer.md) | done | 2026-10-27 |
-| [Viewer edits write back to the Markdown](markdown-write-back.md) | done | 2026-10-27 |
-| [Snip for viewer](snip-for-viewer.md) | done | 2026-10-27 |
-| [Highlight for viewer](highlight-for-viewer.md) | done | 2026-10-27 |
-| [Leaner worker: smaller contexts, fewer calls](leaner-worker.md) | done | 2026-10-27 |
-| [Usage meters: context now and usage so far](usage-meters.md) | done | 2026-10-28 |
-| [Blue highlight in the HTML viewer](blue-highlight.md) | done | 2026-10-28 |
-| [Voice in](voice-in.md) | ready to build; design moved to [Voice](../architecture/voice.md) | 2026-10-28 |
-| [Voice in: code design](voice-in.md#code-design-2026-11-02) | approved | 2026-11-02 |
-| [Open in viewer brings the viewer to the front](viewer-to-front.md) | done | 2026-10-28 |
-| [Voice streamer: reusable parts](voice-reusable-parts.md) | approved; revised by the note below (CompanionApp in `app_kit`, `load_layered`, mic check via `ctx.permissions`) | 2026-11-02 |
-| [Reusable parts as a core principle](reusable-parts.md) | approved; permanent docs done; `app_kit` and `agent_tags` built (2026-11-02); permissions stand-in built (2026-11-02); next: the voice build | 2026-11-02 |
-| [Permissions stand-in (`ctx.permissions`)](permissions-stand-in.md) | done | 2026-11-02 |
-| [Voice in: contracts (step 1)](voice-contracts.md) | done | 2026-11-03 |
-| [Voice in: the voice service app (step 2)](voice-service.md) | done | 2026-11-03 |
-| [Voice in: the voice_in module (step 3)](voice-in-module.md) | done (with the mic-drop wait and the health check; [handoff](handoff-voice-in.md)) | 2026-11-03 |
-| [Voice in: the temp UI's mic button (step 4)](voice-temp-ui.md) | done (approved in advance: full auto) | 2026-11-03 |
-| [Permission mode button (Manual / Auto)](permission-mode-button.md) | done (spike passed: `git push` blocked under bypass; button on the Talker side; restart the app to get it) | 2026-11-02 |
+| [Viewer edits write back to the Markdown](markdown-write-back.md) | built (waiting on you): not yet tried by hand in the real window | 2026-10-27 |
+| [Voice in](voice-in.md) | building; design moved to [Voice](../architecture/voice.md) | 2026-10-28 |
+| [Voice in: code design](voice-in.md#code-design-2026-11-02) | building: phase 1 steps 1 to 4 built, step 6's code built; your mic check left, step 7 next | 2026-11-02 |
+| [Handoff: voice in](handoff-voice-in.md) | building: where the voice-in build stands | 2026-11-03 |
+| [Voice streamer: reusable parts](voice-reusable-parts.md) | built (waiting on you): steps 0 to 4 built; the try on your mic is left | 2026-11-02 |
+| [Voice text cleanup (sentence case), then a hot-swap test](voice-text-cleanup.md) | built (waiting on you): `RELOAD: voice_in` worked; your mic checks left | 2026-11-03 |
+| [Voice: the layers in code, and whisper as a second engine](voice-layers-whisper.md) | built (waiting on you): loaded; your check: switch `[engine] name` to whisper | 2026-11-03 |
+| [Voice: two passes (live text while you talk, whisper cleans it piece by piece)](voice-two-pass.md) | built (waiting on you): real check passed, loaded; your check (step 3.5) | 2026-11-03 |
+| [Module shape: directory, menus, and clean boundaries](module-shape-refactor.md) | approved: design in the architecture docs (Modules page, principles 14 to 17); build pending, voice notes first, with a voice contract | 2026-11-04 |
+| [Voice notes: a quick record-to-page module](voice-notes.md) | built (waiting on you): v1, own module, second press wins; your mic checks next | 2026-11-04 |
+| [Job agent: run the job project from the assistant](job-agent.md) | proposed: the module wrapper first; two questions for you | 2026-11-04 |
+
+Finished notes (done, nothing waiting on you) are in the [archive](archive/README.md).
 
 ## Next: voice in, phase 1
 
@@ -68,13 +56,13 @@ The next thing to build. The design is [Voice](../architecture/voice.md), with t
 
 **Left out of it:** Silero VAD (not needed with a button), Ctrl+Space, the "didn't catch that" message, auto-restarting the service, `/ws/audio` for remote recorders, several listeners at once, and Nemotron (step 7).
 
-**Before step 1:** the code steps of [Reusable parts](reusable-parts.md#downstream-effects-in-order) (`app_kit` and the `ctx.permissions` stand-in, both built 2026-11-02), as revised in the [voice streamer note](voice-reusable-parts.md). Step 3 below then uses `CompanionApp` and `ctx.permissions` instead of copying `_ensure_running` and logging its own warning; step 2 uses `app_kit.load_layered`.
+**Before step 1:** the code steps of [Reusable parts](archive/reusable-parts.md#downstream-effects-in-order) (`app_kit` and the `ctx.permissions` stand-in, both built 2026-11-02), as revised in the [voice streamer note](voice-reusable-parts.md). Step 3 below then uses `CompanionApp` and `ctx.permissions` instead of copying `_ensure_running` and logging its own warning; step 2 uses `app_kit.load_layered`.
 
 **Steps:**
-1. ~~**Contracts:** `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript` in `src/assistant/contracts/voice.py`, and the protocol's messages in `src/voice_service/protocol.py`, with entries in the [Messaging API](../api/messaging.md#voice).~~ Done 2026-11-03 ([note](voice-contracts.md)).
-2. ~~**`src/voice_service/`** (doesn't import the assistant): the [files and classes](../architecture/voice.md#the-voice-service-files-and-classes), [threads](../architecture/voice.md#the-voice-service-threads-and-audio-flow), [config](../architecture/voice.md#the-voice-service-config) (`config/voice_service.toml`), and [error handling](../architecture/voice.md#the-voice-service-errors) in the design. FastAPI + Uvicorn on `127.0.0.1:8767`, `/health`, `/quit`, `/ws/listen` per the [protocol](../architecture/voice.md#the-protocol); `SttEngine` / `SttStream` with `zipformer` and `fake`; `MicSource` and `FakeSource`; the `download` command. Runs alone with `python -m voice_service`.~~ Done 2026-11-03 ([note](voice-service.md)): int8 Zipformer by default, the model downloaded outside the repo, checked on the model's test recordings.
-3. ~~**`src/assistant/modules/voice_in/`:** per [the voice_in module](../architecture/voice.md#the-voice_in-module): launches the service through the shared `CompanionApp`, asks `ctx.permissions.request("microphone", ...)` on each start (the stand-in logs the warning), one WebSocket per mic session using `voice_service.protocol`, handles the two commands, publishes `VoiceState` and `VoiceTranscript`, and sends the final text as `InputReceived(source="voice")`. Off by default; `[modules.voice_in]` in `config/default.toml`, plus `core.command_timeouts.StartListening = 30`.~~ Done 2026-11-03 ([note](voice-in-module.md)), with a wait for a dropped mic in the service (`mic_recovery_seconds`) and a `/health` check before reusing a running service.
-4. ~~**`temp_ui`:** the mic button (shows *listening* or *failed*) and a grey live-text line above the input box; `dropped` as a drop symbol with a countdown from the `detail` and the word count of the last partial (added by step 3); `voice_in` in `enabled`.~~ Done 2026-11-03 ([note](voice-temp-ui.md)).
+1. ~~**Contracts:** `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript` in `src/assistant/contracts/voice.py`, and the protocol's messages in `src/voice_service/protocol.py`, with entries in the [Messaging API](../api/messaging.md#voice).~~ Done 2026-11-03 ([note](archive/voice-contracts.md)).
+2. ~~**`src/voice_service/`** (doesn't import the assistant): the [files and classes](../architecture/voice.md#the-voice-service-files-and-classes), [threads](../architecture/voice.md#the-voice-service-threads-and-audio-flow), [config](../architecture/voice.md#the-voice-service-config) (`config/voice_service.toml`), and [error handling](../architecture/voice.md#the-voice-service-errors) in the design. FastAPI + Uvicorn on `127.0.0.1:8767`, `/health`, `/quit`, `/ws/listen` per the [protocol](../architecture/voice.md#the-protocol); `SttEngine` / `SttStream` with `zipformer` and `fake`; `MicSource` and `FakeSource`; the `download` command. Runs alone with `python -m voice_service`.~~ Done 2026-11-03 ([note](archive/voice-service.md)): int8 Zipformer by default, the model downloaded outside the repo, checked on the model's test recordings.
+3. ~~**`src/assistant/modules/voice_in/`:** per [the voice_in module](../architecture/voice.md#the-voice_in-module): launches the service through the shared `CompanionApp`, asks `ctx.permissions.request("microphone", ...)` on each start (the stand-in logs the warning), one WebSocket per mic session using `voice_service.protocol`, handles the two commands, publishes `VoiceState` and `VoiceTranscript`, and sends the final text as `InputReceived(source="voice")`. Off by default; `[modules.voice_in]` in `config/default.toml`, plus `core.command_timeouts.StartListening = 30`.~~ Done 2026-11-03 ([note](archive/voice-in-module.md)), with a wait for a dropped mic in the service (`mic_recovery_seconds`) and a `/health` check before reusing a running service.
+4. ~~**`temp_ui`:** the mic button (shows *listening* or *failed*) and a grey live-text line above the input box; `dropped` as a drop symbol with a countdown from the `detail` and the word count of the last partial (added by step 3); `voice_in` in `enabled`.~~ Done 2026-11-03 ([note](archive/voice-temp-ui.md)).
 5. ~~**`pyproject.toml`:** an optional `voice` extra (FastAPI, Uvicorn, sherpa-onnx, sounddevice, and `websockets` for `voice_in`'s client).~~ Done with step 2; CI installs it too.
 6. **Tests and check:** the service with the `fake` engine and a fake recorder; `voice_in` against the real service app with its fake engine and fake mic (option A; built with step 3). No real mic or model in CI. Run `pytest` and `ruff`, then try it on your mic. That's the first real test of the latency targets. Update the docs (Voice: planned → built, the overview's Parts table, the [runtime](../agents/runtime.md) page) and rebuild.
 7. **Next:** a Nemotron Speech Streaming EN 0.6B INT8 engine, and a comparison script on a folder of recordings with reference text (word error rate, latency, CPU per engine).
@@ -84,8 +72,8 @@ The next thing to build. The design is [Voice](../architecture/voice.md), with t
 The [self-improvement plan](../agents/self-improvement.md): edits on a branch, tests on the new version, merge only when you're satisfied, CI/CD later.
 
 1. ~~**Standing rules:** the Main Assistant reads the whole repo and writes `docs/` and `.claude/skills/`.~~ Done 2026-10-25.
-2. ~~**Spike, then permission requests in the app**~~ ([note](permission-requests.md)). Done 2026-10-26.
-3. **Branch workflow** for `src/` edits, then CI/CD. Until then the worker edits the repo directly, with the [same access as Claude Code](worker-access.md), and the [permission mode button](permission-mode-button.md) (Manual / Auto, 2026-11-02) decides whether it asks.
+2. ~~**Spike, then permission requests in the app**~~ ([note](archive/permission-requests.md)). Done 2026-10-26.
+3. **Branch workflow** for `src/` edits, then CI/CD. Until then the worker edits the repo directly, with the [same access as Claude Code](archive/worker-access.md), and the [permission mode button](archive/permission-mode-button.md) (Manual / Auto, 2026-11-02) decides whether it asks.
 
 **Also open:** the [UI handler](../architecture/decisions.md#open-decisions) design; the temp UI stands in until then. Voice in is next to build ([above](#next-voice-in-phase-1)); voice out after it.
 
