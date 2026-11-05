@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice notes: a quick record-to-page module</title>
+<!-- Generated from docs/next-steps/voice-notes.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-notes.html"></nav>
+<main>
+<h1 id="voice-notes-a-quick-record-to-page-module">Voice notes: a quick record-to-page module</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-04.</strong> v1; your checks with the fake engine and the real mic are next. <code>voice_in</code>, <code>temp_ui</code> and the new <code>voice_notes</code> module are changed as below; tests and ruff pass. Docs updated now: the messaging API page only. The architecture pages (Modules, Voice, the overview's row, runtime) wait for the module-shape refactor, as decided. The reusable index's <code>window</code> row doesn't list <code>voice_notes</code> yet. Your decisions are in: <strong>whoever presses second gets the mic, and the first is cancelled</strong> (2026-11-04). The other two choices use the defaults below: notes kept in local storage only, and the temp UI's page server copied for v1. This is a throwaway first version of the voice-notes module planned in the <a href="module-shape-refactor.html">module-shape change</a>. The voice contract and voice sessions planned there replace its workaround later.</p>
+</blockquote>
+<h2 id="what-is-built">What is built</h2>
+<ul>
+<li><strong>A notes page</strong> in its own small window: a blank text area, a <strong>Record</strong> button, and a grey live line.</li>
+<li><strong>Record:</strong> the mic turns on and the live text shows in the grey line while you talk.</li>
+<li><strong>Stop:</strong> the final text is put into the text area where the cursor is. You can type and edit in it like any text box.</li>
+<li><strong>Copy</strong> button. The text is kept in the page's local storage, so closing the window doesn't lose it. No file is written (<strong>chosen by default</strong>); saving to a file can be added later.</li>
+<li><strong>The text goes only to the page.</strong> The temp UI's mic button still sends its text to the Talker, as it does today.</li>
+<li><strong>Second press wins:</strong> pressing Record while the chat's mic is on cancels the chat's recording, and the other way round. The cancelled side's words are dropped, and its button resets and says it was cancelled.</li>
+</ul>
+<h2 id="own-module-or-part-of-the-temp-ui">Own module or part of the temp UI</h2>
+<p><strong>Recommended: its own module.</strong> The temp UI is throwaway, and voice notes is meant to be the first module built in the new shape. A part of the temp UI would have to be moved out later. The cost is a second small page server (see Risks).</p>
+<h2 id="how-it-fits-the-module-shape">How it fits the module shape</h2>
+<table>
+<thead>
+<tr>
+<th>Rule (<a href="../html/architecture/modules.html">modules</a>)</th>
+<th>Voice notes v1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Own folder</td>
+<td><code>src/assistant/modules/voice_notes/</code> (<code>__init__.py</code>, <code>module.py</code>, <code>page.html</code>)</td>
+</tr>
+<tr>
+<td>Manifest id</td>
+<td><code>Manifest(id="voice_notes")</code>. Provides nothing. No permissions of its own: <code>voice_in</code> asks for the mic</td>
+</tr>
+<tr>
+<td>One-line description</td>
+<td><code>Manifest</code> has no <code>description</code> field yet (<code>contracts/module.py:31-41</code>). Adding one changes a contract and needs a restart. In v1 the line goes in the module's docstring and moves into the manifest with the refactor</td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td>Nothing in v1. The voice contract it should require doesn't exist yet. If <code>voice_in</code> is off, Record shows "voice input is off"</td>
+</tr>
+<tr>
+<td>Listens to voice events</td>
+<td>Subscribes to <code>VoiceState</code> and <code>VoiceTranscript</code>, and sends <code>StartListening</code> / <code>StopListening</code> through <code>ctx.send</code></td>
+</tr>
+<tr>
+<td>Imports</td>
+<td><code>assistant.contracts</code> and <code>app_kit.window</code> (the shared window helper). No other module, no core code</td>
+</tr>
+</tbody>
+</table>
+<h2 id="answers-about-the-voice-code-today">Answers about the voice code today</h2>
+<p><strong>1. What <code>StartListening</code> does with <code>send_as_input</code>, and what the events carry</strong></p>
+<ul>
+<li><code>send_as_input</code> defaults to <code>True</code> (<code>src/assistant/contracts/voice.py:30</code>). <code>voice_in</code> stores it on the session (<code>src/assistant/modules/voice_in/module.py:157</code>) and uses it in one place: after the final text, <code>if text and session.send_as_input</code> publishes <code>InputReceived(source="voice")</code> to the Talker (<code>module.py:364-365</code>). With <code>False</code>, the text goes only to <code>VoiceTranscript</code> subscribers.</li>
+<li><code>VoiceTranscript</code> carries <code>session_id</code>, <code>text</code>, <code>final</code> and <code>settled_chars</code> (<code>voice.py:58-69</code>). It is published for live text (<code>module.py:339</code>), the final (<code>module.py:363</code>), and empty finals on clear or mic loss (<code>module.py:190</code>, <code>349</code>).</li>
+<li><code>VoiceState</code> carries <code>state</code>, <code>reason</code> and <code>detail</code> (<code>voice.py:44-56</code>), with <code>correlation_id</code> set to the session id (<code>module.py:374</code>). <strong><code>reason</code> is a plain string, not an enum</strong> (<code>voice.py:54</code>), so a new reason value needs no contract change.</li>
+<li><strong>Neither event says who started the session or where the text goes.</strong> The session id is just the <code>StartListening</code> command's id (<code>module.py:78</code>, <code>157</code>), and the start's result returns it (<code>module.py:255</code>). A consumer can only recognize its own session by remembering the id of the command it sent.</li>
+</ul>
+<p><strong>2. A second consumer today</strong></p>
+<ul>
+<li><code>voice_in</code> holds <strong>one session</strong> (<code>module.py:124</code>). A second <code>StartListening</code> while one is open <strong>returns ok with the first session's id</strong> (<code>module.py:155-156</code>). It raises no error, and the second caller's <code>send_as_input</code> is ignored. Today the first caller wins, silently.</li>
+<li><code>StopListening</code> has no session id. It stops <strong>whatever session is open</strong> (<code>module.py:167</code>), so either button can stop the other's recording.</li>
+<li>The temp UI follows <strong>any</strong> session that starts (<code>src/assistant/modules/temp_ui/module.py:233-235</code>). If notes started recording, the chat's mic button would turn red, show the notes' live text, and stop the notes session when clicked.</li>
+</ul>
+<p><strong>3. The change: the second press wins</strong></p>
+<ul>
+<li><strong><code>voice_in</code></strong> (<code>module.py:155-156</code>): when a session is open, a new <code>StartListening</code> no longer joins it. It <strong>ends the open session the way the clear button does</strong> and then starts the new one:</li>
+<li>it reuses <code>_discard</code> (<code>module.py:186-199</code>), given the reason and detail to publish: the old session gets an empty final <code>VoiceTranscript</code> (clears its live line) and <code>VoiceState(idle, reason="taken_over", detail="another part of the app took the mic")</code>, with the old session's id as <code>correlation_id</code>;</li>
+<li>the socket is closed before any final arrives, so nothing goes to the Talker. A final that still arrives is dropped by the existing <code>session.ended</code> check (<code>module.py:344-346</code>);</li>
+<li>a <code>StopListening</code> the first side was already waiting on gets <code>Result.ok({"text": "", "taken_over": True})</code>;</li>
+<li><code>_discard</code> sets <code>_cleared_at</code>, so the existing retry covers the service not having freed the mic yet when the new start arrives (<code>module.py:229-232</code>);</li>
+<li>this all runs inside the existing lock, so a start that comes while the first is still opening waits until it's open, then cancels it.</li>
+<li><strong>The cancelled side learns it</strong> through the existing <code>VoiceState</code> event: <code>idle</code> with <code>reason="taken_over"</code> and its own session id. Both UIs reset their button and show "cancelled: another part of the app took the mic".</li>
+<li><strong>The temp UI's rules</strong> (<code>temp_ui/module.py:232-247</code>):</li>
+<li>it remembers the id of each <code>StartListening</code> it sends and follows only that session (today it follows any <code>STARTING</code>);</li>
+<li>events and <code>VoiceTranscript</code>s of other sessions are ignored, so the chat's button and live line stay idle while notes records;</li>
+<li>on its own session's <code>idle</code> with <code>taken_over</code>, it clears the live line and shows the cancelled note; the button stays enabled, and pressing it takes the mic back;</li>
+<li>its own text still reaches the Talker (<code>send_as_input=True</code>, unchanged).</li>
+<li><strong>Voice notes</strong> follows the same rules with <code>send_as_input=False</code>.</li>
+<li><strong>Contract change: none.</strong> <code>ListeningState</code> gets no new state and no event or command gets a field: <code>idle</code> plus the free-text <code>reason</code> already carries "taken over". The new reason is listed in the <a href="../html/api/messaging.html#voicestate">messaging API page</a>; the <code>VoiceState</code> docstring in <code>contracts/voice.py</code> gets the line at the refactor, so the contracts file isn't touched now. <strong>No restart:</strong> <code>RELOAD: voice_in</code>, <code>RELOAD: temp_ui</code>, and <code>ADD_MODULE</code> for voice notes.</li>
+<li><strong>What this doesn't handle:</strong></li>
+<li>Only one user of the mic at a time; the second takes it, there's no queue.</li>
+<li><code>StopListening</code> still isn't scoped. A UI that sends stop at the moment the other side takes over could end the new session. Both UIs stop only a session they follow and drop it on <code>taken_over</code>, so the window is small.</li>
+<li>Pressing during the first side's <strong>finishing</strong> (stop sent, final not in yet) also cancels it, and those words are dropped.</li>
+<li>The notes' text is visible to any <code>VoiceTranscript</code> subscriber. Nothing marks it "for notes".</li>
+<li>No <code>requires</code>: turning on voice notes doesn't turn on <code>voice_in</code>.</li>
+<li>A reload of <code>voice_in</code> mid-recording drops those words, as it does today.</li>
+<li><strong>The full fix later</strong> is sessions in the contract (a destination on <code>StartListening</code>, echoed on the events; a <code>session_id</code> on <code>StopListening</code>). That changes <code>contracts/voice.py</code>, needs a restart, and belongs to the module-shape refactor.</li>
+</ul>
+<h2 id="files">Files</h2>
+<ul>
+<li><strong>Add</strong> <code>src/assistant/modules/voice_notes/__init__.py</code>, <code>module.py</code>, <code>page.html</code>:</li>
+<li>a small asyncio server on a fixed port (<code>[modules.voice_notes] port</code>, default 8770) with <code>GET /</code>, <code>GET /events</code> (SSE: state and live line), and <code>POST /record {"on": bool}</code>. Copied from the temp UI's page server, about 40 lines (<strong>chosen by default</strong>);</li>
+<li>the window opened with <code>app_kit.window.open_app_window</code>.</li>
+<li><strong>Change</strong> <code>src/assistant/modules/voice_in/module.py</code>: a start while a session is open cancels it through <code>_discard</code> with reason <code>taken_over</code>, then starts the new one.</li>
+<li><strong>Change</strong> <code>src/assistant/modules/temp_ui/module.py</code> (and its page if needed): follow only its own sessions; show "cancelled" when taken over.</li>
+<li><strong>Change</strong> <code>config/default.toml</code> (<code>[modules.voice_notes]</code>, and <code>voice_notes</code> in <code>enabled</code>) and <code>src/assistant/__main__.py</code> (<code>MODULES</code>). Both only matter at the next launch; today's run uses <code>ADD_MODULE</code>.</li>
+<li><strong>Add</strong> <code>tests/test_voice_notes.py</code>; <strong>extend</strong> <code>tests/test_voice_in.py</code> and <code>tests/test_temp_ui.py</code>.</li>
+<li><strong>Docs:</strong> <a href="../html/architecture/modules.html">Modules</a> (voice notes v1 built, by workaround), <a href="../html/architecture/voice.html">Voice</a> (one user at a time, the second press wins), the <a href="../html/api/messaging.html#voicestate">messaging API page</a> (reason <code>taken_over</code>; a second <code>StartListening</code> cancels the open session), the overview's Voice notes row, and the <a href="../html/agents/runtime.html#temp-ui">runtime</a> page.</li>
+</ul>
+<h2 id="how-to-test">How to test</h2>
+<ul>
+<li><strong>Automated</strong> (no mic, no model):</li>
+<li><code>voice_in</code> (<code>tests/test_voice_in.py</code>, with its fake service): a second start ends the first session with <code>idle</code> / <code>taken_over</code> and an empty final for it, then opens the new one; the first session's late final is dropped and never becomes <code>InputReceived</code>, even with <code>send_as_input=True</code>; a stop the first side was waiting on returns <code>taken_over</code>.</li>
+<li>Voice notes and the temp UI, with a tiny fake <code>voice_in</code> module as <code>tests/test_temp_ui.py</code> uses:<ul>
+<li>Record sends <code>send_as_input=False</code>, and the final reaches the page but never <code>InputReceived</code>;</li>
+<li>another session's events are ignored;</li>
+<li><strong>notes pressed while the chat mic is on:</strong> the temp UI shows cancelled, its text is dropped, the notes session records;</li>
+<li><strong>chat mic pressed while notes is on:</strong> the notes page shows cancelled, its text is dropped, the chat session's text reaches the Talker;</li>
+<li>in both directions, the cancelled side sends no stop afterwards.</li>
+</ul>
+</li>
+<li><strong>Fake audio, by hand:</strong> the running service always uses the real mic (<code>src/voice_service/__main__.py:112</code>). <code>FakeSource</code> is for tests only. For a check without speech, set <code>[engine] name = "fake"</code> in <code>config/voice_service.local.toml</code>. Record, stop, and "Hello from the fake engine." should land in the notes page and not in the Talker's chat. Remove the line afterwards.</li>
+<li><strong>Real mic:</strong></li>
+<li>Record, speak, and stop. The live line moves, the text lands at the cursor, and the Talker gets nothing.</li>
+<li>The chat's mic button still sends to the Talker.</li>
+<li>Start the chat mic, speak, then press Record in notes: the chat button resets to "cancelled", the Talker gets none of those words, and notes records.</li>
+<li>The other way round: notes records, then press the chat mic. Notes shows "cancelled" and keeps none of those words; the chat's text reaches the Talker.</li>
+<li>Clear and silence stops behave as before.</li>
+</ul>
+<h2 id="risks">Risks</h2>
+<ul>
+<li><strong>A second hand-rolled page server.</strong> The temp UI has the first. <a href="../html/architecture/principles.html">Principle 13</a> says to build it once. For a throwaway, about 40 lines are copied (chosen by default); a shared page server is extracted with the refactor.</li>
+<li><strong>Cancelled words are lost.</strong> By design, but a press on the other button by mistake throws away what you just said, including during finishing. The cancelled note on the button makes it visible.</li>
+<li><strong><code>voice_in</code>'s behavior changes for every caller.</strong> Today a second start joins; after this it cancels. Only the temp UI and voice notes send <code>StartListening</code> today, and both are changed together.</li>
+<li><strong>Reload order:</strong> <code>voice_in</code> first, then <code>temp_ui</code>, then voice notes. An old temp UI on the new <code>voice_in</code> would follow the new session (it follows any <code>STARTING</code>) until it's reloaded.</li>
+<li><strong>v1 is off the planned shape</strong> in three places: no description field, no <code>requires</code>, owner by command id. The refactor replaces all three, and the temp UI's follow rule moves to the voice contract then.</li>
+<li><strong>With two passes</strong> the final text can take a few seconds after Stop (up to <code>final_timeout_on_send</code>). The button shows "finishing" meanwhile.</li>
+</ul>
+<h2 id="checklist">Checklist</h2>
+<ul>
+<li>[x] You do the final check of this note: own module, second press wins, local storage only, page server copied</li>
+<li>[x] <code>voice_in</code>: a second start cancels the open session (<code>taken_over</code>), then starts</li>
+<li>[x] <code>voice_notes</code> module, page, config, <code>MODULES</code> entry</li>
+<li>[x] temp UI follows only its own sessions and shows cancelled when taken over</li>
+<li>[x] tests: notes pressed while the chat mic is on; chat mic pressed while notes is on; the cancelled side's text dropped in both directions (<code>tests/test_voice_notes.py</code>, real <code>voice_in</code> on fake audio)</li>
+<li>[x] tests and ruff pass</li>
+<li>[x] <code>RELOAD: voice_in</code>, <code>RELOAD: temp_ui</code>, <code>ADD_MODULE: assistant.modules.voice_notes</code> (no restart; done 2026-11-04)</li>
+<li>[ ] your checks: fake engine, then real mic, then both buttons in both orders</li>
+<li>[ ] docs updated and rebuilt; this note's status set</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/voice-notes.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

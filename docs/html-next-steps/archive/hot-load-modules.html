@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hot-loading of main-app modules</title>
+<!-- Generated from docs/next-steps/archive/hot-load-modules.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/hot-load-modules.html"></nav>
+<main>
+<h1 id="hot-loading-of-main-app-modules">Hot-loading of main-app modules</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> This round: the reload, its trigger, the busy wait, the voice handover and the mic button are built and tested; docs updated; architecture check passed. Loaded at the next relaunch; the first live reload (<code>RELOAD: voice_in</code>) worked at 13:19 the same day (<a href="../voice-text-cleanup.html">voice text cleanup</a>). Later, as live reloads: the Talker, Main Assistant and Hub handovers, and the cross-import test.</p>
+</blockquote>
+<p><strong>Asked:</strong> "The modules should be able to be hot loaded. Which means code should not matter at all. Make these changes first." The voice side in particular must be editable, stopped and relaunched "without affecting the main chat window".</p>
+<p><strong>Why:</strong> new code in a main-app module (for example <code>voice_in</code> or the Talker) only ran after a full app restart. The restart kills the chat and both agent sessions. The <a href="voice-input-to-talker.html">voice-input-to-talker</a> change is built and is waiting for this.</p>
+<p><strong>Touches:</strong> <code>core/loader.py</code> (new), <code>core/lifecycle.py</code>, <code>core/router.py</code>, <code>core/app.py</code>, <code>contracts/control.py</code>, <code>__main__.py</code>; later small handover hooks in <code>talker</code>, <code>agent_hub</code>, <code>main_assistant</code>, <code>voice_in</code>. Reuses runtime module control and <code>ScopedContext.close()</code>. Nothing in the <a href="../../html/api/reusable.html">reusable parts index</a> reloaded code before.</p>
+<h2 id="decisions-2026-11-03">Decisions (2026-11-03)</h2>
+<ul>
+<li><strong>Go ahead as written</strong>, with the five doc changes below.</li>
+<li><strong>Q1:</strong> the Main Assistant may reload modules on its own after its tests pass in Auto mode; in Manual mode it asks you first.</li>
+<li><strong>Q2:</strong> a reload waits while the Talker is replying or the Main Assistant is mid-task; "reload now" cuts in and cancels.</li>
+<li><strong>Q3 (changed):</strong> loading a <strong>brand-new module</strong> without a restart is part of the plan (<code>AddModule</code>). The one exception is a module that needs a brand-new contract or port type: contracts are shared by every module, so that still needs a restart.</li>
+<li><strong>Q4:</strong> reloading shared helper code (<code>infra</code>) comes later.</li>
+</ul>
+<h2 id="doc-changes-applied-2026-11-03">Doc changes (applied 2026-11-03)</h2>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Was</th>
+<th>Now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../html/architecture/index.html">Architecture README</a>, Summary</td>
+<td>"Changing code means a rebuild and restart … Loading new code without a restart is not a goal."</td>
+<td>A module's code change, or a new module, needs no restart; core, contracts, shared helpers, and a new contract or port type do.</td>
+</tr>
+<tr>
+<td><a href="../../html/architecture/core.html#runtime-module-control">core.md</a></td>
+<td>"What needs a restart: adding or changing code."</td>
+<td>"Reloading a module" and "What still needs a restart", plus a <a href="../../html/architecture/core.html#reloading-a-modules-code">Reloading a module's code</a> section and <code>Reloading</code> in the state diagram.</td>
+</tr>
+<tr>
+<td><a href="../../html/architecture/decisions.html#decided">decisions.md</a></td>
+<td>"Code changes still need a restart."</td>
+<td>Reload and add while running (decided 2026-11-03); restart only for core, contracts, shared helpers, a new contract or port type.</td>
+</tr>
+<tr>
+<td><a href="../../html/architecture/principles.html">principles.md</a>, principle 11</td>
+<td>"Code changes may need a restart"</td>
+<td>Module code changes and new modules never need a restart; only core, contracts, shared helpers do.</td>
+</tr>
+<tr>
+<td><a href="../../html/agents/self-improvement.html">self-improvement</a></td>
+<td>"Restart to run new code … never reloads itself."</td>
+<td>"Reload to run new code"; restart only for core, contracts, shared helpers.</td>
+</tr>
+</tbody>
+</table>
+<p>Also updated: the <a href="../../html/api/control.html">module control API</a> (<code>ReloadModule</code>, <code>AddModule</code>, <code>RELOADING</code>), the <a href="../../html/api/core.html">core API</a> (<code>App</code> <code>config_loader</code>, <code>LifecycleManager.reload</code> / <code>add</code>, <code>loader</code>, <code>CommandRouter.hold</code>), and the API index.</p>
+<h2 id="approach">Approach</h2>
+<p><strong>One reload = stop, re-import, start</strong>, by the core under its transition lock (built in step 1):</p>
+<ol>
+<li><strong>Stop the old instance</strong> as <code>DeactivateModule</code> does, and any active module that requires something only it provides. <code>ScopedContext.close()</code> removes every handler, subscription and contract.</li>
+<li><strong>Re-import its code:</strong> drop the module's package and every submodule from <code>sys.modules</code> (and its <code>__pycache__</code>), import it fresh, and take the <code>Module</code> subclass with the same manifest id.</li>
+<li><strong>Check and start</strong> the new class with the same checks as an activation, re-reading its config section first. Start the modules stopped with it again.</li>
+<li><strong>If the new code fails</strong> (import error, <code>init</code> or <code>start</code> raises), the old code is put back and started. The result reports the error.</li>
+</ol>
+<p><strong><code>AddModule(package)</code></strong> imports a package that wasn't loaded at launch and activates its module. If the code imports a contract the running app doesn't have, it fails with "needs a restart". To keep a new module on the next launch, it also goes into <code>MODULES</code> and <code>modules.enabled</code>.</p>
+<p><strong>What other modules see:</strong> nothing. Commands sent during the swap wait for the new handler, up to their timeout. Events published meanwhile miss the module. Contracts are looked up at call time (checked: no module caches a provider).</p>
+<p><strong>Running state (steps 2 to 4):</strong> a fresh instance starts empty. Modules that hold live things get an optional handover. The old instance's <code>export_state()</code> returns plain data plus <code>infra</code> objects (not reloaded, so they stay valid). The new one gets it through <code>ctx.handover</code> in <code>init</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Problem</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core, contracts, <code>infra</code>, <code>app_kit</code>, <code>__main__</code></td>
+<td>Every module holds their classes</td>
+<td>Not reloadable; restart (built: refused with a clear error)</td>
+</tr>
+<tr>
+<td><code>voice_in</code></td>
+<td>Open mic session; the voice app was launched by the old instance</td>
+<td>Handover keeps the <code>CompanionApp</code>. The open session ends, and its text goes to the Talker. The chat window isn't touched</td>
+</tr>
+<tr>
+<td>Talker</td>
+<td>A live <code>claude</code> session</td>
+<td>Handover keeps the running <code>ClaudeSession</code>. If it's mid-turn, the reload waits</td>
+</tr>
+<tr>
+<td>Main Assistant</td>
+<td>May be mid-task</td>
+<td>Waits until it's idle, or "now" cancels. Handover keeps the <code>SessionTaskAgent</code></td>
+</tr>
+<tr>
+<td>Agent Hub</td>
+<td>Holds every task's state</td>
+<td>Handover passes the task records. Refused while a permission answer is pending</td>
+</tr>
+<tr>
+<td><code>temp_ui</code></td>
+<td>It's the chat window</td>
+<td>The page reconnects to the new server; a throwaway, so no extra effort</td>
+</tr>
+<tr>
+<td>Others</td>
+<td>Little state</td>
+<td>Plain reload</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Triggers:</strong> <code>ReloadModule</code> / <code>AddModule</code> from any module. Next: the Main Assistant after its tests pass (per Q1), later the control panel and the Talker. No file watcher.</p>
+<h2 id="risks">Risks</h2>
+<ul>
+<li><strong>Old code still running:</strong> a thread the old instance didn't stop keeps running old code, muted by its closed context. <code>stop</code> must release everything.</li>
+<li><strong>Module-level state</strong> (globals, caches) is lost on reload.</li>
+<li><strong>Cross-imports</strong> between modules would leave one on old code. The rules forbid them; a test should enforce it (step 5).</li>
+<li><strong>Handover across versions:</strong> if the state shape changed, the module starts clean and logs a warning.</li>
+</ul>
+<h2 id="build-plan-small-steps-each-tested">Build plan (small steps, each tested)</h2>
+<ol>
+<li>~~<strong>Reload in the core:</strong> <code>ReloadModule</code>, <code>AddModule</code>, <code>RELOADING</code>, <code>core/loader.py</code>, <code>LifecycleManager.reload</code> / <code>add</code> with rollback, re-read config, <code>CommandRouter.hold</code>, the contract-caching audit.~~ Done 2026-11-03: <code>tests/test_reload.py</code> (new code and submodules, broken code keeps old, failing <code>init</code> rolls back, config re-read, <code>AddModule</code>, new contract → "restart", shared code refused, dependents restarted, held commands). 241 tests pass, ruff clean.</li>
+<li><strong>A way to trigger it:</strong> the Main Assistant asks for a reload with a tag the app reads (like SHOW), through the Hub; in Auto it reloads, in Manual it asks you first (Q1). Without this, nothing in the running app can send <code>ReloadModule</code> yet.</li>
+<li><strong>Handover:</strong> <code>export_state()</code> on <code>Module</code> (default none) and <code>ctx.handover</code>; then <code>voice_in</code>, with a test that the chat keeps working through a <code>voice_in</code> reload.</li>
+<li><strong>Talker, Main Assistant and Hub handover</strong>, with waiting for idle and "reload now" (Q2). Tested against <code>tests/fake_claude.py</code>.</li>
+<li><strong>Finish:</strong> a cross-import test, docs, a final architecture check.</li>
+<li><strong>One relaunch</strong> to load the reloader. After that, module changes (the voice-input-to-talker change first) load with <code>ReloadModule</code>.</li>
+</ol>
+<p>Steps 2 and 3 change contracts (<code>Module</code>, <code>ModuleContext</code>) and <code>infra</code>, which need a restart. So relaunching after step 4 means one relaunch in total; relaunching now means another one after step 4.</p>
+<h2 id="where-the-build-stands-handoff-2026-11-03">Where the build stands (handoff, 2026-11-03)</h2>
+<p><strong>The user's final choice: option A, plus the mic button.</strong> Before the one relaunch, build: the widened step 2 (the reload trigger, the handover hooks, wait-or-now), the voice module's handover, and the crossed-out mic button. After the relaunch, the first live test edits the voice module and reloads it, with the chat window and Talker staying up. Only a sentence spoken during the swap is lost. The handovers for the Talker, Main Assistant and Hub come later, as live reloads. An extensions manager is out of scope.</p>
+<p><strong>Built and tested</strong> (2026-11-03, second session: 250 pass, ruff clean):</p>
+<ul>
+<li><strong>Contracts:</strong> <code>Module.busy()</code> and <code>Module.export_state()</code> (both default None), <code>ModuleContext.handover</code> (default None), <code>ReloadModule.now</code> (<code>contracts/module.py</code>, <code>contracts/control.py</code>).</li>
+<li><strong>Core:</strong></li>
+<li><code>ScopedContext(..., handover=None)</code>, and <code>App._make_context(manifest, handover=None)</code>.</li>
+<li><code>App</code> passes <code>now</code> and <code>core.reload_idle_timeout</code> (default 300).</li>
+<li><code>LifecycleManager.reload(module_id, now, idle_timeout)</code>: waits on <code>busy()</code> via <code>_wait_idle</code> (polls every 0.2 s) unless <code>now</code>. Before stopping, <code>_export</code> calls <code>export_state()</code>. <code>_activate(module_id, chain, handover)</code> passes the state to the new instance, and on rollback to the old one. A failing hook counts as None (<code>_ask</code>).</li>
+<li><strong>Config</strong> (<code>config/default.toml</code>): <code>core.reload_idle_timeout = 300</code>, <code>command_timeouts.ReloadModule = 330</code>, <code>AddModule = 60</code>.</li>
+<li><strong>Trigger</strong> (<code>infra/session_agent.py</code>): a last line <code>RELOAD: &lt;id&gt; [now]</code> or <code>ADD_MODULE: &lt;package&gt;</code> (<code>_code_request</code>, <code>_ask_to_load</code>, <code>_load_code</code>).</li>
+<li>In Auto it sends the command at once; in Manual it opens a permission request <code>{"app_command", "action"}</code> reported as <code>PERMISSION</code>. <code>answer_permission</code> and <code>_permission_expiry</code> handle that kind.</li>
+<li>The outcome goes back to the session as <code>CODE_LOADED</code> ("[App] …: done. / failed: … Continue the task…").</li>
+<li>Reloading itself (<code>main_assistant</code>) is refused with a message.</li>
+<li><strong>Main Assistant prompt:</strong> a bullet on <code>RELOAD:</code> / <code>ADD_MODULE:</code> and on what needs a restart.</li>
+<li><strong><code>busy()</code>:</strong> Talker "replying to you" (a turn is running); Hub "N task(s) open"; Main Assistant "working on a task". Without a handover these would lose state.</li>
+<li>
+<p><strong><code>voice_in</code> handover:</strong> <code>export_state()</code> returns <code>{"app": CompanionApp, "app_key": (SERVICE, host, port, args)}</code> and sets <code>_handed_over</code>. <code>stop</code> then skips <code>self._app.stop()</code>. <code>init</code> reuses the handed-over app if <code>app_key</code> matches. An open mic session still ends at <code>stop</code>, and its words are dropped.</p>
+</li>
+<li>
+<p><strong>Mic button in <code>temp_ui</code>:</strong> the <code>voice</code> SSE item has <code>available</code>, <code>why</code> and <code>retry</code>. <code>temp_ui</code> follows <code>voice_in</code>'s <code>ModuleStateChanged</code> (and <code>ListModules</code> once in <code>start</code>): reloading (kept through its <code>starting</code>), off, starting, failed each give a <code>why</code>, with no click. A <code>VoiceState</code> <code>failed</code> with <code>service_unavailable</code>/<code>service_stopped</code> gives "The voice app isn't running: … Click to try starting it again", with <code>retry</code> (still clickable); the next <code>starting</code>/<code>listening</code> clears it. <code>page.html</code>: crossed-out mic (<code>.mic.off</code>), disabled unless <code>retry</code>, <code>why</code> in the title and the grey line.</p>
+</li>
+<li><strong>Tests added:</strong> <code>test_reload.py</code> (handover to the new code and back on rollback, busy wait with its timeout message, <code>now</code>); <code>test_agents.py</code> + <code>fake_claude.py</code> <code>RELOADME &lt;id&gt;</code> (Auto sends at once, Manual allow/deny, self-reload refused); <code>test_voice_in.py</code> (a reload with <code>temp_ui</code> running: same voice app, fresh code, the chat module untouched, the mic available again and listening); <code>test_temp_ui.py</code> (why the mic is unavailable).</li>
+</ul>
+<p><strong>Done (third session):</strong> the docs below, and the architecture check (the <code>RELOAD:</code> line reuses <code>agent_tags.last_line</code>; no new contract or port; no module caches a provider; the core's state diagram already had <code>Reloading</code>).</p>
+<p><strong>Left for later:</strong> Talker, Main Assistant and Hub handovers (build plan step 4), the cross-import test (step 5).</p>
+<p><strong>Was next, now done:</strong></p>
+<ol>
+<li><strong>Docs:</strong>
+   - <code>temp_ui</code>'s module docstring: the <code>available</code>/<code>why</code>/<code>retry</code> fields.
+   - <code>docs/api/modules.md</code>: <code>busy</code>, <code>export_state</code>, <code>ctx.handover</code>.
+   - <code>docs/api/control.md</code>: <code>ReloadModule.now</code>.
+   - <code>docs/architecture/core.md</code> <em>Reloading</em> section: replace the "Step 1 built" box, and cover the busy wait, handover and trigger.
+   - <code>docs/agents/runtime.md</code> / <code>agents.md</code>: the RELOAD line.
+   - <code>docs/architecture/voice.md</code>: the handover and the mic button.
+   - <code>docs/api/reusable.md</code>: Used by lines for <code>ReloadModule</code>, if listed.
+   - Then this note's build plan, the Pending changes row, and the rebuild (<code>scripts/build_docs.py</code>).</li>
+<li><strong>Architecture check</strong>, then report and ask the user about the relaunch (inside the NEED text). Worth noting there: reloading the Agent Hub from inside a task always waits out its timeout (its own task is open), and the Main Assistant stays "working" while a Manual reload request waits for an answer.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/archive/hot-load-modules.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

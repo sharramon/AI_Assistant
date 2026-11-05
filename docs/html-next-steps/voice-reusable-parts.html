@@ -13,8 +13,8 @@
 <main>
 <h1 id="voice-streamer-reusable-parts">Voice streamer: reusable parts</h1>
 <blockquote>
-<p><strong>Status: approved (2026-11-02).</strong> All three open questions approved as recommended (<a href="#decided">Decided</a>). It adds to the approved <a href="../html/architecture/voice.html#code-design-phase-1">voice code design</a>; nothing in it is built yet. The build follows the steps below.</p>
-<p><strong>Revised (2026-11-02):</strong> <a href="reusable-parts.html#decided">Reusable parts as a core principle</a> is approved, and three points here changed with it (folded in below):
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> All three open questions approved as recommended (<a href="#decided">Decided</a>). It adds to the approved <a href="../html/architecture/voice.html#code-design-phase-1">voice code design</a>; steps 0 to 4 below are built (2026-11-02 to 11-03). Left: step 5's try on your mic, which is step 6 of <a href="index.html#next-voice-in-phase-1">voice in, phase 1</a>.</p>
+<p><strong>Revised (2026-11-02):</strong> <a href="archive/reusable-parts.html#decided">Reusable parts as a core principle</a> is approved, and three points here changed with it (folded in below):
 1. <strong>Where <code>CompanionApp</code> lives:</strong> <code>app_kit/companion.py</code>, not <code>assistant/infra/companion.py</code>, so other apps can launch <code>voice_service</code> too.
 2. <strong>The voice service's config loader:</strong> <code>app_kit.load_layered</code>, not its own TOML loader.
 3. <strong>How the mic check is done:</strong> <code>voice_in</code> declares <code>optional_permissions=("microphone",)</code> and calls <code>ctx.permissions.request(...)</code>; the stand-in allows and logs the warning.</p>
@@ -132,7 +132,7 @@ await app.stop()                  # POST quit, wait 5 s, kill; only if we launch
 </ul>
 <h2 id="build-steps">Build steps</h2>
 <ol start="0">
-<li><strong>First, from the <a href="reusable-parts.html#downstream-effects-in-order">reusable-parts note</a>:</strong> <code>app_kit</code> (<code>CompanionApp</code> with its tests, <code>load_layered</code>, <code>html_viewer</code> switched over) and the <code>ctx.permissions</code> stand-in.</li>
+<li><strong>First, from the <a href="archive/reusable-parts.html#downstream-effects-in-order">reusable-parts note</a>:</strong> <code>app_kit</code> (<code>CompanionApp</code> with its tests, <code>load_layered</code>, <code>html_viewer</code> switched over) and the <code>ctx.permissions</code> stand-in.</li>
 <li>~~<code>CompanionApp</code> in <code>assistant.infra</code>~~ Moved into step 0 (<code>app_kit</code>).</li>
 <li><strong>Contracts</strong> <code>contracts/voice.py</code>, with <code>send_as_input</code> on <code>StartListening</code>; <a href="../html/api/messaging.html">Messaging API</a> entries.</li>
 <li><strong><code>voice_service</code></strong> as in the approved design (steps 2 and 5 of <a href="index.html#next-voice-in-phase-1">voice in, phase 1</a>), reading its config with <code>app_kit.load_layered</code>.</li>

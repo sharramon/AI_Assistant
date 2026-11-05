@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job project</title>
+<!-- Generated from docs/job-project/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="job-project/index.html"></nav>
+<main>
+<h1 id="job-project">Job project</h1>
+<p>The job project lives in <code>C:\Chang\Jobs\CV</code>, outside this repo. It's a Claude Code project: a <code>CLAUDE.md</code>, six skills in its <code>.claude</code> folder, and files that hold all its state. It applies to jobs, one per Claude session, and runs job searches. This page describes how it's shaped today (read 2026-11-04).</p>
+<h2 id="the-project-in-one-picture">The project in one picture</h2>
+<pre><code class="language-mermaid">flowchart TD
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;double-click start_job.cmd&lt;br/&gt;or type in a Claude window&quot;])
+    Start[&quot;&lt;b&gt;next_job.ps1&lt;/b&gt;&lt;br/&gt;goes to C:\Chang\Jobs\CV · reads next_prompt.txt&quot;]
+    Session[&quot;&lt;b&gt;One fresh claude session per job&lt;/b&gt;&lt;br/&gt;first prompt = next_prompt.txt&lt;br/&gt;reads CLAUDE.md and the six skills&quot;]
+
+    subgraph Skills[&quot;Skills: .claude/skills&quot;]
+        Apply[&quot;&lt;b&gt;apply-session&lt;/b&gt;&lt;br/&gt;one application per session&quot;]
+        Fill[&quot;&lt;b&gt;fill-application&lt;/b&gt;&lt;br/&gt;fill a form, stop before Submit&quot;]
+        Sweep[&quot;&lt;b&gt;company-sweep&lt;/b&gt;&lt;br/&gt;the search run (Python scripts)&quot;]
+        LinkedIn[&quot;&lt;b&gt;linkedin-job-pass&lt;/b&gt;&lt;br/&gt;read-only LinkedIn in Chrome&quot;]
+        Compile[&quot;&lt;b&gt;job-list-compile&lt;/b&gt;&lt;br/&gt;the 50/30/20 apply list&quot;]
+        Outreach[&quot;&lt;b&gt;outreach&lt;/b&gt;&lt;br/&gt;draft recruiter messages, never send&quot;]
+    end
+
+    subgraph Files[&quot;Files: all state lives here, not in the chat&quot;]
+        Apps[&quot;&lt;b&gt;Recruiters/docs/applications/&lt;/b&gt;&lt;br/&gt;QUEUE.md · one .md per application&lt;br/&gt;answer_bank.md · next_prompt.txt&quot;]
+        Docs[&quot;&lt;b&gt;Recruiters/docs/&lt;/b&gt;&lt;br/&gt;job_criteria.md · company_boards.json&lt;br/&gt;applications_log.md · auto_apply.md&lt;br/&gt;open_items.md · cv_guide.md&quot;]
+        CVs[&quot;&lt;b&gt;CVs&lt;/b&gt;&lt;br/&gt;CV_CMinHur_* .odt source · .pdf sent&lt;br/&gt;2025/ · 2026/ · CoverLetter/&quot;]
+        Lists[&quot;&lt;b&gt;Company lists&lt;/b&gt;&lt;br/&gt;StartUp/docs/ · UnderRadar/docs/&lt;br/&gt;recruiters_tracker.csv&quot;]
+    end
+
+    subgraph Outside[&quot;Outside the folder&quot;]
+        Chrome[&quot;&lt;b&gt;Chrome, your account&lt;/b&gt;&lt;br/&gt;Claude in Chrome: forms · LinkedIn&lt;br/&gt;the Google Sheet&quot;]
+        Boards[&quot;&lt;b&gt;Job boards over HTTP&lt;/b&gt;&lt;br/&gt;Greenhouse · Ashby · Lever&lt;br/&gt;Workday · Indeed&quot;]
+        Radar[&quot;&lt;b&gt;JobRadar&lt;/b&gt;&lt;br/&gt;its Python runs the sweep&lt;br/&gt;jobs.db read-only&quot;]
+    end
+
+    Handoff[&quot;&lt;b&gt;handoff.ps1&lt;/b&gt;&lt;br/&gt;opens the next session in a new window&lt;br/&gt;kills this claude.exe 12 s later&quot;]
+
+    You --&gt; Start --&gt; Session --&gt; Skills
+    Skills -- read · write --&gt; Files
+    Skills --&gt; Outside
+    Session -- end of a job --&gt; Handoff
+    Handoff -. next job .-&gt; Start
+
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
+    classDef file fill:#ffffff,stroke:#8a877c,color:#1d1d1b
+    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    classDef step fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    class You person
+    class Start,Session,Apply,Fill,Sweep,LinkedIn,Compile,Outreach module
+    class Apps,Docs,CVs,Lists file
+    class Chrome,Boards,Radar later
+    class Handoff step
+</code></pre>
+<p><strong>Blue:</strong> the session and its skills. <strong>White:</strong> files in the folder. <strong>Dashed:</strong> outside the folder. <strong>Purple:</strong> the hand-off to the next job.</p>
+<h2 id="what-starts-a-job">What starts a job</h2>
+<p><code>start_job.cmd</code> runs <code>Recruiters\scripts\next_job.ps1</code>. That script goes to <code>C:\Chang\Jobs\CV</code>, reads <code>Recruiters\docs\applications\next_prompt.txt</code> (if it's missing, a fixed "Next job…" prompt) and starts an interactive <code>claude.exe</code> with that text as the first prompt. There is no loop: each job is one session, and the session itself starts the next one.</p>
+<h2 id="one-fresh-session-per-job-and-the-handoff">One fresh session per job, and the handoff</h2>
+<p>At the end of a job, the <code>apply-session</code> skill rewrites the "Next session" note in <code>QUEUE.md</code> and <code>next_prompt.txt</code>, then runs <code>handoff.ps1</code>. That script opens a new window running <code>next_job.ps1</code>, so the next job starts in a fresh session, and kills the old <code>claude.exe</code> 12 seconds later. Nothing is carried over in the chat: the next session learns where things stand from the files.</p>
+<h2 id="inputs-and-outputs">Inputs and outputs</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Inputs</strong></td>
+<td>The first prompt (<code>next_prompt.txt</code>); the top row of <code>QUEUE.md</code> and its "Next session" note (38 jobs waiting on 2026-11-04, MaxInsights next); the job's own <code>.md</code> if it's half done; the form defaults in <code>auto_apply.md</code>; <code>answer_bank.md</code>; the CV made for that company (<code>.odt</code> for the text, <code>.pdf</code> to upload); the posting in your logged-in Chrome; the cap of 3 applications per company, from the log and the Sheet</td>
+</tr>
+<tr>
+<td><strong>Work</strong></td>
+<td><code>apply-session</code> with <code>fill-application</code>: Claude fills every field in Chrome. You tick consent boxes and CAPTCHAs and press Submit</td>
+</tr>
+<tr>
+<td><strong>Outputs</strong></td>
+<td>One application file (<code>&lt;date&gt;_&lt;company&gt;_&lt;role&gt;.md</code>), a row in the Google Sheet (the source of truth for applications), a line in <code>applications_log.md</code>, the Done table in <code>auto_apply.md</code>, an updated <code>QUEUE.md</code> and a new <code>next_prompt.txt</code></td>
+</tr>
+</tbody>
+</table>
+<p>Claude fills the form; you submit. The project never submits or sends anything itself.</p>
+<h2 id="the-skills">The skills</h2>
+<p>The <code>.claude</code> folder holds only <code>skills/</code>: no settings, agents, commands or MCP config, and the folder isn't a git repo. Permissions come from your user-level Claude settings.</p>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apply-session</code></td>
+<td>One application per session: picks the job, runs the form, logs it, writes the next prompt and runs <code>handoff.ps1</code></td>
+</tr>
+<tr>
+<td><code>fill-application</code></td>
+<td>Fills one application form in Chrome and stops before Submit. Has a script for the CV's bullets (<code>odt_bullets.py</code>)</td>
+</tr>
+<tr>
+<td><code>company-sweep</code></td>
+<td>The search run over the job boards. Has the scripts <code>sweep.py</code>, <code>detect_ats.py</code> and <code>discover.py</code></td>
+</tr>
+<tr>
+<td><code>linkedin-job-pass</code></td>
+<td>Goes through LinkedIn in Chrome, read-only</td>
+</tr>
+<tr>
+<td><code>job-list-compile</code></td>
+<td>Turns search results into the 50/30/20 apply list, which becomes new <code>QUEUE.md</code> rows</td>
+</tr>
+<tr>
+<td><code>outreach</code></td>
+<td>Drafts messages to recruiters; never sends them</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-folders">The folders</h2>
+<table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top level</td>
+<td><code>CLAUDE.md</code>, <code>start_job.cmd</code>, the base <code>CV_CMinHur.pdf</code> and the CVs made for each company (<code>CV_CMinHur_&lt;Company&gt;</code>, <code>.odt</code> and <code>.pdf</code>)</td>
+</tr>
+<tr>
+<td><code>Recruiters/</code></td>
+<td>Everything else: the queue and application files (<code>docs/applications/</code>), the criteria, logs and registry (<code>docs/</code>), the scripts (<code>scripts/</code>), <code>recruiters_tracker.csv</code></td>
+</tr>
+<tr>
+<td><code>2025/</code>, <code>2026/</code></td>
+<td>Older CVs</td>
+</tr>
+<tr>
+<td><code>CoverLetter/</code></td>
+<td>Cover letters</td>
+</tr>
+<tr>
+<td><code>StartUp/</code></td>
+<td>Startup companies to search, with their funding rounds (<code>docs/</code>)</td>
+</tr>
+<tr>
+<td><code>UnderRadar/</code></td>
+<td>A map of established companies to search (<code>docs/</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The parent folder, <code>C:\Chang\Jobs</code>, holds the rest of the job material (cover letters, interviews, transcripts, info, pictures, prize proof); the job project reads it as needed.</p>
+<h2 id="how-a-search-runs">How a search runs</h2>
+<p><code>CLAUDE.md</code>'s rule: Claude confirms with you before running any search.</p>
+<ol>
+<li><strong><code>company-sweep</code>:</strong> syncs the registry (<code>company_boards.json</code>) from the StartUp and UnderRadar docs, then runs <code>sweep.py --days 14</code> with JobRadar's Python (10 to 15 minutes). It covers every tracked board, Indeed and keyword searches. Then it fixes boards that failed, runs web searches, checks the boards that only work in Chrome (Meta, Google, Apple…), and finds new companies with <code>detect_ats.py</code> and <code>discover.py</code>.</li>
+<li><strong><code>linkedin-job-pass</code>:</strong> the recommended feed and keyword searches on LinkedIn, read-only, under 10 minutes, 8 to 20 seconds between pages.</li>
+<li><strong>Screening and the list:</strong> the results are checked against <code>job_criteria.md</code> (H-1B sponsorship, mid level, no contract roles, the caps), then <code>job-list-compile</code> builds the list, split 50/30/20 between startups, big tech and safer bets, as new <code>QUEUE.md</code> rows.</li>
+<li><strong>Log:</strong> the run is logged in <code>job_criteria.md</code> §6.</li>
+</ol>
+<p>A search run is long, mostly HTTP and web searches, and needs Chrome only for some boards and LinkedIn. Applying is short per job but needs Chrome on your logged-in profile and your hand on Submit.</p>
+<h2 id="jobradar">JobRadar</h2>
+<p>JobRadar (<code>C:\Chang\Git_projects\Resume</code>) is a separate code project: a Streamlit app for finding jobs and scoring how well they fit, with its own <code>CLAUDE.md</code> and docs. The job project only borrows its Python environment (<code>.venv</code>, which has jobspy) to run the sweep scripts, and reads its <code>data\jobs.db</code> as leads. It never changes either. JobRadar is a data source, not part of the per-job flow.</p>
+<footer>Generated from <code>docs/job-project/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archive</title>
+<!-- Generated from docs/next-steps/archive/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/index.html"></nav>
+<main>
+<h1 id="archive">Archive</h1>
+<p>Finished change notes: done, with nothing waiting on you. They stay as a record of what was asked, decided and built; the design itself lives in the permanent docs. Active notes are on the <a href="../index.html#pending-changes">Next steps</a> page.</p>
+<p>Archived 2026-11-04.</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Date</th>
+<th>What it did</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="logs-button.html">Logs button</a></td>
+<td>2026-10-26</td>
+<td>A Logs button opens the launch's log folder in Explorer.</td>
+</tr>
+<tr>
+<td><a href="session-logs.html">Logs per session</a></td>
+<td>2026-10-26</td>
+<td>One log folder per launch, named by start time and a theme of the first question.</td>
+</tr>
+<tr>
+<td><a href="logs-after-first-message.html">No logs until the first message</a></td>
+<td>2026-10-26</td>
+<td>No log folder until the first message and its theme exist.</td>
+</tr>
+<tr>
+<td><a href="permission-requests.html">Permission requests in the app</a></td>
+<td>2026-10-26</td>
+<td>The worker asks you in the app (buttons or the Talker); allow once, deny after 10 minutes.</td>
+</tr>
+<tr>
+<td><a href="permission-on-talker-side.html">Permission requests on the Talker side</a></td>
+<td>2026-10-26</td>
+<td>The worker's permission requests show on the Talker's side, not the worker's.</td>
+</tr>
+<tr>
+<td><a href="relaunch-keeps-window.html">Relaunch opens one fresh window</a></td>
+<td>2026-10-26</td>
+<td>A relaunch closes the old window and opens exactly one new one, on its own Edge profile.</td>
+</tr>
+<tr>
+<td><a href="worker-access.html">Worker gets full access</a></td>
+<td>2026-10-26</td>
+<td>The Main Assistant reads all the docs and edits every file, like Claude Code.</td>
+</tr>
+<tr>
+<td><a href="base-html-viewer.html">Base HTML viewer</a></td>
+<td>2026-10-27</td>
+<td>View and edit HTML in tabs, with undo; chat-opened HTML goes to the viewer.</td>
+</tr>
+<tr>
+<td><a href="viewer-own-app.html">HTML viewer as its own app</a></td>
+<td>2026-10-27</td>
+<td>The viewer is its own app, launched by the main app, with two-way hooks.</td>
+</tr>
+<tr>
+<td><a href="highlight-for-viewer.html">Highlight for viewer</a></td>
+<td>2026-10-27</td>
+<td>The AI opens a page in the viewer and highlights the part it means.</td>
+</tr>
+<tr>
+<td><a href="leaner-worker.html">Leaner worker: smaller contexts, fewer calls</a></td>
+<td>2026-10-27</td>
+<td>A fresh worker session per task, handoffs, a debugger subagent, peeks without interrupts.</td>
+</tr>
+<tr>
+<td><a href="snip-for-viewer.html">Snip for viewer</a></td>
+<td>2026-10-27</td>
+<td>Snip part of a viewer page; the image goes to the Talker.</td>
+</tr>
+<tr>
+<td><a href="blue-highlight.html">Blue highlight in the HTML viewer</a></td>
+<td>2026-10-28</td>
+<td>The viewer's highlight is blue, readable in the dark theme.</td>
+</tr>
+<tr>
+<td><a href="viewer-to-front.html">Open in viewer brings the viewer to the front</a></td>
+<td>2026-10-28</td>
+<td>Opening a page brings the viewer window to the front.</td>
+</tr>
+<tr>
+<td><a href="usage-meters.html">Usage meters: context now and usage so far</a></td>
+<td>2026-10-28</td>
+<td>Context size now and tokens and ~$ so far, for the Talker and the worker.</td>
+</tr>
+<tr>
+<td><a href="permission-mode-button.html">Permission mode button (Manual / Auto)</a></td>
+<td>2026-11-02</td>
+<td>A button switches the Main Assistant between Manual and Auto; <code>git push</code> stays blocked.</td>
+</tr>
+<tr>
+<td><a href="permissions-stand-in.html">Permissions stand-in (<code>ctx.permissions</code>)</a></td>
+<td>2026-11-02</td>
+<td><code>ctx.permissions</code> with <code>has</code> and <code>request</code>: allows and logs until the real handler exists.</td>
+</tr>
+<tr>
+<td><a href="reusable-parts.html">Reusable parts as a core principle</a></td>
+<td>2026-11-02</td>
+<td>Principle 13, <code>app_kit</code>, <code>agent_tags</code> and the <code>ctx.permissions</code> stand-in; the voice build carries on in voice in.</td>
+</tr>
+<tr>
+<td><a href="handoff-1c0ac7ff.html">Handoff: voice layers and whisper</a></td>
+<td>2026-11-03</td>
+<td>The build handoff for the voice layers and whisper; finished.</td>
+</tr>
+<tr>
+<td><a href="handoff-voice-two-pass.html">Handoff: voice two passes</a></td>
+<td>2026-11-03</td>
+<td>The build handoff for the two passes; finished.</td>
+</tr>
+<tr>
+<td><a href="hot-load-modules.html">Hot-loading of main-app modules</a></td>
+<td>2026-11-03</td>
+<td>Reload a module's code while the app runs (<code>RELOAD:</code>), with the busy wait and the voice handover.</td>
+</tr>
+<tr>
+<td><a href="mic-clear-button.html">Mic clear button</a></td>
+<td>2026-11-03</td>
+<td>The ✕ throws away what the mic heard, sends nothing, and keeps listening.</td>
+</tr>
+<tr>
+<td><a href="restart.html">Restart with reset instructions</a></td>
+<td>2026-11-03</td>
+<td>A restart closes and reopens the app, with the worker's reset instructions as the first input.</td>
+</tr>
+<tr>
+<td><a href="voice-input-to-talker.html">Spoken input reaches the Talker marked as spoken</a></td>
+<td>2026-11-03</td>
+<td>Voice input reaches the Talker prefixed <code>[Spoken]</code>.</td>
+</tr>
+<tr>
+<td><a href="voice-contracts.html">Voice in: contracts (step 1)</a></td>
+<td>2026-11-03</td>
+<td>The voice commands, events and the service protocol's messages.</td>
+</tr>
+<tr>
+<td><a href="voice-temp-ui.html">Voice in: the temp UI's mic button (step 4)</a></td>
+<td>2026-11-03</td>
+<td>The temp UI's mic button and live-text line.</td>
+</tr>
+<tr>
+<td><a href="voice-service.html">Voice in: the voice service app (step 2)</a></td>
+<td>2026-11-03</td>
+<td>The <code>voice_service</code> app with the mic and the Zipformer engine.</td>
+</tr>
+<tr>
+<td><a href="voice-in-module.html">Voice in: the voice_in module (step 3)</a></td>
+<td>2026-11-03</td>
+<td>The thin <code>voice_in</code> module, with the mic-drop wait and the health check.</td>
+</tr>
+<tr>
+<td><a href="worker-batching-reminder.html">Worker batching reminder</a></td>
+<td>2026-11-03</td>
+<td>The worker is reminded when it edits a file it already edited in the task.</td>
+</tr>
+<tr>
+<td><a href="worker-context-reminder.html">Worker context reminder at 150k</a></td>
+<td>2026-11-03</td>
+<td>Past 150k the worker is reminded to find a reset point and hand off.</td>
+</tr>
+</tbody>
+</table>
+<footer>Generated from <code>docs/next-steps/archive/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worker batching reminder</title>
+<!-- Generated from docs/next-steps/archive/worker-batching-reminder.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/worker-batching-reminder.html"></nav>
+<main>
+<h1 id="worker-batching-reminder">Worker batching reminder</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Built as below; both open questions approved (the app logs the second edit; the settings matcher is widened). Loaded at the relaunch of 2026-11-03 12:59. Behavior is documented in <a href="../../html/agents/runtime.html#fresh-sessions-and-handoffs">agent runtime</a>. Tests: <code>tests/test_edit_note.py</code> and one in <code>tests/test_agents.py</code>.</p>
+</blockquote>
+<p><strong>Asked:</strong> remind the worker (Main Assistant) to batch its edits when it edits the same file repeatedly (code, Markdown, config, any type), so it reads each file once and groups all edits to a file into one pass. <strong>It must never interrupt the worker or cost it an extra step</strong>, because interrupts balloon context use.</p>
+<p><strong>Why:</strong> the worker edits the same file in several passes, and every extra step resends its whole context.</p>
+<p><strong>Touches:</strong> <code>src/assistant/modules/main_assistant/module.py</code> (prompt line, passes the setting), <code>src/assistant/infra/claude_session.py</code> (an <code>env</code> argument), <code>src/assistant/infra/session_agent.py</code> (writes the current task id), <code>scripts/hooks/edit_tracker.py</code>, <code>.claude/settings.json</code> (hook matcher), <code>config/default.toml</code>, <code>docs/agents/runtime.md</code>, <code>docs/api/infra.md</code>, tests.</p>
+<h2 id="whats-already-there">What's already there</h2>
+<ul>
+<li><strong>A Claude Code hook</strong>, <code>.claude/settings.json</code> → <code>scripts/hooks/edit_tracker.py</code>, before every <code>Edit</code> or <code>Write</code>. It counts edits per file per <code>claude</code> session and, from the second edit on, adds a note to that tool call's context. This costs no extra step. Gaps: it fires on every repeat, misses <code>MultiEdit</code> and <code>NotebookEdit</code>, restarts its count after a handoff, and has no off switch.</li>
+<li><strong>The worker's prompt</strong>, <code>WORKER_PROMPT</code>, says "Batch independent reads and edits into one step", but nothing about one pass per file.</li>
+</ul>
+<h2 id="approach-two-cheap-parts-no-interrupts">Approach: two cheap parts, no interrupts</h2>
+<p><strong>1. An always-present line in <code>WORKER_PROMPT</code></strong>, next to the existing batching line:</p>
+<blockquote>
+<p>Read each file once, plan all its changes, and make them in one pass (one Write, or one Edit per separate spot in the same step). Edits to a file you've already changed in this task cost a full step each.</p>
+</blockquote>
+<p>It's in the system prompt, so it's cached and costs nothing per step.</p>
+<p><strong>2. The hook's note, made better for the worker only.</strong> It still arrives with the edit itself, so no extra step.</p>
+<ul>
+<li><strong>Worker only:</strong> the worker's <code>claude</code> process gets <code>ASSISTANT_AGENT=main_assistant</code> in its environment, through a new <code>env</code> argument on <code>ClaudeSession</code>. Without that variable, the hook behaves exactly as today, so your own Claude Code sessions don't change.</li>
+<li><strong>For the worker:</strong></li>
+<li><strong>Once per file per task:</strong> the note comes on the second edit to a file and not again for that file.</li>
+<li><strong>All edit tools:</strong> the matcher becomes <code>Edit|Write|MultiEdit|NotebookEdit</code> (path from <code>file_path</code> or <code>notebook_path</code>). For your own sessions the hook exits at once on the two new tools, so nothing changes for you.</li>
+<li><strong>Counts across handoffs:</strong> the count is keyed by task, not session. <code>SessionTaskAgent</code> writes the current task id to <code>.claude/state/worker-task.txt</code> on <code>assign</code>; the hook uses <code>edits-task-&lt;id&gt;.txt</code> when it's set. A fresh session after a handoff keeps the same task, so it keeps the count.</li>
+<li><strong>Note text:</strong> <em>"You've now edited {file} twice in this task. Make the rest of its changes in one pass (batching skill)."</em></li>
+<li><strong>Off switch</strong>, the only config setting:
+  <code>toml
+  [modules.main_assistant]
+  edit_note = true  # the worker's once-per-file batching note (false = off; the prompt line stays)</code>
+  Passed as <code>ASSISTANT_EDIT_NOTE=0</code> when off; the hook then stays silent for the worker.</li>
+<li><strong>Logs:</strong> see open question 1.</li>
+</ul>
+<h2 id="dropped-from-the-earlier-design">Dropped from the earlier design</h2>
+<ul>
+<li><strong>Injecting the reminder through <code>message()</code></strong> (interrupt, then carry on), its holding while the worker waits on you, and the merging of several files into one message.</li>
+<li><strong>Reusing <code>ContextWatch</code></strong>: not needed, the hook does the counting. Its Used by line stays as it is.</li>
+<li><strong>The <code>edit_reminder = 2</code> setting</strong>: replaced by the on/off <code>edit_note</code>; the threshold is fixed at the second edit.</li>
+<li><strong>The hook skipping the worker</strong>: the hook is now the worker's channel.</li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>Logs.</strong> The hook's note isn't visible to the app, and a pane line must not cost the worker a step. <em>Recommend: <code>SessionTaskAgent._on_block</code> already sees each edit's <code>tool_use</code>; it keeps a per-task set of edited files and, on a file's second edit, writes one main-log line and one pane line (<code>batching note: infra.md</code>). It's a few lines that mirror the hook's rule; the worker's transcript shows the note itself.</em></li>
+<li><strong>The <code>.claude/settings.json</code> change</strong> (matcher widened to four tools) is a settings edit, so I'll ask before making it during the build. <em>Recommend: yes, since the hook exits at once for your sessions on the new tools.</em></li>
+</ol>
+<p><strong>Restart needed:</strong> <code>claude_session.py</code> and <code>session_agent.py</code> are in <code>assistant.infra</code>, so this needs one app restart. The hook and settings take effect on the worker's next session.</p>
+<footer>Generated from <code>docs/next-steps/archive/worker-batching-reminder.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open in viewer brings the viewer to the front</title>
+<!-- Generated from docs/next-steps/archive/viewer-to-front.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/viewer-to-front.html"></nav>
+<main>
+<h1 id="open-in-viewer-brings-the-viewer-to-the-front">Open in viewer brings the viewer to the front</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-28).</strong> The tests pass. In a live check, the user saw the viewer window come to the front. Docs updated: <a href="../../html/architecture/html-viewer.html">HTML viewer</a>, <a href="../../html/api/tools.html">Tools</a>, <a href="../../html/architecture/agents.html">Agents</a> (principle 11), <a href="../../html/agents/runtime.html">runtime</a>, and the <code>docs-html</code> skill.</p>
+</blockquote>
+<p><strong>Asked:</strong> "when I click on buttons that lead to html from the talker, it forces the html app to the front". If the viewer window was closed, the click opens it again, showing the page you clicked.</p>
+<p><strong>The rule (user, 2026-10-28):</strong> pages the assistant opens on its own (SHOW tags from the Talker or the Main Assistant: quick checks, debugging) open in the viewer but <strong>don't take focus</strong>. When a page is meant for you to see, the chat offers an <strong>Open in viewer</strong> button: the Talker writes the path in its reply, and the chat shows the button. <strong>Clicking the button brings the viewer to the front.</strong></p>
+<p><strong>Why:</strong> the page opens in the viewer, but its window stays behind other windows, so the click looks like it did nothing.</p>
+<p><strong>What happens today:</strong></p>
+<ul>
+<li>The button (<code>temp_ui/page.html</code>, <code>openButtons</code>) posts to <code>/open-in-viewer</code>. <code>temp_ui/module.py</code> sends <code>InvokeTool viewer.open</code>, then <code>html_viewer/module.py</code> (<code>show</code>) starts the viewer if it isn't running and posts <code>/api/open</code>.</li>
+<li><code>ViewerServer.open</code> (<code>html_viewer/viewer.py</code>) makes the clicked file the active tab. It opens a window only if no page is connected. A window that's already showing is never raised.</li>
+<li>A gap: a new window can't open within 15 s of the last one. Close the window right after it opens and click again, and nothing appears.</li>
+<li>(<code>infra.open_app_window</code> is used only by the temp UI. The viewer has its own copy in <code>html_viewer/window.py</code>.)</li>
+</ul>
+<p><strong>Does the existing button already "offer" the page?</strong> Mostly, yes:</p>
+<ul>
+<li>The chat adds a button for every HTML path in a Talker reply (<code>HTML_PATH</code> in <code>temp_ui/page.html</code>). The Talker's prompt already says "When an HTML file matters, write its path in your reply; the chat shows an Open in viewer button." That covers pages meant for you, including ones the Main Assistant reports, because the Talker writes their path when it passes them on.</li>
+<li><strong>One gap:</strong> <code>split_tags</code> (<code>talker/module.py</code>) takes <code>&lt;&lt;SHOW: path&gt;&gt;</code> tags out of the text you see. If the Talker opens a file with SHOW (you asked it to) and doesn't also write the path, the page opens in the background with no button, and you see nothing. <strong>The fix:</strong> after splitting, the Talker adds the path of each SHOW tag it hasn't already written, on its own line, so a page it opens for you always comes with a button. It's done in code, so it doesn't depend on the prompt being followed. SHOW tags in the Main Assistant's activity stay as they are, in the background with no button.</li>
+<li><strong>Always the full path (added at approval):</strong> the Talker once wrote a bare file name. The button then looked for it in the project root and failed with "No such file". The rule is now that the Talker always writes the full absolute path of an HTML file, never a bare name. It goes in the Talker's prompt, in <a href="../../html/architecture/agents.html">Agents</a>, and in the <code>docs-html</code> skill. The button's handling of bare names doesn't change.</li>
+</ul>
+<p><strong>Touches:</strong> <code>src/html_viewer/window.py</code>, <code>src/html_viewer/viewer.py</code>, <code>src/assistant/modules/html_viewer/module.py</code>, <code>src/assistant/modules/temp_ui/module.py</code>, <code>src/assistant/modules/talker/module.py</code> (the SHOW path in the reply), <code>tests/test_html_viewer.py</code>, <code>tests/test_agents.py</code>, and the docs <a href="../../html/architecture/html-viewer.html">HTML viewer</a> and <a href="../../html/api/tools.html">Tools</a>.</p>
+<p><strong>Approach:</strong></p>
+<ol>
+<li><strong><code>window.py</code>: <code>raise_window(pid)</code></strong> (Windows only, ctypes, no new dependency; does nothing elsewhere). It looks through the top-level windows (<code>EnumWindows</code>) for a visible one belonging to the Edge process the viewer started (<code>self._edge.pid</code>). If that window is minimized, it restores it (<code>ShowWindow SW_RESTORE</code>), then calls <code>SetForegroundWindow</code>. Windows blocks a background process from taking the foreground. So the function first attaches to the input thread of the current foreground window (<code>AttachThreadInput</code>), sets the foreground, and then detaches. It returns whether it worked.</li>
+<li><strong><code>viewer.py</code>:</strong> <code>/api/open</code> and <code>/api/highlight</code> take an optional <code>"front": true</code>. With it, <code>open()</code> raises a window that's already showing. If no page is connected, it opens a new window, which comes up in front anyway. The 15 s guard now applies only until the new page connects, so a window you closed can open again straight away.</li>
+<li><strong>The tools:</strong> <code>viewer.open</code> and <code>viewer.highlight</code> get an optional <code>front</code> (boolean, default false), which <code>HtmlViewerModule.show</code> and <code>highlight</code> pass on. The temp UI's <code>/open-in-viewer</code> sends <code>front: true</code>.</li>
+<li><strong>Which page:</strong> this already works. <code>open()</code> switches to the clicked file's tab, or adds a new tab for it, before the window is raised or opened.</li>
+</ol>
+<p><strong>Tests:</strong> in <code>tests/test_html_viewer.py</code>:</p>
+<ul>
+<li><code>open(front=True)</code> with a page connected calls the raise hook once. Without <code>front</code>, it doesn't call it.</li>
+<li>With no page connected, it opens a window instead.</li>
+<li>After a page connects and disconnects, the next open opens a window again, with no 15 s wait.</li>
+<li><code>/open-in-viewer</code> sends <code>front: true</code> (the existing fake-viewer test).</li>
+<li>In <code>tests/test_agents.py</code>: a Talker reply with only <code>&lt;&lt;SHOW: x.html&gt;&gt;</code> shows <code>x.html</code> in its text, and a reply that already has the path doesn't show it twice. SHOW calls <code>viewer.open</code> without <code>front</code>.</li>
+</ul>
+<p>The tests swap in fakes for the window functions, the same way <code>capture</code> is swapped in today, so no real window is needed in CI. After that, run <code>pytest</code> and <code>ruff</code>, then check it by hand: put another window over the viewer and click; minimize the viewer and click; close the viewer and click.</p>
+<p><strong>Open questions:</strong> none. Whether SHOW tags take focus is decided above: they don't.</p>
+<footer>Generated from <code>docs/next-steps/archive/viewer-to-front.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

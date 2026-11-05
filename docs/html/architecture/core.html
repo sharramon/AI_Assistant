@@ -138,7 +138,11 @@
 </tr>
 <tr>
 <td><code>lifecycle.py</code></td>
-<td><code>LifecycleManager</code>: init / start / stop at startup and shutdown, runtime activate / deactivate, module states, failure handling</td>
+<td><code>LifecycleManager</code>: init / start / stop at startup and shutdown, runtime activate / deactivate / reload / add, module states, failure handling</td>
+</tr>
+<tr>
+<td><code>loader.py</code></td>
+<td>Fresh import of a module's package, what may be reloaded, rollback</td>
 </tr>
 <tr>
 <td><code>context.py</code></td>
@@ -174,7 +178,9 @@
     F -- &quot;ShutdownRequested / request_shutdown() / Ctrl+C&quot; --&gt; G[&quot;stop(): cancel all in-flight commands&quot;]
     G --&gt; H[&quot;stop() each active module, reverse order,&lt;br/&gt;then ctx.close() removes its registrations&quot;]
     H --&gt; I[Unregister InvokeTool, close bus]
+    I -- &quot;ShutdownRequested(restart=True)&quot; --&gt; R[&quot;exit code 75: the launcher&lt;br/&gt;starts a new app process&quot;]
 </code></pre>
+<p><strong>Restart.</strong> <code>python -m assistant</code> is a small launcher. It runs the app as a child process in the same console and starts it again whenever the app exits with <code>core.restart_exit_code</code> (75). The app exits with 75 after a <code>ShutdownRequested(restart=True)</code> (<code>App.restart_requested</code>). A new process loads all new code, the core's included. The Talker triggers a restart when you ask for one, with reset instructions for the next launch (<a href="../agents/runtime.html#the-talker-on-its-own">Restart</a>).</p>
 <p><strong>Validation before anything runs</strong> (<code>resolve_modules</code>). Startup fails for:</p>
 <ul>
 <li>an id in <code>modules.enabled</code> that isn't in the module list, or two modules with the same id</li>
@@ -208,6 +214,8 @@
     Starting --&gt; Failed
     Active --&gt; Stopping: deactivate
     Stopping --&gt; Inactive
+    Active --&gt; Reloading: reload
+    Reloading --&gt; Starting: new code, or the old code back
     Failed --&gt; Starting: retry
 </code></pre>
 <ul>
@@ -220,8 +228,25 @@
 <li><strong>Transitions finish:</strong> one at a time, and a transition finishes even if the command that asked for it times out. Shutdown waits for it, then stops everything.</li>
 <li><strong>Modules load expensive things lazily:</strong> a <code>claude</code> process, a speech model, or a window starts when the module is activated or first used, not at app start.</li>
 <li><strong>Agents adapt automatically:</strong> tools are looked up at call time, so a deactivated module's tools disappear from what the agents can use.</li>
-<li><strong>What needs a restart:</strong> adding or changing code. Enabling, disabling, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.</li>
+<li><strong>Reloading a module:</strong> <code>ReloadModule</code> swaps its code and <code>AddModule</code> loads a brand-new module, both while the app runs (<a href="#reloading-a-modules-code">below</a>).</li>
+<li><strong>What still needs a restart:</strong> changes to the core, contracts, <code>infra</code>, <code>app_kit</code>, or <code>__main__</code>, and a new module that needs a new contract or port type (contracts are shared by every module). Enabling, disabling, reloading, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.</li>
 <li><strong>Not the Agent Hub's job:</strong> the Hub coordinates agents through their contracts. It never starts or stops modules itself.</li>
+</ul>
+<h4 id="reloading-a-modules-code">Reloading a module's code</h4>
+<blockquote>
+<p><strong>Built (2026-11-03):</strong> <code>ReloadModule</code>, <code>AddModule</code>, rollback, fresh config, commands held during a swap, waiting for a busy module, the handover, and the Main Assistant's <code>RELOAD:</code> line. <code>voice_in</code> hands over its voice app. The Talker, Main Assistant and Agent Hub have no handover yet: they wait until idle, and a reload starts them clean (a fresh session, no tasks). Loaded into the running app after one relaunch.</p>
+</blockquote>
+<ul>
+<li><strong><code>ReloadModule(module_id)</code>:</strong> the module stops as in a deactivation, and so does any active module that requires something only it provides. Its package (the one its class lives in, e.g. <code>assistant.modules.voice_in</code>, with every submodule) is dropped from <code>sys.modules</code>, its <code>__pycache__</code> too, and imported fresh. The new class goes through the same checks as an activation, a fresh instance starts, and the modules stopped with it start again. States: <code>reloading</code>, then <code>starting</code>, <code>active</code>.</li>
+<li><strong>Rollback:</strong> if the new code fails to import, <code>init</code>, or <code>start</code>, the old package and class are put back and started. The result says what failed and that the old code runs again.</li>
+<li><strong>Config:</strong> <code>App</code>'s <code>config_loader</code> (given by <code>__main__</code>) re-reads the config before each reload or add, so the module gets its current <code>modules.&lt;id&gt;</code> section.</li>
+<li><strong>During the swap:</strong> a command with no handler waits for one, up to its timeout (<code>CommandRouter.hold</code>), instead of failing. Events published meanwhile miss the module. Contracts are looked up at call time, so callers get the new instance; no module caches a provider (checked 2026-11-03).</li>
+<li><strong><code>AddModule(package)</code>:</strong> imports a package that wasn't loaded at launch, makes its module available, and activates it. To keep it on the next launch, add it to <code>MODULES</code> and <code>modules.enabled</code>. If its code needs a contract the running app doesn't have, it fails with "needs a restart".</li>
+<li><strong>Not reloadable:</strong> <code>assistant.core</code>, <code>assistant.contracts</code>, <code>assistant.infra</code>, <code>app_kit</code>, and a class that isn't in its own package. Every module holds their classes, so swapping them would break <code>isinstance</code> checks and contract identity.</li>
+<li><strong>Old code left running:</strong> a thread the old copy didn't stop keeps running old code, muted by its closed context. <code>stop</code> must release everything, as before.</li>
+<li><strong>Busy modules:</strong> before stopping, the core asks the module's <a href="../api/modules.html#modulebusy"><code>busy()</code></a>. While it gives a reason, the reload waits (polling every 0.2 s, up to <code>core.reload_idle_timeout</code>, 300 s), then fails with that reason. <code>ReloadModule(now=True)</code> cuts in.</li>
+<li><strong>Handover:</strong> just before stopping, the core calls <a href="../api/modules.html#moduleexport_state"><code>export_state()</code></a> and passes the result to the new instance as <code>ctx.handover</code>; on rollback it goes back to the old one. Only plain data and <code>infra</code> / <code>app_kit</code> objects, which are never reloaded. <code>voice_in</code> hands over its <code>CompanionApp</code>, so the voice app keeps running and the chat isn't touched; an open mic session still ends, and its words are dropped.</li>
+<li><strong>Who triggers it:</strong> any module that sends the command. Built: the Main Assistant, with a last line <code>RELOAD: &lt;id&gt; [now]</code> or <code>ADD_MODULE: &lt;package&gt;</code> after its tests pass. In Auto it sends the command at once; in Manual it asks you first with an Allow / Deny card. The outcome comes back to its session, and it can't reload itself (<a href="../agents/runtime.html#loading-new-code">runtime</a>). Later: the control panel and the Talker. No file watcher: it would load half-written code.</li>
 </ul>
 <h2 id="communication-internals">Communication internals</h2>
 <p><strong>Commands</strong> (<code>CommandRouter.send</code>):</p>
@@ -250,6 +275,7 @@
 <li>Handles <code>InvokeTool</code> by asking every <code>IToolProvider</code> for its tools <em>at call time</em>, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).</li>
 <li>Unknown name → <code>NotAvailable</code>; a name offered by more than one provider → <code>Failed</code>.</li>
 <li>A future <code>ToolsChanged</code> event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.</li>
+<li><strong>Planned:</strong> the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a> asks: one line per module, then one module's <code>ToolSpec</code>s. Calling stays <code>InvokeTool</code>.</li>
 </ul>
 <h2 id="configuration">Configuration</h2>
 <table>
@@ -352,7 +378,7 @@
 <p>Before writing a helper for it, check the <a href="../api/reusable.html">reusable parts index</a> (<a href="principles.html">principle 13</a>); after building, add any new reusable part there and update the <strong>Used by</strong> lines of the parts it uses. Permissions it needs go in its manifest and are asked through <code>ctx.permissions</code> (<a href="permissions.html">permissions</a>). A module that launches its own app follows the <a href="reusable-parts.html#companion-app-checklist">companion app checklist</a>.</p>
 <ol>
 <li>Create <code>src/assistant/modules/&lt;name&gt;/</code> with a <code>Module</code> subclass. Import only from <code>assistant.contracts</code>, <code>assistant.infra</code>, and <code>app_kit</code>.</li>
-<li>Add the class to <code>MODULES</code> in <code>src/assistant/__main__.py</code>.</li>
+<li>Add the class to <code>MODULES</code> in <code>src/assistant/__main__.py</code>. (Planned: this step goes away once the core <a href="modules.html#found-by-folder">finds modules by folder</a>.)</li>
 <li>Add its id to <code>modules.enabled</code> in config.</li>
 </ol>
 <p>To <strong>replace</strong> a module (e.g. the orchestrator), enable the new id instead of the old one. No core changes; <code>tests/test_app.py::test_orchestrator_is_replaceable_by_config_alone</code> checks this. To <strong>remove</strong> one, delete its folder, its <code>MODULES</code> entry, and its config.</p>

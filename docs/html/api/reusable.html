@@ -127,7 +127,7 @@
 <tr>
 <td><a href="messaging.html#listeningstate"><code>ListeningState</code></a></td>
 <td>enum</td>
-<td>The mic's state: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code>, <code>failed</code></td>
+<td>The mic's state: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code>, <code>finishing</code>, <code>failed</code></td>
 <td><code>contracts/voice.py</code></td>
 <td><code>VoiceState</code></td>
 </tr>
@@ -170,16 +170,37 @@
 <tr>
 <td><a href="messaging.html#the-voice-services-parts"><code>SttEngine</code>, <code>SttStream</code></a></td>
 <td>ABCs</td>
-<td>A speech engine (<code>load</code>, <code>new_stream</code>) and one session's stream (<code>accept</code>, <code>partial</code>, <code>finish</code>); <code>load_engine</code> picks one by name</td>
+<td>A speech engine (<code>load</code>, <code>new_stream</code>) and one session's stream (<code>accept</code>, <code>partial</code>, <code>finish</code>, optional <code>set_prompt</code> and <code>cancel</code>); <code>load_engine</code> picks one by name, once per role (live, final)</td>
 <td><code>voice_service/engines/__init__.py</code></td>
-<td><code>ZipformerEngine</code>, <code>FakeEngine</code>, <code>ListenSession</code>; the Nemotron engine (step 7, <em>planned</em>)</td>
+<td><code>ZipformerEngine</code>, <code>WhisperEngine</code>, <code>FakeEngine</code>, <code>ListenSession</code> (both engines; the <code>voice-clean</code> thread), <code>transcribe</code>; the Nemotron engine (step 7, <em>planned</em>)</td>
+</tr>
+<tr>
+<td><a href="../architecture/voice.html#two-passes-live-text-cleaned-piece-by-piece">Two-pass real check</a></td>
+<td>script</td>
+<td>The service in-process with the real models over WAVs fed at speech speed: CPU, partial lag, per-piece times, queue, wait after stop, text vs whole-recording whisper. Config overrides in memory only</td>
+<td><code>scripts/voice_two_pass_check.py</code></td>
+<td>the two-pass measurements (2026-11-03); the engine comparison (step 7, <em>planned</em>)</td>
 </tr>
 <tr>
 <td><a href="messaging.html#the-voice-services-parts"><code>AudioSource</code></a></td>
 <td>ABC</td>
 <td>Where a session's PCM16 chunks come from: <code>start(on_chunk, on_lost)</code>, <code>stop()</code></td>
 <td><code>voice_service/audio.py</code></td>
-<td><code>MicSource</code>, <code>FakeSource</code>, <code>ListenSession</code> (through a factory: a fresh source to reopen a dropped mic); <code>RemoteSource</code> for <code>/ws/audio</code> (later)</td>
+<td><code>MicSource</code>, <code>FakeSource</code>, <code>FileSource</code>, <code>ListenSession</code> (through a factory: a fresh source to reopen a dropped mic); <code>RemoteSource</code> for <code>/ws/audio</code> (later)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#the-voice-services-parts"><code>FileSource</code></a></td>
+<td>class</td>
+<td>A 16 kHz mono WAV in chunks, read whole or fed like a mic; the one WAV reader</td>
+<td><code>voice_service/audio.py</code></td>
+<td><code>transcribe_file</code>, <code>FakeSource.from_wav</code>, the engine comparison (step 7, <em>planned</em>)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#the-voice-services-parts"><code>transcribe</code>, <code>transcribe_file</code></a></td>
+<td>functions</td>
+<td>Text from an engine and a source (or a WAV path), with timings; no server, no mic</td>
+<td><code>voice_service/transcribe.py</code></td>
+<td>the <code>transcribe</code> command, the whisper measurements (2026-11-03), the engine comparison (step 7, <em>planned</em>)</td>
 </tr>
 <tr>
 <td><a href="messaging.html#the-voice-services-parts"><code>FakeSource</code>, <code>FakeEngine</code></a></td>
@@ -233,9 +254,9 @@
 <tr>
 <td><a href="infra.html#claudesession"><code>ClaudeSession</code></a></td>
 <td>class</td>
-<td>One <code>claude -p</code> stream-json process; its command may be a callable read on each start; live <code>set_permission_mode</code></td>
+<td>One <code>claude -p</code> stream-json process; its command may be a callable read on each start; live <code>set_permission_mode</code>; extra <code>env</code></td>
 <td><code>infra/claude_session.py</code></td>
-<td><code>talker</code>, <code>main_assistant</code> (callable command), <code>SessionTaskAgent</code></td>
+<td><code>talker</code>, <code>main_assistant</code> (callable command, <code>env</code> for the edit hook), <code>SessionTaskAgent</code></td>
 </tr>
 <tr>
 <td><a href="infra.html#claude_command"><code>claude_command</code></a></td>
@@ -254,7 +275,7 @@
 <tr>
 <td><a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a></td>
 <td>class</td>
-<td>An <code>ITaskAgent</code> on a <code>ClaudeSession</code>, with handoffs and the permission mode</td>
+<td>An <code>ITaskAgent</code> on a <code>ClaudeSession</code>, with handoffs, the permission mode, the context reminder, and the edit note's log line</td>
 <td><code>infra/session_agent.py</code></td>
 <td><code>main_assistant</code>; every task agent later</td>
 </tr>
@@ -266,11 +287,18 @@
 <td><code>SessionTaskAgent</code>, <code>talker</code></td>
 </tr>
 <tr>
+<td><a href="infra.html#contextwatch"><code>ContextWatch</code></a></td>
+<td>class</td>
+<td>Says once when a context passes a size; re-arms when it's back under</td>
+<td><code>infra/context_watch.py</code></td>
+<td><code>talker</code> (<code>context_warning</code>), <code>SessionTaskAgent</code> (<code>context_reminder</code>)</td>
+</tr>
+<tr>
 <td><a href="infra.html#agent_tags"><code>agent_tags</code></a></td>
 <td>functions</td>
 <td>Read <code>&lt;&lt;TAG: …&gt;&gt;</code> tags, SHOW arguments, <code>NEED:</code> and <code>HANDOFF:</code> lines</td>
 <td><code>infra/agent_tags.py</code></td>
-<td><code>talker</code>, <code>html_viewer</code> module, <code>SessionTaskAgent</code></td>
+<td><code>talker</code> (also <code>RESTART_READY</code>), <code>html_viewer</code> module, <code>SessionTaskAgent</code></td>
 </tr>
 </tbody>
 </table>
@@ -299,6 +327,13 @@
 <td>A TOML file plus its <code>.local</code> override</td>
 <td><code>app_kit/config.py</code></td>
 <td><code>load_config</code>, <code>voice_service</code> (<code>config.py</code>)</td>
+</tr>
+<tr>
+<td><a href="app_kit.html#local_path"><code>local_path</code></a></td>
+<td>function</td>
+<td>A config file's <code>.local</code> override path (<code>voice.toml</code> → <code>voice.local.toml</code>)</td>
+<td><code>app_kit/config.py</code></td>
+<td><code>load_layered</code>, <code>voice_service</code> (<code>server.py</code>: the engine watch)</td>
 </tr>
 <tr>
 <td><a href="app_kit.html#companionapp"><code>CompanionApp</code></a></td>

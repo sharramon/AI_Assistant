@@ -46,6 +46,7 @@
 <h2 id="how-the-sessions-run">How the sessions run</h2>
 <ul>
 <li>Each agent is one <code>claude -p --input-format stream-json --output-format stream-json</code> process. The Talker's is <strong>long-lived</strong>, so it keeps the conversation. The Main Assistant gets a <strong>fresh one per task</strong>, and per handoff within a task, so a task's context holds only that task (<a href="runtime.html#fresh-sessions-and-handoffs">fresh sessions and handoffs</a>).</li>
+<li><strong>Worker context and batching:</strong> the Main Assistant is reminded at 150k and hands off to a fresh session by itself; its prompt says to batch edits, and a hook adds a note to its second edit to a file, once per file. Neither interrupts it (<a href="runtime.html#fresh-sessions-and-handoffs">runtime</a>, <a href="../architecture/decisions.html#decided">decision</a>).</li>
 <li><strong>Usage:</strong> each session's context now (what every call resends) and its tokens and ~$ since launch, worker and Talker apart. The Talker always knows both and warns you past 150k; the temp UI shows both live. A Reset starts either one fresh.</li>
 <li>Messages in and out are <strong>JSON lines</strong> over stdin and stdout. The owning module, through <a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>, writes the agent's input and reads its event stream.</li>
 <li><strong>Transcripts for debugging:</strong> every line in and out goes to <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> (<code>transcript</code> in each module's config, a file name), next to the app's own <code>assistant.log</code>, in one folder per launch: <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code> (<a href="../architecture/core.html#logging">Logging</a>).</li>
@@ -82,8 +83,7 @@
 </table>
 <p>Its <code>debugger</code> subagent works under the same rules; its requests come to you the same way (checked 2026-10-27).</p>
 <p>Both agents' prompts state these permissions, so they don't have to find out by trying. The <a href="../architecture/permissions.html#repo-zones">repo zones</a> are recorded but not enforced until the permissions handler and branch workflow are built.
-- <strong>Permission requests:</strong> when it uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (<code>permission_timeout</code>). The Talker never answers on its own. How it works: the note.
-- <strong>"You" means both.</strong> To you the Talker and the Main Assistant are one assistant, and both prompts say so.</p>
+- <strong>Permission requests:</strong> when it uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (<code>permission_timeout</code>). The Talker never answers on its own.- <strong>"You" means both.</strong> To you the Talker and the Main Assistant are one assistant, and both prompts say so.</p>
 <h2 id="first-implementation-limits">First implementation limits</h2>
 <ul>
 <li>One Main Assistant and <strong>one active task</strong>; another request gets "busy". No queue.</li>

@@ -16,7 +16,11 @@
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
 
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+})();
+
+// Click a diagram or an image to view it full screen: wheel zooms at the cursor, drag pans,
+// X or Esc closes; for an image, a click outside it closes too. Runs offline as well.
+(function () {
   var overlay = null, stage, scale, x, y;
   function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
   function close() {
@@ -25,13 +29,25 @@
     overlay = null;
     document.body.style.overflow = "";
   }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
+  function open(el) {
+    var w, h, clone = el.cloneNode(true), isImg = el.tagName === "IMG";
+    if (isImg) {
+      var r = el.getBoundingClientRect();
+      w = el.naturalWidth || r.width;
+      h = el.naturalHeight || r.height;
+      clone.removeAttribute("width");
+      clone.removeAttribute("height");
+      clone.style.width = w + "px";
+      clone.style.height = h + "px";
+      clone.draggable = false;
+    } else {
+      var box = el.viewBox.baseVal;
+      w = box && box.width ? box.width : el.getBBox().width;
+      h = box && box.height ? box.height : el.getBBox().height;
+      clone.removeAttribute("style");
+      clone.setAttribute("width", w);
+      clone.setAttribute("height", h);
+    }
     overlay = document.createElement("div");
     overlay.className = "zoom";
     var btn = document.createElement("button");
@@ -59,25 +75,44 @@
       scale = s;
       place();
     }, { passive: false });
-    var drag = null;
+    var drag = null, outside = false;
     overlay.addEventListener("pointerdown", function (e) {
       if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y, inside: clone.contains(e.target), moved: false };
       overlay.setPointerCapture(e.pointerId);
       overlay.classList.add("dragging");
     });
     overlay.addEventListener("pointermove", function (e) {
       if (!drag) return;
+      if (Math.abs(e.clientX - drag.px) + Math.abs(e.clientY - drag.py) > 4) drag.moved = true;
       x = drag.x + e.clientX - drag.px;
       y = drag.y + e.clientY - drag.py;
       place();
     });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+    overlay.addEventListener("pointerup", function () {
+      // A click (no drag) outside an image closes it; diagrams keep closing only by X or Esc.
+      outside = isImg && drag !== null && !drag.inside && !drag.moved;
+      drag = null;
+      overlay.classList.remove("dragging");
+    });
+    overlay.addEventListener("click", function (e) {
+      if (!outside) return;
+      outside = false;
+      e.stopPropagation();
+      close();
+    });
   }
   document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
+    if (overlay || !e.target.closest) return;
+    var img = e.target.closest("main img");
+    if (img) {
+      e.preventDefault(); // the image's link would open the bare file, with no way back
+      open(img);
+      return;
+    }
+    var d = e.target.closest(".diagram");
     var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
+    if (svg) open(svg);
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();

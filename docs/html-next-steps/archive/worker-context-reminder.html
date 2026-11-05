@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worker context reminder</title>
+<!-- Generated from docs/next-steps/archive/worker-context-reminder.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/worker-context-reminder.html"></nav>
+<main>
+<h1 id="worker-context-reminder">Worker context reminder</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Approved with all three recommendations: the worker hands off by itself (<code>HANDOFF:</code>); the Talker keeps its 150k warning about the worker, reworded to say the worker has been reminded; the reminder interrupts the current step and the task carries on. Built as described; loaded at the relaunch of 2026-11-03 12:59. Tests: <code>test_context_watch_fires_once_per_crossing</code>, <code>test_context_reminder_hands_off_once_per_session</code>, <code>test_context_reminder_waits_for_an_open_permission_request</code> in <code>tests/test_agents.py</code>.</p>
+</blockquote>
+<p><strong>Asked:</strong> "a code snippet … that waits for the context to pass 150k and then injects a 'reminder to find a reset point' prompt into the worker."</p>
+<p><strong>Why:</strong> nothing tells the worker its context is big. The Talker's <code>context_warning</code> (150k) only goes to the Talker, as a <code>[Status]</code> for you, so the worker keeps working while every step resends 150k+ tokens.</p>
+<p><strong>Touches:</strong> <code>src/assistant/infra/session_agent.py</code> (<code>SessionTaskAgent</code>), <code>src/assistant/modules/main_assistant/module.py</code> (passes the config value), <code>src/assistant/modules/talker/module.py</code> (uses the shared check), <code>config/default.toml</code>, <code>docs/api/infra.md</code>, <code>docs/api/reusable.md</code>, <code>docs/agents/runtime.md</code>, tests in <code>tests/test_agents.py</code>.</p>
+<h2 id="approach">Approach</h2>
+<ul>
+<li><strong>Where it watches:</strong> in <code>SessionTaskAgent._publish_usage</code>, which already runs after every call with the worker's <code>session_usage</code>. No new subscriber, no new event: the agent that owns the session watches its own context. Every task agent built on <code>SessionTaskAgent</code> gets it.</li>
+<li><strong>Reuse, not a copy:</strong> the Talker's <code>_check_size</code> logic (warn once, re-arm when back under) moves into a small shared helper, <strong><code>ContextWatch</code></strong> in <code>assistant.infra</code> (<code>crossed(agent_id, tokens) -&gt; bool</code>). The Talker's warning and the worker's reminder both use it. Added to <code>docs/api/reusable.md</code> with <em>Used by: talker, SessionTaskAgent (main_assistant)</em>.</li>
+<li><strong>Config, same style as the Talker's:</strong>
+  <code>toml
+  [modules.main_assistant]
+  context_reminder = 150000  # tokens: once past this, the worker is reminded to find a reset point (0 = off)</code></li>
+<li><strong>How it's injected:</strong> through the existing <code>message(task_id, text)</code> path, the one <code>SendToTask</code> and <code>&lt;&lt;RESET: worker&gt;&gt;</code> use. Mid-turn it interrupts, sends the reminder, then continues the task (<code>resume=True</code>). The task is not cancelled.</li>
+<li>Only fired while a task is <strong>working</strong>. If the worker is waiting on you (a question or a permission request), the reminder is held and sent the next time it works, so an open permission request isn't dropped.</li>
+<li>No task (idle): nothing is sent; the next task starts a fresh session anyway.</li>
+<li><strong>Once per crossing:</strong> fires the first time context passes the threshold, then stays quiet. A handoff or reset starts a fresh session, its context drops under the threshold, and that re-arms it.</li>
+<li><strong>Reminder text</strong> (a constant next to <code>RESET_NOW</code>):<blockquote>
+<p>[Context check] Your context is at {tokens}, past {limit}: every step now resends that much. Find a good reset point: finish the step you're on or pause at a safe boundary (tests passing, no half-done edits). Then write what's done and what's next into this task's change note in docs/next-steps/ (or docs/next-steps/handoff-{task_id}.md), say in one line that you're at a reset point, and end with <code>HANDOFF: &lt;that note's path&gt;</code>.</p>
+</blockquote>
+</li>
+<li><strong>In the logs:</strong></li>
+<li>main log: <code>INFO main_assistant: context 152k past 150k: reminded task 1a2b3c4d to find a reset point</code></li>
+<li>activity line (terminal 2 and the temp UI's worker pane): <code>context reminder sent (152k)</code></li>
+<li>the worker's transcript holds the reminder as a user message, like any <code>SendToTask</code>.</li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>After the reminder: hand off by itself, or stop and ask you?</strong> A <code>HANDOFF:</code> line already continues the task in a fresh session automatically, and the Talker tells you. The alternative is ending with <code>NEED:</code> so you choose when to reset. <em>Recommend: <code>HANDOFF:</code> (as in the text above); the reset happens without waiting on you, and you still hear about it.</em></li>
+<li><strong>The Talker's own worker warning at 150k:</strong> keep it alongside? <em>Recommend: keep it, reworded to "the worker has been reminded to find a reset point", so you're told once, not asked to reset by hand.</em></li>
+<li><strong>Interrupting mid-turn</strong> cuts the current step short (the worker continues right after). <em>Recommend: accept it; that's how every <code>SendToTask</code> works today.</em></li>
+</ol>
+<p><strong>Restart needed:</strong> <code>session_agent.py</code> and the shared helper are in <code>assistant.infra</code>, so this takes one app restart, not a module reload.</p>
+<footer>Generated from <code>docs/next-steps/archive/worker-context-reminder.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

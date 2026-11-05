@@ -15,19 +15,63 @@
 <p>Speech to text, so you can talk to the assistant instead of typing. It's <strong>Voice in</strong> in the <a href="index.html">overview</a>. Voice out (the Talker speaking back) is a separate, later part.</p>
 <blockquote>
 <p><strong>Status: being built (designed 2026-10-28; code design added and approved 2026-11-02).</strong> Phase 1 below is built in steps, listed in the next-steps list. The code-level design is under <a href="#code-design-phase-1">Code design (phase 1)</a>.</p>
-<p><strong>Built: step 1, the contracts</strong> (2026-11-03, change note): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
-<p><strong>Built: step 2, the voice service</strong> (2026-11-03, change note): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
-<p><strong>Built: step 3, the <code>voice_in</code> module</strong> (2026-11-03, change note): <code>src/assistant/modules/voice_in/</code>, off by default, as designed in <a href="#the-voice_in-module">the voice_in module</a>, plus two additions you asked for. <strong>A dropped mic is waited for:</strong> the service keeps the session and tries to reopen the mic for <code>mic_recovery_seconds</code> (15 s), sending <code>mic_dropped</code> and then <code>mic_back</code>. If the mic doesn't come back, the session ends and its text is dropped. <strong>A quick <code>/health</code> check</strong> runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.</p>
-<p><strong>Built: step 4, the temp UI's mic button</strong> (2026-11-03, change note): the button sends <code>StartListening</code> / <code>StopListening</code> and shows <code>VoiceState</code>; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. <code>voice_in</code> is now in <code>[modules] enabled</code>. Details: <a href="../agents/runtime.html#temp-ui">runtime: temp UI</a>.</p>
-<p><strong>Built: step 6, the real mic on this laptop</strong> (2026-11-03, handoff). <strong><code>python -m voice_service check</code></strong> tells whether this machine is ready. It checks the voice extra, Windows' mic privacy switches (read only), the input devices, the model's load time, and a few seconds of the real mic through <code>MicSource</code>, and it transcribes anything said during the check. Two fixes came out of it:
+<p><strong>Built: step 1, the contracts</strong> (2026-11-03): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
+<p><strong>Built: step 2, the voice service</strong> (2026-11-03): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
+<p><strong>Built: step 3, the <code>voice_in</code> module</strong> (2026-11-03): <code>src/assistant/modules/voice_in/</code>, off by default, as designed in <a href="#the-voice_in-module">the voice_in module</a>, plus two additions you asked for. <strong>A dropped mic is waited for:</strong> the service keeps the session and tries to reopen the mic for <code>mic_recovery_seconds</code> (15 s), sending <code>mic_dropped</code> and then <code>mic_back</code>. If the mic doesn't come back, the session ends and its text is dropped. <strong>A quick <code>/health</code> check</strong> runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.</p>
+<p><strong>Built: step 4, the temp UI's mic button</strong> (2026-11-03): the button sends <code>StartListening</code> / <code>StopListening</code> and shows <code>VoiceState</code>; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. <code>voice_in</code> is now in <code>[modules] enabled</code>. Details: <a href="../agents/runtime.html#temp-ui">runtime: temp UI</a>. <strong>Clear button</strong> (2026-11-03): a ✕ next to the mic throws away what was heard (<code>StopListening(discard=True)</code>) and keeps listening in a new session; the voice service is unchanged.</p>
+<p><strong>Built: step 6, the real mic on this laptop</strong> (2026-11-03). <strong><code>python -m voice_service check</code></strong> tells whether this machine is ready. It checks the voice extra, Windows' mic privacy switches (read only), the input devices, the model's load time, and a few seconds of the real mic through <code>MicSource</code>, and it transcribes anything said during the check. Two fixes came out of it:
 - <strong>An unreported unplug counts as a drop.</strong> No chunks at all for <code>[audio] stall_seconds</code> (2 s) starts the same recovery as a reported unplug. Silence and a muted mic still send chunks, so they don't trip it.
 - <strong>The device list is reloaded after a drop.</strong> PortAudio reads it only once, so a replugged or other mic couldn't open. <code>MicSource</code> now reloads it on the next open after a lost or stalled mic.</p>
 <p>Measured on this laptop, without speech: privacy allows desktop apps, and the default mic is the Realtek array (MME). The model loads in 1.9 s. The mic opens in 12 ms and the first audio arrives at 50 ms. <code>started</code> comes 283 ms after <code>start</code>, the final 78 ms after <code>stop</code>, and decoding runs at 0.03× real time. A live mic ran 5 s without a false drop. The room read almost silent on every device and audio API (rms 0 to 1), so the next check is you speaking. Delays with real speech, and a real unplug, are yours to try.</p>
+<p><strong>Built: the layers and whisper</strong> (2026-11-03): a <code>FileSource</code>, <code>transcribe</code> / <code>transcribe_file</code> (an engine with no server), the <code>live_partials</code> flag, <code>WhisperEngine</code> on faster-whisper, the protocol's <code>partials</code> fields, the level-based silence stop, and the swap by config (<a href="#layers">Layers</a>, <a href="#hot-swappable-engines">Hot-swappable engines</a>). <code>voice_in</code> gained <code>live_text</code> and <code>final_timeout_on_send</code>; its cleanup keeps text that comes cased. The wait after you stop, measured with <code>transcribe</code> on CPU int8:</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>6.6 s of speech</th>
+<th>16.7 s</th>
+<th>46.7 s</th>
+<th>Load</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zipformer (live text; only <code>finish</code> is left at the stop)</td>
+<td>0.03 s</td>
+<td>0.03 s</td>
+<td>0.03 s</td>
+<td>2.1 s</td>
+</tr>
+<tr>
+<td>whisper <code>base.en</code></td>
+<td>0.42 s</td>
+<td>0.56 s</td>
+<td>1.83 s</td>
+<td>0.5 s</td>
+</tr>
+<tr>
+<td><strong>whisper <code>small.en</code></strong> (default)</td>
+<td><strong>1.19 s</strong></td>
+<td><strong>1.62 s</strong></td>
+<td><strong>5.17 s</strong></td>
+<td>1.0 s</td>
+</tr>
+<tr>
+<td>whisper <code>distil-large-v3.5</code></td>
+<td>3.72 s</td>
+<td>3.85 s</td>
+<td>8.28 s</td>
+<td>2.8 s</td>
+</tr>
+</tbody>
+</table>
+<p>Whisper's text was correct, cased and punctuated; the Zipformer's correct, in capitals. The swap was tried by hand on the real service: an <code>[audio]</code> change left it running; changing <code>[engine] name</code> logged "engine changed: fake → zipformer; restarting" and exited in 1.2 s, and the relaunch came up with the new engine. Your check after an app restart: set <code>[engine] name = "whisper"</code> in <code>config/voice_service.local.toml</code>, talk, stop, and see the text arrive on send.</p>
+<p><strong>Built: two passes, chunked whisper</strong> (2026-11-03): the Zipformer fills the live line while you talk; at each pause the audio so far becomes a piece that whisper cleans in the background, and its text replaces the rough words. On stop only the last piece is left, and whisper's joined text is sent. It's now the default (<code>[engine] final = "whisper"</code>). Design: <a href="#two-passes-live-text-cleaned-piece-by-piece">Two passes</a>. Measured with both real models over the test recordings fed at speech speed: on 49.8 s of speech in 4 pieces, CPU averaged 3.5 of 24 cores (2.8 with the Zipformer alone), peaking near 11; live words came at most 47 ms later than without whisper; never more than one piece waited; the wait after stop was <strong>1.7 s</strong> on <code>small.en</code> (0.7 s on <code>base.en</code>). Pass.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
 <ul>
 <li><strong>English only.</strong> Local, with no cloud APIs and no internet needed.</li>
-<li><strong>Real time:</strong> you see partial text while you speak. Targets: first partial under 500 ms; final under 500 ms after you stop. Neither engine has run on this PC yet, so the targets are checked in the first build, not assumed.</li>
+<li><strong>Real time:</strong> you see partial text while you speak. Targets: first partial under 500 ms; final under 500 ms after you stop. Neither engine has run on this PC yet, so the targets are checked in the first build, not assumed. <strong>Refined 2026-11-03:</strong> live text only with an engine that gives partials; with one that doesn't (whisper), or with the force-on-send setting, the text appears on send (<a href="#hot-swappable-engines">decided</a>).</li>
 <li><strong>A button first:</strong> click to turn the mic on, click again to turn it off. Hands-free comes later.</li>
 <li><strong>One message to the Talker when the mic turns off.</strong> Everything said while the mic was on goes out as one message, so the Talker never answers half a thought and each message is one paid turn.</li>
 <li><strong>Swappable engine:</strong> the engine is a config value. Nothing outside the engine knows which model runs.</li>
@@ -51,7 +95,7 @@
     You --&gt; UI
     UI -- &quot;StartListening / StopListening&quot; --&gt; Handler
     Handler -- &quot;launch · /health&lt;br/&gt;(CompanionApp)&quot; --&gt; Svc
-    Handler &lt;-- &quot;WS: start · stop /&lt;br/&gt;started · partial · mic_dropped · mic_back · final · error&quot; --&gt; Svc
+    Handler &lt;-- &quot;WS: start · stop /&lt;br/&gt;started · partial · cleaned · refining ·&lt;br/&gt;mic_dropped · mic_back · final · error&quot; --&gt; Svc
     Handler -- &quot;VoiceState · VoiceTranscript&quot; --&gt; UI
     Handler -- &quot;InputReceived(source=voice)&quot; --&gt; Talker
     Other &lt;-. &quot;same protocol&quot; .-&gt; Svc
@@ -85,7 +129,7 @@
 <tr>
 <td><strong>2. Receiver</strong></td>
 <td><code>voice_service</code></td>
-<td>The speech engine (sherpa-onnx, chosen in config)</td>
+<td>The speech engine (sherpa-onnx or faster-whisper, chosen in config)</td>
 <td>Audio from the recorder, or later from a remote recorder</td>
 <td>Partial text while you speak; final text when the mic stops</td>
 </tr>
@@ -104,11 +148,225 @@
 <li><strong>Clients never know the engine.</strong> The protocol names no models, so the engine can be swapped, given a second pass, or moved off the PC without changing any client.</li>
 <li><strong>The rest of this app sees only messages.</strong> The Talker gets <code>InputReceived</code>, the same event typed text uses. The Talker, the Agent Hub, and the logs don't change.</li>
 </ul>
+<h2 id="layers">Layers</h2>
+<blockquote>
+<p><strong>Built 2026-11-03</strong>: all four layers, with the file source, whisper, the file utility (<code>transcribe</code>), and the engine swap.</p>
+</blockquote>
+<p><code>voice_service</code> stays one package, arranged in four layers. Each layer uses only the one below it, so the engine works without a mic or a server.</p>
+<pre><code class="language-mermaid">flowchart BT
+    subgraph L1[&quot;1. Audio sources: AudioSource (audio.py)&quot;]
+        Mic[&quot;&lt;b&gt;MicSource&lt;/b&gt;&lt;br/&gt;the live mic&quot;]
+        File[&quot;&lt;b&gt;FileSource&lt;/b&gt;&lt;br/&gt;a 16 kHz mono WAV&quot;]
+        Fake[&quot;&lt;b&gt;FakeSource&lt;/b&gt;&lt;br/&gt;tests&quot;]
+    end
+    subgraph L2[&quot;2. Speech engine: SttEngine / SttStream (engines/)&quot;]
+        Zip[&quot;&lt;b&gt;ZipformerEngine&lt;/b&gt;&lt;br/&gt;live text&quot;]
+        Whisper[&quot;&lt;b&gt;WhisperEngine&lt;/b&gt;&lt;br/&gt;text on send,&lt;br/&gt;or the final engine&quot;]
+        FakeE[&quot;&lt;b&gt;FakeEngine&lt;/b&gt;&lt;br/&gt;tests&quot;]
+        Pick[&quot;&lt;b&gt;load_engine(name, config)&lt;/b&gt;&lt;br/&gt;picks one by name&quot;]
+    end
+    subgraph L3[&quot;3. Voice service app&quot;]
+        WS[&quot;&lt;b&gt;/ws/listen&lt;/b&gt;&lt;br/&gt;create_app (server.py)&quot;]
+        Sess[&quot;&lt;b&gt;ListenSession&lt;/b&gt;&lt;br/&gt;connects a source to a live engine&lt;br/&gt;and an optional final engine (session.py)&quot;]
+        Cut[&quot;&lt;b&gt;PieceCutter&lt;/b&gt;&lt;br/&gt;cuts pieces at pauses (pieces.py)&quot;]
+        Sess --&gt; Cut
+    end
+    subgraph L4[&quot;4. Users&quot;]
+        VoiceIn[&quot;&lt;b&gt;voice_in&lt;/b&gt;&lt;br/&gt;main app: your speech to the Talker&quot;]
+        Util[&quot;&lt;b&gt;transcribe / transcribe_file&lt;/b&gt;&lt;br/&gt;a file straight to the engine&lt;br/&gt;(python -m voice_service transcribe)&quot;]
+    end
+    L1 --&gt; Sess
+    Sess --&gt; L2
+    WS --&gt; Sess
+    VoiceIn -- &quot;WS: start · stop&quot; --&gt; WS
+    Util -- &quot;engine + FileSource, no server&quot; --&gt; L2
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>What it is</th>
+<th>Built</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1. Audio sources</strong></td>
+<td>Anything that gives PCM16, 16 kHz mono chunks, behind <code>AudioSource</code></td>
+<td><code>MicSource</code>, <code>FakeSource</code>, <code>FileSource</code> (a 16 kHz mono WAV; other formats refused; <code>FakeSource.from_wav</code> reads through it)</td>
+</tr>
+<tr>
+<td><strong>2. Speech engine</strong></td>
+<td>The model, behind <code>SttEngine</code> / <code>SttStream</code>, picked by name in config through <code>load_engine</code>. Usable by itself, with no mic and no server. <code>live_partials</code> says whether it gives text while you speak</td>
+<td><code>ZipformerEngine</code> (live), <code>WhisperEngine</code> (on send), <code>FakeEngine</code></td>
+</tr>
+<tr>
+<td><strong>3. Voice service app</strong></td>
+<td><code>/ws/listen</code> from <code>create_app</code>; <code>ListenSession</code> connects one source to the live engine and, with <a href="#two-passes-live-text-cleaned-piece-by-piece">two passes</a>, a final engine fed pieces cut by <code>PieceCutter</code>; the config watch restarts the service on an engine change</td>
+<td>Built</td>
+</tr>
+<tr>
+<td><strong>4. Users</strong></td>
+<td>Whoever wants text</td>
+<td><code>voice_in</code> (your speech to the Talker); <code>transcribe</code> / <code>transcribe_file</code> in <code>transcribe.py</code>, which import neither the server nor sounddevice, and the <code>transcribe</code> command. The engine comparison (step 7) reuses them</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The rule:</strong></p>
+<ul>
+<li><strong>The engine never depends on the mic or the server.</strong> It takes PCM bytes and gives text; where the bytes come from is the source's job.</li>
+<li><strong><code>voice_in</code> and the Talker know nothing about which engine is used.</strong> They see only the protocol and <code>InputReceived</code>. This is the page's <a href="#rules">swappable engine</a> rule, kept per layer.</li>
+</ul>
+<h3 id="hot-swappable-engines">Hot-swappable engines</h3>
+<blockquote>
+<p><strong>Built 2026-11-03</strong>. The service checks its config file and its <code>.local</code> override every 2 s. When the <code>[engine]</code> section differs from the running one, it waits until nothing is listening, logs "engine changed: A → B; restarting", and quits through the <code>/quit</code> path. The next mic click relaunches it through <code>CompanionApp</code>. Other config changes don't restart it; a file that can't be read is logged and looked at again on the next save.</p>
+</blockquote>
+<ul>
+<li><strong>The engine is chosen by name in config</strong> (<code>[engine] name</code>, through <code>load_engine</code>) and can change <strong>between listening sessions</strong> without restarting the app. A session in progress keeps its engine to the end.</li>
+<li><strong><code>voice_in</code> and the Talker don't notice.</strong> The protocol names no models, so nothing above layer 3 changes.</li>
+</ul>
+<p><strong>Decided (2026-11-03, by you):</strong></p>
+<ol>
+<li><strong>A swap restarts the voice service</strong>, and only while nothing is listening. <code>voice_in</code> already recovers when the service goes away: the next click relaunches it through <code>CompanionApp</code>. Restarting is simpler and cleaner than loading a big model inside a running service. A clean in-place reload may replace it later without changing anything else, since nothing above layer 3 sees the difference.</li>
+<li><strong>Switching models on the fly uses the same mechanism.</strong> Change the engine name in config (a picker later), and the service restarts with the new model. Trying whisper and then going back to another engine is one config change each way.</li>
+<li><strong>While the new model loads,</strong> the existing rule applies: the model loads in the background at service start, and a <code>start</code> during the load opens the mic and buffers the audio, so nothing said is lost (<a href="#the-voice-service-threads-and-audio-flow">threads</a>).</li>
+<li><strong>Whisper is used for now, for the live mic too, with the text on send.</strong> Whisper gives no live partial text, so with it the text appears when you stop the mic, not while you talk. This refines the earlier "no Whisper" decision (<a href="#engines">engines</a>): that decision was about live partial text, and the capability flag below now covers it. <strong>Revised 2026-11-03 (<a href="#two-passes-live-text-cleaned-piece-by-piece">two passes</a>):</strong> the live engine listens, and the final engine (<code>[engine] final</code>, whisper by default) cleans each piece and writes the text you send. One engine is still one line away (<code>final = ""</code>), and <code>final</code> is part of the swap: changing it restarts an idle service, as <code>name</code> does.</li>
+<li>
+<p><strong>Each engine declares whether it gives live partial text</strong> (a capability flag on the engine). If it does, the live line updates as you talk. If not (whisper), the text appears on send. <strong>A setting forces on-send</strong> even for a live engine. Clients still don't know which engine runs: they see partials or they don't.</p>
+</li>
+<li>
+<p><strong>The config file is the only swap trigger for now.</strong> A picker, a command from the main app, or a service endpoint is a possible later option; nothing is built for it.</p>
+</li>
+<li><strong>Whisper runs on faster-whisper</strong>, <code>small.en</code> on the CPU (int8) now and the GPU later. It's the exception to "every engine through sherpa-onnx" (<a href="#engines">engines</a>).</li>
+<li><strong>The force-on-send setting lives in <code>voice_in</code></strong> (<code>live_text</code>), sent with each session. <strong>The file source reads 16 kHz mono WAV only</strong> for now. ~~No background decoding while you talk~~ (revised 2026-11-03: whisper now cleans pieces while you talk, <a href="#two-passes-live-text-cleaned-piece-by-piece">below</a>).</li>
+</ol>
+<h3 id="two-passes-live-text-cleaned-piece-by-piece">Two passes: live text cleaned piece by piece</h3>
+<blockquote>
+<p><strong>Built 2026-11-03</strong> (all its recommendations approved). The default.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th><code>[engine] name</code></th>
+<th><code>final</code></th>
+<th>What you get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zipformer</code></td>
+<td><code>whisper</code></td>
+<td><strong>Two passes</strong> (default): live line, cleaned piece by piece; whisper's text is sent</td>
+</tr>
+<tr>
+<td><code>zipformer</code></td>
+<td><code>""</code></td>
+<td>Live mode: the Zipformer's text is sent</td>
+</tr>
+<tr>
+<td><code>whisper</code></td>
+<td><code>""</code></td>
+<td>On-send mode: no live line, whisper's text</td>
+</tr>
+<tr>
+<td>same as <code>name</code></td>
+<td></td>
+<td>One engine</td>
+</tr>
+<tr>
+<td><code>whisper</code></td>
+<td><code>zipformer</code></td>
+<td>Run as one engine, with a log line: an engine with no live text can't be the live one</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Pieces</strong> (<code>PieceCutter</code>, <code>pieces.py</code>, from each chunk's level, the same <code>rms</code> and <code>speech_rms</code> the silence stop uses): a piece ends after <code>[pieces] pause_seconds</code> (0.7 s) of quiet once it's <code>min_seconds</code> (4 s) long. With no pause by <code>max_seconds</code> (20 s after its first speech, so a piece is always within whisper's 30 s window) it's cut at the quietest chunk of the last <code>cut_search_seconds</code> (3 s). A mic drop and the stop also end a piece. Quiet with no speech never cuts. No overlap at cuts.</li>
+<li><strong>Matching live words to a piece:</strong> at each cut the session notes how many live words there are, so piece <em>k</em> covers live words <code>[start, end)</code>, back to back from word 0. A word the Zipformer gives just after a cut shows twice on the line until the next piece is cleaned, never in the sent text (that's whisper's).</li>
+<li><strong>The <code>voice-clean</code> thread</strong>, one per session, cleans pieces in order, one at a time (<code>new_stream</code>, <code>accept</code>, <code>finish</code>), with the previous piece's text as the prompt (<code>[pieces] prompt_previous</code>, <code>SttStream.set_prompt</code>), and posts <code>cleaned</code>. Pieces queue while the final engine loads or if it falls behind; nothing is dropped. Each piece's audio is freed once it's read.</li>
+<li><strong>On stop:</strong> the live stream finishes as before, <code>refining</code> goes out, the last piece is queued, and the session waits up to <code>[engine] final_timeout_seconds</code> (20 s) from the stop, then sends <code>final</code> with its <code>parts</code>. A silence stop does the same. A session that ended early (<code>complete: false</code>) drops the queue.</li>
+<li><strong>Fallbacks, per piece:</strong> the final engine raises → <code>failed</code>; it gives nothing where there were live words → <code>empty</code>; not done by the timeout → <code>timed_out</code> (its text is thrown away with <code>cancel()</code>; whisper decodes its window in one call, so the call itself finishes in the background, at most one 20 s piece). Each keeps its live words. One exception (added 2026-11-04): a piece with no speech (the last piece after a stop, or a mic-drop piece, with no chunk at or above <code>speech_rms</code>) that the final engine gives nothing for is settled as cleaned with empty text. Its live words are only the live engine catching up on the piece before (Zipformer lags the audio by about a word), so keeping them doubled the last word ("right? Write."). A final engine that doesn't load leaves the service as one engine: <code>clean_pieces: false</code>, <code>/health</code> <code>final_ready: false</code> with the error.</li>
+<li><strong>Force-on-send</strong> (<code>live_text = false</code>): no <code>partial</code> or <code>cleaned</code> go out, but pieces are still cleaned inside, so the wait after stop is still only the last piece.</li>
+<li><strong>The clear button (✕)</strong>, while talking or finishing: the socket closes, the session aborts, the queue is dropped and the running piece's text thrown away.</li>
+</ul>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant Mic as MicSource
+    participant S as ListenSession (voice-engine thread)
+    participant W as voice-clean thread
+    participant C as voice_in
+    Mic-&gt;&gt;S: chunks
+    S-&gt;&gt;S: live stream.accept, cutter.feed(rms), keep the piece's audio
+    S--&gt;&gt;C: partial (all live words so far)
+    S-&gt;&gt;W: piece 0 (audio, live words 0 to 12)
+    W--&gt;&gt;C: cleaned (piece 0, words 0 to 12, whisper's text)
+    S-&gt;&gt;W: piece 1 (words 12 to 30)
+    C-&gt;&gt;S: stop
+    S-&gt;&gt;S: live stream.finish()
+    S--&gt;&gt;C: refining (the live final text, 2 pieces left)
+    S-&gt;&gt;W: the last piece (words 30 to 41)
+    W--&gt;&gt;C: cleaned (piece 1)
+    W--&gt;&gt;C: cleaned (piece 2)
+    S--&gt;&gt;C: final (the joined text, its parts)
+</code></pre>
+<p><strong>In <code>voice_in</code>:</strong> <code>LiveLine</code> (<code>voice_in/line.py</code>, internal) builds the line from the latest live words and the cleaned spans; the settled start (whisper's text, or a fallback's live words) and the rough tail. It publishes <code>VoiceTranscript(settled_chars=…)</code> on each <code>partial</code> and <code>cleaned</code>, and <code>VoiceState(finishing, "cleaning up…")</code> on <code>refining</code>. The final's parts are cleaned one by one (whisper's kept as they are; fallbacks as all-caps text; a part that carries on a sentence keeps a small first letter, <code>clean_text(capitalize=False)</code>), joined, and the last gets its end mark. The wait for the final is <code>final_timeout_on_send</code> (90 s) with <code>clean_pieces</code>; the service's 20 s comes first. The temp UI shows the settled part in normal text and the rest dimmed; while finishing, the button pulses and ignores clicks.</p>
+<p><strong>Measured</strong> (2026-11-03, <code>scripts/voice_two_pass_check.py</code>: the service in-process with the real models, the test recordings fed at speech speed, config overrides in memory). Pass test: live words on time (within about 100 ms), at most one piece waiting, wait after stop under 2 s.</p>
+<table>
+<thead>
+<tr>
+<th>Run (49.8 s of speech, 4 pieces)</th>
+<th>CPU avg / peak (cores of 24)</th>
+<th>Live-word lag, max</th>
+<th>Whisper per piece</th>
+<th>Most waiting</th>
+<th>Wait after stop</th>
+<th>Text vs whisper on the whole</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zipformer alone</td>
+<td>2.84 / 3.25</td>
+<td></td>
+<td></td>
+<td></td>
+<td>0.08 s</td>
+<td></td>
+</tr>
+<tr>
+<td><code>small.en</code>, prompt on (default)</td>
+<td>3.54 / 10.6</td>
+<td>47 ms</td>
+<td>1.14 to 1.80 s</td>
+<td>1</td>
+<td><strong>1.74 s</strong></td>
+<td>0.977</td>
+</tr>
+<tr>
+<td><code>small.en</code>, prompt off</td>
+<td>3.49 / 10.8</td>
+<td>63 ms</td>
+<td>1.14 to 1.45 s</td>
+<td>1</td>
+<td>1.48 s</td>
+<td>0.977</td>
+</tr>
+<tr>
+<td><code>base.en</code>, prompt on</td>
+<td>3.11 / 10.9</td>
+<td>32 ms</td>
+<td>0.44 to 0.59 s</td>
+<td>1</td>
+<td>0.69 s</td>
+<td>1.000</td>
+</tr>
+</tbody>
+</table>
+<p>One-piece recordings (6.7 s, 16.7 s) waited 1.17 to 1.48 s on <code>small.en</code>, 0.45 to 0.61 s on <code>base.en</code>. No fallbacks and no doubled words. The differences from whole-recording whisper were "for ever" for "forever" and one comma. The prompt made no difference here, but every cut fell at a sentence end, so its purpose (joins mid-sentence) is for your own check; the defaults stay. <code>base.en</code> is the fallback if the wait or the load is ever too much.</p>
 <h2 id="a-shared-service">A shared service</h2>
 <p>Voice to text is wanted in several apps, so <code>voice_service</code> is shared. Any app connects over the same WebSocket protocol and decides what to do with the text. This app sends the final message to the Talker; another might type it into a box.</p>
 <ul>
 <li><strong>Each app keeps only a thin client.</strong> Everything specific to an app (here: the Talker, the UI events, the permission check) stays in that client, never in the service.</li>
-<li><strong>One listener at a time</strong> at first: a second <code>start</code> gets <code>busy</code>.</li>
+<li><strong>One listener at a time</strong> at first: a second <code>start</code> gets <code>busy</code>. Planned: a voice contract that <code>voice_in</code> provides, and sessions with a destination, so several modules (the mic button, voice notes) share one service (<a href="modules.html#chaining-modules">modules</a>).</li>
 <li><strong>Localhost only</strong> at first, with no access control between apps.</li>
 </ul>
 <h2 id="the-protocol">The protocol</h2>
@@ -125,8 +383,8 @@
 <tbody>
 <tr>
 <td>app → service</td>
-<td><code>{"type": "start"}</code></td>
-<td>Open the mic and start transcribing</td>
+<td><code>{"type": "start", "partials"}</code></td>
+<td>Open the mic and start transcribing. <code>partials: false</code> asks for the text on send only, even from a live engine (optional, default true; added 2026-11-03)</td>
 </tr>
 <tr>
 <td>app → service</td>
@@ -135,13 +393,23 @@
 </tr>
 <tr>
 <td>service → app</td>
-<td><code>{"type": "started"}</code></td>
-<td>The mic is open (added 2026-11-02, so the app knows <code>start</code> worked)</td>
+<td><code>{"type": "started", "partials", "clean_pieces"}</code></td>
+<td>The mic is open (added 2026-11-02, so the app knows <code>start</code> worked). <code>partials</code> says whether live text will come this session: false when the engine gives none or the app asked for none (optional, default true; added 2026-11-03). <code>clean_pieces</code>: <a href="#two-passes-live-text-cleaned-piece-by-piece">two passes</a>, so <code>cleaned</code> and <code>refining</code> come and the final is the final engine's (optional, default false; added 2026-11-03)</td>
 </tr>
 <tr>
 <td>service → app</td>
 <td><code>{"type": "partial", "text"}</code></td>
 <td>The text so far; replaces the previous partial</td>
+</tr>
+<tr>
+<td>service → app</td>
+<td><code>{"type": "cleaned", "piece", "start", "end", "text", "fallback"}</code></td>
+<td>Live words <code>[start, end)</code> (split on spaces, from the session's start) are replaced by <code>text</code>. With <code>fallback</code> (<code>failed</code>, <code>empty</code>, <code>timed_out</code>), <code>text</code> is empty and the span keeps its live words. In piece order; only with <code>clean_pieces</code> and <code>partials</code> (added 2026-11-03)</td>
+</tr>
+<tr>
+<td>service → app</td>
+<td><code>{"type": "refining", "text", "pending"}</code></td>
+<td>After <code>stop</code>, with <code>clean_pieces</code>: the live engine's final text (empty with <code>partials</code> off) and the pieces still being cleaned; <code>final</code> follows (added 2026-11-03)</td>
 </tr>
 <tr>
 <td>service → app</td>
@@ -156,7 +424,7 @@
 <tr>
 <td>service → app</td>
 <td><code>{"type": "final", "text", "latency_ms", "complete", "ended_by"}</code></td>
-<td>The finished text after <code>stop</code>; empty if nothing was heard. <code>complete</code> is false when the session ended early (the mic was lost and didn't come back, or you stopped while it was dropped). <code>ended_by</code> is <code>"stop"</code> (the app sent <code>stop</code>) or <code>"silence"</code> (the service stopped itself after a long silence, see <a href="#the-voice-service-config">config</a>); a silence stop needs no <code>stop</code> from the app</td>
+<td>The finished text after <code>stop</code>; empty if nothing was heard. <code>complete</code> is false when the session ended early (the mic was lost and didn't come back, or you stopped while it was dropped). <code>ended_by</code> is <code>"stop"</code> (the app sent <code>stop</code>) or <code>"silence"</code> (the service stopped itself after a long silence, see <a href="#the-voice-service-config">config</a>); a silence stop needs no <code>stop</code> from the app. <code>parts</code> (two passes, added 2026-11-03): <code>[{text, cleaned, fallback}]</code>, one per piece in order; <code>text</code> is them joined with spaces. Empty with one engine</td>
 </tr>
 <tr>
 <td>service → app</td>
@@ -173,8 +441,8 @@
 <li><strong>The Event Bus is the stream</strong> (decided 2026-11-02): no <code>Streamable</code> class. <code>VoiceTranscript</code> is the public output; any module that wants voice text calls <code>ctx.subscribe(VoiceTranscript, ...)</code>. <code>InputReceived</code> is only the Talker's way in.</li>
 <li><strong><code>send_as_input: bool = True</code></strong> on <code>StartListening</code> (decided 2026-11-02): with <code>False</code> (dictating into a text box, say), the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker.</li>
 <li><strong>Where you see the text:</strong> while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.</li>
-<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>), on (in <code>[modules] enabled</code> since step 4); the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
-<li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, sounddevice) go in an optional <code>voice</code> extra, so the app installs without them. Model files download once.</li>
+<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>, <code>live_text</code>, <code>final_timeout_on_send</code>), on (in <code>[modules] enabled</code> since step 4); the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
+<li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) go in an optional <code>voice</code> extra, so the app installs without them. Model files download once.</li>
 </ul>
 <h2 id="the-mic-permission">The mic permission</h2>
 <p>The <strong>voice handler</strong> asks, once, when you click the mic and before it sends <code>start</code>. The service never asks; it only needs Windows' mic access (<em>Settings → Privacy → Microphone → Let desktop apps access your microphone</em>).</p>
@@ -215,8 +483,13 @@
 </tr>
 <tr>
 <td><strong>Model load</strong> (once, at service start)</td>
-<td><code>SttEngine.load</code> on a daemon thread, <code>voice-model-load</code> (built so instead of <code>asyncio.to_thread</code>, so a shutdown never waits on a load)</td>
+<td><code>SttEngine.load</code> on a daemon thread, <code>voice-model-load</code> (built so instead of <code>asyncio.to_thread</code>, so a shutdown never waits on a load); a second one for the final engine</td>
 <td>Sets the <code>ready</code> event, or records the load error</td>
+</tr>
+<tr>
+<td><strong>Clean</strong> (one per session with two passes, <code>voice-clean</code>, added 2026-11-03)</td>
+<td>Takes pieces from its queue in order and runs the final engine on each</td>
+<td>Posts <code>cleaned</code> through the loop like the engine thread; a dropped session drops its queue (<a href="#two-passes-live-text-cleaned-piece-by-piece">two passes</a>)</td>
 </tr>
 </tbody>
 </table>
@@ -234,8 +507,8 @@
 </code></pre>
 <ul>
 <li><strong>The chunk queue</strong> is a bounded <code>queue.Queue</code> holding <code>audio.queue_seconds</code> of audio (10 s, about 312 chunks). If the engine falls that far behind, new chunks are dropped and counted, and the final's log line says how many milliseconds were lost. It should never happen with Zipformer; it's a guard, not a feature.</li>
-<li><strong>Partials</strong> are sent only when the text changed, and at most every <code>engine.partial_interval_ms</code> (100 ms). The final is always sent.</li>
-<li><strong>Silence stop:</strong> the engine thread notes when the recognized text last changed (the clock starts at <code>started</code>). If it hasn't changed for <code>audio.silence_stop_seconds</code> (120 s), no speech was detected in that stretch, so the session stops itself exactly like a <code>stop</code> and the final carries <code>ended_by: "silence"</code>. While you keep talking the text keeps changing, so the session stays on with no time limit. Using the engine's own text means no separate voice-activity detector, and background noise that isn't words doesn't keep the mic on.</li>
+<li><strong>Partials</strong> are sent only when the text changed, and at most every <code>engine.partial_interval_ms</code> (100 ms), and only if the engine has <code>live_partials</code> and the app didn't send <code>start</code> with <code>partials: false</code>. The final is always sent.</li>
+<li><strong>Silence stop:</strong> the engine thread notes when the recognized text last changed (the clock starts at <code>started</code>). If it hasn't changed for <code>audio.silence_stop_seconds</code> (120 s), no speech was detected in that stretch, so the session stops itself exactly like a <code>stop</code> and the final carries <code>ended_by: "silence"</code>. While you keep talking the text keeps changing, so the session stays on with no time limit. Using the engine's own text means no separate voice-activity detector, and background noise that isn't words doesn't keep the mic on. <strong>With an engine that gives no live text</strong> (whisper, added 2026-11-03), a chunk counts as speech when its level (RMS, int16 scale) is at least <code>audio.speech_rms</code> (300). A live engine with <code>partials: false</code> still reads its partials inside the session, so it keeps the text rule.</li>
 <li><strong>Stop:</strong> the loop gets <code>stop</code>, records the time, and calls <code>source.stop()</code> (sounddevice waits for its last callback). It puts an end marker on the queue; the engine thread drains what's left, calls <code>finish()</code> (which pads the tail and flushes the model), and posts the <code>final</code>. <code>latency_ms</code> is the time from <code>stop</code> received to final ready, which is the "final under 500 ms" target.</li>
 <li><strong>The model loads once</strong>, in the background when the service starts; streams are per session. A <code>start</code> that comes while it's still loading opens the mic at once and buffers in the chunk queue, so nothing you say is lost; the engine catches up when the model is ready.</li>
 <li><strong>Later, <code>/ws/audio</code></strong> plugs in as a second <code>AudioSource</code> (<code>RemoteSource</code>) that fills the same queue from WebSocket frames. <code>ListenSession</code> doesn't change.</li>
@@ -244,18 +517,22 @@
 <pre><code>src/voice_service/          # never imports assistant
 ├── __init__.py
 ├── __main__.py             # CLI: `python -m voice_service [--config F] [--host H] [--port P]`
-│                           #      `python -m voice_service download &lt;engine&gt;`
+│                           #      `python -m voice_service download &lt;zipformer|whisper&gt; [--model small.en]`
+│                           #      `python -m voice_service transcribe &lt;file.wav&gt; [--engine E] [--model M]`
 │                           #      `python -m voice_service check [--seconds S] [--no-model]`
 ├── check.py                # run_check: extra, mic privacy, devices, model, a real-mic level check (step 6)
 ├── config.py               # ServiceConfig from app_kit.load_layered(path, local), plus overrides
 ├── protocol.py             # message models (pydantic) and the error codes
-├── server.py               # create_app(config, engine, source_factory) → FastAPI
-├── session.py              # ListenSession: one mic session, its queue and engine thread
-├── audio.py                # AudioSource, MicSource (sounddevice), FakeSource (tests)
+├── server.py               # create_app(config, engine, source_factory, config_path) → FastAPI; the engine watch
+├── session.py              # ListenSession: one mic session, its queue and engine thread; Piece, the voice-clean thread
+├── pieces.py               # PieceCutter: where two-pass pieces end (pure)
+├── audio.py                # AudioSource, MicSource (sounddevice), FileSource (a WAV), FakeSource (tests)
+├── transcribe.py           # transcribe(engine, source), transcribe_file(path, engine_name, config): no server
 ├── download.py             # fetch model files once into models_dir
 └── engines/
-    ├── __init__.py         # SttEngine, SttStream, load_engine(name, config)
-    ├── zipformer.py        # ZipformerEngine (sherpa-onnx OnlineRecognizer)
+    ├── __init__.py         # SttEngine (live_partials), SttStream, load_engine(name, config)
+    ├── zipformer.py        # ZipformerEngine (sherpa-onnx OnlineRecognizer), live text
+    ├── whisper.py          # WhisperEngine (faster-whisper), text on send
     └── fake.py             # FakeEngine (tests): reveals a set text word by word
 </code></pre>
 <pre><code class="language-mermaid">classDiagram
@@ -272,6 +549,13 @@
         +stop() Final
         +abort() drop everything, no final
         outbox: asyncio.Queue
+        live engine + optional final engine
+        voice-clean thread: pieces in order
+    }
+    class PieceCutter {
+        &lt;&lt;pieces.py&gt;&gt;
+        +feed(level) cut or None
+        +reset()
     }
     class AudioSource {
         &lt;&lt;new, abstract&gt;&gt;
@@ -286,9 +570,14 @@
     class FakeSource {
         chunks from a WAV or a list
     }
+    class FileSource {
+        16 kHz mono WAV in chunks
+        realtime pacing optional
+    }
     class SttEngine {
         &lt;&lt;new, abstract&gt;&gt;
         +name str
+        +live_partials bool
         +new_stream() SttStream
     }
     class SttStream {
@@ -296,22 +585,38 @@
         +accept(pcm bytes)
         +partial() str
         +finish() str
+        +set_prompt(text) optional
+        +cancel() optional
     }
     class ZipformerEngine
+    class WhisperEngine {
+        live_partials False
+        buffers, decodes at finish
+    }
     class FakeEngine
+    class Transcribe {
+        &lt;&lt;transcribe.py&gt;&gt;
+        +transcribe(engine, source) str
+        +transcribe_file(path, engine_name, config) str
+    }
     Server --&gt; ListenSession : one at a time
     ListenSession --&gt; AudioSource
-    ListenSession --&gt; SttStream : engine thread
+    ListenSession --&gt; SttStream : engine thread · voice-clean thread
+    ListenSession --&gt; PieceCutter
+    Transcribe --&gt; FileSource
+    Transcribe --&gt; SttEngine : no server
     AudioSource &lt;|-- MicSource
     AudioSource &lt;|-- FakeSource
+    AudioSource &lt;|-- FileSource
     SttEngine &lt;|-- ZipformerEngine
+    SttEngine &lt;|-- WhisperEngine
     SttEngine &lt;|-- FakeEngine
     SttEngine ..&gt; SttStream : new_stream()
 </code></pre>
 <ul>
 <li><strong>The engine interface's four calls</strong> are split across two objects: <code>SttEngine.new_stream()</code> (the model, loaded once) gives an <code>SttStream</code> with <code>accept(pcm)</code>, <code>partial()</code>, and <code>finish()</code> (one per session). Engines take PCM16 bytes; converting to floats is each engine's job.</li>
 <li><strong>Tests</strong> build the app with <code>create_app(config, FakeEngine(...), lambda: FakeSource(...))</code> and drive <code>/ws/listen</code> with FastAPI's test client. No mic, no model.</li>
-<li><strong><code>/health</code></strong> answers <code>{"app": "voice_service", "engine": "zipformer", "ready": true|false, "error": null|"..."}</code>. <code>voice_in</code> uses it as its ping, like the viewer's <code>/api/ping</code>.</li>
+<li><strong><code>/health</code></strong> answers <code>{"app": "voice_service", "engine": "zipformer", "ready": true|false, "error": null|"...", "final": "whisper"|"", "final_ready": true|false, "final_error": null|"..."}</code> (the <code>final</code> fields added 2026-11-03). <code>voice_in</code> uses it as its ping, like the viewer's <code>/api/ping</code>.</li>
 <li><strong><code>/quit</code></strong> (POST, JSON body like the viewer's) ends the current session and shuts the server down.</li>
 </ul>
 <h3 id="the-voice-service-config">The voice service: config</h3>
@@ -327,9 +632,12 @@ queue_seconds = 10          # how far the engine may fall behind before audio is
 silence_stop_seconds = 120  # no speech detected for this long: the session stops itself, like a stop (a forgotten mic). No limit while you talk
 mic_recovery_seconds = 15   # the mic drops mid-session: keep the session and try to reopen it this long (mic_dropped, then mic_back). 0 = end at once (mic_lost)
 stall_seconds = 2           # no audio chunks at all for this long counts as a lost mic (an unplug Windows didn't report). Silence and a muted mic still send chunks. 0 = off
+speech_rms = 300            # a chunk this loud (RMS, 0-32768) counts as speech for the silence stop, with an engine that gives no live text (whisper)
 
 [engine]
-name = &quot;zipformer&quot;          # &quot;zipformer&quot; or &quot;fake&quot;
+name = &quot;zipformer&quot;          # the live engine: &quot;zipformer&quot; (live text), &quot;whisper&quot; (text when you stop) or &quot;fake&quot;. Changing it restarts a running service once nothing is listening
+final = &quot;whisper&quot;           # the final engine: cleans each piece while you talk and writes the text sent; &quot;&quot; = one engine (as before). Also restarts an idle service
+final_timeout_seconds = 20.0  # after stop: pieces not cleaned by then keep their live words
 models_dir = &quot;&quot;             # &quot;&quot; = %LOCALAPPDATA%\AI_Assistant\voice_models; env VOICE_SERVICE_MODELS overrides
 partial_interval_ms = 100
 
@@ -339,15 +647,29 @@ num_threads = 2
 decoding = &quot;greedy_search&quot;
 int8 = true                 # false = the full-precision model files (slower on a CPU, slightly more accurate)
 
+[engine.whisper]
+model = &quot;faster-whisper-small.en&quot;  # folder under models_dir: python -m voice_service download whisper [--model base.en]
+device = &quot;cpu&quot;              # &quot;cuda&quot; later
+compute_type = &quot;int8&quot;
+beam_size = 5
+cpu_threads = 8
+
 [engine.fake]
 text = &quot;hello from the fake engine&quot;
+
+[pieces]                    # two passes: where the audio is cut into pieces for the final engine (read per session)
+pause_seconds = 0.7         # this long below speech_rms, after speech, ends a piece
+min_seconds = 4.0           # a pause before this doesn't cut (a short piece costs whisper almost as much as a long one)
+max_seconds = 20.0          # no pause by then: cut anyway, at the quietest chunk
+cut_search_seconds = 3.0    # a forced cut looks this far back for the quietest chunk
+prompt_previous = true      # give the final engine the previous piece's text, so the joins read on
 
 [logging]
 level = &quot;INFO&quot;
 file = &quot;&quot;                   # &quot;&quot; = stderr only
 </code></pre>
 <ul>
-<li><strong>Models are never downloaded while running</strong> (local, no internet). <code>python -m voice_service download zipformer</code> fetches them once. A missing model is <code>engine_failed</code>, and its detail names that command.</li>
+<li><strong>Models are never downloaded while running</strong> (local, no internet). <code>python -m voice_service download zipformer</code> (or <code>download whisper [--model small.en]</code>, a CTranslate2 model read with <code>local_files_only</code>) fetches them once. A missing model is <code>engine_failed</code>, and its detail names that command.</li>
 </ul>
 <h3 id="the-voice-service-errors">The voice service: errors</h3>
 <table>
@@ -410,6 +732,16 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 <td>—</td>
 </tr>
 <tr>
+<td><strong>The final engine fails, gives nothing, or is too slow on a piece</strong> (two passes)</td>
+<td>That piece's <code>cleaned</code> carries <code>fallback</code> (<code>failed</code>, <code>empty</code>, <code>timed_out</code> at <code>final_timeout_seconds</code> after stop); later pieces are cleaned as usual</td>
+<td>That part of the line and of the message keeps the live words, cleaned as all-caps text; the reason is in the log</td>
+</tr>
+<tr>
+<td><strong>The final engine didn't load</strong></td>
+<td>The service runs as one engine: <code>clean_pieces: false</code>; <code>/health</code> <code>final_ready: false</code> with the error, logged once</td>
+<td>The live text is sent, as with one engine; the mic never fails because of it</td>
+</tr>
+<tr>
 <td><strong>Engine thread crashes</strong> (an exception in <code>accept</code> or <code>finish</code>)</td>
 <td><code>error engine_failed</code> with the exception; session over. The model stays loaded for the next try</td>
 <td><em>failed: speech engine error</em></td>
@@ -443,8 +775,8 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </tr>
 <tr>
 <td><code>StopListening</code></td>
-<td>none</td>
-<td><code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>. Nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (the text is dropped), the service stopped, or no final came within <code>reply_timeout</code></td>
+<td><code>discard</code> (default <code>False</code>)</td>
+<td><code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>. Nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (the text is dropped), the service stopped, or no final came within <code>reply_timeout</code> (<code>final_timeout_on_send</code>, 90 s, when <code>started.partials</code> was false or <code>started.clean_pieces</code> true; <code>core.command_timeouts.StopListening = 120</code>). With <code>discard=True</code> (the clear button): closes the socket (the service aborts, no final), an empty final <code>VoiceTranscript</code>, <code>idle</code> with reason <code>cleared</code>, nothing to the Talker; <code>ok</code> with <code>{"text": "", "discarded": true}</code>. A <code>busy</code> start within 2 s of a clear is retried once</td>
 </tr>
 </tbody>
 </table>
@@ -460,21 +792,22 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 <tbody>
 <tr>
 <td><code>VoiceState</code></td>
-<td><code>state: ListeningState</code> (a <code>StrEnum</code>: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code> (added 2026-11-03), <code>failed</code>; decided 2026-11-03), <code>reason: str | None</code> (the service's error code; the app's own <code>not_allowed</code>, <code>service_unavailable</code>, <code>service_stopped</code>, <code>timed_out</code>; <code>"mic_dropped"</code> on <code>dropped</code>; or <code>"silence"</code> on an idle after a silence stop), <code>detail: str | None</code> (a short sentence for the button)</td>
+<td><code>state: ListeningState</code> (a <code>StrEnum</code>: <code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code> (added 2026-11-03), <code>finishing</code> (two passes: the mic is off, the last piece is being cleaned; added 2026-11-03), <code>failed</code>; decided 2026-11-03), <code>reason: str | None</code> (the service's error code; the app's own <code>not_allowed</code>, <code>service_unavailable</code>, <code>service_stopped</code>, <code>timed_out</code>; <code>"mic_dropped"</code> on <code>dropped</code>; or <code>"silence"</code> on an idle after a silence stop), <code>detail: str | None</code> (a short sentence for the button)</td>
 <td>Every change. <code>starting</code> from the click until <code>started</code> (the service may be launching). <code>dropped</code> from <code>mic_dropped</code> until <code>mic_back</code> (then <code>listening</code>) or the end (<code>failed</code>, <code>mic_lost</code>)</td>
 </tr>
 <tr>
 <td><code>VoiceTranscript</code></td>
-<td><code>session_id: str</code>, <code>text: str</code>, <code>final: bool</code></td>
-<td>Each partial (<code>final=False</code>), then once with the final text (<code>final=True</code>; empty clears the line)</td>
+<td><code>session_id: str</code>, <code>text: str</code>, <code>final: bool</code>, <code>settled_chars: int = 0</code> (two passes: how much of the line, from the start, is settled; added 2026-11-03)</td>
+<td>Each partial and each <code>cleaned</code> (<code>final=False</code>), then once with the final text (<code>final=True</code>; empty clears the line). The text is cleaned (below)</td>
 </tr>
 <tr>
 <td><code>InputReceived</code> (existing)</td>
 <td><code>text</code>, <code>source="voice"</code></td>
-<td>Once per session, when the final is non-empty and <code>complete</code>, and <code>send_as_input</code> is true</td>
+<td>Once per session, when the final is non-empty and <code>complete</code>, and <code>send_as_input</code> is true. The Talker gets the cleaned text as <code>[Spoken] &lt;text&gt;</code> and reads it for what was meant</td>
 </tr>
 </tbody>
 </table>
+<p><strong>Text cleanup</strong> (added 2026-11-03): the Zipformer gives all capitals and no punctuation, so <code>voice_in</code> runs <code>clean_text</code> (<code>voice_in/cleanup.py</code>, rules only, no model) on every partial and the final. It lowercases the text, capitalizes the first letter and the word "I" (with I'm, I'll, I've, I'd), and writes the configured <code>terms</code> back as given (whole words, longest first, in one pass). The final, and only the final, gets one end mark: <code>?</code> if its first word is a question word (what, how, can, is, …), <code>.</code> otherwise. No commas and no sentence splitting. <strong>Text that comes cased</strong> (whisper's, revised 2026-11-03) is left as it is, apart from the <code>terms</code>: case and the end mark are fixed only when the text has no lowercase letters. The rule looks at the text, not the engine. With two passes it runs per part, and a part that carries on a sentence keeps a small first letter (<code>capitalize=False</code>, added 2026-11-03). The service still sends the engine's raw text, and <code>voice_in</code> logs it beside the cleaned final, so an engine comparison can measure the raw text. It lives in the thin module because it's presentation, not recognition, so changing it needs only a reload.</p>
 <p>All three carry <code>correlation_id = session_id</code> (the <code>StartListening</code> command's id), so a UI can drop a stale session's updates.</p>
 <p><strong>Config</strong> (<code>[modules.voice_in]</code>; the module is in <code>[modules] enabled</code> since step 4):</p>
 <pre><code class="language-toml">[modules.voice_in]
@@ -484,16 +817,21 @@ port = 8767
 start_timeout = 20.0      # seconds for the service to answer /health after launch
 service_config = &quot;&quot;       # optional path passed as --config to the service
 reply_timeout = 10.0      # seconds to wait for `started` after start, and for the final after stop (added 2026-11-03)
+live_text = true          # false = the text on send even when the engine gives live text (sent as start.partials) (added 2026-11-03)
+final_timeout_on_send = 90.0  # the wait for the final when the session has no live text, or with two passes (added 2026-11-03)
+cleanup = true            # sentence case and one end mark per final (false = the raw text) (added 2026-11-03)
+terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&quot;, &quot;Unitree&quot;, &quot;Zipformer&quot;]  # written back as given; your own list in config/local.toml
 </code></pre>
 <p>The wait for a dropped mic is the service's setting (<code>[audio] mic_recovery_seconds</code>), since only the service can reopen the mic; <code>voice_in</code> gets it in <code>mic_dropped</code>'s <code>wait_seconds</code>.</p>
 <p><strong>How it launches and watches the service</strong> (the <a href="reusable-parts.html#companion-app-checklist">companion app</a> pattern, through the shared <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a>, revised 2026-11-02; no launch code of its own):</p>
 <ul>
 <li><strong><code>CompanionApp.ensure_running</code></strong>, on each <code>StartListening</code>, under a lock: ping <code>/health</code>. If it answers, use it (a service you started yourself is used and left running). Otherwise launch <code>sys.executable -m voice_service --host --port [--config]</code> with no console, and poll <code>/health</code> every 100 ms until <code>start_timeout</code>, failing early if the process exits. <code>ready: false</code> with an error is <code>engine_failed</code>, not a timeout.</li>
 <li><strong>A quick health check when reusing a running service</strong> (added 2026-11-03): when <code>ensure_running</code> didn't launch it just now, <code>GET /health</code> (2 s). <code>ready: false</code> with an error fails at once with <code>engine_failed</code>, without opening a WebSocket. Still loading: carry on, because the service buffers the audio. No answer: <code>ensure_running</code> again, which relaunches it. A fresh launch skips the check, since <code>CompanionApp</code> has just pinged it.</li>
-<li><strong>One WebSocket per mic session</strong>, with the <code>websockets</code> client: connect, send <code>start</code>, and a reader task maps every message. <code>started</code> → <code>VoiceState(listening)</code>; <code>partial</code> → <code>VoiceTranscript</code>; <code>mic_dropped</code> → <code>VoiceState(dropped)</code>; <code>mic_back</code> → <code>VoiceState(listening)</code>; a <code>final</code> with <code>complete: false</code> → the text is dropped: <code>VoiceTranscript(final=True, text="")</code> clears the line, then <code>VoiceState(failed, "mic_lost")</code>; <code>final</code> → <code>VoiceTranscript(final=True)</code>, then <code>InputReceived</code> if non-empty, complete, and <code>send_as_input</code>, then <code>VoiceState(idle)</code> (with <code>reason="silence"</code> and a short <code>detail</code> when <code>ended_by</code> is <code>"silence"</code>), then close. A silence stop needs no <code>StopListening</code>; a later <code>StopListening</code> finds nothing listening; <code>error</code> → <code>VoiceState(failed)</code> and close.</li>
+<li><strong>One WebSocket per mic session</strong>, with the <code>websockets</code> client: connect, send <code>start</code> (with <code>partials</code> from <code>live_text</code>), and a reader task maps every message. <code>started</code> → <code>VoiceState(listening)</code>, with the detail "text appears when you stop" when <code>started.partials</code> is false; <code>partial</code> and <code>cleaned</code> → <code>VoiceTranscript</code> (through <code>LiveLine</code>, with <code>settled_chars</code>); <code>refining</code> → <code>VoiceState(finishing)</code>; <code>mic_dropped</code> → <code>VoiceState(dropped)</code>; <code>mic_back</code> → <code>VoiceState(listening)</code>; a <code>final</code> with <code>complete: false</code> → the text is dropped: <code>VoiceTranscript(final=True, text="")</code> clears the line, then <code>VoiceState(failed, "mic_lost")</code>; <code>final</code> → <code>VoiceTranscript(final=True)</code>, then <code>InputReceived</code> if non-empty, complete, and <code>send_as_input</code>, then <code>VoiceState(idle)</code> (with <code>reason="silence"</code> and a short <code>detail</code> when <code>ended_by</code> is <code>"silence"</code>), then close. A silence stop needs no <code>StopListening</code>; a later <code>StopListening</code> finds nothing listening; <code>error</code> → <code>VoiceState(failed)</code> and close.</li>
 <li><strong>Watching:</strong> there's no separate watchdog in phase 1. A crash mid-session shows up as the socket closing without a final: <code>VoiceState(failed, "service_stopped")</code>, nothing sent. The next click runs <code>ensure_running</code> again, which relaunches it; that's the lazy launch, not the left-out auto-restart.</li>
-<li><strong>Logging:</strong> each session logs its start (the stand-in logs the permission warning), the final's length, <code>latency_ms</code>, and how it ended; the service's <code>detail</code> on every error. The service's own log has the audio length and the text (the protocol doesn't carry the audio length, so <code>voice_in</code> doesn't log it).</li>
+<li><strong>Logging:</strong> each session logs its start (the stand-in logs the permission warning), the final's length, <code>latency_ms</code>, and how it ended, plus one line with the raw and the cleaned final (<code>raw: '…' -&gt; clean: '…'</code>); the service's <code>detail</code> on every error. The service's own log has the audio length and the text (the protocol doesn't carry the audio length, so <code>voice_in</code> doesn't log it).</li>
 <li><strong><code>stop()</code></strong> (app shutdown or deactivation): abort an open session (close the socket, no <code>InputReceived</code>), then <code>CompanionApp.stop()</code>: only if this module launched the service, <code>POST /quit</code>, wait 5 s, then kill.</li>
+<li><strong>Reload</strong> (<a href="core.html#reloading-a-modules-code"><code>ReloadModule</code></a>, built 2026-11-03): <code>export_state()</code> hands its <code>CompanionApp</code> and its key (service, host, port, args) to the new code, so <code>stop()</code> leaves the voice app running and the new <code>init</code> reuses it if the key matches. An open mic session still ends and its words are dropped; the chat and the Talker aren't touched. While it swaps, the temp UI's mic is crossed out with the reason.</li>
 <li><strong>The <code>websockets</code> client</strong> is in the optional <code>voice</code> extra and imported in <code>init</code>; without it the module fails to start with "install the voice extra: pip install -e .[voice]", and the rest of the app runs.</li>
 </ul>
 <pre><code class="language-mermaid">sequenceDiagram
@@ -619,7 +957,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
 <td>a waiting <code>StopListening</code> → <code>failed</code>, retryable</td>
 </tr>
 <tr>
-<td>No final within <code>reply_timeout</code> after stop</td>
+<td>No final within <code>reply_timeout</code> after stop (<code>final_timeout_on_send</code> without live text)</td>
 <td><code>timed_out</code></td>
 <td>voice service didn't answer</td>
 <td><code>StopListening</code> → <code>failed</code></td>
@@ -654,6 +992,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
 <li><strong>Nemotron Speech Streaming EN 0.6B INT8 second.</strong> It's compared with Zipformer on the same recordings for latency, accuracy (word error rate), and CPU use.</li>
 </ol>
 <p><strong>Postponed:</strong> Parakeet Unified and other experimental conversions (no proven Python runtime). <strong>Fallback:</strong> Vosk. <strong>Not used:</strong> Whisper and whisper.cpp, which work on windows of audio and give no continuous partials. Parakeet TDT is out too: it's a batch model and loses accuracy when streamed in chunks.</p>
+<p><strong>Refined 2026-11-03:</strong> the "no Whisper" above was about live partial text. Whisper is now used as an on-send engine, for the live mic too: it declares no live partials, so its text appears when the mic stops (<a href="#hot-swappable-engines">decided</a>). It runs on faster-whisper, not sherpa-onnx (decided 2026-11-03): faster-whisper handles long audio and skips silence, where sherpa-onnx's whisper takes 30 s per call. <strong>Measured</strong> (2026-11-03, CPU int8): <code>small.en</code>, the default, waits 1.2 s after 6.6 s of speech, 1.6 s after 17 s and 5.2 s after 47 s (<a href="#voice">table</a>). <code>base.en</code> is about three times faster, <code>distil-large-v3.5</code> about twice as slow; either is one config change. The GPU is a later step. <strong>Two passes</strong> (2026-11-03): whisper is now also the default final engine, cleaning the Zipformer's live text piece by piece (<a href="#two-passes-live-text-cleaned-piece-by-piece">two passes</a>).</p>
 <h2 id="roadmap">Roadmap</h2>
 <ol>
 <li><strong>Phase 1, PC prototype:</strong> service and app client both on the PC, the button, live and final text, Zipformer, then Nemotron and the comparison.</li>
@@ -665,6 +1004,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
 <ul>
 <li><strong>Phase 2 and the gateway:</strong> the Quest is meant to connect through the <a href="remote-clients.html">gateway</a>, but streaming audio straight to the service goes around it. The lean is: audio straight to the service, text through the gateway. Decide when phase 2 starts.</li>
 <li><strong>Several apps at once:</strong> sharing one mic between listeners is left for when a second app exists.</li>
+<li><strong>Engine swapping and whisper:</strong> decided and built 2026-11-03 under <a href="#hot-swappable-engines">Hot-swappable engines</a>. A swap trigger beyond the config file (a picker, say) is a possible later option; nothing is built for it.</li>
 </ul>
 <h2 id="decided-2026-10-28">Decided (2026-10-28)</h2>
 <ol>
@@ -672,7 +1012,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
 <li>A toggle button first; hands-free later.</li>
 <li>One message to the Talker when the mic turns off, not one per pause.</li>
 <li>One voice handler in three parts. The recorder and receiver live in <code>voice_service</code>, its own shared app. Each app keeps a thin client; in this app that's <code>voice_in</code>.</li>
-<li>Engines through sherpa-onnx: Streaming Zipformer first, then Nemotron Speech Streaming EN 0.6B INT8. Parakeet Unified postponed, Vosk as the fallback, no Whisper.</li>
+<li>Engines through sherpa-onnx: Streaming Zipformer first, then Nemotron Speech Streaming EN 0.6B INT8. Parakeet Unified postponed, Vosk as the fallback, no Whisper. (Refined 2026-11-03: no Whisper <em>for live partial text</em>; whisper is used as an on-send engine, see <a href="#hot-swappable-engines">Hot-swappable engines</a>.)</li>
 </ol>
 <footer>Generated from <code>docs/architecture/voice.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

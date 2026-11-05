@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spoken input reaches the Talker marked as spoken</title>
+<!-- Generated from docs/next-steps/archive/voice-input-to-talker.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/voice-input-to-talker.html"></nav>
+<main>
+<h1 id="spoken-input-reaches-the-talker-marked-as-spoken">Spoken input reaches the Talker marked as spoken</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Approved as written, caps left on screen. Built in <code>talker/module.py</code> (<code>SPOKEN</code> prefix <code>[Spoken]</code>, <code>_Item.source</code>, a prompt paragraph); test <code>test_talker_marks_spoken_input</code>; 232 tests pass, ruff clean. Docs updated: <a href="../../html/api/messaging.html#inputreceived">Messaging</a>, <a href="../../html/architecture/agents.html">Agents</a>, <a href="../../html/architecture/voice.html">Voice</a>. <strong>Loaded</strong> at the relaunch of 2026-11-03 12:59: spoken messages now reach the Talker marked <code>[Spoken]</code>.</p>
+<p><strong>Can the voice part be changed and restarted while the app runs? (checked 2026-11-03)</strong>
+- <strong>The <code>voice_service</code> app: yes.</strong> It's its own process. Quit it (or let it crash), edit its code, and the next mic click relaunches it with the new code (<code>voice_in</code> health-checks before reusing it). A session in progress just ends as failed. The chat window and the Talker carry on.
+- <strong>Turning <code>voice_in</code> off and on: the core can, but nothing calls it yet.</strong> <code>DeactivateModule</code> / <code>ActivateModule</code> work (tests in <code>test_control.py</code>), and nothing depends on <code>voice_in</code>, so the chat and the Talker aren't touched. The mic button then just fails ("not available"). But no button or Talker tag sends these commands; that's the planned control panel.
+- <strong>Edits to <code>voice_in</code>'s own code: not without a restart.</strong> Reactivating makes a fresh instance of the class already loaded; new code needs an app relaunch, which also restarts the Talker's session. That's by design (no hot code reload).</p>
+</blockquote>
+<p><strong>Asked:</strong> while testing the mic: "I thought that we had tags to show if text is typed or over the mic", "why is the entire text in caps", and the Talker should "figure out what I am trying to say based on context", with no separate cleanup model call.</p>
+<p><strong>Why:</strong> the Talker can't tell a spoken message from a typed one, so it can't allow for mishearings ("mike" for mic, "O fool" for Whisper).</p>
+<p><strong>What happens today:</strong></p>
+<ul>
+<li><code>voice_in</code> already tags its final text: <code>InputReceived(text=..., source="voice")</code> (<code>voice_in/module.py</code>). The temp UI uses the tag to mark the message as spoken in the chat.</li>
+<li>The Talker drops the tag. <code>_on_input</code> (<code>talker/module.py</code>) keeps only <code>text</code>, <code>id</code> and <code>conversation_id</code> in its <code>_Item</code>, so the model gets the bare text. The Talker doesn't subscribe to <code>VoiceState</code> or <code>VoiceTranscript</code>; only the temp UI does.</li>
+<li>Its prompt says nothing about spoken input or mishearings.</li>
+<li><strong>All caps:</strong> this comes from the speech engine. The Streaming Zipformer model (<code>sherpa-onnx-streaming-zipformer-en-2023-06-26</code>) was trained on uppercase text with no punctuation, so it writes everything in capitals. <code>zipformer.py</code> only strips spaces, <code>voice_in</code> passes the text on unchanged, and the chat doesn't change the case.</li>
+</ul>
+<p><strong>Touches:</strong> <code>src/assistant/modules/talker/module.py</code> (<code>_Item</code>, <code>_on_input</code>, the prompt), <code>tests/test_agents.py</code>, and the docs <a href="../../html/architecture/agents.html">Agents</a> and <a href="../../html/architecture/voice.html">Voice</a>.</p>
+<p><strong>Approach:</strong></p>
+<ol>
+<li><code>_Item</code> gets a <code>source</code> field, which <code>_on_input</code> copies from the event.</li>
+<li>When <code>source == "voice"</code>, the Talker puts a short prefix on the text it sends to its session, <code>[Spoken] ...</code> (the prompt explains it: mishearings, no punctuation, all caps). The history keeps the same prefix, so the Main Assistant's task context shows it too. Typed input is sent as it is now.</li>
+<li>One paragraph in the Talker's prompt: spoken messages are marked; read them for what was meant, using the conversation; quietly fix obvious mishearings; ask only when a likely reading changes what you'd do; when you pass spoken work to the Main Assistant, write it in clean words.</li>
+<li>Tests: a <code>source="voice"</code> input reaches the fake session with the prefix; a typed input doesn't.</li>
+</ol>
+<p>No extra model call, and nothing changes in <code>voice_in</code> or the contracts: the tag is already there.</p>
+<p><strong>Open questions:</strong></p>
+<ul>
+<li><strong>Cleaning the case for the display?</strong> The chat would still show the caps. Recommend: leave it for now. The Talker reads it fine, and the Nemotron engine in step 7 writes normal case with punctuation, which may settle it.</li>
+<li><strong>Should the chat show the Talker's reading?</strong> Recommend: no, not now. The Talker can say "I took that as …" in its reply when it had to guess.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/archive/voice-input-to-talker.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

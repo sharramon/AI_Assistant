@@ -14,8 +14,8 @@
 <h1 id="core-host-internal">Core host (internal)</h1>
 <p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
 <h2 id="app"><code>App</code></h2>
-<p><code>App(available: Sequence[type[Module]], config: dict[str, Any])</code></p>
-<p>Wires the core together and runs the enabled modules. Construction validates the module selection.</p>
+<p><code>App(available: Sequence[type[Module]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)</code></p>
+<p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> and the <a href="control.html">module control</a> commands, including <code>ReloadModule</code> and <code>AddModule</code>.</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>
@@ -38,6 +38,12 @@
 <td><code>dict</code></td>
 <td>yes</td>
 <td>From <a href="infra.html#load_config"><code>load_config</code></a></td>
+</tr>
+<tr>
+<td><code>config_loader</code></td>
+<td>callable</td>
+<td>no</td>
+<td>Re-reads the config before a reload or add (<code>__main__</code> passes <code>load_config</code> plus its log wiring)</td>
 </tr>
 </tbody>
 </table>
@@ -110,9 +116,54 @@
 <td><code>async deactivate(module_id, with_dependents=False) -&gt; Result</code></td>
 <td>Runtime deactivation; see <a href="control.html#deactivatemodule"><code>DeactivateModule</code></a></td>
 </tr>
+<tr>
+<td><code>async reload(module_id) -&gt; Result</code></td>
+<td>Swap a module's code, with rollback; see <a href="control.html#reloadmodule"><code>ReloadModule</code></a></td>
+</tr>
+<tr>
+<td><code>async add(package, activate=True) -&gt; Result</code></td>
+<td>Load a new module; see <a href="control.html#addmodule"><code>AddModule</code></a></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/lifecycle.py</code></p>
+<h2 id="loader"><code>loader</code></h2>
+<p>Functions for loading a module's code fresh. Generic: they know no module by name.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>package_of(cls) -&gt; str</code></td>
+<td>The package a module class lives in</td>
+</tr>
+<tr>
+<td><code>check_reloadable(package)</code></td>
+<td>Raises <code>LoadError</code> for shared code (<code>assistant.core</code>, <code>.contracts</code>, <code>.infra</code>, <code>app_kit</code>), <code>assistant</code> / <code>assistant.modules</code> themselves, or a top-level name</td>
+</tr>
+<tr>
+<td><code>drop(package) -&gt; dict</code></td>
+<td>Remove the package and its submodules from <code>sys.modules</code> (and their <code>__pycache__</code>); returns them</td>
+</tr>
+<tr>
+<td><code>restore(package, removed)</code></td>
+<td>Put back what <code>drop</code> removed</td>
+</tr>
+<tr>
+<td><code>import_fresh(package)</code></td>
+<td>Import from source; a missing contract becomes <code>LoadError</code> ("needs a restart")</td>
+</tr>
+<tr>
+<td><code>find_module_class(package, module_id=None)</code></td>
+<td>The one <code>Module</code> subclass the package exports</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/loader.py</code></p>
 <h2 id="scopedcontext"><code>ScopedContext</code></h2>
 <p><code>ScopedContext(manifest, router, bus, container, config, log)</code></p>
 <p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it. Sets the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> to an <a href="#allowallpermissions"><code>AllowAllPermissions</code></a> bound to its module id.</p>
@@ -165,6 +216,10 @@
 <tr>
 <td><code>cancel_all() -&gt; int</code></td>
 <td>Cancel every in-flight command</td>
+</tr>
+<tr>
+<td><code>hold()</code></td>
+<td>Context manager: while held (a module is being swapped), a command with no handler waits for one, up to its timeout, instead of returning <code>not_available</code></td>
 </tr>
 </tbody>
 </table>

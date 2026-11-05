@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice text cleanup (sentence case), then a hot-swap test</title>
+<!-- Generated from docs/next-steps/voice-text-cleanup.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-text-cleanup.html"></nav>
+<main>
+<h1 id="voice-text-cleanup-sentence-case-then-a-hot-swap-test">Voice text cleanup (sentence case), then a hot-swap test</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Approved with these answers: raw text in the log only; an end mark on short finals too; <strong>one end mark per final, no commas, no sentence splitting: <code>?</code> if the first word is a question word (what, how, why, can, could, do, does, is, are, will, would, should and similar), <code>.</code> otherwise</strong> (this replaces rule 2 below: only the first letter is capitalized); the starter terms only (<code>Claude</code> dropped). Local only, no paid or cloud service. Built: <code>voice_in/cleanup.py</code> (<code>clean_text</code>, <code>QUESTION_WORDS</code>), 284 tests pass, ruff clean. <strong>Reload test (2026-11-03 13:19:11):</strong> <code>RELOAD: voice_in</code> succeeded, the first live reload in the real app. The log says "Kept the running voice service from before the reload", "Activated voice_in", "Reloaded voice_in", with no warnings or errors, and the other modules weren't touched. No mic session had run in this launch before the swap, so the voice app probably hadn't been launched yet: what was handed over was the launcher, not a running process. Left for the user: the mic button during and after the swap, the first spoken sentence in sentence case, and a second reload after a mic session (to see a running voice app reused).</p>
+</blockquote>
+<p><strong>Asked:</strong> "Go from cheaper =&gt; expensive. After the cheaper fix is in, let's try hot swapping, just to see if it works." The cheap fix: the voice text arrives in ALL CAPS from the Zipformer (int8, <code>config/voice_service.toml</code>); make the live line and the final text normal sentence case with simple rules.</p>
+<p><strong>Why:</strong> all-caps text is hard to read in the live line and the chat. This fixes only the casing. Misheard words need the later steps (a second-pass recognizer, the engine comparison), which aren't part of this change.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><code>src/assistant/modules/voice_in/cleanup.py</code> (new): one pure function, <code>clean_text(raw, terms, final)</code>.</li>
+<li><code>src/assistant/modules/voice_in/module.py</code>: clean every <code>Partial</code> and the <code>Final</code> before publishing; log the raw and the cleaned text of each final.</li>
+<li><code>config/default.toml</code>, <code>[modules.voice_in]</code>: <code>cleanup = true</code> and a <code>terms</code> list. Your own terms go in <code>config/local.toml</code> (the usual local override).</li>
+<li>Tests: <code>tests/test_voice_text_cleanup.py</code> (the rules), plus one case in <code>tests/test_voice_in.py</code> (the module publishes cleaned text).</li>
+<li>Docs: <code>docs/architecture/voice.md</code> (the <code>voice_in</code> section), <code>docs/api/messaging.md</code> (<code>VoiceTranscript</code>: the text is cleaned).</li>
+</ul>
+<p><strong>Where it lives: the <code>voice_in</code> module, not the voice service.</strong> Casing is presentation of the text, not recognition, so it sits fine in the thin module. The service keeps sending the engine's raw text, which is what an engine comparison should measure. And a change in <code>voice_in</code> reloads in place (<code>RELOAD: voice_in</code>), so the running voice app is kept and nothing needs a restart. That makes it a real hot-swap test.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>The rules, in order:
+  1. Lowercase everything.
+  2. Capitalize the first letter of each sentence (the start, and after <code>.</code>, <code>?</code>, <code>!</code>). The Zipformer outputs no punctuation, so today that's just the first letter.
+  3. Capitalize the standalone word <code>i</code> and <code>i'm</code>, <code>i'll</code>, <code>i've</code>, <code>i'd</code> → <code>I</code>, <code>I'm</code>, <code>I'll</code>, <code>I've</code>, <code>I'd</code>.
+  4. Put back the terms from config, matched as whole words or phrases, ignoring case, longest first: <code>isaac sim</code> → <code>Isaac Sim</code>, <code>usd</code> → <code>USD</code>.
+  5. Final text only: add a <code>.</code> if it doesn't end with <code>.</code>, <code>?</code> or <code>!</code>. The live line gets no period, since it is still growing.</li>
+<li>Default terms: <code>Isaac Sim</code>, <code>USD</code>, <code>glTF</code>, <code>Unity</code>, <code>Unitree</code>, <code>Zipformer</code>, <code>Claude</code>. A term the engine never spells right (it hears "where house") isn't fixed by this; that's the second pass's job.</li>
+<li>The raw text is kept in the log: one line per final, <code>raw: "I WANT TO ..." → clean: "I want to ..."</code>. Not as a field on <code>VoiceTranscript</code>: a new field changes a contract, and that needs an app restart, which would spoil the hot-swap test.</li>
+<li>The Talker gets the cleaned text (<code>InputReceived(source="voice")</code>), still marked as spoken.</li>
+<li>No new shared helper: <code>clean_text</code> is used only by <code>voice_in</code>. If the second pass later needs it inside the voice service, it moves to a shared place and goes into the reusable parts index then.</li>
+</ul>
+<p><strong>Then the hot-swap test:</strong> after the tests and ruff pass, the worker ends with <code>RELOAD: voice_in</code>. In Manual you're asked first. Check that the chat window and the Talker stay up, the mic button shows crossed out during the swap and works again after it, that the log says "Kept the running voice service from before the reload", and that the next spoken sentence comes out in sentence case. I'll report exactly what happened, including any failure.</p>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li>Raw text in the log only, or also a <code>raw</code> field on <code>VoiceTranscript</code> (needs a restart)? <strong>Recommend: log only for now;</strong> add the field with the comparison script in step 7, where a restart is fine.</li>
+<li>Add a period to the final text even when it's one or two words ("yes" → "Yes.")? <strong>Recommend: yes,</strong> to keep the rule simple.</li>
+<li>Any terms to add to the default list?</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/voice-text-cleanup.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -13,9 +13,9 @@
 <main>
 <h1 id="html-viewer">HTML viewer</h1>
 <blockquote>
-<p><strong>Status: built (2026-10-27), its own app.</strong> Tabs, double-click to edit, save, undo; write-back to Markdown, highlights, and snip. It's a standalone app (<code>src/html_viewer</code>) that the main app launches through the thin <code>html_viewer</code> module. What was built and where it differs from the plan: <a href="#as-built-v1">As built</a>. Highlight-to-ask is not built. Change notes: base viewer, write-back, highlight, snip, own app.</p>
+<p><strong>Status: built (2026-10-27), its own app.</strong> Tabs, double-click to edit, save, undo; write-back to Markdown, highlights, and snip. It's a standalone app (<code>src/html_viewer</code>) that the main app launches through the thin <code>html_viewer</code> module. What was built and where it differs from the plan: <a href="#as-built-v1">As built</a>. Highlight-to-ask is not built.
+<strong>Asked:</strong> "A html viewer. Whenever you want me to view a html file for these edits, I want you to give me a link in the talker chat I can click on. The module itself is a html viewer that can take any html and I can view it." Then: any HTML, especially flowcharts and diagrams like our docs; tabs, with a running tally of what's open that the Talker knows; later, the assistant scrolls to and highlights what it wants to talk about; later (or early if easy), you snip a region as an image or highlight part of a page and hand it to the assistant.</p>
 </blockquote>
-<p><strong>Asked:</strong> "A html viewer. Whenever you want me to view a html file for these edits, I want you to give me a link in the talker chat I can click on. The module itself is a html viewer that can take any html and I can view it." Then: any HTML, especially flowcharts and diagrams like our docs; tabs, with a running tally of what's open that the Talker knows; later, the assistant scrolls to and highlights what it wants to talk about; later (or early if easy), you snip a region as an image or highlight part of a page and hand it to the assistant.</p>
 <p><strong>Why:</strong> the assistant makes and edits HTML (the docs, diagrams, change notes), but today you have to find the file and open it yourself, and the assistant doesn't know what you're looking at.</p>
 <p><strong>What it touches:</strong></p>
 <ul>
@@ -45,7 +45,7 @@
 </tr>
 <tr>
 <td><strong>Built 2026-10-27</strong></td>
-<td><strong>Write-back to Markdown for built pages:</strong> saving a text edit in a page built from Markdown writes it into the source Markdown too, matched by text (note). Converting a whole HTML page back to Markdown is rejected because it rewrites the whole file and loses detail. <strong>Highlight</strong> (was "point at a section"): the assistant opens a page and highlights a quoted part; you clear it by clicking it (note). <strong>Snip:</strong> a button, then drag a box; Edge screenshots it, and the image goes to the Talker with your next message (note). See <a href="#as-built-v1">As built</a></td>
+<td><strong>Write-back to Markdown for built pages:</strong> saving a text edit in a page built from Markdown writes it into the source Markdown too, matched by text. Converting a whole HTML page back to Markdown is rejected because it rewrites the whole file and loses detail. <strong>Highlight</strong> (was "point at a section"): the assistant opens a page and highlights a quoted part; you clear it by clicking it. <strong>Snip:</strong> a button, then drag a box; Edge screenshots it, and the image goes to the Talker with your next message. See <a href="#as-built-v1">As built</a></td>
 </tr>
 <tr>
 <td><strong>Later</strong></td>

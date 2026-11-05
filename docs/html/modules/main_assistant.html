@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>main_assistant: the worker agent</title>
+<!-- Generated from docs/modules/main_assistant.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="modules/main_assistant.html"></nav>
+<main>
+<h1 id="main_assistant-the-worker-agent">main_assistant: the worker agent</h1>
+<h2 id="purpose">Purpose</h2>
+<p>A <code>claude</code> session with file tools that does the work handed to it by the Agent Hub. On by default. Design: <a href="../architecture/agents.html">agents</a>, <a href="../agents/runtime.html#the-main-assistant-on-its-own">the Main Assistant on its own</a>.</p>
+<h2 id="wrapper">Wrapper</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td><code>main_assistant</code></td>
+</tr>
+<tr>
+<td>provides</td>
+<td><a href="../api/agents.html#itaskagent"><code>ITaskAgent</code></a> (only the Hub calls it)</td>
+</tr>
+<tr>
+<td>requires / optional</td>
+<td>none</td>
+</tr>
+<tr>
+<td>permissions</td>
+<td>none declared; its file and shell access are its <code>claude</code> rules (config below)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td>nothing: it is called through <code>ITaskAgent</code> (<code>assign</code>, <code>message</code>, <code>cancel</code>, <code>answer_permission</code>, <code>set_permission_mode</code>)</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td><a href="../api/agents.html#reporttask"><code>ReportTask</code></a> (<code>progress</code>, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code>)</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td><a href="../api/agents.html#agentactivity"><code>AgentActivity</code></a>, <a href="../api/agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a></td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<ul>
+<li><strong>A <code>claude -p</code> process</strong> per task (<code>fresh_sessions</code>), through the shared <a href="../api/infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> and <a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>. It starts with the module and stops with it.</li>
+<li><strong>Its transcript</strong> in the launch's log folder.</li>
+</ul>
+<h2 id="inner-workings">Inner workings</h2>
+<pre><code class="language-mermaid">flowchart LR
+    Hub[&quot;&lt;b&gt;Agent Hub&lt;/b&gt;&quot;]
+    STA[&quot;SessionTaskAgent&lt;br/&gt;task · handoffs · mode&quot;]
+    Claude[&quot;claude -p&lt;br/&gt;built for Manual or Auto&quot;]
+    Out[&quot;AgentActivity · usage ·&lt;br/&gt;state · mode&quot;]
+
+    Hub -- &quot;ITaskAgent.assign / message&quot; --&gt; STA
+    STA --&gt; Claude
+    Claude -- &quot;stream events&quot; --&gt; STA
+    STA -- ReportTask --&gt; Hub
+    STA --&gt; Out
+</code></pre>
+<p>Each session's command line and prompt are built for the permission mode at that moment: Manual at every launch, Auto only from the UI button. A <code>HANDOFF:</code> line starts a fresh session from a note (<a href="../agents/runtime.html#fresh-sessions-and-handoffs">fresh sessions and handoffs</a>).</p>
+<h2 id="config">Config</h2>
+<p><code>[modules.main_assistant]</code>: <code>workspace</code>, <code>tools</code>, <code>permission_mode</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>, <code>fresh_sessions</code>, <code>max_handoffs</code>, <code>context_reminder</code>, <code>edit_note</code>, <code>permission_prompts</code>, <code>permission_timeout</code>, <code>transcript</code>, <code>model</code>.</p>
+<h2 id="code-and-tests">Code and tests</h2>
+<ul>
+<li><code>src/assistant/modules/main_assistant/module.py</code>; the agent itself is <code>src/assistant/infra/session_agent.py</code></li>
+<li><code>tests/test_agents.py</code>, <code>test_permission_mode.py</code>, <code>test_edit_note.py</code></li>
+</ul>
+<h2 id="planned">Planned</h2>
+<p>From the module-shape refactor: it calls module tools through the <strong>directory and menu</strong> (today it can't call tools; the viewer watches its SHOW lines), and module control becomes core tools it can use with your approval.</p>
+<footer>Generated from <code>docs/modules/main_assistant.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

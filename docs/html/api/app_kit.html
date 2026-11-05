@@ -56,6 +56,11 @@
 <p>Load the TOML file <code>base</code>, then deep-merge <code>local</code> over it if it exists (default: <code>base</code> with <code>.local</code> before the suffix, e.g. <code>voice_service.local.toml</code>). Tables merge key by key; other values, lists included, are replaced.</p>
 <p><strong>Raises:</strong> <code>FileNotFoundError</code> if <code>base</code> is missing; <code>tomllib.TOMLDecodeError</code> for invalid TOML.</p>
 <p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
+<h2 id="local_path"><code>local_path</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>load_layered</code> (its default <code>local</code>), <code>voice_service</code> (<code>server.py</code>: the engine watch reads both files)</p>
+<p><code>local_path(base: str | Path) -&gt; Path</code></p>
+<p>The local override's path for <code>base</code>: <code>.local</code> before the suffix (<code>voice_service.toml</code> → <code>voice_service.local.toml</code>). Added 2026-11-03.</p>
+<p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
 <h2 id="companionapp"><code>CompanionApp</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, and the relay of the viewer's event stream); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it); any app that launches <code>voice_service</code></p>
 <p><code>CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)</code></p>

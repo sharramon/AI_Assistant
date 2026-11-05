@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>talker: the agent that talks with you</title>
+<!-- Generated from docs/modules/talker.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="modules/talker.html"></nav>
+<main>
+<h1 id="talker-the-agent-that-talks-with-you">talker: the agent that talks with you</h1>
+<h2 id="purpose">Purpose</h2>
+<p>A fast <code>claude</code> session that talks with you and hands work to the Agent Hub. Tags in its replies become Hub commands and viewer tools. On by default. Design: <a href="../architecture/agents.html">agents</a>, <a href="../agents/runtime.html#the-talker-on-its-own">the Talker on its own</a>.</p>
+<h2 id="wrapper">Wrapper</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td><code>talker</code></td>
+</tr>
+<tr>
+<td>provides / requires / optional</td>
+<td>nothing (it reaches the Hub by commands)</td>
+</tr>
+<tr>
+<td>permissions</td>
+<td>none declared</td>
+</tr>
+</tbody>
+</table>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td><a href="../api/agents.html#starttask"><code>StartTask</code></a>, <a href="../api/agents.html#gettaskstatus"><code>GetTaskStatus</code></a>, <a href="../api/agents.html#sendtotask"><code>SendToTask</code></a>, <a href="../api/agents.html#canceltask"><code>CancelTask</code></a>, <a href="../api/agents.html#answerpermission"><code>AnswerPermission</code></a>, <a href="../api/agents.html#setpermissionmode"><code>SetPermissionMode</code></a> (Manual only), <a href="../api/tools.html#invoketool"><code>InvokeTool</code></a> <code>viewer.open</code> / <code>viewer.highlight</code></td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td><a href="../api/messaging.html#responseready"><code>ResponseReady</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/messaging.html#sessiontheme"><code>SessionTheme</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/messaging.html#shutdownrequested"><code>ShutdownRequested</code></a> (<code>restart=True</code>)</td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><a href="../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../api/agents.html#taskupdated"><code>TaskUpdated</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>, <a href="../api/messaging.html#viewertabschanged"><code>ViewerTabsChanged</code></a>, <a href="../api/messaging.html#viewerclip"><code>ViewerClip</code></a>, <a href="../api/messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<ul>
+<li><strong>One <code>claude -p</code> process</strong> (<a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>), restarted on a <code>ResetRequested</code> for <code>talker</code>.</li>
+<li><strong>Its transcript</strong> in the launch's log folder, and the <strong>restart note</strong> kept across a <code>&lt;&lt;RESTART&gt;&gt;</code>.</li>
+</ul>
+<h2 id="inner-workings">Inner workings</h2>
+<pre><code class="language-mermaid">flowchart LR
+    In[&quot;InputReceived · TaskUpdated ·&lt;br/&gt;usage · mode · viewer events&quot;]
+    Inbox[&quot;one inbox&lt;br/&gt;one turn at a time&quot;]
+    Claude[&quot;claude session&quot;]
+    Tags[&quot;reply tags&lt;br/&gt;TASK · ASK · CANCEL · ALLOW · SHOW · RESTART&quot;]
+    Hub[&quot;Agent Hub commands&quot;]
+    Viewer[&quot;viewer tools&quot;]
+    Out[&quot;ResponseReady&quot;]
+
+    In --&gt; Inbox --&gt; Claude --&gt; Tags
+    Tags --&gt; Hub
+    Tags --&gt; Viewer
+    Tags --&gt; Out
+</code></pre>
+<p>Everything that should make it speak goes into one inbox, so it never talks over itself and event handlers return at once.</p>
+<h2 id="config">Config</h2>
+<p><code>[modules.talker]</code>: <code>model</code>, <code>turn_timeout</code>, <code>context_exchanges</code>, <code>context_warning</code>, <code>transcript</code>, <code>restart_note</code>, <code>restart_timeout</code>.</p>
+<h2 id="code-and-tests">Code and tests</h2>
+<ul>
+<li><code>src/assistant/modules/talker/module.py</code></li>
+<li><code>tests/test_agents.py</code>, <code>test_agent_tags.py</code>, <code>test_restart.py</code></li>
+</ul>
+<h2 id="planned">Planned</h2>
+<p>From the module-shape refactor: it finds modules through the <strong>directory and menu</strong> instead of hardcoded viewer tags, and can ask the core to turn modules on and off.</p>
+<footer>Generated from <code>docs/modules/talker.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>
