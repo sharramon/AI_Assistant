@@ -26,7 +26,7 @@ View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin mod
 
 ## Owns and launches
 
-- **Launches the viewer app** on the first show request, through [`CompanionApp`](../api/app_kit.md#companionapp) (`python -m html_viewer`, port 8766), and quits it when the module stops. A viewer you started yourself is left running.
+- **Launches the viewer app** on the first show request, through [`CompanionApp`](../api/app_kit.md#companionapp) (`python -m html_viewer`, port 8766), and quits it when the module stops. A viewer you started yourself is left running. **On a reload** the running viewer is handed to the new copy (its window and tabs stay), unless the viewer's own code changed: then it's quit, even one you started, and the next page shown launches the new code.
 - **The app owns** the tabs, highlights, snips, editing and saving, including writing text edits back to a generated page's Markdown source (`generated` folders).
 
 ## Inner workings

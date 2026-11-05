@@ -131,6 +131,7 @@ class VoiceInModule(ModuleProtocol):
         handover = ctx.handover if isinstance(ctx.handover, dict) else {}
         self._app_key = (SERVICE, host, port, tuple(args))
         self._handed_over = False
+        self._restart_app = False  # a reload found the service's code changed: quit it at stop
         if handover.get("app_key") == self._app_key and handover.get("app") is not None:
             self._app = handover["app"]
             ctx.log.info("Kept the running voice service from before the reload")
@@ -166,11 +167,17 @@ class VoiceInModule(ModuleProtocol):
             elif session.ws is not None:
                 await self._close(session)
         if not self._handed_over:
-            await self._app.stop()
+            await self._app.stop(adopted=self._restart_app)
 
-    def export_state(self) -> dict:
-        """For a reload: the voice app (an `app_kit` object, not reloaded) goes to the new copy.
-        An open mic session still ends at `stop`, and its words are dropped."""
+    def export_state(self) -> dict | None:
+        """For a reload: the voice app (an `app_kit` object, not reloaded) goes to the new copy,
+        unless the voice service's own code changed: then `stop` quits it (even one it found
+        running) and the new copy launches the new code on the first click. An open mic session
+        still ends at `stop`, and its words are dropped."""
+        if self._app.code_changed():
+            self._ctx.log.info("The voice service's code changed; it restarts with the new code")
+            self._restart_app = True
+            return None
         self._handed_over = True
         return {"app": self._app, "app_key": self._app_key}
 

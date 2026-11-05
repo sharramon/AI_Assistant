@@ -78,7 +78,7 @@
 </table>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
-<li><strong>Launches the viewer app</strong> on the first show request, through <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a> (<code>python -m html_viewer</code>, port 8766), and quits it when the module stops. A viewer you started yourself is left running.</li>
+<li><strong>Launches the viewer app</strong> on the first show request, through <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a> (<code>python -m html_viewer</code>, port 8766), and quits it when the module stops. A viewer you started yourself is left running. <strong>On a reload</strong> the running viewer is handed to the new copy (its window and tabs stay), unless the viewer's own code changed: then it's quit, even one you started, and the next page shown launches the new code.</li>
 <li><strong>The app owns</strong> the tabs, highlights, snips, editing and saving, including writing text edits back to a generated page's Markdown source (<code>generated</code> folders).</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>

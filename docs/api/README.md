@@ -136,7 +136,7 @@ Shared by the main app and the independent apps; standard library only. `from ap
 | [`window`](app_kit.md#window) | functions | ♻ Edge app window: `open_app_window`, `close_app_windows`, `raise_window`, `devtools_port` |
 | [`load_layered`](app_kit.md#load_layered) | function | ♻ A TOML file plus its `.local` override, deep-merged |
 | [`local_path`](app_kit.md#local_path) | function | ♻ A config file's `.local` override path |
-| [`CompanionApp`](app_kit.md#companionapp) | class | ♻ Launch a companion app if needed, call its API, read its event stream, quit it if we launched it |
+| [`CompanionApp`](app_kit.md#companionapp) | class | ♻ Launch a companion app if needed, call its API, read its event stream, quit it if we launched it; restart it on a reload when its code changed |
 
 ### [Core host](core.md) (internal)
 The stable host. Modules never use these directly. `from assistant.core import ...`

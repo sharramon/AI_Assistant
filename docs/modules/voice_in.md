@@ -26,7 +26,7 @@ Speech to text for the whole app. `voice_in` is the thin module; the **voice ser
 
 ## Owns and launches
 
-- **Launches the voice service** on the first mic click, through [`CompanionApp`](../api/app_kit.md#companionapp) (`python -m voice_service`, port 8767), and quits it when the module stops. A service you started yourself is left running.
+- **Launches the voice service** on the first mic click, through [`CompanionApp`](../api/app_kit.md#companionapp) (`python -m voice_service`, port 8767), and quits it when the module stops. A service you started yourself is left running. **On a reload** the running service is handed to the new copy (no model reload), unless the service's own code changed: then it's quit, and the next mic click launches the new code.
 - **One mic session at a time**, one WebSocket each. The second press wins: a new `StartListening` ends the open one with `VoiceState(idle, reason="taken_over")` and an empty final.
 - **The service owns** the mic (`MicSource`, or `FileSource` / `FakeSource`), the engines (Zipformer for live text, whisper for the sent text, or two passes cleaned piece by piece by `PieceCutter`), and mic-drop recovery. Its config is `config/voice_service.toml`.
 

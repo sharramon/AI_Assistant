@@ -49,7 +49,7 @@ The local override's path for `base`: `.local` before the suffix (`voice_service
 
 ## `CompanionApp`
 
-**Reusable** · Used by: `html_viewer` module (launch, calls, and the relay of the viewer's event stream); `voice_in` (launch on the first mic click, `/health` calls, quit at stop if it launched it); any app that launches `voice_service`
+**Reusable** · Used by: `html_viewer` module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); `voice_in` (launch on the first mic click, `/health` calls, quit at stop if it launched it, handover or restart on reload); any app that launches `voice_service`
 
 `CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)`
 
@@ -61,9 +61,14 @@ Launches and talks to a local [companion app](../architecture/reusable-parts.md#
 | `async ensure_running() -> bool` | Ping; if nothing answers, launch `python -m <module> <args>` with no console and poll every 100 ms until `start_timeout`. Returns whether it launched it now. Raises `OSError` if the process exits early, `TimeoutError` if it never answers |
 | `async call(method, path, body=None, *, timeout=10) -> dict` | A JSON request to its HTTP API; error responses are read as JSON too |
 | `async events(path) -> AsyncIterator[dict]` | Read its event stream (server-sent events), one JSON event at a time, until it ends. Raises `OSError` if it can't connect |
-| `async stop()` | Only if this object launched it: `POST` quit, wait 5 s, then kill |
+| `async stop(adopted=False)` | If this object launched it: `POST` quit, wait 5 s, then kill. With `adopted=True`, also an app it found already running: `POST` quit, then wait up to 5 s for the ping to stop answering (a reload with new code) |
+| `code_changed() -> bool` | Whether the app's own source (its package's `.py` files) changed since this object launched it or first found it running. A reloading module uses it to decide between handing the app over and quitting it (built 2026-11-05) |
 | `launched: bool` | Whether this object started the process (and hasn't stopped it) |
 | `process` | The process it launched, or `None` |
+
+`source_stamp(module) -> (int, int) | None` (in `app_kit.companion`): the fingerprint `code_changed` compares, the newest `.py` mtime and the file count, found without importing the package.
+
+**Reload with new code** (`voice_in`, `html_viewer`): in `export_state`, hand the `CompanionApp` over unless `code_changed()`; if it changed, return nothing and `stop(adopted=True)`, so the new copy launches the new code.
 
 **Example**
 

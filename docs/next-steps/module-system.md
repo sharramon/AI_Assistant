@@ -132,7 +132,8 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | 4 | built: `find_modules()` in `core/loader.py` scans `src/assistant/modules/` (id = folder name, a bad folder skipped and logged); `__main__.py`'s `MODULES` list is gone; `AddModule` refuses a folder named differently from its id | see `git log` ("Module system, chunk 4") | yes (core, `__main__`) |
 | 5 | built: `ModuleLogs` contract, `ctx.logs` (`folder()`, `sink(name)`) backed by `core/logs.py` `SessionLogs`; `App(..., logs=)`; `wire_modules` gone, nothing log-related in config; `talker`, `main_assistant` (transcripts), `temp_ui` (Logs button), `html_viewer` (snips) use it | see `git log` ("Module system, chunk 5") | yes (contracts, core, `__main__`) |
 | 6 | built: `IVoice` + `VoiceDestination` (`contracts/voice.py`); `voice_in` provides it (`_Voice` part, same sessions as the commands, `finish` ends only its own id); `voice_notes` requires it, no longer sends commands; the temp UI keeps the commands | see `git log` ("Module system, chunk 6") | yes (new contract) |
-| 7 to 9 | not started | | |
+| 7 | built: `CompanionApp.code_changed()` (`source_stamp`) and `stop(adopted=True)` in `app_kit`; `voice_in` and `html_viewer` hand their app over on a reload unless its code changed, else quit it so the new copy launches the new code; `html_viewer` gained the handover | see `git log` ("Module system, chunk 7") | yes (`app_kit`) |
+| 8 to 9 | not started | | |
 
 **Decisions taken while building** (the most conservative choice each time, for you to check):
 
@@ -151,6 +152,8 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 - **D13 (chunk 6): one mic, sessions owned by their caller, not parallel.** The voice service takes one listener, so `IVoice` keeps "the second press wins". What's new is that each caller opens its session under its own id and `finish(id)` never ends anyone else's (before, `StopListening` stopped whatever was open). Parallel sessions would need a service change, left for later (open in [decisions](../architecture/decisions.md)).
 - **D14 (chunk 6): the caller makes the session id.** `listen(session_id, destination)` takes the id rather than returning one, so the caller can follow `VoiceState` / `VoiceTranscript` from the very first event (they can arrive before `listen` returns).
 - **D15 (chunk 6): the temp UI keeps `StartListening` / `StopListening`.** The commands stay as the UI button's form, backed by the same session code, so the throwaway temp UI isn't reworked. It doesn't list `IVoice`; its mic says "voice input is off" when no handler is there, as before.
+- **D16 (chunk 7): "reload with restart" is automatic, no new command field.** A reload compares the companion app's source with what it was when the module started using it (`CompanionApp.code_changed()`: newest `.py` mtime and file count). Changed: no handover, and the old copy quits the app; unchanged: handed over. No `ReloadModule(restart_apps=...)` flag, so nothing in the contracts changed.
+- **D17 (chunk 7): turning a module off still quits only an app it launched.** A viewer or voice service you started yourself stays open on `DeactivateModule`; only a reload with changed code quits an adopted one (`stop(adopted=True)`), because otherwise the old code would keep running.
 - **Known flake 2:** `tests/test_html_viewer.py::test_refuses_what_it_cant_do` once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).
 
 **Before the build (2026-11-05):** this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in `docs/temp/` (not in the docs build): `tool-paths.html`, `tool-mcp-wrapper.html`, and `one-door-vs-many.html`.
@@ -168,7 +171,7 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | New session | Sees the current set. Verified |
 | HTTP server inside our app; a new tool not on the allow list | Not tested |
 
-**Next:** chunk 7 (companion apps follow the module: turning `voice_in` / `html_viewer` off quits their app, on starts it, and a "reload with restart" brings up new service code; `CompanionApp` in `app_kit` quits an adopted app too. Today `voice_in` hands its `CompanionApp` over on reload, see `export_state`). Restart: chunks 4 to 6 are waiting for one; the Talker said it can wait until the end unless a later chunk cannot be checked without it. The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete `docs/temp/tool-*.html` and `one-door-vs-many.html` when you're done with them.
+**Next:** chunk 8, the MCP door (decision 2). First the HTTP spike: can a small MCP server inside our app (streamable HTTP on a local port) be passed to a `claude -p` session and its tools called? If not, the stdio relay fallback. Then three fixed tools (list modules, show a menu, use an item) going through the core (`ListModules`, `GetMenu`, `InvokeTool`) and the permission card; `main_assistant` uses it; the viewer stops watching its SHOW tags; `agent_hub` as needed. Riskiest: it changes the agent that runs this work, so test with the fake `claude` plus one real-`claude` test. Restart: chunks 4 to 7 are waiting for one.
 
 ## Handoff: how the unattended run continues
 

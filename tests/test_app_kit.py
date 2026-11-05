@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -68,7 +69,7 @@ class _Fake(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/ping":
-            self._json(200, {"app": "fake"})
+            self._json(200, {"app": "gone" if QUIT.is_set() else "fake"})
         elif self.path == "/missing":
             self._json(404, {"error": "no such thing"})
         elif self.path == "/events":
@@ -81,11 +82,17 @@ class _Fake(BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path == "/api/quit":
+            QUIT.set()  # the fake "quits": its ping stops answering with its name
         self._json(200, {"echo": body})
+
+
+QUIT = threading.Event()
 
 
 @pytest.fixture
 def fake_app():
+    QUIT.clear()
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Fake)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield server.server_address[1]
@@ -101,6 +108,32 @@ async def test_companion_app_talks_to_a_running_app(fake_app):
     assert await app.call("GET", "/missing") == {"error": "no such thing"}
     assert [e async for e in app.events("/events")] == [{"n": 0}, {"n": 1}, {"n": 2}]
     await app.stop()  # not ours: nothing to quit
+
+
+async def test_companion_app_quits_an_adopted_app_only_when_asked(fake_app):
+    app = CompanionApp("fake", "127.0.0.1", fake_app, ping="/ping")
+    assert await app.ensure_running() is False
+    await app.stop()  # not ours: left running
+    assert await app.ping()
+    await app.ensure_running()
+    await app.stop(adopted=True)  # a reload with new code: quit it anyway
+    assert QUIT.is_set() and not await app.ping()
+
+
+async def test_companion_app_notices_its_code_changed(fake_app, tmp_path, monkeypatch):
+    package = tmp_path / "companion_probe_pkg"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "__main__.py").write_text("print('v1')\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    app = CompanionApp("companion_probe_pkg", "127.0.0.1", fake_app, ping="/ping", name="fake")
+    assert not app.code_changed()  # not used yet
+    await app.ensure_running()  # adopted: its code is noted now
+    assert not app.code_changed()
+    main = package / "__main__.py"
+    main.write_text("print('v2')\n")
+    os.utime(main, ns=(main.stat().st_atime_ns, main.stat().st_mtime_ns + 10**9))
+    assert app.code_changed()
 
 
 async def test_companion_app_ping_checks_the_name(fake_app):

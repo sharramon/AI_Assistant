@@ -325,7 +325,13 @@ class HtmlViewerModule(ModuleProtocol):
 <td>yes (new contract)</td>
 </tr>
 <tr>
-<td>7 to 9</td>
+<td>7</td>
+<td>built: <code>CompanionApp.code_changed()</code> (<code>source_stamp</code>) and <code>stop(adopted=True)</code> in <code>app_kit</code>; <code>voice_in</code> and <code>html_viewer</code> hand their app over on a reload unless its code changed, else quit it so the new copy launches the new code; <code>html_viewer</code> gained the handover</td>
+<td>see <code>git log</code> ("Module system, chunk 7")</td>
+<td>yes (<code>app_kit</code>)</td>
+</tr>
+<tr>
+<td>8 to 9</td>
 <td>not started</td>
 <td></td>
 <td></td>
@@ -349,6 +355,8 @@ class HtmlViewerModule(ModuleProtocol):
 <li><strong>D13 (chunk 6): one mic, sessions owned by their caller, not parallel.</strong> The voice service takes one listener, so <code>IVoice</code> keeps "the second press wins". What's new is that each caller opens its session under its own id and <code>finish(id)</code> never ends anyone else's (before, <code>StopListening</code> stopped whatever was open). Parallel sessions would need a service change, left for later (open in <a href="../html/architecture/decisions.html">decisions</a>).</li>
 <li><strong>D14 (chunk 6): the caller makes the session id.</strong> <code>listen(session_id, destination)</code> takes the id rather than returning one, so the caller can follow <code>VoiceState</code> / <code>VoiceTranscript</code> from the very first event (they can arrive before <code>listen</code> returns).</li>
 <li><strong>D15 (chunk 6): the temp UI keeps <code>StartListening</code> / <code>StopListening</code>.</strong> The commands stay as the UI button's form, backed by the same session code, so the throwaway temp UI isn't reworked. It doesn't list <code>IVoice</code>; its mic says "voice input is off" when no handler is there, as before.</li>
+<li><strong>D16 (chunk 7): "reload with restart" is automatic, no new command field.</strong> A reload compares the companion app's source with what it was when the module started using it (<code>CompanionApp.code_changed()</code>: newest <code>.py</code> mtime and file count). Changed: no handover, and the old copy quits the app; unchanged: handed over. No <code>ReloadModule(restart_apps=...)</code> flag, so nothing in the contracts changed.</li>
+<li><strong>D17 (chunk 7): turning a module off still quits only an app it launched.</strong> A viewer or voice service you started yourself stays open on <code>DeactivateModule</code>; only a reload with changed code quits an adopted one (<code>stop(adopted=True)</code>), because otherwise the old code would keep running.</li>
 <li><strong>Known flake 2:</strong> <code>tests/test_html_viewer.py::test_refuses_what_it_cant_do</code> once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).</li>
 </ul>
 <p><strong>Before the build (2026-11-05):</strong> this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in <code>docs/temp/</code> (not in the docs build): <code>tool-paths.html</code>, <code>tool-mcp-wrapper.html</code>, and <code>one-door-vs-many.html</code>.</p>
@@ -395,7 +403,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 </tbody>
 </table>
-<p><strong>Next:</strong> chunk 7 (companion apps follow the module: turning <code>voice_in</code> / <code>html_viewer</code> off quits their app, on starts it, and a "reload with restart" brings up new service code; <code>CompanionApp</code> in <code>app_kit</code> quits an adopted app too. Today <code>voice_in</code> hands its <code>CompanionApp</code> over on reload, see <code>export_state</code>). Restart: chunks 4 to 6 are waiting for one; the Talker said it can wait until the end unless a later chunk cannot be checked without it. The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</p>
+<p><strong>Next:</strong> chunk 8, the MCP door (decision 2). First the HTTP spike: can a small MCP server inside our app (streamable HTTP on a local port) be passed to a <code>claude -p</code> session and its tools called? If not, the stdio relay fallback. Then three fixed tools (list modules, show a menu, use an item) going through the core (<code>ListModules</code>, <code>GetMenu</code>, <code>InvokeTool</code>) and the permission card; <code>main_assistant</code> uses it; the viewer stops watching its SHOW tags; <code>agent_hub</code> as needed. Riskiest: it changes the agent that runs this work, so test with the fake <code>claude</code> plus one real-<code>claude</code> test. Restart: chunks 4 to 7 are waiting for one.</p>
 <h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
 <p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
 <ul>

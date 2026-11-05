@@ -7,20 +7,42 @@ a ping path answering `{"app": "<name>", ...}`, a JSON HTTP API, and a JSON `POS
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import logging
 import sys
 import urllib.error
 import urllib.request
 from collections.abc import AsyncIterator, Sequence
+from pathlib import Path
 from typing import Any
+
+
+def source_stamp(module: str) -> tuple[int, int] | None:
+    """A fingerprint of `module`'s source: (newest `.py` mtime in ns, how many `.py` files),
+    found without importing it. None if it can't be found."""
+    try:
+        spec = importlib.util.find_spec(module)
+    except (ImportError, ValueError):
+        return None
+    if spec is None:
+        return None
+    if spec.submodule_search_locations:
+        files = [f for folder in spec.submodule_search_locations for f in Path(folder).rglob("*.py")]
+    else:
+        files = [Path(spec.origin)] if spec.origin and spec.origin.endswith(".py") else []
+    if not files:
+        return None
+    return max(f.stat().st_mtime_ns for f in files), len(files)
 
 
 class CompanionApp:
     """One companion app: ping, launch if needed, call, read its event stream, quit if we launched it.
 
     `module` is the package to run (`python -m module`) and also the name its ping must answer
-    with, unless `name` says otherwise.
+    with, unless `name` says otherwise. `code_changed()` says whether its source changed since
+    this object started using it, so a reloading module can quit it (`stop(adopted=True)`) and
+    the next start runs the new code.
     """
 
     def __init__(
@@ -48,6 +70,7 @@ class CompanionApp:
         self._log = log or logging.getLogger(__name__)
         self._proc: asyncio.subprocess.Process | None = None  # set only when we launched it
         self._starting = asyncio.Lock()
+        self._stamp: tuple[int, int] | None = None  # its source when we launched or first used it
 
     @property
     def launched(self) -> bool:
@@ -74,7 +97,10 @@ class CompanionApp:
         """
         async with self._starting:
             if await self.ping():
+                if self._stamp is None:  # adopted: our best guess at the code it runs
+                    self._stamp = source_stamp(self.module)
                 return False
+            self._stamp = source_stamp(self.module)
             kwargs: dict[str, Any] = {}
             if sys.platform == "win32":
                 import subprocess
@@ -123,9 +149,25 @@ class CompanionApp:
         finally:
             writer.close()
 
-    async def stop(self) -> None:
-        """Quit it, only if this object launched it: `POST` quit, wait 5 s, then kill."""
+    def code_changed(self) -> bool:
+        """Whether its source changed since this object launched it (or first found it running)."""
+        return self._stamp is not None and source_stamp(self.module) != self._stamp
+
+    async def stop(self, adopted: bool = False) -> None:
+        """Quit it if this object launched it: `POST` quit, wait 5 s, then kill. With
+        `adopted=True`, also quit one it found already running (`POST` quit, then wait up to
+        5 s for its ping to stop answering)."""
         proc, self._proc = self._proc, None
+        self._stamp = None
+        if proc is None and adopted and await self.ping():
+            try:
+                await self.call("POST", self._quit_path, {})
+                async with asyncio.timeout(5):
+                    while await self.ping():
+                        await asyncio.sleep(0.1)
+            except (OSError, ValueError, TimeoutError):
+                self._log.warning("%s at %s didn't quit", self.name, self.url)
+            return
         if proc is None or proc.returncode is not None:
             return
         try:

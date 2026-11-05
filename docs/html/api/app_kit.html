@@ -62,7 +62,7 @@
 <p>The local override's path for <code>base</code>: <code>.local</code> before the suffix (<code>voice_service.toml</code> → <code>voice_service.local.toml</code>). Added 2026-11-03.</p>
 <p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
 <h2 id="companionapp"><code>CompanionApp</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, and the relay of the viewer's event stream); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it); any app that launches <code>voice_service</code></p>
+<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it, handover or restart on reload); any app that launches <code>voice_service</code></p>
 <p><code>CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)</code></p>
 <p>Launches and talks to a local <a href="../architecture/reusable-parts.html#companion-app-checklist">companion app</a>. Relies on its convention: the ping answers <code>{"app": "&lt;name&gt;", ...}</code> (<code>name</code> defaults to <code>module</code>), and a JSON <code>POST</code> to <code>quit</code> quits it.</p>
 <table>
@@ -90,8 +90,12 @@
 <td>Read its event stream (server-sent events), one JSON event at a time, until it ends. Raises <code>OSError</code> if it can't connect</td>
 </tr>
 <tr>
-<td><code>async stop()</code></td>
-<td>Only if this object launched it: <code>POST</code> quit, wait 5 s, then kill</td>
+<td><code>async stop(adopted=False)</code></td>
+<td>If this object launched it: <code>POST</code> quit, wait 5 s, then kill. With <code>adopted=True</code>, also an app it found already running: <code>POST</code> quit, then wait up to 5 s for the ping to stop answering (a reload with new code)</td>
+</tr>
+<tr>
+<td><code>code_changed() -&gt; bool</code></td>
+<td>Whether the app's own source (its package's <code>.py</code> files) changed since this object launched it or first found it running. A reloading module uses it to decide between handing the app over and quitting it (built 2026-11-05)</td>
 </tr>
 <tr>
 <td><code>launched: bool</code></td>
@@ -103,6 +107,8 @@
 </tr>
 </tbody>
 </table>
+<p><code>source_stamp(module) -&gt; (int, int) | None</code> (in <code>app_kit.companion</code>): the fingerprint <code>code_changed</code> compares, the newest <code>.py</code> mtime and the file count, found without importing the package.</p>
+<p><strong>Reload with new code</strong> (<code>voice_in</code>, <code>html_viewer</code>): in <code>export_state</code>, hand the <code>CompanionApp</code> over unless <code>code_changed()</code>; if it changed, return nothing and <code>stop(adopted=True)</code>, so the new copy launches the new code.</p>
 <p><strong>Example</strong></p>
 <pre><code>app = CompanionApp("voice_service", "127.0.0.1", 8767, ping="/health", log=ctx.log)
 await app.ensure_running()

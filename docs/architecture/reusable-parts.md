@@ -37,7 +37,7 @@ Every independent app the main app launches (the [HTML viewer](html-viewer.md), 
 3. A ping endpoint answering `{"app": "<name>", ...}`.
 4. A JSON `POST` quit endpoint.
 5. Config with [`app_kit.load_layered`](../api/app_kit.md#load_layered): its TOML file plus a `.local` override.
-6. A thin module in the main app built on `CompanionApp`: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it.
+6. A thin module in the main app built on `CompanionApp`: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it. On a reload, hand the `CompanionApp` over in `export_state`, unless `code_changed()`: then quit it with `stop(adopted=True)` so the new copy runs the new code.
 
 ## Adding a reusable part
 

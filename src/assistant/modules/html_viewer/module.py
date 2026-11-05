@@ -58,10 +58,19 @@ class HtmlViewerModule(ModuleProtocol):
                 "--profile", str(profile)]
         for folder in ctx.config.get("generated", []):
             args += ["--generated", str(Path(folder).resolve())]
-        self._app = CompanionApp(  # starts the viewer when needed; stops it only if it started it
-            "html_viewer", host, port, ping="/api/ping", args=args,
-            start_timeout=ctx.config.get("start_timeout", 10.0), log=ctx.log,
-        )
+        # A reload hands over the running viewer (its tabs stay), if it would be launched the same way.
+        handover = ctx.handover if isinstance(ctx.handover, dict) else {}
+        self._app_key = ("html_viewer", host, port, tuple(args))
+        self._handed_over = False
+        self._restart_app = False  # a reload found the viewer's code changed: quit it at stop
+        if handover.get("app_key") == self._app_key and handover.get("app") is not None:
+            self._app = handover["app"]
+            ctx.log.info("Kept the running viewer from before the reload")
+        else:
+            self._app = CompanionApp(  # starts the viewer when needed; stops it only if it started it
+                "html_viewer", host, port, ping="/api/ping", args=args,
+                start_timeout=ctx.config.get("start_timeout", 10.0), log=ctx.log,
+            )
         self._relay_task: asyncio.Task | None = None
         self._shows: set[asyncio.Task] = set()
         ctx.subscribe(AgentActivity, self._on_activity)
@@ -76,7 +85,19 @@ class HtmlViewerModule(ModuleProtocol):
             if task:
                 task.cancel()
         await asyncio.gather(*self._shows, *[t for t in [self._relay_task] if t], return_exceptions=True)
-        await self._app.stop()
+        if not self._handed_over:
+            await self._app.stop(adopted=self._restart_app)
+
+    def export_state(self) -> dict | None:
+        """For a reload: the viewer app (an `app_kit` object) goes to the new copy, so its window
+        and tabs stay, unless the viewer's own code changed: then `stop` quits it and the new copy
+        launches the new code when it next shows a page."""
+        if self._app.code_changed():
+            self._ctx.log.info("The viewer's code changed; it restarts with the new code")
+            self._restart_app = True
+            return None
+        self._handed_over = True
+        return {"app": self._app, "app_key": self._app_key}
 
     @menu.item("viewer.open", "Open an HTML file in the HTML viewer (switches to its tab if it's open); "
                               "front: also bring the viewer window to the front (for the user's clicks)",

@@ -70,7 +70,7 @@
 <li>A ping endpoint answering <code>{"app": "&lt;name&gt;", ...}</code>.</li>
 <li>A JSON <code>POST</code> quit endpoint.</li>
 <li>Config with <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a>: its TOML file plus a <code>.local</code> override.</li>
-<li>A thin module in the main app built on <code>CompanionApp</code>: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it.</li>
+<li>A thin module in the main app built on <code>CompanionApp</code>: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it. On a reload, hand the <code>CompanionApp</code> over in <code>export_state</code>, unless <code>code_changed()</code>: then quit it with <code>stop(adopted=True)</code> so the new copy runs the new code.</li>
 </ol>
 <h2 id="adding-a-reusable-part">Adding a reusable part</h2>
 <ol>
