@@ -4,7 +4,7 @@
 
 **Asked:** "Worker should be able to do what you do. Which is read all the docs, and edit every file. For now. Its capabilities should be the same."
 
-**Why:** while everything is still being built, the Main Assistant should be as capable as Claude Code in this repo. The guardrails ([repo zones](../architecture/permissions.md#repo-zones), branch workflow) come with the permissions handler.
+**Why:** while everything is still being built, the Main Assistant should be as capable as Claude Code in this repo. The guardrails ([repo zones](../../architecture/permissions.md#repo-zones), branch workflow) come with the permissions handler.
 
 **Touches:** `config/default.toml` (`[modules.main_assistant]`), the Main Assistant's and the Talker's prompts, and the agent docs.
 

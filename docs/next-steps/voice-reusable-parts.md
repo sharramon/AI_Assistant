@@ -1,8 +1,8 @@
 # Voice streamer: reusable parts
 
-> **Status: approved (2026-11-02).** All three open questions approved as recommended ([Decided](#decided)). It adds to the approved [voice code design](../architecture/voice.md#code-design-phase-1); nothing in it is built yet. The build follows the steps below.
+> **Status: built (waiting on you), 2026-11-03.** All three open questions approved as recommended ([Decided](#decided)). It adds to the approved [voice code design](../architecture/voice.md#code-design-phase-1); steps 0 to 4 below are built (2026-11-02 to 11-03). Left: step 5's try on your mic, which is step 6 of [voice in, phase 1](README.md#next-voice-in-phase-1).
 
-> **Revised (2026-11-02):** [Reusable parts as a core principle](reusable-parts.md#decided) is approved, and three points here changed with it (folded in below):
+> **Revised (2026-11-02):** [Reusable parts as a core principle](archive/reusable-parts.md#decided) is approved, and three points here changed with it (folded in below):
 > 1. **Where `CompanionApp` lives:** `app_kit/companion.py`, not `assistant/infra/companion.py`, so other apps can launch `voice_service` too.
 > 2. **The voice service's config loader:** `app_kit.load_layered`, not its own TOML loader.
 > 3. **How the mic check is done:** `voice_in` declares `optional_permissions=("microphone",)` and calls `ctx.permissions.request(...)`; the stand-in allows and logs the warning.
@@ -60,7 +60,7 @@ It relies on one convention every companion app keeps: its ping answers `{"app":
 
 ## Build steps
 
-0. **First, from the [reusable-parts note](reusable-parts.md#downstream-effects-in-order):** `app_kit` (`CompanionApp` with its tests, `load_layered`, `html_viewer` switched over) and the `ctx.permissions` stand-in.
+0. **First, from the [reusable-parts note](archive/reusable-parts.md#downstream-effects-in-order):** `app_kit` (`CompanionApp` with its tests, `load_layered`, `html_viewer` switched over) and the `ctx.permissions` stand-in.
 1. ~~`CompanionApp` in `assistant.infra`~~ Moved into step 0 (`app_kit`).
 2. **Contracts** `contracts/voice.py`, with `send_as_input` on `StartListening`; [Messaging API](../api/messaging.md) entries.
 3. **`voice_service`** as in the approved design (steps 2 and 5 of [voice in, phase 1](README.md#next-voice-in-phase-1)), reading its config with `app_kit.load_layered`.

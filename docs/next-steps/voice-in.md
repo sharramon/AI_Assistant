@@ -4,7 +4,7 @@ Moved 2026-10-28: the design is now [Voice](../architecture/voice.md) in the arc
 
 ## Code design (2026-11-02)
 
-> **Status: approved (2026-11-02).** The additions are approved, except the two-minute cap, which became a silence stop at the user's request: a session stops itself only after 2 minutes with no speech detected (`audio.silence_stop_seconds`, final `ended_by: "silence"`) and stays on while the user talks.
+> **Status: building (2026-11-02).** Approved 2026-11-02; phase 1 is being built (steps 1 to 4 done, step 6 waits on your mic). The additions are approved, except the two-minute cap, which became a silence stop at the user's request: a session stops itself only after 2 minutes with no speech detected (`audio.silence_stop_seconds`, final `ended_by: "silence"`) and stays on while the user talks.
 
 **Asked:** write the missing code-level design for voice in, phase 1, before anything is built.
 **Why:** the boundaries and protocol were designed, but not the service's threads, files, config, and error handling, or the `voice_in` manifest and contract fields.

@@ -1,6 +1,6 @@
 # Reusable parts as a core principle
 
-> **Status: approved (2026-11-02).** All four open questions answered ([Decided](#decided)). Permanent docs done; `app_kit` (step 3) and `agent_tags` (step 4) built 2026-11-02. Next: the `ctx.permissions` stand-in (step 5). It revises parts of the approved [voice streamer note](voice-reusable-parts.md) (see [What changes in the voice note](#what-changes-in-the-voice-note)).
+> **Status: done (2026-11-02).** All four open questions answered ([Decided](#decided)). Permanent docs done; `app_kit` (step 3) and `agent_tags` (step 4) built 2026-11-02. The `ctx.permissions` stand-in (step 5) was built the same day; step 6, the voice build, carries on in [voice in, phase 1](../README.md#next-voice-in-phase-1). It revises parts of the approved [voice streamer note](../voice-reusable-parts.md) (see [What changes in the voice note](#what-changes-in-the-voice-note)).
 
 **Asked:** "Can you redo the architecture of the app AND this module with this 'reusable parts' idea more core to everything?" Then: "the wider architecture redo first, because it'll have downstream effects."
 
@@ -12,9 +12,9 @@
 
 > **Build it once.** When two parts need the same behavior, it becomes one **reusable part**: written once, tested on its own, listed in the API reference, and used by both. A second copy is a bug.
 
-- **When something counts:** a second user exists, or is in an approved note. Or it implements a decided pattern, such as task agents or companion apps. "Might be useful one day" doesn't count; [principle 10](../architecture/principles.md) still holds.
+- **When something counts:** a second user exists, or is in an approved note. Or it implements a decided pattern, such as task agents or companion apps. "Might be useful one day" doesn't count; [principle 10](../../architecture/principles.md) still holds.
 - **What qualifies:** the behavior is the same, not just similar, and it knows nothing about any one module. If it needs a module's specifics, it takes them as parameters.
-- **How it's built:** by composition ([principle 12](../architecture/principles.md)). A reusable part is an object or function you compose, never a base class with code in it.
+- **How it's built:** by composition ([principle 12](../../architecture/principles.md)). A reusable part is an object or function you compose, never a base class with code in it.
 - **Before writing code:** check the catalogue (below). The `architecture-first` skill gets this as an explicit step.
 
 ## Where reusable parts live: three places, by who may import them
@@ -40,7 +40,7 @@
 | **`CompanionApp`** (ping, launch, wait, `call`, `events()` stream reader, quit only if we launched it) | `app_kit.companion` | `html_viewer` module, `voice_in`, other apps launching `voice_service` | **moved** from `assistant.infra` (approved there) to `app_kit`; gains `events()` for the viewer's event-stream relay |
 | **Companion app pattern** | architecture page | `html_viewer`, `voice_service` | **written down as a checklist**: own package, `python -m <app>`, no `assistant` import, localhost, a ping answering `{"app": "<name>"}`, a JSON POST quit, a thin module built on `CompanionApp` |
 | **Agent tags** (`find_tags(text, names)`, `last_line(text, prefix)` for `NEED:`/`HANDOFF:`, `parse_show`) | `assistant.infra.agent_tags` | Talker, `html_viewer` module, `SessionTaskAgent` | **new**; today the SHOW argument is parsed twice, with different quote handling |
-| **`ctx.permissions` stand-in** (`has`, `request`: allow and log a warning) | core (`ScopedContext`), with `Manifest.permissions` / `optional_permissions` | `voice_in` first; every module that asks later | **new now**, per the already decided "no handler running" rule. The [permissions handler](permissions-handler.md) later plugs in behind it without touching the modules |
+| **`ctx.permissions` stand-in** (`has`, `request`: allow and log a warning) | core (`ScopedContext`), with `Manifest.permissions` / `optional_permissions` | `voice_in` first; every module that asks later | **new now**, per the already decided "no handler running" rule. The [permissions handler](../permissions-handler.md) later plugs in behind it without touching the modules |
 
 **Not made into reusable parts (on purpose):**
 - **HTTP servers:** the temp UI (raw asyncio), the viewer (stdlib), and voice (FastAPI) each serve differently. The temp UI is throwaway, and the viewer works. **New companion apps use FastAPI, like the voice service;** nothing gets migrated.
@@ -69,13 +69,13 @@ These three changes were approved with this note (2026-11-02) and are folded int
 
 | # | Step | Touches |
 |---|------|---------|
-| 1 | ~~**You approve this note** (and the voice note's three changes)~~ Done 2026-11-02 | this note, [voice-reusable-parts](voice-reusable-parts.md), the Pending table |
+| 1 | ~~**You approve this note** (and the voice note's three changes)~~ Done 2026-11-02 | this note, [voice-reusable-parts](../voice-reusable-parts.md), the Pending table |
 | 2 | ~~**Permanent docs**~~ Done 2026-11-02, per the revised plan below (prompt pointers move to step 4) | `principles.md` (13), new `reusable-parts.md`, overview Pages and Parts, `decisions.md` (record; viewer decision 8 superseded), `html-viewer.md` (decision 8, window), `voice.md` (CompanionApp, config, mic check), `permissions.md` (stand-in built), `core.md` (module checklist, `ctx.permissions`), API README, `infra.md`, new `api/app_kit.md`, `modules.md` (Manifest, ModuleContext). Then `architecture-first`, `CLAUDE.md`, and a docs rebuild |
 | 3 | ~~**Code A: `app_kit`**~~ Done 2026-11-02: window (merging both copies), `load_layered`, `CompanionApp` with `events()`. `temp_ui`, the viewer app, the `html_viewer` module, and `load_config` switched over; 133 tests pass | `src/app_kit/`, `pyproject.toml` (package), new `tests/test_app_kit.py`; `test_html_viewer.py` and `test_temp_ui.py` must still pass |
 | 4 | ~~**Code B: `agent_tags`**~~ Done 2026-11-02: `find_tags`, `parse_show`, `last_line`; the Talker, the `html_viewer` module and `SessionTaskAgent` switched over, their own parsers deleted. Quotes: one matching pair removed around a quote (the page's own quote marks stay). Both prompts point at the reusable index. 139 tests pass | `infra/agent_tags.py`, `test_agents.py`, `test_html_viewer.py` |
-| 5 | **Code C: the `ctx.permissions` stand-in** | `contracts/module.py`, `core/context.py`, `test_app.py` / a new test; Manifest fields checked in `test_registry.py` |
-| 6 | **Voice build**, from the revised voice note | as that note says; [next steps](README.md#next-voice-in-phase-1) steps reordered so steps 3 to 5 come first |
-| — | **Unaffected:** [voice-in](voice-in.md) (its design is in `voice.md`). [permissions-handler](permissions-handler.md) stays proposed and gets a line saying `ctx.permissions` already exists. Done notes such as [viewer-own-app](viewer-own-app.md) stay as history. CI is unchanged apart from the docs check |
+| 5 | ~~**Code C: the `ctx.permissions` stand-in**~~ Done 2026-11-02 ([note](permissions-stand-in.md)) | `contracts/module.py`, `core/context.py`, `test_app.py` / a new test; Manifest fields checked in `test_registry.py` |
+| 6 | **Voice build**, from the revised voice note: carries on there and in [voice in, phase 1](../README.md#next-voice-in-phase-1) (steps 1 to 4 done 2026-11-03) | as that note says; [next steps](../README.md#next-voice-in-phase-1) steps reordered so steps 3 to 5 come first |
+| — | **Unaffected:** [voice-in](../voice-in.md) (its design is in `voice.md`). [permissions-handler](../permissions-handler.md) stays proposed and gets a line saying `ctx.permissions` already exists. Done notes such as [viewer-own-app](viewer-own-app.md) stay as history. CI is unchanged apart from the docs check |
 
 Each code step is one session ending with `pytest` and `ruff`. Steps 3 to 5 don't depend on each other. Step 6 depends on 3 and 5.
 

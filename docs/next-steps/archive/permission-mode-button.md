@@ -1,6 +1,6 @@
 # Permission mode button
 
-> **Status: done (2026-11-02).** The spike passed (findings below). The code, `page.html`, and `tests/test_permission_mode.py` are built: ruff is clean and all tests pass. Updated docs: [Agents API](../api/agents.md#permissionmode), [Infrastructure API](../api/infra.md#sessiontaskagent), [reusable parts](../api/reusable.md) (Used by lines checked against the imports), `api/README.md`, [Permissions](../architecture/permissions.md#permission-mode-built), [Agent runtime](../agents/runtime.md#permission-mode), and `next-steps/README.md`. **Restart the app** to get it.
+> **Status: done (2026-11-02).** The spike passed (findings below). The code, `page.html`, and `tests/test_permission_mode.py` are built: ruff is clean and all tests pass. Updated docs: [Agents API](../../api/agents.md#permissionmode), [Infrastructure API](../../api/infra.md#sessiontaskagent), [reusable parts](../../api/reusable.md) (Used by lines checked against the imports), `api/README.md`, [Permissions](../../architecture/permissions.md#permission-mode-built), [Agent runtime](../../agents/runtime.md#permission-mode), and `next-steps/README.md`. Loaded since: the app has restarted and the button is in use.
 >
 > After an Auto switch is deferred (`next_task`), the running session is still in Manual, so a later Manual click sends no control request. The test starts the task in Auto to check the live switch.
 

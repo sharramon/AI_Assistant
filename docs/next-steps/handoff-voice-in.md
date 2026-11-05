@@ -21,7 +21,7 @@
 
 The task runs in **full auto**: the user pre-approved everything. Decide from the docs, record each decision here or in the change note, commit locally per finished chunk (short messages like recent commits), never push, never touch git config. Run ruff and the full tests, plus the `architecture-check` skill, after each chunk. The final report includes a Diagrams line, the relaunch steps (ask whether to relaunch), and a checklist for the user.
 
-**Done and committed:** step 4, the temp UI's mic button and live line (`b22be25`, [note](voice-temp-ui.md), with 7 decisions). `voice_in` is in `enabled`. Ruff is clean and 226 tests pass. The architecture check passed, and the Voice flowchart, the sequence diagram, and the runtime temp UI flowchart are updated.
+**Done and committed:** step 4, the temp UI's mic button and live line (`b22be25`, [note](archive/voice-temp-ui.md), with 7 decisions). `voice_in` is in `enabled`. Ruff is clean and 226 tests pass. The architecture check passed, and the Voice flowchart, the sequence diagram, and the runtime temp UI flowchart are updated.
 
 **Found on this laptop (step 6):**
 - The voice extra is installed: sounddevice 0.5.6, sherpa-onnx 2.0.1.
@@ -55,7 +55,7 @@ The task runs in **full auto**: the user pre-approved everything. Decide from th
    - The relaunch steps.
    - A user checklist: run `check` while speaking; click the mic and speak; note the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence and look for the drop symbol, then the mic coming back or failing.
 
-> **Written 2026-11-03** at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on [Voice](../architecture/voice.md) (built parts are marked there); the step's note is [voice-in-module.md](voice-in-module.md), with what was built differently at its top. The step list is in [Next steps](README.md#next-voice-in-phase-1).
+> **Written 2026-11-03** at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on [Voice](../architecture/voice.md) (built parts are marked there); the step's note is [voice-in-module.md](archive/voice-in-module.md), with what was built differently at its top. The step list is in [Next steps](README.md#next-voice-in-phase-1).
 
 ## Done
 
@@ -94,7 +94,7 @@ The task runs in **full auto**: the user pre-approved everything. Decide from th
 
 - **New:** `src/assistant/modules/voice_in/__init__.py`, `module.py`; `tests/test_voice_in.py`; this note.
 - **Changed, code:** `src/voice_service/protocol.py`, `session.py`, `config.py`, `server.py`; `config/voice_service.toml`; `src/assistant/contracts/voice.py`; `src/assistant/__main__.py`; `config/default.toml`; `tests/test_voice_service.py`, `tests/test_voice_contracts.py`.
-- **Changed, docs:** `docs/architecture/voice.md`, `docs/architecture/README.md`, `docs/api/messaging.md`, `docs/api/reusable.md`, `docs/api/app_kit.md`, `docs/api/modules.md`, `docs/agents/runtime.md`, `docs/next-steps/README.md`, `docs/next-steps/voice-in-module.md`, and the regenerated `docs/html/` and `docs/html-next-steps/`.
+- **Changed, docs:** `docs/architecture/voice.md`, `docs/architecture/README.md`, `docs/api/messaging.md`, `docs/api/reusable.md`, `docs/api/app_kit.md`, `docs/api/modules.md`, `docs/agents/runtime.md`, `docs/next-steps/README.md`, `docs/next-steps/archive/voice-in-module.md`, and the regenerated `docs/html/` and `docs/html-next-steps/`.
 
 ## Half-finished or open
 
@@ -104,7 +104,7 @@ The task runs in **full auto**: the user pre-approved everything. Decide from th
 
 ## Next
 
-1. ~~**Step 4, the temp UI**~~ done 2026-11-03 ([note](voice-temp-ui.md)); `voice_in` is now enabled. As planned:
+1. ~~**Step 4, the temp UI**~~ done 2026-11-03 ([note](archive/voice-temp-ui.md)); `voice_in` is now enabled. As planned:
    - The mic button sends `StartListening` and `StopListening`, and shows `VoiceState`: *starting* as a spinner, *dropped* as an amber crossed-out mic with a countdown and the word count of the last partial, and *failed* with its `detail`.
    - The grey live line comes from `VoiceTranscript`. Drop updates whose `correlation_id` isn't the current session's, and clear the line on `final=True`.
    - Show `InputReceived(source="voice")` as your own message.

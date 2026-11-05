@@ -1,10 +1,10 @@
 # Permissions stand-in (`ctx.permissions`)
 
-> **Status: done (2026-11-02).** Approved as written, with both recommendations: warn once per module and permission, then debug; no startup check yet. Built with `tests/test_permissions.py` (150 tests pass, ruff clean). Next: the voice contracts (step 1 of [voice in](README.md#next-voice-in-phase-1)), a separate task.
+> **Status: done (2026-11-02).** Approved as written, with both recommendations: warn once per module and permission, then debug; no startup check yet. Built with `tests/test_permissions.py` (150 tests pass, ruff clean). Next: the voice contracts (step 1 of [voice in](../README.md#next-voice-in-phase-1)), a separate task.
 
 **Asked:** "Build the permissions stand-in, the first step before voice input": `ctx.permissions` with `has` and `request`, which allows every request and logs it until the real handler exists. Step 5 of [Reusable parts](reusable-parts.md#downstream-effects-in-order).
 
-**Why:** `voice_in` (and every later module) can ask for the mic the final way from day one. When the [permissions handler](permissions-handler.md) is built, it plugs in behind the same calls and no module changes. Behavior follows the decided [no handler running](../architecture/permissions.md#what-happens-when-one-is-missing) rule.
+**Why:** `voice_in` (and every later module) can ask for the mic the final way from day one. When the [permissions handler](../permissions-handler.md) is built, it plugs in behind the same calls and no module changes. Behavior follows the decided [no handler running](../../architecture/permissions.md#what-happens-when-one-is-missing) rule.
 
 ## Touches
 
@@ -15,7 +15,7 @@
 | `src/assistant/core/permissions.py` (new) | `AllowAllPermissions(ModulePermissions)`: the stand-in, bound to one module id |
 | `src/assistant/core/context.py` | `ScopedContext.__init__` sets `self.permissions = AllowAllPermissions(manifest.id)` |
 | `tests/test_permissions.py` (new) | Tests below |
-| Docs | `api/modules.md` (planned → built), `api/core.md` (`AllowAllPermissions`, internal), `api/README.md` + `api/reusable.md` (drop *planned*, Used by), `architecture/permissions.md` (stand-in built), [permissions-handler](permissions-handler.md) (one line: the stand-in exists), this note, Pending changes; rebuild |
+| Docs | `api/modules.md` (planned → built), `api/core.md` (`AllowAllPermissions`, internal), `api/README.md` + `api/reusable.md` (drop *planned*, Used by), `architecture/permissions.md` (stand-in built), [permissions-handler](../permissions-handler.md) (one line: the stand-in exists), this note, Pending changes; rebuild |
 
 No module, config, or lifecycle changes. Nothing uses `ctx.permissions` yet; `voice_in` is the first.
 
@@ -51,7 +51,7 @@ class AllowAllPermissions(ModulePermissions):
 
 - **Log line:** `WARNING assistant.core.permissions: no permissions handler: allowing voice_in microphone (You clicked the mic)`. One core logger, so every stand-in grant is in one place.
 - **Later:** the real handler provides an `IPermissions` contract; `ScopedContext` then builds a `ModulePermissions` that forwards to it with the module id, and falls back to `AllowAllPermissions` when no handler runs. Modules see no difference.
-- **Reuse checked:** nothing in the [reusable parts index](../api/reusable.md) does this; no new helper beyond the class itself.
+- **Reuse checked:** nothing in the [reusable parts index](../../api/reusable.md) does this; no new helper beyond the class itself.
 
 ## Tests (`tests/test_permissions.py`)
 

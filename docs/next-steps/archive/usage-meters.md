@@ -1,6 +1,6 @@
 # Usage meters: context now and usage so far
 
-> **Status: done (2026-10-28).** Q1–Q3 as recommended. Checked by replaying the 2026-10-27 transcripts through the new counting: worker 20.7M tokens, ~$8.42, last context 274k; Talker 2.3M, ~$0.57, 43k. That replay found the streamed lines undercount output (2.5k against the results' 129k), so output now comes from each turn's result. Docs: [agent runtime](../agents/runtime.md), [`SessionUsage`](../api/agents.md#sessionusage). Needs a relaunch to go live.
+> **Status: done (2026-10-28).** Q1–Q3 as recommended. Checked by replaying the 2026-10-27 transcripts through the new counting: worker 20.7M tokens, ~$8.42, last context 274k; Talker 2.3M, ~$0.57, 43k. That replay found the streamed lines undercount output (2.5k against the results' 129k), so output now comes from each turn's result. Docs: [agent runtime](../../agents/runtime.md), [`SessionUsage`](../../api/agents.md#sessionusage). Needs a relaunch to go live.
 
 **Asked:** "I want the cumulative, but also the current context size of the talker and the current worker."
 

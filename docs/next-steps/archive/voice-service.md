@@ -2,23 +2,23 @@
 
 > **Status: done (2026-11-03).** Approved with your four answers (install the packages, CI installs the voice extra, download the model, int8 by default); built and tested. Not committed. Results under [Built](#built-2026-11-03). Next: step 3, `voice_in`.
 
-**Asked:** step 2 of [voice in](README.md#next-voice-in-phase-1): the `voice_service` app itself, as its own independent app in `src/voice_service/`. It holds the mic and the speech engine, serves the WebSocket protocol from `protocol.py`, and uses `app_kit` pieces like `load_layered` where they fit. It never imports `assistant`. The thin `voice_in` module is step 3.
+**Asked:** step 2 of [voice in](../README.md#next-voice-in-phase-1): the `voice_service` app itself, as its own independent app in `src/voice_service/`. It holds the mic and the speech engine, serves the WebSocket protocol from `protocol.py`, and uses `app_kit` pieces like `load_layered` where they fit. It never imports `assistant`. The thin `voice_in` module is step 3.
 
 **Why:** everything else in voice input talks to this service. Built and tested alone first, step 3 can be built against a real service.
 
-**The design is already approved** ([Code design (phase 1)](../architecture/voice.md#code-design-phase-1)): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.
+**The design is already approved** ([Code design (phase 1)](../../architecture/voice.md#code-design-phase-1)): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.
 
 ## Touches
 
 - **New, `src/voice_service/`:** `__main__.py`, `config.py`, `server.py`, `session.py`, `audio.py`, `download.py`, `engines/__init__.py`, `engines/zipformer.py`, `engines/fake.py`. `__init__.py` stays empty and `protocol.py` stays as built.
 - **New:** `config/voice_service.toml` (the design's file as is); `tests/test_voice_service.py`.
 - **Changed:** `pyproject.toml` (the `voice` extra; `voice_service` in ruff's first-party list; a `voice-service` script like `html-viewer`); `.gitignore` (`config/*.local.toml`, so `voice_service.local.toml` is never committed); `.github/workflows/ci.yml` (question 2).
-- **Docs:** [Voice](../architecture/voice.md) (status: step 2 built), the overview's Parts table (the voice handler's location), [App kit](../api/app_kit.md) and the [reusable parts index](../api/reusable.md) (Used by lines), [Next steps](README.md). Then rebuild.
+- **Docs:** [Voice](../../architecture/voice.md) (status: step 2 built), the overview's Parts table (the voice handler's location), [App kit](../../api/app_kit.md) and the [reusable parts index](../../api/reusable.md) (Used by lines), [Next steps](../README.md). Then rebuild.
 
 ## How it starts and stops
 
 - **Start:** `python -m voice_service [--config F] [--host H] [--port P]` (or `voice-service`). It reads the config, sets up logging, builds the FastAPI app, and runs Uvicorn on `127.0.0.1:8767`. The model loads in the background (`asyncio.to_thread`), so `/health` answers at once with `ready: false` until the model is in.
-- **`/health`** answers `{"app": "voice_service", "engine", "ready", "error"}`: the convention [`CompanionApp`](../api/app_kit.md#companionapp) pings, so step 3 needs no launch code of its own.
+- **`/health`** answers `{"app": "voice_service", "engine", "ready", "error"}`: the convention [`CompanionApp`](../../api/app_kit.md#companionapp) pings, so step 3 needs no launch code of its own.
 - **Stop:** `POST /quit` (JSON body, like the viewer) aborts any session (mic closed, engine thread joined, no final) and tells Uvicorn to exit. Ctrl+C does the same. Step 3 passes `quit="/quit"` to `CompanionApp`.
 - **`python -m voice_service download zipformer`** fetches the model once into `models_dir` (standard library `urllib` and `tarfile`, extracted with tarfile's safe `data` filter). It's never called while the service runs.
 
