@@ -1,11 +1,23 @@
 """Stand-in orchestrator: replies with the input text. `/tools` lists the available tools.
 
 Exists to prove the plumbing; replace it by enabling a different orchestrator in config.
+Its menu has one item, `echo.say`, the smallest example of a module menu.
 """
 
 from __future__ import annotations
 
-from assistant.contracts import InputReceived, IToolProvider, Manifest, ModuleContext, ModuleProtocol, ResponseReady
+from assistant.contracts import (
+    InputReceived,
+    IToolProvider,
+    Manifest,
+    Menu,
+    ModuleContext,
+    ModuleProtocol,
+    ResponseReady,
+    Result,
+)
+
+menu = Menu()
 
 
 class EchoOrchestrator(ModuleProtocol):
@@ -16,10 +28,15 @@ class EchoOrchestrator(ModuleProtocol):
         publishes=(ResponseReady,),
         listens=(InputReceived,),
     )
+    menu = menu
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         ctx.subscribe(InputReceived, self._on_input)
+
+    @menu.item("echo.say", "Echo the text back", {"text": {"type": "string"}}, required=["text"])
+    async def say(self, text: str) -> Result:
+        return Result.ok(f"Echo: {text}")
 
     async def _on_input(self, event: InputReceived) -> None:
         if event.text == "/tools":

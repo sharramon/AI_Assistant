@@ -23,7 +23,7 @@ The rules every design and implementation decision follows. If a change conflict
     - **What qualifies:** the behavior is the same, not just similar, and it knows nothing about any one module; a module's specifics come in as parameters.
     - **How:** by composition (principle 12): an object or function you compose, never a base class with code in it. Check the index before writing a helper. Where reusable parts live: [Reusable parts](reusable-parts.md).
 14. **A module is a wrapper with a menu.** Every module is the same wrapper the core manages (a manifest with a one-line description, a lifecycle, a context) holding a menu of named tools, each with a description and its inputs: MCP-like, but ours only ([modules](modules.md#a-module-is-a-wrapper-with-a-menu)). Refines 3 and 12.
-    - **Today:** the wrapper and `IToolProvider` menus are built; the one-line description is planned.
+    - **Today:** the wrapper, the one-line description and the `Menu` part are built; most modules don't have menu items yet.
 15. **Directory, then menu.** The Talker and the Main Assistant find capabilities the same way, one line per module first, then only that module's menu, then `InvokeTool`; no agent has another module's tools written into it ([modules](modules.md#find-a-module-then-open-its-menu)).
     - **Today:** planned. The Talker is hardcoded to the viewer's tools and the Main Assistant can't call tools; both are known gaps.
 16. **Chain, don't glue.** A module uses another only through what that one declares (its events, commands, or menu), and a shared service serves several users through sessions with a destination each, never through copies of itself ([modules](modules.md#chaining-modules)). Refines 3; it's 13's "build it once" for running services.

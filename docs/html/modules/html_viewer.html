@@ -28,12 +28,12 @@
 <td><code>html_viewer</code></td>
 </tr>
 <tr>
-<td>provides</td>
-<td><a href="../api/tools.html#itoolprovider"><code>IToolProvider</code></a></td>
+<td>provides / requires / optional</td>
+<td>none</td>
 </tr>
 <tr>
-<td>requires / optional</td>
-<td>none</td>
+<td>menu</td>
+<td>a <a href="../api/modules.html#menu"><code>Menu</code></a>: <code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
 </tr>
 <tr>
 <td>permissions</td>
@@ -51,12 +51,12 @@
 </thead>
 <tbody>
 <tr>
-<td>Tools</td>
-<td><code>viewer.open</code> (open a file in a tab), <code>viewer.highlight</code> (open it and highlight a quoted part), <code>viewer.tabs</code> (open files and highlights): <a href="../api/tools.html#tools-offered-today">tools offered today</a></td>
+<td>Menu</td>
+<td><code>viewer.open</code> (open a file in a tab), <code>viewer.highlight</code> (open it and highlight a quoted part), <code>viewer.tabs</code> (open files and highlights): <a href="../api/tools.html#tools-offered-today">tools offered today</a>. The core links it and routes <a href="../api/tools.html#invoketool"><code>InvokeTool</code></a> to it, checking the arguments first</td>
 </tr>
 <tr>
 <td>Handles</td>
-<td><a href="../api/tools.html#invoketool"><code>InvokeTool</code></a> for its tools (routed by the core)</td>
+<td>nothing</td>
 </tr>
 <tr>
 <td>Calls</td>

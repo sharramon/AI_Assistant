@@ -5,8 +5,8 @@ doesn't import the assistant. The two talk over its local HTTP API (this module 
 and its event stream (viewer → this module). This module starts it on the first show
 request and stops it when the app stops; a viewer you started yourself, it connects to and
 leaves running. It:
-- offers the tools `viewer.open` (open an HTML file in a tab), `viewer.highlight` (open it
-  and highlight a quoted part), and `viewer.tabs`
+- has a menu: `viewer.open` (open an HTML file in a tab), `viewer.highlight` (open it and
+  highlight a quoted part), and `viewer.tabs`; the core offers it through `InvokeTool`
 - relays the viewer's open tabs and highlights as `ViewerTabsChanged`, for the Talker
 - opens the files the Main Assistant names with `<<SHOW: path>>`, or highlights with
   `<<SHOW: path | "quoted text" | heading>>` (it can't call app tools)
@@ -24,12 +24,11 @@ from typing import Any
 from app_kit import CompanionApp
 from assistant.contracts import (
     AgentActivity,
-    IToolProvider,
     Manifest,
+    Menu,
     ModuleContext,
     ModuleProtocol,
     Result,
-    ToolSpec,
     ViewerClip,
     ViewerTabsChanged,
 )
@@ -37,15 +36,18 @@ from assistant.infra.agent_tags import find_tags, parse_show
 
 DEFAULT_PROFILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / "html_viewer_window"
 
+menu = Menu()
+_PATH = {"type": "string", "minLength": 1}
+
 
 class HtmlViewerModule(ModuleProtocol):
     manifest = Manifest(
         id="html_viewer",
         description="View, edit, highlight and snip HTML; launches the viewer app",
-        provides=(IToolProvider,),
         publishes=(ViewerTabsChanged, ViewerClip,),
         listens=(AgentActivity,),
     )
+    menu = menu
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
@@ -63,7 +65,6 @@ class HtmlViewerModule(ModuleProtocol):
         self._logs_dir = ctx.config.get("logs_dir", "logs")  # a folder, or a callable returning one
         self._relay_task: asyncio.Task | None = None
         self._shows: set[asyncio.Task] = set()
-        ctx.provide(IToolProvider, _ViewerTools(self))
         ctx.subscribe(AgentActivity, self._on_activity)
 
     async def start(self) -> None:
@@ -78,6 +79,9 @@ class HtmlViewerModule(ModuleProtocol):
         await asyncio.gather(*self._shows, *[t for t in [self._relay_task] if t], return_exceptions=True)
         await self._app.stop()
 
+    @menu.item("viewer.open", "Open an HTML file in the HTML viewer (switches to its tab if it's open); "
+                              "front: also bring the viewer window to the front (for the user's clicks)",
+               {"path": _PATH, "front": {"type": "boolean"}}, required=["path"])
     async def show(self, path: str, front: bool = False) -> Result:
         """Open `path` in a viewer tab, starting the viewer first if it isn't running.
 
@@ -93,6 +97,10 @@ class HtmlViewerModule(ModuleProtocol):
             return Result.failed(f"The HTML viewer isn't available: {exc}", retryable=True)
         return Result.ok(answer) if answer.get("ok") else Result.failed(answer.get("error") or "unknown error")
 
+    @menu.item("viewer.highlight", "Open an HTML file in the viewer and highlight a short quote of its text, "
+                                   "optionally only in the section under a heading; scrolls to it",
+               {"path": _PATH, "text": {"type": "string", "minLength": 1}, "heading": {"type": "string"},
+                "front": {"type": "boolean"}}, required=["path", "text"])
     async def highlight(self, path: str, text: str, heading: str | None = None, front: bool = False) -> Result:
         """Open `path` and highlight the quoted `text` (in `heading`'s section, if given).
 
@@ -112,6 +120,7 @@ class HtmlViewerModule(ModuleProtocol):
             return Result.failed(answer.get("error") or "unknown error")
         return Result.ok({k: answer[k] for k in ("tab", "path", "found", "matches") if k in answer})
 
+    @menu.item("viewer.tabs", "The files open in the HTML viewer, and their highlights")
     async def tabs(self) -> Result:
         if not await self._ping():
             return Result.ok([])
@@ -195,52 +204,3 @@ class HtmlViewerModule(ModuleProtocol):
             self._ctx.log.warning("Couldn't keep the snip %s: %s", item["path"], exc)
             image = Path(item["path"])
         self._ctx.publish(ViewerClip(id=item["id"], image_path=str(image), file=item["file"], heading=item.get("heading")))
-
-
-class _ViewerTools(IToolProvider):
-    """The module's tools, as a composed part (principle 12)."""
-
-    def __init__(self, module: HtmlViewerModule) -> None:
-        self._module = module
-
-    def tools(self) -> list[ToolSpec]:
-        return [
-            ToolSpec(
-                name="viewer.open",
-                description="Open an HTML file in the HTML viewer (switches to its tab if it's open); "
-                            "front: also bring the viewer window to the front (for the user's clicks)",
-                input_schema={
-                    "type": "object",
-                    "properties": {"path": {"type": "string"}, "front": {"type": "boolean"}},
-                    "required": ["path"],
-                },
-            ),
-            ToolSpec(
-                name="viewer.highlight",
-                description="Open an HTML file in the viewer and highlight a short quote of its text, "
-                            "optionally only in the section under a heading; scrolls to it",
-                input_schema={
-                    "type": "object",
-                    "properties": {"path": {"type": "string"}, "text": {"type": "string"}, "heading": {"type": "string"},
-                                   "front": {"type": "boolean"}},
-                    "required": ["path", "text"],
-                },
-            ),
-            ToolSpec(name="viewer.tabs", description="The files open in the HTML viewer, and their highlights"),
-        ]
-
-    async def invoke(self, name: str, args: dict[str, Any]) -> Result:
-        if name in ("viewer.open", "viewer.highlight"):
-            if not isinstance(args.get("path"), str) or not args["path"].strip():
-                return Result.invalid_arguments(f"{name} needs a path")
-        front = args.get("front") is True
-        if name == "viewer.open":
-            return await self._module.show(args["path"], front)
-        if name == "viewer.highlight":
-            if not isinstance(args.get("text"), str) or not args["text"].strip():
-                return Result.invalid_arguments("viewer.highlight needs the text to highlight")
-            heading = args.get("heading")
-            return await self._module.highlight(
-                args["path"], args["text"], heading if isinstance(heading, str) else None, front
-            )
-        return await self._module.tabs()

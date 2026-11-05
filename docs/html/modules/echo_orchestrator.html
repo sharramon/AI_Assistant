@@ -36,6 +36,10 @@
 <td><a href="../api/tools.html#itoolprovider"><code>IToolProvider</code></a> (to list tools)</td>
 </tr>
 <tr>
+<td>menu</td>
+<td>a <a href="../api/modules.html#menu"><code>Menu</code></a> with one item, <code>echo.say</code></td>
+</tr>
+<tr>
 <td>permissions</td>
 <td>none</td>
 </tr>
@@ -51,7 +55,11 @@
 </thead>
 <tbody>
 <tr>
-<td>Tools · Handles · Calls</td>
+<td>Menu</td>
+<td><code>echo.say(text)</code>: <code>ok("Echo: &lt;text&gt;")</code>, the smallest example of a menu</td>
+</tr>
+<tr>
+<td>Handles · Calls</td>
 <td>none</td>
 </tr>
 <tr>
@@ -75,7 +83,7 @@
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
 <li><code>src/assistant/modules/echo_orchestrator/module.py</code></li>
-<li><code>tests/test_app.py</code></li>
+<li><code>tests/test_app.py</code>, <code>tests/test_menu.py</code></li>
 </ul>
 <h2 id="planned">Planned</h2>
 <p>Nothing specific.</p>

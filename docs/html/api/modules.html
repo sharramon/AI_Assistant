@@ -16,7 +16,7 @@
 <h2 id="moduleprotocol"><code>ModuleProtocol</code></h2>
 <p><strong>Reusable</strong> · Used by: every module; the core's loader and lifecycle · built 2026-11-05 (<code>Module</code> renamed)</p>
 <p><code>class ModuleProtocol(ABC)</code></p>
-<p>The one interface every module implements. Set the <code>manifest</code> class attribute and implement <code>init</code>; subclass it to get the do-nothing defaults for the other hooks. It's a <strong>protocol</strong>, not a <a href="#contract"><code>Contract</code></a>: a class is a module by having these members, and nobody looks a module up through the container, so it has no <code>I</code> prefix (<a href="../architecture/principles.html">principle 12</a>). It carries no behaviour: a module gets its behaviour from the parts it owns (a <code>CompanionApp</code>, a <code>SessionTaskAgent</code>, later a <code>Menu</code>).</p>
+<p>The one interface every module implements. Set the <code>manifest</code> class attribute and implement <code>init</code>; subclass it to get the do-nothing defaults for the other hooks. It's a <strong>protocol</strong>, not a <a href="#contract"><code>Contract</code></a>: a class is a module by having these members, and nobody looks a module up through the container, so it has no <code>I</code> prefix (<a href="../architecture/principles.html">principle 12</a>). It carries no behaviour: a module gets its behaviour from the parts it owns (a <code>CompanionApp</code>, a <code>SessionTaskAgent</code>, a <a href="#menu"><code>Menu</code></a>).</p>
 <p>The core calls <code>init</code> for every module in dependency order, then <code>start</code> for each, and on shutdown <code>stop</code> in reverse order. <code>stop</code> is called for every module whose <code>init</code> succeeded, even if <code>start</code> never ran. If <code>init</code> or <code>start</code> raises, the module is skipped (see <a href="../architecture/core.html#lifecycle">lifecycle</a>).</p>
 <p><strong>Modules must be restartable.</strong> A module can be <a href="control.html">deactivated and activated</a> while the app runs. Each activation creates a <strong>fresh instance</strong> and calls <code>init</code> and <code>start</code> again, so <code>stop</code> must release everything the module started (processes, threads, windows, devices), and in-memory state doesn't survive deactivation. Load expensive resources in <code>start</code> or on first use. After <code>stop</code>, the old context drops <code>publish</code> and refuses <code>send</code>. A resource that can't be stopped (like a blocking <code>input()</code> thread) should be shared across instances, as <code>console_io</code> does.</p>
 <p><strong>Attributes</strong></p>
@@ -33,6 +33,11 @@
 <td><code>manifest</code></td>
 <td><code>ClassVar[Manifest]</code></td>
 <td>Required. Identifies the module and its dependencies</td>
+</tr>
+<tr>
+<td><code>menu</code></td>
+<td><code>ClassVar[Menu | None]</code></td>
+<td>Optional, default <code>None</code>. The actions others may call: a <a href="#menu"><code>Menu</code></a> the core links to the running copy</td>
 </tr>
 </tbody>
 </table>
@@ -70,6 +75,49 @@
 <p>Called before a reload stops this instance. What it returns reaches the new instance as <a href="#modulecontext"><code>ctx.handover</code></a> in <code>init</code> (and goes back to the old instance if the new code fails). Return plain data or <code>assistant.infra</code> / <code>app_kit</code> objects, which are never reloaded; never this module's own classes, which change with the code. Default <code>None</code>: the new instance starts clean. A hook that raises counts as <code>None</code>. Today: <code>voice_in</code> hands over its <code>CompanionApp</code>, so the voice app keeps running.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code>
 <strong>See also:</strong> <a href="#manifest"><code>Manifest</code></a>, <a href="#modulecontext"><code>ModuleContext</code></a>, <a href="../architecture/core.html#adding-replacing-or-removing-a-module">adding a module</a>, <a href="../architecture/core.html#reloading-a-modules-code">reloading</a></p>
+<h2 id="menu"><code>Menu</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>html_viewer</code>, <code>echo_orchestrator</code> (more modules as they're recoded); read by the core (<code>MenuTools</code>, <code>ScopedContext.link_menu</code>) and <code>scripts/build_docs.py</code> (the module library) · built 2026-11-05</p>
+<p><code>class Menu()</code> · <code>MenuItem(spec: ToolSpec, method: str)</code></p>
+<p>A module's menu: the actions an assistant or another module may call. Plain data built when the module's file is imported, so the core reads it without starting the module. Declare one per module class, decorate the methods that are its items, and set it as the class's <code>menu</code>. When the module is on, the core links the menu to that copy (after <code>init</code>) and offers its items through <a href="tools.html#invoketool"><code>InvokeTool</code></a>; closing the module's context unlinks it. A reload re-imports the file, so the reloaded menu runs the new methods. The module never calls <code>ctx.provide(IToolProvider, ...)</code> for it.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>item(name, description, properties=None, required=())</code></td>
+<td>Decorator for an async method taking the item's arguments as keywords and returning a <code>Result</code> (a plain value becomes <code>Result.ok</code>). <code>properties</code>: a JSON Schema per argument. Raises at import for a duplicate name, a description that isn't one line, or a <code>required</code> name not in <code>properties</code></td>
+</tr>
+<tr>
+<td><code>specs()</code> / <code>names()</code> / <code>items()</code></td>
+<td>The items as <code>ToolSpec</code>s, names, or <code>MenuItem</code>s, in declaration order</td>
+</tr>
+<tr>
+<td><code>check(name, args)</code></td>
+<td>What's wrong with <code>args</code>, or <code>None</code>: a missing required argument, an unknown one, a wrong <code>type</code> (bool is not an integer), a value outside <code>enum</code>, a string shorter than <code>minLength</code> once trimmed</td>
+</tr>
+<tr>
+<td><code>async call(module, name, args)</code></td>
+<td><code>check</code>, then run the item on <code>module</code>; <code>invalid_arguments</code> when the check fails</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>menu = Menu()
+
+class HtmlViewerModule(ModuleProtocol):
+    manifest = Manifest(id="html_viewer", description="View, edit, highlight and snip HTML")
+    menu = menu
+
+    @menu.item("viewer.open", "Open an HTML file in the viewer",
+               {"path": {"type": "string", "minLength": 1}, "front": {"type": "boolean"}}, required=["path"])
+    async def show(self, path: str, front: bool = False) -&gt; Result: ...
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/menu.py</code>
+<strong>See also:</strong> <a href="core.html#menutools"><code>MenuTools</code></a>, <a href="tools.html#tools-offered-today">tools offered today</a>, <a href="../architecture/module-library.html">the module library</a></p>
 <h2 id="manifest"><code>Manifest</code></h2>
 <p><strong>Reusable</strong> · Used by: every module</p>
 <p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())</code></p>

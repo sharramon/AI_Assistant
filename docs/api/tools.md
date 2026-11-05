@@ -2,13 +2,15 @@
 
 Capabilities invocable by name, by the AI or any module. All items: `from assistant.contracts import ...`. Back to the [API index](README.md).
 
+**A module offers tools with a [`Menu`](modules.md#menu)**, not by providing `IToolProvider` itself: the core links each running module's menu to `IToolProvider` through its adapter [`MenuTools`](core.md#menutools), so `InvokeTool` reaches it. `IToolProvider` stays for providers whose tools change at runtime (a remote client's, later), and for tests.
+
 ## `IToolProvider`
 
-**Reusable** · Used by: `html_viewer` provides; the core's `dispatch_tool`, `talker` and `temp_ui` call through `InvokeTool`
+**Reusable** · Used by: the core's `MenuTools` (every module menu); the core's `dispatch_tool`, `talker`, `temp_ui` and `echo_orchestrator` call through `InvokeTool` or list the tools
 
 `class IToolProvider(Contract)`
 
-A contract for modules that offer tools. Any number of modules may provide it (`multiple = True`). Declare it in `manifest.provides` and call `ctx.provide(IToolProvider, self)` in `init`.
+A contract for things that offer tools. Any number may be provided (`multiple = True`). A module with a fixed set of actions uses a [`Menu`](modules.md#menu) instead; providing `IToolProvider` directly means declaring it in `manifest.provides` and calling `ctx.provide(IToolProvider, self)` in `init`.
 
 ### `IToolProvider.tools`
 
@@ -79,8 +81,11 @@ Run the tool called `name`. Handled by the core, which routes it to the provider
 
 ## Tools offered today
 
+Every item of every module's menu; the [module library](../architecture/module-library.md) lists them per module (generated). Arguments are checked against the item's schema first: a missing or empty required one, a wrong type or an unknown one gives `invalid_arguments`.
+
 | Tool | Provider | Args | Returns |
 |------|----------|------|---------|
+| `echo.say` | `echo_orchestrator` (off by default) | `{"text": str}` | `ok("Echo: <text>")`; the smallest example of a menu |
 | `viewer.open` | `html_viewer` | `{"path": str, "front"?: bool}` | Opens an HTML file in the [HTML viewer](../architecture/html-viewer.md), starting it if needed; switches to the file's tab if it's open, and reloads it if the file changed. `path` should be absolute: a relative one resolves against the app's folder. `front` (default false; the chat's button sends true) brings the viewer window to the front, or opens a new one if it was closed; leave it off for pages an agent opens on its own. `ok({"tab", "path", "reloaded"})`; `invalid_arguments` for a missing file; `failed` if the viewer can't start or refuses the file (not HTML) |
 | `viewer.highlight` | `html_viewer` | `{"path": str, "text": str, "heading"?: str, "front"?: bool}` | Opens the file like `viewer.open` (including `front`) and highlights `text`, a short quote of the page's words (case and whitespace ignored), in `heading`'s section if given; scrolls to it. Highlights stay until you clear them and are never saved into the file. `ok({"tab", "path", "found", "matches"})`; `found` false means the file is open but the quote isn't on the page; `invalid_arguments` without a path or text, or for a missing file |
 | `viewer.tabs` | `html_viewer` | none | `ok([{"path", "active", "unsaved", "highlights"}])` (`highlights`: the quoted texts), empty if the viewer isn't running |

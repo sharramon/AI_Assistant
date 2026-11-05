@@ -273,6 +273,7 @@
 <p><strong>Tools</strong> (<code>dispatch_tool</code>):</p>
 <ul>
 <li>Handles <code>InvokeTool</code> by asking every <code>IToolProvider</code> for its tools <em>at call time</em>, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).</li>
+<li>Links each module's <a href="../api/modules.html#menu"><code>Menu</code></a> right after its <code>init</code>: a <a href="../api/core.html#menutools"><code>MenuTools</code></a> adapter provided in the module's name, removed when its context closes, so a reloaded module's menu runs its new code.</li>
 <li>Unknown name → <code>NotAvailable</code>; a name offered by more than one provider → <code>Failed</code>.</li>
 <li>A future <code>ToolsChanged</code> event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.</li>
 <li><strong>Planned:</strong> the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a> asks: one line per module, then one module's <code>ToolSpec</code>s. Calling stays <code>InvokeTool</code>.</li>

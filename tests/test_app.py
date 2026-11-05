@@ -58,7 +58,8 @@ async def test_orchestrator_is_replaceable_by_config_alone(enabled, expected):
 async def test_orchestrator_discovers_tools_without_knowing_them():
     app = App([EchoOrchestrator, Calculator], make_config("echo_orchestrator", "calculator"))
     await app.start()
-    assert (await ask(app, "/tools")).text == "Tools: add"
+    names = (await ask(app, "/tools")).text.removeprefix("Tools: ").split(", ")
+    assert sorted(names) == ["add", "echo.say"]  # its own menu, linked by the core, and the calculator's
     await app.stop()
 
 

@@ -51,6 +51,7 @@ class LifecycleManager:
                 module = cls()
                 try:
                     await module.init(ctx)
+                    ctx.link_menu(module)
                 except Exception as exc:
                     ctx.close()
                     self._skip(cls.manifest, "initialize", exc)
@@ -254,6 +255,7 @@ class LifecycleManager:
         module = cls()
         try:
             await module.init(ctx)
+            ctx.link_menu(module)
         except Exception as exc:
             ctx.close()
             return self._fail(module_id, "initialize", exc)

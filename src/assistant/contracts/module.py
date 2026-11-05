@@ -6,9 +6,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from logging import Logger
-from typing import Any, ClassVar, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from assistant.contracts.messages import Command, Event, Result
+
+if TYPE_CHECKING:
+    from assistant.contracts.menu import Menu
 
 
 class Contract(ABC):
@@ -149,6 +152,9 @@ class ModuleProtocol(ABC):
     """
 
     manifest: ClassVar[Manifest]
+    #: The actions others may call (a `Menu` part), or None. The core links it to the running
+    #: copy and offers its items through `InvokeTool`; the module never provides it itself.
+    menu: ClassVar[Menu | None] = None
 
     @abstractmethod
     async def init(self, ctx: ModuleContext) -> None:

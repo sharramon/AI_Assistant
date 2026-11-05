@@ -2,7 +2,7 @@
 
 How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in [core](core.md); the messages are in [communication](communication.md). Each module's own page, and every module's interface side by side: the [module library](module-library.md). Back to the [overview](README.md).
 
-> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), a menu through `IToolProvider` (the HTML viewer's), `requires` by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
+> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), the `Menu` part (the HTML viewer's and the echo stand-in's), the generated module library, `requires` by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
 
 ## A module is a wrapper with a menu
 
@@ -13,7 +13,7 @@ Every module has the same **wrapper**, owned by the core, and inside it a **menu
 | **Manifest** | Its id, a one-line `description`, the contracts it `provides`, `requires`, and optionally uses, the commands it `handles` and `sends`, the events it `publishes` and `listens` to, its permissions | Built (description, commands and events 2026-11-05). The core warns when a module handles a command it didn't list |
 | **Lifecycle** | `ModuleProtocol`: `init`, `start`, `stop`, `busy`, `export_state`; the core starts, stops, and reloads it | Built |
 | **Context** | `ctx`, its only access to the app: commands, events, contracts, config, log, permissions | Built; `ctx.logs` planned |
-| **Menu** | Named tools, each with a one-line description and its inputs (`ToolSpec`), offered through `IToolProvider` and called with `InvokeTool` | Built; only the HTML viewer has one (`open`, `highlight`, `tabs`) |
+| **Menu** | A [`Menu`](../api/modules.md#menu) part on the module: named items, each with a one-line description and its inputs (`ToolSpec`), readable without starting the module. The core links it to the running copy, checks the arguments, and routes `InvokeTool` to it | Built (2026-11-05): the HTML viewer (`open`, `highlight`, `tabs`) and the echo stand-in (`echo.say`) |
 
 - **The wrapper is ours only.** Every module has the same one, so the core can start, stop, swap, and list any module without knowing what it does.
 - **The menu is MCP-like:** a list of tools a model can read and call, with a description and an argument schema each. It isn't MCP itself. The agents reach every menu through [one MCP door](#how-the-agents-reach-the-menus-one-door) in front of the core; modules never speak MCP.
@@ -163,7 +163,7 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Item | State |
 |------|-------|
 | Wrapper: manifest (id, contracts, permissions), lifecycle, context | Built |
-| Menus through `IToolProvider`, called with `InvokeTool` | Built (the HTML viewer) |
+| Menus: a `Menu` part on the module, linked by the core, called with `InvokeTool` | Built (2026-11-05; the HTML viewer, the echo stand-in) |
 | `requires` / `optional` by contract, dependency order, refusal to stop a needed provider | Built |
 | Reload and add while running | Built (2026-11-03) |
 | Events from one module heard by another (`VoiceTranscript`, `VoiceState`) | Built |
@@ -174,4 +174,4 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Finding modules by folder | Planned |
 | Voice contract; voice sessions with a destination | Planned |
 | Voice-notes module | v1 built (2026-11-04), without the voice contract; the version that requires it is planned |
-| A page per module and the [module library](module-library.md) | Built, hand-written; generated from the manifests: planned |
+| A page per module and the [module library](module-library.md) | Built; the library's table is generated from the manifests and menus (2026-11-05), the module pages are hand-written |

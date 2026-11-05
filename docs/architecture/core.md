@@ -239,6 +239,7 @@ stateDiagram-v2
 
 **Tools** (`dispatch_tool`):
 - Handles `InvokeTool` by asking every `IToolProvider` for its tools *at call time*, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).
+- Links each module's [`Menu`](../api/modules.md#menu) right after its `init`: a [`MenuTools`](../api/core.md#menutools) adapter provided in the module's name, removed when its context closes, so a reloaded module's menu runs its new code.
 - Unknown name → `NotAvailable`; a name offered by more than one provider → `Failed`.
 - A future `ToolsChanged` event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.
 - **Planned:** the [directory, then menu](modules.md#find-a-module-then-open-its-menu) asks: one line per module, then one module's `ToolSpec`s. Calling stays `InvokeTool`.

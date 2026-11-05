@@ -2,26 +2,26 @@
 
 Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own page. The data types are listed below the table, with links to their API entries. Back to the [overview](README.md).
 
-> **Hand-written** from the code, checked 2026-11-04. Since 2026-11-05 the manifest carries the description, the commands (`handles`, `sends`) and the events (`publishes`, `listens`); generating the table from them is next (module system, chunk 2). A test (`tests/test_module_docs.py`) checks that every module has a row here and a page. It becomes generated once the manifests carry the data ([generated later](#generated-later)).
+> **Generated** (since 2026-11-05): `scripts/build_docs.py` rewrites the table between the `library:start` and `library:end` markers from each module's `Manifest` (description, contracts, `handles`, `sends`, `publishes`, `listens`) and its `Menu`, read without starting the module. "On" is the default config's `modules.enabled`. Change a module's manifest or menu, not this table; a test (`tests/test_module_docs.py`) fails when the table is stale or a module has no page. The data types below are still hand-written.
 
 ## Modules
 
-<!-- library:start (hand-written until generated from the manifests) -->
+<!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->
 
-| Module | What it does | On | Tools (menu) | Handles | Calls | Publishes | Listens to |
-|--------|--------------|----|--------------|---------|-------|-----------|------------|
-| [`voice_in`](../modules/voice_in.md) | Speech to text; launches the voice service app | yes | none | `StartListening`, `StopListening` | none | `VoiceState`, `VoiceTranscript`, `InputReceived` | none |
-| [`voice_notes`](../modules/voice_notes.md) | Speak into a page of notes; the words never go to the Talker | yes | none | none | `StartListening`, `StopListening` | none | `VoiceState`, `VoiceTranscript` |
-| [`html_viewer`](../modules/html_viewer.md) | View, edit, highlight and snip HTML; launches the viewer app | yes | `viewer.open`, `viewer.highlight`, `viewer.tabs` | `InvokeTool` (its tools) | none | `ViewerTabsChanged`, `ViewerClip` | `AgentActivity` |
-| [`talker`](../modules/talker.md) | Talks with you; hands work to the Agent Hub | yes | none | none | `StartTask`, `GetTaskStatus`, `SendToTask`, `CancelTask`, `AnswerPermission`, `SetPermissionMode`, `InvokeTool` | `ResponseReady`, `SessionUsage`, `SessionTheme`, `ResetRequested`, `ShutdownRequested` | `InputReceived`, `TaskUpdated`, `SessionUsage`, `ResetRequested`, `PermissionModeChanged`, `ViewerTabsChanged`, `ViewerClip`, `ViewerClipDropped` |
-| [`main_assistant`](../modules/main_assistant.md) | The worker: does the tasks (provides `ITaskAgent`) | yes | none | none (called through `ITaskAgent`) | `ReportTask` | `AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged` | `ResetRequested` |
-| [`agent_hub`](../modules/agent_hub.md) | Task state and routing between the agents | yes | none | `ListAgents`, `StartTask`, `GetTaskStatus`, `SendToTask`, `CancelTask`, `ReportTask`, `AnswerPermission`, `SetPermissionMode` | `ITaskAgent` methods | `TaskUpdated` | `AgentActivity` |
-| [`temp_ui`](../modules/temp_ui.md) | Temporary two-pane page: worker and Talker, mic, usage, permissions | yes | none | none | `ListModules`, `StartListening`, `StopListening`, `AnswerPermission`, `SetPermissionMode`, `InvokeTool` | `InputReceived`, `ResetRequested`, `ViewerClipDropped` | `InputReceived`, `ResponseReady`, `TaskUpdated`, `AgentActivity`, `AgentStateChanged`, `PermissionModeChanged`, `SessionUsage`, `ViewerClip`, `VoiceState`, `VoiceTranscript`, `ModuleStateChanged` |
-| [`console_io`](../modules/console_io.md) | Terminal 1: type and read replies | yes | none | none | none | `InputReceived`, `ShutdownRequested` | `ResponseReady` |
-| [`assistant_view`](../modules/assistant_view.md) | Terminal 2: view-only agent activity | no | none | none | none | none | `AgentActivity`, `AgentStateChanged`, `TaskUpdated` |
-| [`echo_orchestrator`](../modules/echo_orchestrator.md) | Stand-in orchestrator: echoes, `/tools` | no | none | none | none | `ResponseReady` | `InputReceived` |
+| Module | What it does | On | Menu | Contracts | Handles | Calls | Publishes | Listens to |
+|--------|--------------|----|------|-----------|---------|-------|-----------|------------|
+| [`console_io`](../modules/console_io.md) | Terminal 1: type and read replies | yes | none | none | none | none | `InputReceived`, `ShutdownRequested` | `ResponseReady` |
+| [`agent_hub`](../modules/agent_hub.md) | Task state and routing between the agents | yes | none | optional `ITaskAgent` | `ListAgents`, `StartTask`, `GetTaskStatus`, `SendToTask`, `CancelTask`, `ReportTask`, `AnswerPermission`, `SetPermissionMode` | none | `TaskUpdated` | `AgentActivity` |
+| [`main_assistant`](../modules/main_assistant.md) | The worker: does the tasks the Talker hands over | yes | none | provides `ITaskAgent` | none | `ReportTask` | `AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged` | `ResetRequested` |
+| [`talker`](../modules/talker.md) | Talks with you; hands work to the Agent Hub | yes | none | none | none | `StartTask`, `GetTaskStatus`, `SendToTask`, `CancelTask`, `AnswerPermission`, `SetPermissionMode`, `InvokeTool` | `ResponseReady`, `SessionUsage`, `SessionTheme`, `ResetRequested`, `ShutdownRequested` | `InputReceived`, `TaskUpdated`, `SessionUsage`, `ResetRequested`, `PermissionModeChanged`, `ViewerTabsChanged`, `ViewerClip`, `ViewerClipDropped` |
+| [`temp_ui`](../modules/temp_ui.md) | Temporary two-pane page: worker and Talker, mic, usage, permissions | yes | none | none | none | `ListModules`, `StartListening`, `StopListening`, `AnswerPermission`, `SetPermissionMode`, `InvokeTool` | `InputReceived`, `ResetRequested`, `ViewerClipDropped` | `InputReceived`, `ResponseReady`, `TaskUpdated`, `AgentActivity`, `AgentStateChanged`, `PermissionModeChanged`, `SessionUsage`, `ViewerClip`, `VoiceState`, `VoiceTranscript`, `ModuleStateChanged` |
+| [`html_viewer`](../modules/html_viewer.md) | View, edit, highlight and snip HTML; launches the viewer app | yes | `viewer.open`, `viewer.highlight`, `viewer.tabs` | none | none | none | `ViewerTabsChanged`, `ViewerClip` | `AgentActivity` |
+| [`voice_in`](../modules/voice_in.md) | Speech to text; launches the voice service app | yes | none | none | `StartListening`, `StopListening` | none | `VoiceState`, `VoiceTranscript`, `InputReceived` | none |
+| [`voice_notes`](../modules/voice_notes.md) | Speak into a page of notes; the words never go to the Talker | yes | none | none | none | `StartListening`, `StopListening` | none | `VoiceState`, `VoiceTranscript` |
+| [`assistant_view`](../modules/assistant_view.md) | Terminal 2: view-only agent activity | no | none | none | none | none | none | `AgentActivity`, `AgentStateChanged`, `TaskUpdated` |
+| [`echo_orchestrator`](../modules/echo_orchestrator.md) | Stand-in orchestrator: echoes, /tools | no | `echo.say` | optional `IToolProvider` | none | none | `ResponseReady` | `InputReceived` |
 
-The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, `DeactivateModule`, `ReloadModule`, `AddModule`), routes `InvokeTool` to the module that offers the tool, and publishes `ModuleStateChanged`.
+The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, `DeactivateModule`, `ReloadModule`, `AddModule`), routes `InvokeTool` to the module whose menu has the item, and publishes `ModuleStateChanged`.
 
 <!-- library:end -->
 
@@ -60,19 +60,4 @@ What travels between modules. Fields are the main ones; the API entry has them a
 | `ListModules` | command | none; the result lists `ModuleInfo` | [control](../api/control.md#listmodules) |
 | `ModuleStateChanged` | event | a module's new `ModuleState` | [control](../api/control.md#modulestatechanged) |
 
-## Generated later
-
-> **Planned**, with the module-shape refactor (change note `docs/next-steps/module-shape-refactor.md`, items 2 and 5).
-
-A script reads each module's `Manifest` and menu and rewrites the table between the `library:start` and `library:end` markers before the docs build. It needs:
-
-| Column | Source | Today |
-|--------|--------|-------|
-| What it does | `Manifest.description` | planned (refactor item 5) |
-| Handles | `Manifest.handles` | planned (refactor item 2) |
-| Publishes | the announced events | planned (refactor item 5) |
-| Listens to | a listened-events list in the manifest | not yet in the refactor note; added there as an open point |
-| Tools | the module's `ToolSpec`s, readable without starting it | today only from a running module's `tools()`; open point in the note |
-| Calls | none of the above; stays hand-written or is dropped | hand-written |
-
-The data types table can then be generated from `assistant.contracts`, linking each type to its API anchor.
+The data types table could be generated from `assistant.contracts` the same way, linking each type to its API anchor (not done yet).

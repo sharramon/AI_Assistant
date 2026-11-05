@@ -14,7 +14,7 @@
 <h1 id="modules">Modules</h1>
 <p>How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in <a href="core.html">core</a>; the messages are in <a href="communication.html">communication</a>. Each module's own page, and every module's interface side by side: the <a href="module-library.html">module library</a>. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), a menu through <code>IToolProvider</code> (the HTML viewer's), <code>requires</code> by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
+<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), the <code>Menu</code> part (the HTML viewer's and the echo stand-in's), the generated module library, <code>requires</code> by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
 </blockquote>
 <h2 id="a-module-is-a-wrapper-with-a-menu">A module is a wrapper with a menu</h2>
 <p>Every module has the same <strong>wrapper</strong>, owned by the core, and inside it a <strong>menu</strong> of what it can do.</p>
@@ -44,8 +44,8 @@
 </tr>
 <tr>
 <td><strong>Menu</strong></td>
-<td>Named tools, each with a one-line description and its inputs (<code>ToolSpec</code>), offered through <code>IToolProvider</code> and called with <code>InvokeTool</code></td>
-<td>Built; only the HTML viewer has one (<code>open</code>, <code>highlight</code>, <code>tabs</code>)</td>
+<td>A <a href="../api/modules.html#menu"><code>Menu</code></a> part on the module: named items, each with a one-line description and its inputs (<code>ToolSpec</code>), readable without starting the module. The core links it to the running copy, checks the arguments, and routes <code>InvokeTool</code> to it</td>
+<td>Built (2026-11-05): the HTML viewer (<code>open</code>, <code>highlight</code>, <code>tabs</code>) and the echo stand-in (<code>echo.say</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -218,8 +218,8 @@
 <td>Built</td>
 </tr>
 <tr>
-<td>Menus through <code>IToolProvider</code>, called with <code>InvokeTool</code></td>
-<td>Built (the HTML viewer)</td>
+<td>Menus: a <code>Menu</code> part on the module, linked by the core, called with <code>InvokeTool</code></td>
+<td>Built (2026-11-05; the HTML viewer, the echo stand-in)</td>
 </tr>
 <tr>
 <td><code>requires</code> / <code>optional</code> by contract, dependency order, refusal to stop a needed provider</td>
@@ -263,7 +263,7 @@
 </tr>
 <tr>
 <td>A page per module and the <a href="module-library.html">module library</a></td>
-<td>Built, hand-written; generated from the manifests: planned</td>
+<td>Built; the library's table is generated from the manifests and menus (2026-11-05), the module pages are hand-written</td>
 </tr>
 </tbody>
 </table>

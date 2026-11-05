@@ -152,6 +152,14 @@ True for `Contract` subclasses defined under `assistant.contracts` (excluding `C
 
 **Defined in:** `src/assistant/core/container.py`
 
+## `MenuTools`
+
+`MenuTools(menu: Menu, module: ModuleProtocol)` (an `IToolProvider`)
+
+The core's adapter from a module's [`Menu`](modules.md#menu) to `IToolProvider`, linked to one running copy. The lifecycle calls `ScopedContext.link_menu(module)` right after a module's `init` (at startup, on activate, on reload); it provides a `MenuTools` in the module's name, so closing the context removes it. `invoke` runs `menu.call`, which checks the arguments first.
+
+**Defined in:** `src/assistant/core/tools.py`
+
 ## `dispatch_tool`
 
 `async dispatch_tool(container: Container, command: InvokeTool) -> Result`

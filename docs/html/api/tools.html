@@ -13,10 +13,11 @@
 <main>
 <h1 id="tools">Tools</h1>
 <p>Capabilities invocable by name, by the AI or any module. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>.</p>
+<p><strong>A module offers tools with a <a href="modules.html#menu"><code>Menu</code></a></strong>, not by providing <code>IToolProvider</code> itself: the core links each running module's menu to <code>IToolProvider</code> through its adapter <a href="core.html#menutools"><code>MenuTools</code></a>, so <code>InvokeTool</code> reaches it. <code>IToolProvider</code> stays for providers whose tools change at runtime (a remote client's, later), and for tests.</p>
 <h2 id="itoolprovider"><code>IToolProvider</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> provides; the core's <code>dispatch_tool</code>, <code>talker</code> and <code>temp_ui</code> call through <code>InvokeTool</code></p>
+<p><strong>Reusable</strong> · Used by: the core's <code>MenuTools</code> (every module menu); the core's <code>dispatch_tool</code>, <code>talker</code>, <code>temp_ui</code> and <code>echo_orchestrator</code> call through <code>InvokeTool</code> or list the tools</p>
 <p><code>class IToolProvider(Contract)</code></p>
-<p>A contract for modules that offer tools. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and call <code>ctx.provide(IToolProvider, self)</code> in <code>init</code>.</p>
+<p>A contract for things that offer tools. Any number may be provided (<code>multiple = True</code>). A module with a fixed set of actions uses a <a href="modules.html#menu"><code>Menu</code></a> instead; providing <code>IToolProvider</code> directly means declaring it in <code>manifest.provides</code> and calling <code>ctx.provide(IToolProvider, self)</code> in <code>init</code>.</p>
 <h3 id="itoolprovidertools"><code>IToolProvider.tools</code></h3>
 <p><code>tools(self) -&gt; list[ToolSpec]</code></p>
 <p>Abstract. The tools currently offered. Called on every lookup, never cached, so the list may change at runtime.</p>
@@ -90,6 +91,7 @@
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/tools.py</code></p>
 <h2 id="tools-offered-today">Tools offered today</h2>
+<p>Every item of every module's menu; the <a href="../architecture/module-library.html">module library</a> lists them per module (generated). Arguments are checked against the item's schema first: a missing or empty required one, a wrong type or an unknown one gives <code>invalid_arguments</code>.</p>
 <table>
 <thead>
 <tr>
@@ -100,6 +102,12 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>echo.say</code></td>
+<td><code>echo_orchestrator</code> (off by default)</td>
+<td><code>{"text": str}</code></td>
+<td><code>ok("Echo: &lt;text&gt;")</code>; the smallest example of a menu</td>
+</tr>
 <tr>
 <td><code>viewer.open</code></td>
 <td><code>html_viewer</code></td>

@@ -33,6 +33,7 @@ from assistant.contracts.control import (
     ModuleStateChanged,
     ReloadModule,
 )
+from assistant.contracts.menu import Menu, MenuItem
 from assistant.contracts.messages import (
     Command,
     Event,
@@ -77,6 +78,8 @@ __all__ = [
     "ListeningState",
     "ListModules",
     "Manifest",
+    "Menu",
+    "MenuItem",
     "Message",
     "ModuleProtocol",
     "ModuleContext",

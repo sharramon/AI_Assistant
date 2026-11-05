@@ -96,6 +96,38 @@ async def test_reload_runs_new_code_including_submodules(pkg):
     await app.stop()
 
 
+MENU_MODULE = """
+from assistant.contracts import Manifest, Menu, ModuleProtocol, Result
+from .version import VERSION
+
+menu = Menu()
+
+
+class VersionTool(ModuleProtocol):
+    manifest = Manifest(id="version_tool")
+    menu = menu
+
+    async def init(self, ctx):
+        pass
+
+    @menu.item("version", "Which code runs")
+    async def version(self):
+        return Result.ok(VERSION)
+"""
+
+
+async def test_a_reloaded_menu_runs_the_new_method(pkg):
+    package, write = pkg
+    write(module=MENU_MODULE)
+    app = App([tool_class(package)], make_config("version_tool"))
+    await app.start()
+    assert await version(app) == "v1"
+    write(version="v2", module=MENU_MODULE)
+    assert (await app.router.send(ReloadModule(module_id="version_tool"))).is_ok
+    assert await version(app) == "v2"
+    await app.stop()
+
+
 async def test_broken_new_code_keeps_the_old_code_running(pkg):
     package, write = pkg
     app = App([tool_class(package)], make_config("version_tool"))

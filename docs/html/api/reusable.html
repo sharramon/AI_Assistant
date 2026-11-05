@@ -76,11 +76,18 @@
 <td><code>talker</code>, <code>echo_orchestrator</code> → <code>console_io</code>, <code>temp_ui</code></td>
 </tr>
 <tr>
+<td><a href="modules.html#menu"><code>Menu</code></a></td>
+<td>part</td>
+<td>A module's actions: items with a schema, checked arguments, read without starting the module, linked to the running copy by the core</td>
+<td><code>contracts/menu.py</code></td>
+<td><code>html_viewer</code>, <code>echo_orchestrator</code>; the core (<code>MenuTools</code>), <code>scripts/build_docs.py</code></td>
+</tr>
+<tr>
 <td><a href="tools.html#itoolprovider"><code>IToolProvider</code></a></td>
 <td>contract</td>
-<td>A module offering tools by name</td>
+<td>Something offering tools by name</td>
 <td><code>contracts/tools.py</code></td>
-<td><code>html_viewer</code>; called via <code>InvokeTool</code></td>
+<td>the core's <code>MenuTools</code> (every module menu); called via <code>InvokeTool</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#itaskagent"><code>ITaskAgent</code></a></td>

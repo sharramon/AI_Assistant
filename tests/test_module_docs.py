@@ -1,4 +1,4 @@
-"""Every module has its own docs page, a row in the module library (hand-written until generated), and a docs tab."""
+"""Every module has its own docs page, a row in the generated module library, and a docs tab."""
 
 import importlib.util
 import re
@@ -109,3 +109,12 @@ def test_every_module_has_a_library_row():
     table = library.split("<!-- library:start", 1)[1].split("<!-- library:end", 1)[0]
     for module_id in module_ids():
         assert f"| [`{module_id}`](../modules/{module_id}.md) |" in table, f"no library row for {module_id}"
+
+
+def test_the_library_table_is_generated_from_the_manifests_and_menus():
+    docs = build_docs()
+    assert docs.library_block() in LIBRARY.read_text(encoding="utf-8"), (
+        "the module library is stale: run scripts/build_docs.py"
+    )
+    assert [c.manifest.id for c in docs.module_classes()][:1] == ["console_io"]
+    assert "`viewer.open`, `viewer.highlight`, `viewer.tabs`" in docs.library_block()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from logging import Logger
 from typing import Any
 
-from assistant.contracts import Command, Contract, Event, Manifest, ModuleContext, Result
+from assistant.contracts import Command, Contract, Event, IToolProvider, Manifest, ModuleContext, Result
 from assistant.core.bus import EventBus, Subscription
 from assistant.core.container import Container
 from assistant.core.permissions import AllowAllPermissions
@@ -70,6 +70,15 @@ class ScopedContext(ModuleContext):
         if contract not in self._manifest.provides:
             raise ValueError(f"{self.module_id!r} must declare {contract.__name__} in manifest.provides")
         self._container.provide(contract, impl, owner=self.module_id)
+
+    def link_menu(self, module: Any) -> None:
+        """Core only: offer `module`'s menu through `InvokeTool`, in its name, until close."""
+        self._check_open()
+        menu = type(module).menu
+        if menu is not None and menu.names():
+            from assistant.core.tools import MenuTools  # core.tools imports nothing from here
+
+            self._container.provide(IToolProvider, MenuTools(menu, module), owner=self.module_id)
 
     def get_all(self, contract):
         return self._container.get_all(contract)

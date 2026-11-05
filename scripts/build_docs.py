@@ -312,8 +312,78 @@ def copy_images(sections) -> None:
             shutil.copytree(src, OUT / section / "img")
 
 
+LIBRARY_START = "<!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->"
+LIBRARY_END = "<!-- library:end -->"
+CORE_LINE = (
+    "The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, "
+    "`DeactivateModule`, `ReloadModule`, `AddModule`), routes `InvokeTool` to the module whose menu has the item, "
+    "and publishes `ModuleStateChanged`."
+)
+
+
+def module_classes() -> list[type]:
+    """Each module folder's module class (its manifest id is the folder name), in the
+    default config's `modules.enabled` order, then the modules that are off by name."""
+    import importlib
+    import tomllib
+
+    from assistant.contracts import ModuleProtocol
+
+    folder = ROOT / "src" / "assistant" / "modules"
+    found = {}
+    for package in sorted(p.name for p in folder.iterdir() if (p / "__init__.py").is_file()):
+        mod = importlib.import_module(f"assistant.modules.{package}")
+        classes = [c for c in vars(mod).values() if isinstance(c, type) and issubclass(c, ModuleProtocol)
+                   and c is not ModuleProtocol and getattr(c, "manifest", None) and c.manifest.id == package]
+        if len(classes) != 1:
+            raise SystemExit(f"assistant.modules.{package} must export one module class with manifest id {package!r}")
+        found[package] = classes[0]
+    enabled = tomllib.loads((ROOT / "config" / "default.toml").read_text(encoding="utf-8"))["modules"]["enabled"]
+    order = [m for m in enabled if m in found] + [m for m in found if m not in enabled]
+    return [found[m] for m in order]
+
+
+def library_block() -> str:
+    """The module library's table, generated from every module's manifest and menu."""
+    import tomllib
+
+    enabled = tomllib.loads((ROOT / "config" / "default.toml").read_text(encoding="utf-8"))["modules"]["enabled"]
+
+    def names(items) -> str:
+        return ", ".join(f"`{getattr(i, '__name__', i)}`" for i in items) or "none"
+
+    rows = [
+        "| Module | What it does | On | Menu | Contracts | Handles | Calls | Publishes | Listens to |",
+        "|--------|--------------|----|------|-----------|---------|-------|-----------|------------|",
+    ]
+    for cls in module_classes():
+        m = cls.manifest
+        contracts = "; ".join(f"{word} {names(group)}" for word, group in
+                              (("provides", m.provides), ("requires", m.requires), ("optional", m.optional)) if group)
+        menu = names(cls.menu.names()) if cls.menu else "none"
+        rows.append(
+            f"| [`{m.id}`](../modules/{m.id}.md) | {m.description or '(no description)'} | "
+            f"{'yes' if m.id in enabled else 'no'} | {menu} | {contracts or 'none'} | {names(m.handles)} | "
+            f"{names(m.sends)} | {names(m.publishes)} | {names(m.listens)} |"
+        )
+    return "\n".join([LIBRARY_START, "", *rows, "", CORE_LINE, "", LIBRARY_END])
+
+
+def write_library() -> bool:
+    """Rewrite the table between the module library's markers. True if it changed."""
+    path = DOCS / LIBRARY
+    text = path.read_text(encoding="utf-8")
+    start, end = text.index("<!-- library:start"), text.index(LIBRARY_END) + len(LIBRARY_END)
+    new = text[:start] + library_block() + text[end:]
+    if new != text:
+        path.write_text(new, encoding="utf-8")
+    return new != text
+
+
 def main() -> None:
     check_module_tabs()
+    if write_library():
+        print(f"Regenerated the module table in docs/{LIBRARY}")
     for folder in (OUT, NEXT_OUT):
         if folder.exists():
             shutil.rmtree(folder)

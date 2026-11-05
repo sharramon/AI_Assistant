@@ -12,7 +12,7 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 
 **Check the [reusable parts index](reusable.md) before writing a helper.** One line per part (name, kind, purpose, where, used by), sorted by where it lives:
 
-- **Contracts** (`assistant.contracts`): `ModuleProtocol`, `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
+- **Contracts** (`assistant.contracts`): `ModuleProtocol`, `Menu`, `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `ContextWatch`, `agent_tags`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `local_path`, `CompanionApp`
@@ -24,7 +24,8 @@ Writing a module: lifecycle, manifest, and its context. `from assistant.contract
 
 | Item | Kind | Summary |
 |------|------|---------|
-| [`ModuleProtocol`](modules.md#moduleprotocol) | protocol | ♻ The one interface every module implements: `manifest`, `init`, `start`, `stop`, `busy`, `export_state` |
+| [`ModuleProtocol`](modules.md#moduleprotocol) | protocol | ♻ The one interface every module implements: `manifest`, `menu`, `init`, `start`, `stop`, `busy`, `export_state` |
+| [`Menu`](modules.md#menu) | part | ♻ A module's actions: `@menu.item(...)` on its methods; checked arguments; the core offers it through `InvokeTool` |
 | [`Manifest`](modules.md#manifest) | data | ♻ Module id, one-line description, its contracts, the commands it handles and sends, the events it publishes and listens to, its permissions |
 | [`ModuleContext`](modules.md#modulecontext) | interface | ♻ A module's only access to the app: events, commands, contracts, config, logging |
 | [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission (`ModulePermissions`); a stand-in allows and logs until the handler runs |
@@ -63,7 +64,7 @@ Capabilities invocable by name. `from assistant.contracts import ...`
 | [`IToolProvider`](tools.md#itoolprovider) | contract | ♻ A module that offers tools (any number of providers) |
 | [`ToolSpec`](tools.md#toolspec) | data | Tool name, description, and JSON Schema for its arguments |
 | [`InvokeTool`](tools.md#invoketool) | command | Run a tool by name; routed to its provider |
-| [Tools offered today](tools.md#tools-offered-today) | list | `viewer.open`, `viewer.highlight`, `viewer.tabs` |
+| [Tools offered today](tools.md#tools-offered-today) | list | `viewer.open`, `viewer.highlight`, `viewer.tabs`, `echo.say` |
 
 ### [Module control](control.md)
 Turning modules on and off while the app runs. Handled by the core. `from assistant.contracts import ...`
@@ -149,4 +150,5 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`EventBus`](core.md#eventbus) | class | Non-blocking publish with isolated, bounded subscribers |
 | [`Container`](core.md#container) | class | DI restricted to shared contracts |
 | [`is_shared_contract`](core.md#is_shared_contract) | function | Whether a type is a contract from `assistant.contracts` |
+| [`MenuTools`](core.md#menutools) | class | The core's adapter from a module's `Menu` to `IToolProvider` |
 | [`dispatch_tool`](core.md#dispatch_tool) | function | The `InvokeTool` handler |

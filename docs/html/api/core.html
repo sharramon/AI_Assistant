@@ -287,6 +287,10 @@
 <p><code>is_shared_contract(t: object) -&gt; bool</code></p>
 <p>True for <code>Contract</code> subclasses defined under <code>assistant.contracts</code> (excluding <code>Contract</code> itself).</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/container.py</code></p>
+<h2 id="menutools"><code>MenuTools</code></h2>
+<p><code>MenuTools(menu: Menu, module: ModuleProtocol)</code> (an <code>IToolProvider</code>)</p>
+<p>The core's adapter from a module's <a href="modules.html#menu"><code>Menu</code></a> to <code>IToolProvider</code>, linked to one running copy. The lifecycle calls <code>ScopedContext.link_menu(module)</code> right after a module's <code>init</code> (at startup, on activate, on reload); it provides a <code>MenuTools</code> in the module's name, so closing the context removes it. <code>invoke</code> runs <code>menu.call</code>, which checks the arguments first.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code></p>
 <h2 id="dispatch_tool"><code>dispatch_tool</code></h2>
 <p><code>async dispatch_tool(container: Container, command: InvokeTool) -&gt; Result</code></p>
 <p>The <code>InvokeTool</code> handler. Looks up providers at call time; returns <code>not_available</code> for an unknown tool, <code>failed</code> for a name offered twice, else the provider's result.</p>

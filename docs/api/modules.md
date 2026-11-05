@@ -8,7 +8,7 @@ Writing a module. All items: `from assistant.contracts import ...`. Back to the 
 
 `class ModuleProtocol(ABC)`
 
-The one interface every module implements. Set the `manifest` class attribute and implement `init`; subclass it to get the do-nothing defaults for the other hooks. It's a **protocol**, not a [`Contract`](#contract): a class is a module by having these members, and nobody looks a module up through the container, so it has no `I` prefix ([principle 12](../architecture/principles.md)). It carries no behaviour: a module gets its behaviour from the parts it owns (a `CompanionApp`, a `SessionTaskAgent`, later a `Menu`).
+The one interface every module implements. Set the `manifest` class attribute and implement `init`; subclass it to get the do-nothing defaults for the other hooks. It's a **protocol**, not a [`Contract`](#contract): a class is a module by having these members, and nobody looks a module up through the container, so it has no `I` prefix ([principle 12](../architecture/principles.md)). It carries no behaviour: a module gets its behaviour from the parts it owns (a `CompanionApp`, a `SessionTaskAgent`, a [`Menu`](#menu)).
 
 The core calls `init` for every module in dependency order, then `start` for each, and on shutdown `stop` in reverse order. `stop` is called for every module whose `init` succeeded, even if `start` never ran. If `init` or `start` raises, the module is skipped (see [lifecycle](../architecture/core.md#lifecycle)).
 
@@ -18,6 +18,7 @@ The core calls `init` for every module in dependency order, then `start` for eac
 | Name | Type | Description |
 |------|------|-------------|
 | `manifest` | `ClassVar[Manifest]` | Required. Identifies the module and its dependencies |
+| `menu` | `ClassVar[Menu \| None]` | Optional, default `None`. The actions others may call: a [`Menu`](#menu) the core links to the running copy |
 
 ### `ModuleProtocol.init`
 
@@ -69,6 +70,36 @@ Called before a reload stops this instance. What it returns reaches the new inst
 
 **Defined in:** `src/assistant/contracts/module.py`
 **See also:** [`Manifest`](#manifest), [`ModuleContext`](#modulecontext), [adding a module](../architecture/core.md#adding-replacing-or-removing-a-module), [reloading](../architecture/core.md#reloading-a-modules-code)
+
+## `Menu`
+
+**Reusable** · Used by: `html_viewer`, `echo_orchestrator` (more modules as they're recoded); read by the core (`MenuTools`, `ScopedContext.link_menu`) and `scripts/build_docs.py` (the module library) · built 2026-11-05
+
+`class Menu()` · `MenuItem(spec: ToolSpec, method: str)`
+
+A module's menu: the actions an assistant or another module may call. Plain data built when the module's file is imported, so the core reads it without starting the module. Declare one per module class, decorate the methods that are its items, and set it as the class's `menu`. When the module is on, the core links the menu to that copy (after `init`) and offers its items through [`InvokeTool`](tools.md#invoketool); closing the module's context unlinks it. A reload re-imports the file, so the reloaded menu runs the new methods. The module never calls `ctx.provide(IToolProvider, ...)` for it.
+
+| Method | What it does |
+|--------|--------------|
+| `item(name, description, properties=None, required=())` | Decorator for an async method taking the item's arguments as keywords and returning a `Result` (a plain value becomes `Result.ok`). `properties`: a JSON Schema per argument. Raises at import for a duplicate name, a description that isn't one line, or a `required` name not in `properties` |
+| `specs()` / `names()` / `items()` | The items as `ToolSpec`s, names, or `MenuItem`s, in declaration order |
+| `check(name, args)` | What's wrong with `args`, or `None`: a missing required argument, an unknown one, a wrong `type` (bool is not an integer), a value outside `enum`, a string shorter than `minLength` once trimmed |
+| `async call(module, name, args)` | `check`, then run the item on `module`; `invalid_arguments` when the check fails |
+
+**Example**
+
+    menu = Menu()
+
+    class HtmlViewerModule(ModuleProtocol):
+        manifest = Manifest(id="html_viewer", description="View, edit, highlight and snip HTML")
+        menu = menu
+
+        @menu.item("viewer.open", "Open an HTML file in the viewer",
+                   {"path": {"type": "string", "minLength": 1}, "front": {"type": "boolean"}}, required=["path"])
+        async def show(self, path: str, front: bool = False) -> Result: ...
+
+**Defined in:** `src/assistant/contracts/menu.py`
+**See also:** [`MenuTools`](core.md#menutools), [tools offered today](tools.md#tools-offered-today), [the module library](../architecture/module-library.md)
 
 ## `Manifest`
 

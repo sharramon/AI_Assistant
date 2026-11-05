@@ -14,10 +14,10 @@
 <h1 id="module-library">Module library</h1>
 <p>Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own page. The data types are listed below the table, with links to their API entries. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Hand-written</strong> from the code, checked 2026-11-04. Since 2026-11-05 the manifest carries the description, the commands (<code>handles</code>, <code>sends</code>) and the events (<code>publishes</code>, <code>listens</code>); generating the table from them is next (module system, chunk 2). A test (<code>tests/test_module_docs.py</code>) checks that every module has a row here and a page. It becomes generated once the manifests carry the data (<a href="#generated-later">generated later</a>).</p>
+<p><strong>Generated</strong> (since 2026-11-05): <code>scripts/build_docs.py</code> rewrites the table between the <code>library:start</code> and <code>library:end</code> markers from each module's <code>Manifest</code> (description, contracts, <code>handles</code>, <code>sends</code>, <code>publishes</code>, <code>listens</code>) and its <code>Menu</code>, read without starting the module. "On" is the default config's <code>modules.enabled</code>. Change a module's manifest or menu, not this table; a test (<code>tests/test_module_docs.py</code>) fails when the table is stale or a module has no page. The data types below are still hand-written.</p>
 </blockquote>
 <h2 id="modules">Modules</h2>
-<!-- library:start (hand-written until generated from the manifests) -->
+<!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->
 
 <table>
 <thead>
@@ -25,7 +25,8 @@
 <th>Module</th>
 <th>What it does</th>
 <th>On</th>
-<th>Tools (menu)</th>
+<th>Menu</th>
+<th>Contracts</th>
 <th>Handles</th>
 <th>Calls</th>
 <th>Publishes</th>
@@ -34,9 +35,76 @@
 </thead>
 <tbody>
 <tr>
+<td><a href="../modules/console_io.html"><code>console_io</code></a></td>
+<td>Terminal 1: type and read replies</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>InputReceived</code>, <code>ShutdownRequested</code></td>
+<td><code>ResponseReady</code></td>
+</tr>
+<tr>
+<td><a href="../modules/agent_hub.html"><code>agent_hub</code></a></td>
+<td>Task state and routing between the agents</td>
+<td>yes</td>
+<td>none</td>
+<td>optional <code>ITaskAgent</code></td>
+<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code></td>
+<td>none</td>
+<td><code>TaskUpdated</code></td>
+<td><code>AgentActivity</code></td>
+</tr>
+<tr>
+<td><a href="../modules/main_assistant.html"><code>main_assistant</code></a></td>
+<td>The worker: does the tasks the Talker hands over</td>
+<td>yes</td>
+<td>none</td>
+<td>provides <code>ITaskAgent</code></td>
+<td>none</td>
+<td><code>ReportTask</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
+<td><code>ResetRequested</code></td>
+</tr>
+<tr>
+<td><a href="../modules/talker.html"><code>talker</code></a></td>
+<td>Talks with you; hands work to the Agent Hub</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
+<td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
+<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code></td>
+</tr>
+<tr>
+<td><a href="../modules/temp_ui.html"><code>temp_ui</code></a></td>
+<td>Temporary two-pane page: worker and Talker, mic, usage, permissions</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>ListModules</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
+<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>ViewerClipDropped</code></td>
+<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code></td>
+</tr>
+<tr>
+<td><a href="../modules/html_viewer.html"><code>html_viewer</code></a></td>
+<td>View, edit, highlight and snip HTML; launches the viewer app</td>
+<td>yes</td>
+<td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code></td>
+<td><code>AgentActivity</code></td>
+</tr>
+<tr>
 <td><a href="../modules/voice_in.html"><code>voice_in</code></a></td>
 <td>Speech to text; launches the voice service app</td>
 <td>yes</td>
+<td>none</td>
 <td>none</td>
 <td><code>StartListening</code>, <code>StopListening</code></td>
 <td>none</td>
@@ -49,69 +117,10 @@
 <td>yes</td>
 <td>none</td>
 <td>none</td>
+<td>none</td>
 <td><code>StartListening</code>, <code>StopListening</code></td>
 <td>none</td>
 <td><code>VoiceState</code>, <code>VoiceTranscript</code></td>
-</tr>
-<tr>
-<td><a href="../modules/html_viewer.html"><code>html_viewer</code></a></td>
-<td>View, edit, highlight and snip HTML; launches the viewer app</td>
-<td>yes</td>
-<td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
-<td><code>InvokeTool</code> (its tools)</td>
-<td>none</td>
-<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code></td>
-<td><code>AgentActivity</code></td>
-</tr>
-<tr>
-<td><a href="../modules/talker.html"><code>talker</code></a></td>
-<td>Talks with you; hands work to the Agent Hub</td>
-<td>yes</td>
-<td>none</td>
-<td>none</td>
-<td><code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
-<td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
-<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code></td>
-</tr>
-<tr>
-<td><a href="../modules/main_assistant.html"><code>main_assistant</code></a></td>
-<td>The worker: does the tasks (provides <code>ITaskAgent</code>)</td>
-<td>yes</td>
-<td>none</td>
-<td>none (called through <code>ITaskAgent</code>)</td>
-<td><code>ReportTask</code></td>
-<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
-<td><code>ResetRequested</code></td>
-</tr>
-<tr>
-<td><a href="../modules/agent_hub.html"><code>agent_hub</code></a></td>
-<td>Task state and routing between the agents</td>
-<td>yes</td>
-<td>none</td>
-<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code></td>
-<td><code>ITaskAgent</code> methods</td>
-<td><code>TaskUpdated</code></td>
-<td><code>AgentActivity</code></td>
-</tr>
-<tr>
-<td><a href="../modules/temp_ui.html"><code>temp_ui</code></a></td>
-<td>Temporary two-pane page: worker and Talker, mic, usage, permissions</td>
-<td>yes</td>
-<td>none</td>
-<td>none</td>
-<td><code>ListModules</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
-<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>ViewerClipDropped</code></td>
-<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code></td>
-</tr>
-<tr>
-<td><a href="../modules/console_io.html"><code>console_io</code></a></td>
-<td>Terminal 1: type and read replies</td>
-<td>yes</td>
-<td>none</td>
-<td>none</td>
-<td>none</td>
-<td><code>InputReceived</code>, <code>ShutdownRequested</code></td>
-<td><code>ResponseReady</code></td>
 </tr>
 <tr>
 <td><a href="../modules/assistant_view.html"><code>assistant_view</code></a></td>
@@ -121,13 +130,15 @@
 <td>none</td>
 <td>none</td>
 <td>none</td>
+<td>none</td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>TaskUpdated</code></td>
 </tr>
 <tr>
 <td><a href="../modules/echo_orchestrator.html"><code>echo_orchestrator</code></a></td>
-<td>Stand-in orchestrator: echoes, <code>/tools</code></td>
+<td>Stand-in orchestrator: echoes, /tools</td>
 <td>no</td>
-<td>none</td>
+<td><code>echo.say</code></td>
+<td>optional <code>IToolProvider</code></td>
 <td>none</td>
 <td>none</td>
 <td><code>ResponseReady</code></td>
@@ -135,7 +146,7 @@
 </tr>
 </tbody>
 </table>
-<p>The core itself handles the <a href="../api/control.html">module control</a> commands (<code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code>), routes <code>InvokeTool</code> to the module that offers the tool, and publishes <code>ModuleStateChanged</code>.</p>
+<p>The core itself handles the <a href="../api/control.html">module control</a> commands (<code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code>), routes <code>InvokeTool</code> to the module whose menu has the item, and publishes <code>ModuleStateChanged</code>.</p>
 <!-- library:end -->
 
 <h2 id="data-types">Data types</h2>
@@ -320,53 +331,7 @@
 </tr>
 </tbody>
 </table>
-<h2 id="generated-later">Generated later</h2>
-<blockquote>
-<p><strong>Planned</strong>, with the module-shape refactor (change note <code>docs/next-steps/module-shape-refactor.md</code>, items 2 and 5).</p>
-</blockquote>
-<p>A script reads each module's <code>Manifest</code> and menu and rewrites the table between the <code>library:start</code> and <code>library:end</code> markers before the docs build. It needs:</p>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Source</th>
-<th>Today</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>What it does</td>
-<td><code>Manifest.description</code></td>
-<td>planned (refactor item 5)</td>
-</tr>
-<tr>
-<td>Handles</td>
-<td><code>Manifest.handles</code></td>
-<td>planned (refactor item 2)</td>
-</tr>
-<tr>
-<td>Publishes</td>
-<td>the announced events</td>
-<td>planned (refactor item 5)</td>
-</tr>
-<tr>
-<td>Listens to</td>
-<td>a listened-events list in the manifest</td>
-<td>not yet in the refactor note; added there as an open point</td>
-</tr>
-<tr>
-<td>Tools</td>
-<td>the module's <code>ToolSpec</code>s, readable without starting it</td>
-<td>today only from a running module's <code>tools()</code>; open point in the note</td>
-</tr>
-<tr>
-<td>Calls</td>
-<td>none of the above; stays hand-written or is dropped</td>
-<td>hand-written</td>
-</tr>
-</tbody>
-</table>
-<p>The data types table can then be generated from <code>assistant.contracts</code>, linking each type to its API anchor.</p>
+<p>The data types table could be generated from <code>assistant.contracts</code> the same way, linking each type to its API anchor (not done yet).</p>
 <footer>Generated from <code>docs/architecture/module-library.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

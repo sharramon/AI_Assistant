@@ -11,13 +11,15 @@ Replies with the input text; `/tools` lists the available tools. It exists to pr
 | id | `echo_orchestrator` |
 | provides / requires | nothing |
 | optional | [`IToolProvider`](../api/tools.md#itoolprovider) (to list tools) |
+| menu | a [`Menu`](../api/modules.md#menu) with one item, `echo.say` |
 | permissions | none |
 
 ## Interface
 
 | | |
 |---|---|
-| Tools · Handles · Calls | none |
+| Menu | `echo.say(text)`: `ok("Echo: <text>")`, the smallest example of a menu |
+| Handles · Calls | none |
 | Publishes | [`ResponseReady`](../api/messaging.md#responseready) |
 | Listens to | [`InputReceived`](../api/messaging.md#inputreceived) |
 
@@ -39,7 +41,7 @@ None.
 ## Code and tests
 
 - `src/assistant/modules/echo_orchestrator/module.py`
-- `tests/test_app.py`
+- `tests/test_app.py`, `tests/test_menu.py`
 
 ## Planned
 

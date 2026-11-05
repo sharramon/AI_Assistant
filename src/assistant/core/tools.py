@@ -2,8 +2,28 @@
 
 from __future__ import annotations
 
-from assistant.contracts import InvokeTool, IToolProvider, Result
+from typing import Any
+
+from assistant.contracts import InvokeTool, IToolProvider, Menu, ModuleProtocol, Result, ToolSpec
 from assistant.core.container import Container
+
+
+class MenuTools(IToolProvider):
+    """The core's adapter from a module's `Menu` to `IToolProvider`, linked to one running copy.
+
+    The core provides it in the module's name after `init`, so closing the module's context
+    removes it; the module itself never provides `IToolProvider` for its menu.
+    """
+
+    def __init__(self, menu: Menu, module: ModuleProtocol) -> None:
+        self._menu = menu
+        self._module = module
+
+    def tools(self) -> list[ToolSpec]:
+        return self._menu.specs()
+
+    async def invoke(self, name: str, args: dict[str, Any]) -> Result:
+        return await self._menu.call(self._module, name, args)
 
 
 async def dispatch_tool(container: Container, command: InvokeTool) -> Result:

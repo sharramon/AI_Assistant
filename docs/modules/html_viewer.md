@@ -9,16 +9,16 @@ View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin mod
 | Field | Value |
 |-------|-------|
 | id | `html_viewer` |
-| provides | [`IToolProvider`](../api/tools.md#itoolprovider) |
-| requires / optional | none |
+| provides / requires / optional | none |
+| menu | a [`Menu`](../api/modules.md#menu): `viewer.open`, `viewer.highlight`, `viewer.tabs` |
 | permissions | none declared |
 
 ## Interface
 
 | | |
 |---|---|
-| Tools | `viewer.open` (open a file in a tab), `viewer.highlight` (open it and highlight a quoted part), `viewer.tabs` (open files and highlights): [tools offered today](../api/tools.md#tools-offered-today) |
-| Handles | [`InvokeTool`](../api/tools.md#invoketool) for its tools (routed by the core) |
+| Menu | `viewer.open` (open a file in a tab), `viewer.highlight` (open it and highlight a quoted part), `viewer.tabs` (open files and highlights): [tools offered today](../api/tools.md#tools-offered-today). The core links it and routes [`InvokeTool`](../api/tools.md#invoketool) to it, checking the arguments first |
+| Handles | nothing |
 | Calls | nothing |
 | Publishes | [`ViewerTabsChanged`](../api/messaging.md#viewertabschanged), [`ViewerClip`](../api/messaging.md#viewerclip) (a snip, image copied into the launch's log folder) |
 | Listens to | [`AgentActivity`](../api/agents.md#agentactivity): the Main Assistant's `<<SHOW: ...>>` lines, which it opens or highlights |
