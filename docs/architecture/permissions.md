@@ -2,9 +2,9 @@
 
 Who may use what: location, the microphone, files, accounts. Back to the [overview](README.md).
 
-> **Status: planned (designed 2026-10-26).** Not built. Today only the Main Assistant asks for permission, through the Agent Hub ([permission requests](../next-steps/permission-requests.md)); this design replaces that with one handler every module uses. Change note: [permissions handler](../next-steps/permissions-handler.md).
+> **Status: planned (designed 2026-10-26).** Not built. Today only the Main Assistant asks for permission, through the Agent Hub; this design replaces that with one handler every module uses.
 >
-> **Built: the stand-in** (2026-11-02, [change note](../next-steps/permissions-stand-in.md)): `ctx.permissions` on every module's context, with `has` and `request`, and the manifest's `permissions` / `optional_permissions` fields. With no handler, it applies the [no handler running](#what-happens-when-one-is-missing) rule: allow, and log a warning naming the module the first time each module uses each permission (debug after that). Required permissions aren't checked at start yet; the handler adds that. The handler later plugs in behind the same calls, so no module changes. Built as `AllowAllPermissions` (`core/permissions.py`), set by the core's `ScopedContext` ([API](../api/modules.md#modulecontextpermissions)).
+> **Built: the stand-in** (2026-11-02): `ctx.permissions` on every module's context, with `has` and `request`, and the manifest's `permissions` / `optional_permissions` fields. With no handler, it applies the [no handler running](#what-happens-when-one-is-missing) rule: allow, and log a warning naming the module the first time each module uses each permission (debug after that). Required permissions aren't checked at start yet; the handler adds that. The handler later plugs in behind the same calls, so no module changes. Built as `AllowAllPermissions` (`core/permissions.py`), set by the core's `ScopedContext` ([API](../api/modules.md#modulecontextpermissions)).
 >
 > **Built: the [permission mode](#permission-mode-built)** (2026-11-02): Manual or Auto for the Main Assistant, switched with a button.
 
@@ -174,7 +174,7 @@ The Main Assistant uses the handler like any other module:
 
 ## Permission mode (built)
 
-Built 2026-11-02 ([change note](../next-steps/permission-mode-button.md)). What the Main Assistant may do without asking, switched while the app runs:
+Built 2026-11-02. What the Main Assistant may do without asking, switched while the app runs:
 
 | Mode | What it does |
 |------|--------------|
@@ -196,7 +196,7 @@ The index of which part of the repo is the core app and which is modules, and wh
 | **Modules** | `src/assistant/modules/<id>/` and that module's tests | On its branch; asks |
 | **Docs and skills** | `docs/` (not `docs/html/`), `.claude/skills/` | `docs/` is a standing grant; skills ask |
 
-- **Not enforced yet:** until the handler and the branch workflow are built, the Main Assistant edits any file in the repo, with the [same access as Claude Code](../next-steps/worker-access.md). In Auto nothing asks first, so its risky-step rule names `config/` and `.claude/settings*` as steps to ask about.
+- **Not enforced yet:** until the handler and the branch workflow are built, the Main Assistant edits any file in the repo, with the same access as Claude Code. In Auto nothing asks first, so its risky-step rule names `config/` and `.claude/settings*` as steps to ask about.
 - **For now Core and Modules have the same rule** (decided 2026-10-26: everything is still being built). The split is recorded so the rules can differ later, for example "always" grants allowed for a module but never for the core.
 - **The handler holds the same list in code**, in the protected zone, so an agent can't edit its own guardrails. This table mirrors it; if they disagree, the code wins and this table gets fixed.
 - **Enforced by `claude`:** protected paths are never in an agent's rules and its requests for them are denied without asking you; other `src/` paths are never standing rules, so each write arrives as a request.

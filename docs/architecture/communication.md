@@ -15,7 +15,7 @@ flowchart LR
     Bus --> Out[View / output modules]
 ```
 
-The orchestrator discovers available tools by asking the DI container for every `IToolProvider`, so adding a tool module makes it available to the AI without touching the orchestrator.
+`InvokeTool` asks every `IToolProvider` at call time, so a tool module's tools can be called without touching the caller. **Today** the agents don't look tools up: the Talker is hardcoded to the viewer's tools and the Main Assistant can't call tools. **Planned:** both find tools through the [directory, then menu](modules.md#find-a-module-then-open-its-menu).
 
 ## Mechanisms
 
@@ -64,6 +64,10 @@ sequenceDiagram
 ```
 
 **Where message types live:** shared commands and events (`InputReceived`, `ResponseReady`, `InvokeTool`) are defined in Contracts. The AI calls tools through the single generic `InvokeTool(name, args)` command, using the name and argument schema each `IToolProvider` advertises, so the orchestrator needs no per-tool code. A typed command such as `CreateCalendarEvent` is added to Contracts only when one module needs to call another directly.
+
+## Chaining modules
+
+One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (a voice-notes module listening to `VoiceTranscript`), or sends its commands. A shared service serves several users through sessions, each with its own destination, instead of running copies. Events between modules are built; sessions and the voice contract are planned ([modules](modules.md#chaining-modules)).
 
 ## Command results
 

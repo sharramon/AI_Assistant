@@ -4,15 +4,16 @@ The stable host in `assistant.core`. Modules never use these directly; they go t
 
 ## `App`
 
-`App(available: Sequence[type[Module]], config: dict[str, Any])`
+`App(available: Sequence[type[Module]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)`
 
-Wires the core together and runs the enabled modules. Construction validates the module selection.
+Wires the core together and runs the enabled modules. Construction validates the module selection. Handles `InvokeTool` and the [module control](control.md) commands, including `ReloadModule` and `AddModule`.
 
 **Parameters**
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `available` | `Sequence[type[Module]]` | yes | Every module the app can run (`MODULES` in `__main__.py`) |
 | `config` | `dict` | yes | From [`load_config`](infra.md#load_config) |
+| `config_loader` | callable | no | Re-reads the config before a reload or add (`__main__` passes `load_config` plus its log wiring) |
 
 **Raises:** [`StartupError`](#startuperror) if the enabled modules can't run together.
 
@@ -58,8 +59,25 @@ Select the `enabled` modules and return them in start order: providers before th
 | `modules() -> list[ModuleInfo]` | Every available module and its state |
 | `async activate(module_id) -> Result` | Runtime activation; see [`ActivateModule`](control.md#activatemodule) |
 | `async deactivate(module_id, with_dependents=False) -> Result` | Runtime deactivation; see [`DeactivateModule`](control.md#deactivatemodule) |
+| `async reload(module_id) -> Result` | Swap a module's code, with rollback; see [`ReloadModule`](control.md#reloadmodule) |
+| `async add(package, activate=True) -> Result` | Load a new module; see [`AddModule`](control.md#addmodule) |
 
 **Defined in:** `src/assistant/core/lifecycle.py`
+
+## `loader`
+
+Functions for loading a module's code fresh. Generic: they know no module by name.
+
+| Function | Description |
+|----------|-------------|
+| `package_of(cls) -> str` | The package a module class lives in |
+| `check_reloadable(package)` | Raises `LoadError` for shared code (`assistant.core`, `.contracts`, `.infra`, `app_kit`), `assistant` / `assistant.modules` themselves, or a top-level name |
+| `drop(package) -> dict` | Remove the package and its submodules from `sys.modules` (and their `__pycache__`); returns them |
+| `restore(package, removed)` | Put back what `drop` removed |
+| `import_fresh(package)` | Import from source; a missing contract becomes `LoadError` ("needs a restart") |
+| `find_module_class(package, module_id=None)` | The one `Module` subclass the package exports |
+
+**Defined in:** `src/assistant/core/loader.py`
 
 ## `ScopedContext`
 
@@ -94,6 +112,7 @@ The `ctx.permissions` stand-in, a [`ModulePermissions`](modules.md#modulecontext
 | `async send(command, timeout=None) -> Result` | Run the handler as a task; map every outcome to a `Result` (see [internals](../architecture/core.md#communication-internals)) |
 | `cancel(correlation_id) -> int` | Cancel in-flight commands whose `id` or `correlation_id` matches |
 | `cancel_all() -> int` | Cancel every in-flight command |
+| `hold()` | Context manager: while held (a module is being swapped), a command with no handler waits for one, up to its timeout, instead of returning `not_available` |
 
 **Defined in:** `src/assistant/core/router.py`
 

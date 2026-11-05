@@ -123,7 +123,8 @@ classDiagram
 |------|----------|
 | `app.py` | `App`: builds the parts, owns startup and shutdown order |
 | `registry.py` | `resolve_modules`, `StartupError`: selection and dependency validation |
-| `lifecycle.py` | `LifecycleManager`: init / start / stop at startup and shutdown, runtime activate / deactivate, module states, failure handling |
+| `lifecycle.py` | `LifecycleManager`: init / start / stop at startup and shutdown, runtime activate / deactivate / reload / add, module states, failure handling |
+| `loader.py` | Fresh import of a module's package, what may be reloaded, rollback |
 | `context.py` | `ScopedContext`: a module's handle on the core, tracks what it registered |
 | `router.py` | `CommandRouter`: commands, results, timeouts, cancellation |
 | `bus.py` | `EventBus`, `Subscription`: event delivery |
@@ -145,7 +146,10 @@ flowchart TD
     F -- "ShutdownRequested / request_shutdown() / Ctrl+C" --> G["stop(): cancel all in-flight commands"]
     G --> H["stop() each active module, reverse order,<br/>then ctx.close() removes its registrations"]
     H --> I[Unregister InvokeTool, close bus]
+    I -- "ShutdownRequested(restart=True)" --> R["exit code 75: the launcher<br/>starts a new app process"]
 ```
+
+**Restart.** `python -m assistant` is a small launcher. It runs the app as a child process in the same console and starts it again whenever the app exits with `core.restart_exit_code` (75). The app exits with 75 after a `ShutdownRequested(restart=True)` (`App.restart_requested`). A new process loads all new code, the core's included. The Talker triggers a restart when you ask for one, with reset instructions for the next launch ([Restart](../agents/runtime.md#the-talker-on-its-own)).
 
 **Validation before anything runs** (`resolve_modules`). Startup fails for:
 - an id in `modules.enabled` that isn't in the module list, or two modules with the same id
@@ -180,6 +184,8 @@ stateDiagram-v2
     Starting --> Failed
     Active --> Stopping: deactivate
     Stopping --> Inactive
+    Active --> Reloading: reload
+    Reloading --> Starting: new code, or the old code back
     Failed --> Starting: retry
 ```
 
@@ -192,8 +198,24 @@ stateDiagram-v2
 - **Transitions finish:** one at a time, and a transition finishes even if the command that asked for it times out. Shutdown waits for it, then stops everything.
 - **Modules load expensive things lazily:** a `claude` process, a speech model, or a window starts when the module is activated or first used, not at app start.
 - **Agents adapt automatically:** tools are looked up at call time, so a deactivated module's tools disappear from what the agents can use.
-- **What needs a restart:** adding or changing code. Enabling, disabling, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.
+- **Reloading a module:** `ReloadModule` swaps its code and `AddModule` loads a brand-new module, both while the app runs ([below](#reloading-a-modules-code)).
+- **What still needs a restart:** changes to the core, contracts, `infra`, `app_kit`, or `__main__`, and a new module that needs a new contract or port type (contracts are shared by every module). Enabling, disabling, reloading, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.
 - **Not the Agent Hub's job:** the Hub coordinates agents through their contracts. It never starts or stops modules itself.
+
+#### Reloading a module's code
+
+> **Built (2026-11-03):** `ReloadModule`, `AddModule`, rollback, fresh config, commands held during a swap, waiting for a busy module, the handover, and the Main Assistant's `RELOAD:` line. `voice_in` hands over its voice app. The Talker, Main Assistant and Agent Hub have no handover yet: they wait until idle, and a reload starts them clean (a fresh session, no tasks). Loaded into the running app after one relaunch.
+
+- **`ReloadModule(module_id)`:** the module stops as in a deactivation, and so does any active module that requires something only it provides. Its package (the one its class lives in, e.g. `assistant.modules.voice_in`, with every submodule) is dropped from `sys.modules`, its `__pycache__` too, and imported fresh. The new class goes through the same checks as an activation, a fresh instance starts, and the modules stopped with it start again. States: `reloading`, then `starting`, `active`.
+- **Rollback:** if the new code fails to import, `init`, or `start`, the old package and class are put back and started. The result says what failed and that the old code runs again.
+- **Config:** `App`'s `config_loader` (given by `__main__`) re-reads the config before each reload or add, so the module gets its current `modules.<id>` section.
+- **During the swap:** a command with no handler waits for one, up to its timeout (`CommandRouter.hold`), instead of failing. Events published meanwhile miss the module. Contracts are looked up at call time, so callers get the new instance; no module caches a provider (checked 2026-11-03).
+- **`AddModule(package)`:** imports a package that wasn't loaded at launch, makes its module available, and activates it. To keep it on the next launch, add it to `MODULES` and `modules.enabled`. If its code needs a contract the running app doesn't have, it fails with "needs a restart".
+- **Not reloadable:** `assistant.core`, `assistant.contracts`, `assistant.infra`, `app_kit`, and a class that isn't in its own package. Every module holds their classes, so swapping them would break `isinstance` checks and contract identity.
+- **Old code left running:** a thread the old copy didn't stop keeps running old code, muted by its closed context. `stop` must release everything, as before.
+- **Busy modules:** before stopping, the core asks the module's [`busy()`](../api/modules.md#modulebusy). While it gives a reason, the reload waits (polling every 0.2 s, up to `core.reload_idle_timeout`, 300 s), then fails with that reason. `ReloadModule(now=True)` cuts in.
+- **Handover:** just before stopping, the core calls [`export_state()`](../api/modules.md#moduleexport_state) and passes the result to the new instance as `ctx.handover`; on rollback it goes back to the old one. Only plain data and `infra` / `app_kit` objects, which are never reloaded. `voice_in` hands over its `CompanionApp`, so the voice app keeps running and the chat isn't touched; an open mic session still ends, and its words are dropped.
+- **Who triggers it:** any module that sends the command. Built: the Main Assistant, with a last line `RELOAD: <id> [now]` or `ADD_MODULE: <package>` after its tests pass. In Auto it sends the command at once; in Manual it asks you first with an Allow / Deny card. The outcome comes back to its session, and it can't reload itself ([runtime](../agents/runtime.md#loading-new-code)). Later: the control panel and the Talker. No file watcher: it would load half-written code.
 
 ## Communication internals
 
@@ -219,6 +241,7 @@ stateDiagram-v2
 - Handles `InvokeTool` by asking every `IToolProvider` for its tools *at call time*, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).
 - Unknown name → `NotAvailable`; a name offered by more than one provider → `Failed`.
 - A future `ToolsChanged` event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.
+- **Planned:** the [directory, then menu](modules.md#find-a-module-then-open-its-menu) asks: one line per module, then one module's `ToolSpec`s. Calling stays `InvokeTool`.
 
 ## Configuration
 
@@ -276,7 +299,7 @@ Contracts grow as needed. Add a new capability interface when a real module need
 Before writing a helper for it, check the [reusable parts index](../api/reusable.md) ([principle 13](principles.md)); after building, add any new reusable part there and update the **Used by** lines of the parts it uses. Permissions it needs go in its manifest and are asked through `ctx.permissions` ([permissions](permissions.md)). A module that launches its own app follows the [companion app checklist](reusable-parts.md#companion-app-checklist).
 
 1. Create `src/assistant/modules/<name>/` with a `Module` subclass. Import only from `assistant.contracts`, `assistant.infra`, and `app_kit`.
-2. Add the class to `MODULES` in `src/assistant/__main__.py`.
+2. Add the class to `MODULES` in `src/assistant/__main__.py`. (Planned: this step goes away once the core [finds modules by folder](modules.md#found-by-folder).)
 3. Add its id to `modules.enabled` in config.
 
 To **replace** a module (e.g. the orchestrator), enable the new id instead of the old one. No core changes; `tests/test_app.py::test_orchestrator_is_replaceable_by_config_alone` checks this. To **remove** one, delete its folder, its `MODULES` entry, and its config.

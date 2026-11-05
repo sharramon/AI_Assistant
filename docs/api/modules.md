@@ -47,8 +47,20 @@ Stop work and release resources. Default does nothing. Has `core.module_stop_tim
         async def _on_input(self, event: InputReceived) -> None:
             self._ctx.publish(ResponseReady(text=f"Echo: {event.text}", correlation_id=event.id))
 
+### `Module.busy`
+
+`busy(self) -> str | None`
+
+Why this module's code shouldn't be swapped right now (for example `"replying to you"`), or `None`. A [`ReloadModule`](control.md#reloadmodule) waits until it's `None` (up to `core.reload_idle_timeout`), unless it says `now`. Default `None`. Today: the Talker (a turn is running), the Agent Hub (tasks open), the Main Assistant (working on a task).
+
+### `Module.export_state`
+
+`export_state(self) -> Any`
+
+Called before a reload stops this instance. What it returns reaches the new instance as [`ctx.handover`](#modulecontext) in `init` (and goes back to the old instance if the new code fails). Return plain data or `assistant.infra` / `app_kit` objects, which are never reloaded; never this module's own classes, which change with the code. Default `None`: the new instance starts clean. A hook that raises counts as `None`. Today: `voice_in` hands over its `CompanionApp`, so the voice app keeps running.
+
 **Defined in:** `src/assistant/contracts/module.py`
-**See also:** [`Manifest`](#manifest), [`ModuleContext`](#modulecontext), [adding a module](../architecture/core.md#adding-replacing-or-removing-a-module)
+**See also:** [`Manifest`](#manifest), [`ModuleContext`](#modulecontext), [adding a module](../architecture/core.md#adding-replacing-or-removing-a-module), [reloading](../architecture/core.md#reloading-a-modules-code)
 
 ## `Manifest`
 
@@ -87,6 +99,7 @@ A module's only access to the rest of the app, passed to `init`. Everything regi
 | `config` | `dict[str, Any]` | The `[modules.<id>]` config section, or `{}` |
 | `log` | `logging.Logger` | Logger named `assistant.modules.<id>` |
 | `permissions` | `ModulePermissions` | This module's permission checks; see below |
+| `handover` | `Any` | After a reload, what the old instance's [`export_state`](#moduleexport_state) returned; otherwise `None` |
 
 ### `ModuleContext.permissions`
 

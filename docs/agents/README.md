@@ -15,6 +15,7 @@ How we run and work with the agents: setup, experiments, and what we've learned.
 ## How the sessions run
 
 - Each agent is one `claude -p --input-format stream-json --output-format stream-json` process. The Talker's is **long-lived**, so it keeps the conversation. The Main Assistant gets a **fresh one per task**, and per handoff within a task, so a task's context holds only that task ([fresh sessions and handoffs](runtime.md#fresh-sessions-and-handoffs)).
+- **Worker context and batching:** the Main Assistant is reminded at 150k and hands off to a fresh session by itself; its prompt says to batch edits, and a hook adds a note to its second edit to a file, once per file. Neither interrupts it ([runtime](runtime.md#fresh-sessions-and-handoffs), [decision](../architecture/decisions.md#decided)).
 - **Usage:** each session's context now (what every call resends) and its tokens and ~$ since launch, worker and Talker apart. The Talker always knows both and warns you past 150k; the temp UI shows both live. A Reset starts either one fresh.
 - Messages in and out are **JSON lines** over stdin and stdout. The owning module, through [`ClaudeSession`](../api/infra.md#claudesession), writes the agent's input and reads its event stream.
 - **Transcripts for debugging:** every line in and out goes to `talker.jsonl` and `main_assistant.jsonl` (`transcript` in each module's config, a file name), next to the app's own `assistant.log`, in one folder per launch: `logs/<start time>_<theme>/` ([Logging](../architecture/core.md#logging)).
@@ -36,8 +37,7 @@ How we run and work with the agents: setup, experiments, and what we've learned.
   Its `debugger` subagent works under the same rules; its requests come to you the same way (checked 2026-10-27).
 
   Both agents' prompts state these permissions, so they don't have to find out by trying. The [repo zones](../architecture/permissions.md#repo-zones) are recorded but not enforced until the permissions handler and branch workflow are built.
-- **Permission requests:** when it uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (`permission_timeout`). The Talker never answers on its own. How it works: [the note](../next-steps/permission-requests.md).
-- **"You" means both.** To you the Talker and the Main Assistant are one assistant, and both prompts say so.
+- **Permission requests:** when it uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (`permission_timeout`). The Talker never answers on its own.- **"You" means both.** To you the Talker and the Main Assistant are one assistant, and both prompts say so.
 
 ## First implementation limits
 

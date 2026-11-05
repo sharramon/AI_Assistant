@@ -2,7 +2,7 @@
 
 How the AI side fits the system: an **Agent Hub** coordinates a **Talker**, a **Main Assistant**, and **subagents**. Back to the [overview](README.md). How we actually run and test the agents is in the [Agents tab](../agents/README.md).
 
-> **Status: built (2026-10-25)** for the Talker, one Main Assistant, and the Hub. Hub subagents are still to come; for now the Main Assistant uses Claude Code's own subagents (a `debugger`) inside its session. Since 2026-10-27 the Main Assistant starts a fresh session per task and hands off between big parts ([runtime](../agents/runtime.md#fresh-sessions-and-handoffs)). The [spike](../agents/spike.md) confirmed the interrupt the design relies on. API: [Agents](../api/agents.md).
+> **Status: built (2026-10-25)** for the Talker, one Main Assistant, and the Hub. Hub subagents are still to come; for now the Main Assistant uses Claude Code's own subagents (a `debugger`) inside its session. Since 2026-10-27 the Main Assistant starts a fresh session per task and hands off between big parts ([runtime](../agents/runtime.md#fresh-sessions-and-handoffs)). Since 2026-11-03 the worker is reminded at 150k and hands off to a fresh session by itself, and batches its edits through a standing prompt line and a once-per-file hook note, with no interrupts ([runtime](../agents/runtime.md#fresh-sessions-and-handoffs), [decision](decisions.md#decided)). **Restart:** `python -m assistant` is a launcher that starts the app again whenever it exits with code 75; when you ask for a restart, the Talker gets reset instructions from the worker, the app exits with 75, and the new launch hands those instructions to the Talker as its first input ([core](core.md#lifecycle), [runtime](../agents/runtime.md#the-talker-on-its-own)). The [spike](../agents/spike.md) confirmed the interrupt the design relies on. API: [Agents](../api/agents.md).
 
 ## The idea
 
@@ -47,7 +47,7 @@ The picture shows **logical relationships, not containment or mandatory paths**.
 |------|------|---------|
 | **Application core** | Generic module communication and lifecycle, including turning modules on and off | Know that the Hub, agents, or Claude exist |
 | **Agent Hub** (module) | Agent registry and capabilities, availability, task ids and parent/child links, routing requests and results, progress and failures, task history, clarification and cancellation flows | Reason or decide how to solve anything; duplicate the core's registry, lifecycle, DI, router, bus, or tool dispatch |
-| **Talker** | Converse, answer simple things directly, hand substantial work to the Main Assistant, report progress and results, relay clarification questions, stay responsive and interruptible | Do substantial work itself |
+| **Talker** | Converse, answer simple things directly, hand substantial work to the Main Assistant, report progress and results, relay clarification questions, stay responsive and interruptible. Read spoken input (marked `[Spoken]`, from `InputReceived(source="voice")`) for what was meant, using the conversation, with no extra cleanup call | Do substantial work itself |
 | **Main Assistant** | The central intelligence: reasoning, planning, executing, choosing tools, splitting work, delegating to subagents (through the Hub), combining results | Own bookkeeping or talk to the human directly |
 | **Subagents** | Specialized execution (coding, research, 3D, browser, robotics…), possibly in parallel, reporting progress | Plan the overall task |
 
@@ -178,7 +178,7 @@ flowchart LR
 
 Solid: commands and contract calls, which always return a `Result`. Dotted: events, which may be dropped.
 
-- **Talker → Hub:** commands `StartTask`, `GetTaskStatus` (status without bothering the agent), `SendToTask` (a question, extra instruction, or your answer), `CancelTask`. In v1 the `talker` module turns tags in the Talker's text (`<<WORK: …>>`, `<<ASK: …>>`, `<<PAUSE: …>>`, `<<CANCEL>>` etc.) into these commands; real tools need an MCP bridge, later.
+- **Talker → Hub:** commands `StartTask`, `GetTaskStatus` (status without bothering the agent), `SendToTask` (a question, extra instruction, or your answer), `CancelTask`. In v1 the `talker` module turns tags in the Talker's text (`<<WORK: …>>`, `<<ASK: …>>`, `<<PAUSE: …>>`, `<<CANCEL>>` etc.) into these commands. Planned: both agents find module tools through the [directory, then menu](modules.md#find-a-module-then-open-its-menu) instead of hardcoded tags.
 - **You never use keywords or flags.** You just talk; the Talker (a Claude too) infers from context whether you meant continue, pause, or cancel, and emits the matching tag.
 - **Agent → any UI:** the `AgentStateChanged` event whenever `busy` or `working` changes, so a UI shows it live. `ListAgents` (Hub) is the authoritative read.
 - **Hub → agent:** the `ITaskAgent` methods.

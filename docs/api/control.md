@@ -68,6 +68,43 @@ Turn a module off: `stop`, then everything it registered is removed. Its tools, 
 
 **Defined in:** `src/assistant/contracts/control.py`
 
+## `ReloadModule`
+
+`ReloadModule(module_id: str, now: bool = False)` (command)
+
+Swap a module's code while the app runs: stop it, import its package fresh (with every submodule), re-read its config section, start the new code. Active modules that require something only it provides are stopped and started around it. If the module says it's [`busy`](modules.md#modulebusy), the reload waits until it isn't (up to `core.reload_idle_timeout`, 300 s), unless `now`, which cuts in. The old instance's [`export_state`](modules.md#moduleexport_state) reaches the new one as `ctx.handover`. How it works: [reloading](../architecture/core.md#reloading-a-modules-code).
+
+**Returns**
+| Status | When |
+|--------|------|
+| `ok` | The new code runs (or is loaded, if the module was inactive) |
+| `invalid_arguments` | No module has that id |
+| `failed` | Its code is shared (core, contracts, `infra`, `app_kit`) or not in its own package; it stayed busy past `core.reload_idle_timeout` (the error says why, and to use `now`); or the new code failed to import, `init`, or `start`. Then the old code is put back and started, and the error says so |
+
+**Example**
+
+    result = await ctx.send(ReloadModule(module_id="voice_in"))
+
+**Defined in:** `src/assistant/contracts/control.py`
+
+## `AddModule`
+
+`AddModule(package: str, activate: bool = True)` (command)
+
+Load a module that wasn't there at launch, from its package, and activate it unless `activate` is false. Its package must export exactly one `Module` subclass. To keep it on the next launch, add it to `MODULES` in `__main__.py` (and to `modules.enabled`).
+
+**Returns**
+| Status | When |
+|--------|------|
+| `ok` | Value: the new module's id |
+| `failed` | Already loaded (use `ReloadModule`), an id that's taken, an import error, or its code needs a contract the running app doesn't have: new contracts and port types need a restart |
+
+**Example**
+
+    result = await ctx.send(AddModule(package="assistant.modules.weather"))
+
+**Defined in:** `src/assistant/contracts/control.py`
+
 ## `ModuleInfo`
 
 `class ModuleInfo(BaseModel)` (frozen)
@@ -83,7 +120,7 @@ Turn a module off: `stop`, then everything it registered is removed. Its tools, 
 
 ## `ModuleState`
 
-`class ModuleState(StrEnum)`: `INACTIVE`, `STARTING`, `ACTIVE`, `STOPPING`, `FAILED`. Values are the lowercase names. `FAILED` modules can be activated again.
+`class ModuleState(StrEnum)`: `INACTIVE`, `STARTING`, `ACTIVE`, `STOPPING`, `RELOADING` (its code is being swapped), `FAILED`. Values are the lowercase names. `FAILED` modules can be activated again.
 
 **Defined in:** `src/assistant/contracts/control.py`
 

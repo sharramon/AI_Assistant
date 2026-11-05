@@ -31,7 +31,7 @@ flowchart LR
 - **Every change is on its own branch.** The Main Assistant never edits `main`.
 - **Tests run on the new version** before you're asked to approve: `pytest`, `ruff`, and the docs check, the same as CI.
 - **You approve each merge.** Nothing lands until you say so.
-- **Restart to run new code.** Code changes need a restart ([core](../architecture/core.md#runtime-module-control)); the running app never reloads itself.
+- **Reload to run new code.** Reload the changed module, or add a new one ([core](../architecture/core.md#reloading-a-modules-code)): the Main Assistant ends its turn with `RELOAD: <id>` or `ADD_MODULE: <package>`, sent at once in Auto, asked as an Allow / Deny card in Manual ([runtime](runtime.md#loading-new-code)). Restart only for changes to the core, contracts or shared helpers, including a new contract or port type.
 - **Later:** CI/CD on the branch, and trying the new version side by side before merging.
 
 ## Permissions

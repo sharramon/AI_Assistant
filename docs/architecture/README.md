@@ -4,19 +4,15 @@ The whole project at a glance. Each part links to its own page; the public inter
 
 ## Bird's-eye view
 
-Each block is one part, named with what it does. Arrows show what flows between parts. Every arrow actually travels through the app's core; the core isn't drawn because everything connects to it.
+Each block is one part, named with what it does. The core sits in the middle with its ports: every module plugs into the same ones, and every arrow between parts travels through them. Each module is a wrapper with a menu of what it can do ([modules](modules.md)).
 
 ```mermaid
 flowchart LR
     You(["<b>You</b><br/>speak · type · listen"])
-    VoiceIn["<b>Voice in</b><br/>speech → text"]
-    Term["<b>Terminals</b><br/>talk · watch the assistant"]
+    Term["<b>Terminals · temp UI</b><br/>talk · watch the assistant"]
     Window["<b>Chat window</b><br/>nicer UI for the same"]
-    VoiceOut["<b>Voice out</b><br/>text → speech"]
     Quest["<b>Quest 3 / glasses</b><br/>remote screen + mic"]
-    Control["<b>Control panel</b><br/>turn features on / off"]
-    Perms["<b>Permissions</b><br/>who may use what"]
-    Features["<b>Features</b><br/>map, calendar, tools…"]
+    VoiceOut["<b>Voice out</b><br/>text → speech"]
 
     subgraph Hub["Agent Hub: coordinates the agents"]
         Talker["<b>Talker</b><br/>talks with you"]
@@ -27,40 +23,66 @@ flowchart LR
         Main -. delegates .-> Subs
     end
 
+    subgraph Core["Core: the ports every module plugs into"]
+        Life["<b>Lifecycle</b><br/>start · stop · reload<br/>find by folder: planned"]
+        Cmds["<b>Commands</b><br/>one handler · a Result"]
+        Events["<b>Events</b><br/>any number of listeners"]
+        Contracts["<b>Contracts</b><br/>shared interfaces · requires"]
+        Dir["<b>Directory</b><br/>one line per module → its menu"]
+    end
+
+    subgraph Mods["Modules: each a wrapper with a menu"]
+        VoiceIn["<b>Voice in</b><br/>speech → text"]
+        Viewer["<b>HTML viewer</b><br/>menu: open · highlight · tabs"]
+        Notes["<b>Voice notes</b><br/>v1 built · voice contract planned"]
+        Perms["<b>Permissions</b><br/>who may use what"]
+        Control["<b>Control panel</b><br/>turn modules on / off"]
+        Features["<b>Features</b><br/>map, calendar, tools…"]
+    end
+
     You -- speak --> VoiceIn
     You -- type --> Term
     VoiceIn -- text --> Talker
     Term -- text --> Talker
+    Talker -- conversation --> Term
+    Main -- activity --> Term
     Talker -- reply --> VoiceOut
     VoiceOut -- audio --> You
-    Main -- activity --> Term
-    Talker -- conversation --> Term
     Window -. later .-> Talker
     Quest -. later .-> Talker
-    You -. on / off .-> Control
-    Talker -. "enable X" .-> Control
+    Talker -. "1 list · 2 menu" .-> Dir
+    Main -. "1 list · 2 menu" .-> Dir
+    Talker -- "3 call (InvokeTool)" --> Cmds
+    Main -. "3 call" .-> Cmds
+    Cmds -- "open a page" --> Viewer
+    VoiceIn -- VoiceTranscript --> Events
+    Events -. listens .-> Notes
+    Notes -. requires .-> Contracts
     Main -- "may I?" --> Perms
-    Features -. "may I?" .-> Perms
     Perms -- "allow? (card · voice)" --> Talker
-    Talker -- "allow / deny" --> Perms
-    Control -. grants .-> Perms
+    You -. on / off .-> Control
+    Control -. "on · off · reload" .-> Life
+    Life -- "starts what requires needs" --> Mods
 
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class VoiceOut,Perms planned
-    class Features later
+    classDef port fill:#ffffff,stroke:#6b4fa0,color:#1d1d1b
+    classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
+    class Life,Cmds,Events,Contracts port
+    class VoiceIn,Viewer,Notes module
+    class VoiceOut,Perms,Dir planned
     class You person
-    class Window,Quest,Subs,Control later
+    class Window,Quest,Subs,Control,Features later
 ```
 
-**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a [temp UI](../agents/runtime.md#temp-ui) (a web page with both, a stand-in for the chat window until a UI handler is designed). **Voice in:** the [voice service](voice.md) and its thin `voice_in` module are built and on; the temp UI's mic button turns the mic on and off. **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Permissions:** every part asks one [permissions handler](permissions.md) before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
+**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a [temp UI](../agents/runtime.md#temp-ui) (a web page with both, a stand-in for the chat window until a UI handler is designed). **Voice in:** the [voice service](voice.md) and its thin `voice_in` module are built and on; the temp UI's mic button turns the mic on and off. **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Permissions:** every part asks one [permissions handler](permissions.md) before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. **Modules:** each is a wrapper (manifest, start / stop / reload, context) with a menu of tools inside; built, with the HTML viewer's menu the only one so far. Voice notes v1 is built and on, without the voice contract ([voice_notes](../modules/voice_notes.md)). The directory both agents use to find modules and their menus, finding modules by folder, and the voice contract are planned ([modules](modules.md)). Each module has its own page; the [module library](module-library.md) lists them all with their interfaces. **White in the core:** its ports. **Blue:** a module. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
 
 ## Summary
 
 A highly modular personal AI assistant that serves as a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (inputs, outputs, views, tools, background workers, and the AI orchestration itself) that can be added, replaced, or discarded with minimal changes elsewhere.
 
-The style is a **modular monolith** using **ports & adapters**, **dependency injection**, and **event-driven communication**. The modules run in one process. Changing code means a rebuild and restart; turning existing modules on and off happens while the app runs ([runtime module control](core.md#runtime-module-control): built in the core; a control panel and asking the Talker come later). Loading new code without a restart is not a goal. **Independent deployment is, for parts that are useful on their own:** such a part is its own app that the main app launches and talks to through two-way hooks, via a thin module ([decisions](decisions.md#decided)). The [HTML viewer](html-viewer.md) is the first.
+The style is a **modular monolith** using **ports & adapters**, **dependency injection**, and **event-driven communication**. The modules run in one process. Changing a module's code needs no restart: the module is reloaded in place (turned off, given its new code, turned on), and a brand-new module is added the same way ([reloading](core.md#reloading-a-modules-code)). Changes to the core, contracts or shared helpers, and a new module that needs a new contract or port type, still need a restart. Turning modules on and off also happens while the app runs ([runtime module control](core.md#runtime-module-control): built in the core; a control panel and asking the Talker come later). **Independent deployment is, for parts that are useful on their own:** such a part is its own app that the main app launches and talks to through two-way hooks, via a thin module ([decisions](decisions.md#decided)). The [HTML viewer](html-viewer.md) is the first.
 
 The core runs on a PC today and will later move to a server, so it must not assume a local desktop: configuration, secrets, and data paths come from config files and environment variables, and user-facing interfaces are modules or remote clients. Headsets (Quest 3) and smartglasses are [remote clients](remote-clients.md) that connect over the network.
 
@@ -69,6 +91,8 @@ The core runs on a PC today and will later move to a server, so it must not assu
 - [Principles](principles.md): the rules behind every decision
 - [Reusable parts](reusable-parts.md): build it once; where shared parts live
 - [Core](core.md): the host, lifecycle, and how modules are added or swapped
+- [Modules](modules.md): a module is a wrapper with a menu; the directory, chaining, dependencies, hot swap, finding by folder
+- [Module library](module-library.md): every module's one-liner and interface (tools, commands, events, data types), each linking to its own [module page](../modules/README.md)
 - [Communication](communication.md): commands, events, results, timeouts
 - [Agents](agents.md): the Agent Hub, Talker, Main Assistant, subagents
 - [Permissions](permissions.md): who may use what, per module
@@ -81,8 +105,9 @@ The core runs on a PC today and will later move to a server, so it must not assu
 
 | Component | Responsibility | Location | Details |
 |-----------|----------------|----------|---------|
-| Module Registry | Selects enabled modules from their manifests; validates the dependency graph | `src/assistant/core/registry.py` | [core](core.md) |
-| Lifecycle Manager | Initializes, starts, and stops modules in dependency order; turns modules on and off at runtime | `src/assistant/core/lifecycle.py` | [core](core.md#lifecycle) |
+| Module Registry | Selects enabled modules from their manifests; validates the dependency graph. Planned: finds the available modules by folder | `src/assistant/core/registry.py` | [core](core.md), [modules](modules.md#found-by-folder) |
+| Module directory | One line per module, then that module's menu, for the Talker and the Main Assistant (planned) | _TBD_ in `src/assistant/core/` | [modules](modules.md#find-a-module-then-open-its-menu) |
+| Lifecycle Manager | Initializes, starts, and stops modules in dependency order; turns modules on and off at runtime; reloads a module's code and adds new modules (with `core/loader.py`) | `src/assistant/core/lifecycle.py` | [core](core.md#lifecycle) |
 | DI Container | Resolves shared contracts to the implementations modules provide | `src/assistant/core/container.py` | [core](core.md#communication-internals) |
 | Command Router | Routes each command to its single handler and returns the result | `src/assistant/core/router.py` | [core](core.md#communication-internals) |
 | Event Bus | In-process publish/subscribe for events | `src/assistant/core/bus.py` | [core](core.md#communication-internals) |
@@ -90,10 +115,11 @@ The core runs on a PC today and will later move to a server, so it must not assu
 | Shared Infrastructure | Configuration and logging today; persistence and auth/secrets later | `src/assistant/infra/` | [API](../api/infra.md) |
 | Reusable parts | Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, and `app_kit` for what the independent apps share too | `src/assistant/contracts/`, `src/assistant/infra/`, `src/app_kit/` | [reusable parts](reusable-parts.md), [index](../api/reusable.md) |
 | Log handler | Owns where logs go: one folder per app launch, named by start time and the theme of your first question | `src/assistant/infra/log.py` | [core](core.md#logging) |
-| Modules | All capabilities, including the AI orchestration. Today: `console_io`, `talker`, `main_assistant`, `agent_hub`, `temp_ui`, `html_viewer` (the HTML viewer's thin module), `voice_in` (voice input's thin module), and, off by default, `assistant_view` and the `echo_orchestrator` stand-in | `src/assistant/modules/` | [agent runtime](../agents/runtime.md) |
+| Modules | All capabilities, including the AI orchestration; each a wrapper (manifest, lifecycle, context) with a menu of tools. Today: `console_io`, `talker`, `main_assistant`, `agent_hub`, `temp_ui`, `html_viewer` (the HTML viewer's thin module), `voice_in` (voice input's thin module), `voice_notes`, and, off by default, `assistant_view` and the `echo_orchestrator` stand-in | `src/assistant/modules/` | [module library](module-library.md), [agent runtime](../agents/runtime.md) |
 | UI handler | Owns the user-facing UIs (chat window, Quest, glasses). Not designed yet; `temp_ui` stands in | _TBD_ | [decisions](decisions.md#open-decisions) |
 | HTML viewer | Its own app: view, edit, highlight, and snip HTML files. The main app launches it through the thin `html_viewer` module, with `CompanionApp` | `src/html_viewer/` | [HTML viewer](html-viewer.md) |
-| Voice handler | Speech to text: a shared `voice_service` app (mic and engine; built, runs alone) and the thin `voice_in` module that launches it, relays the mic's state and live text, and sends the final text to the Talker (built and on; the temp UI's mic button drives it); built on `CompanionApp` and `load_layered` | `src/voice_service/`, `src/assistant/modules/voice_in/` | [voice](voice.md) |
+| Voice handler | Speech to text: a shared `voice_service` app (mic and engine; built, runs alone) and the thin `voice_in` module that launches it, relays the mic's state and live text, and sends the final text to the Talker (built and on; the temp UI's mic button drives it); built on `CompanionApp` and `load_layered`. Engines: by default two passes, the Zipformer's live text cleaned piece by piece by whisper, whose text is sent; or one engine, Zipformer (live text) or whisper (text on send). Chosen in the service's config, which restarts the service on a change; `transcribe` gives a file's text with no server. Planned: a voice contract and sessions with a destination, so other modules share it | `src/voice_service/`, `src/assistant/modules/voice_in/` | [voice](voice.md) |
+| Voice notes | Notes by voice in its own window, with its own record button; sends `StartListening` without the Talker and listens to voice events (v1 built). Planned: requires the voice contract | `src/assistant/modules/voice_notes/` | [voice_notes](../modules/voice_notes.md), [modules](modules.md#chaining-modules) |
 | Agent Hub | Coordinates the agents: who is doing what, task state, routing, clarifications | `src/assistant/modules/agent_hub/` | [agents](agents.md) |
 | Permissions handler | Knows what the app has, what each module needs, and what you've granted; asks you otherwise. Modules call it through `ctx.permissions`; today a stand-in that allows and logs answers (built), the handler is planned | _TBD_ `modules/permissions/` | [permissions](permissions.md) |
 | Control panel | UI module to turn modules on and off while running, through the core's control interface (planned) | _TBD_ module | [core](core.md#runtime-module-control) |

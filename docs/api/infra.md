@@ -99,9 +99,11 @@ A folder-safe theme: lowercase ASCII letters and digits, words joined by hyphens
 
 ## `ClaudeSession`
 
-**Reusable** · Used by: `talker`, `main_assistant` (a callable command, for the permission mode), `SessionTaskAgent` (`set_permission_mode`)
+**Reusable** · Used by: `talker`, `main_assistant` (a callable command, for the permission mode; `env` for the edit hook), `SessionTaskAgent` (`set_permission_mode`)
 
-`ClaudeSession(command: Sequence[str] | Callable[[], Sequence[str]], cwd: str | Path | None = None, log: Logger | None = None, on_event: Callable[[dict], None] | None = None, transcript: str | Path | LogSink | None = None)`
+`ClaudeSession(command: Sequence[str] | Callable[[], Sequence[str]], cwd: str | Path | None = None, log: Logger | None = None, on_event: Callable[[dict], None] | None = None, transcript: str | Path | LogSink | None = None, env: Mapping[str, str] | None = None)`
+
+`env` adds variables to the process's environment, on top of the app's. The Main Assistant uses it so the edit hook can tell its worker apart from your own Claude Code sessions ([batching note](../agents/runtime.md#fresh-sessions-and-handoffs)).
 
 One long-lived `claude -p` stream-json process. Knows nothing about tasks or agents: it writes messages and interrupts as JSON lines on stdin and hands every JSON line from stdout to `on_event`, in order. Build `command` with [`claude_command`](#claude_command). **`command` may be a callable** returning the command line: it's called on every `start`, so each new process gets the settings of that moment (the Main Assistant's permission mode). With `transcript`, every line in and out (and stderr) is appended to that file as `{"t", "dir": "in" | "out" | "stderr", "msg"}` JSON lines, for debugging. `transcript` may be a file path or a [`LogSink`](#logsink). Modules pass their `transcript` setting, which `__main__` has replaced with the session's sink.
 
@@ -152,11 +154,15 @@ A permission rule for everything under `folder`: `path_rule("Edit", "docs")` →
 
 **Reusable** · Used by: `main_assistant`; every task agent later (the decided pattern)
 
-`SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits")`
+`SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits", context_reminder: int = 0, edit_note: bool = False, task_file: str | Path | None = None)`
 
 An [`ITaskAgent`](agents.md#itaskagent) backed by one `ClaudeSession`: the shared part every task agent is built from. Turns `assign`, `message`, and `cancel` into session messages, and the session's events into [`ReportTask`](agents.md#reporttask), [`AgentActivity`](agents.md#agentactivity), [`AgentStateChanged`](agents.md#agentstatechanged), and [`SessionUsage`](agents.md#sessionusage). Sets itself as the session's `on_event`. Every method returns once its message or interrupt is written. A turn whose last line is `NEED: <question>` is reported as `need`. If a cancel's interrupt doesn't end the turn within `cancel_timeout`, the session is closed and the next task starts a fresh one. A `can_use_tool` request is reported as `permission` and held until [`answer_permission`](agents.md#itaskagentanswer_permission); after `permission_timeout` seconds it's denied. Behavior: [The Main Assistant on its own](../agents/runtime.md#the-main-assistant-on-its-own).
 
 **Fresh sessions and handoffs.** With `fresh_sessions`, each task starts in a new `claude` process, so its context holds only that task. A turn (or a reply) whose last line is `HANDOFF: <note path>` continues the same task in a fresh session told to read that note; it's reported as `progress` "Handed off to a fresh session (n): <note>". After `max_handoffs` in one task it asks you instead (`need`).
+
+**Context reminder.** With `context_reminder` (tokens; 0, the default, is off), the first time the session's context passes it during a task, checked with [`ContextWatch`](#contextwatch) wherever usage is published, the task gets a `[Context check]` message the same way [`message`](agents.md#itaskagent) sends any (interrupt, then carry on): find a safe point, write what's done and next into the change note, and end with `HANDOFF:`. Once per crossing: a fresh session starts small and re-arms it. While the task waits on you (a `NEED` or a permission request) the reminder is held and sent once it works again, so an open request isn't dropped. Logged (`context 152k past 150k: reminded task … to find a reset point`) and published as `AgentActivity` (`context reminder sent (152k)`).
+
+**Edit note.** With `edit_note`, the second edit to a file in a task (`Edit`, `Write`, `MultiEdit` or `NotebookEdit`, paths compared lowercase with `/`, counted across handoffs) is logged (`batching note for task … : <path> edited twice`) and published as `AgentActivity` (`batching note: a.md`), once per file. It only reports and never sends the agent anything: the note the agent reads comes from the edit hook, with the tool call. With `task_file`, the current task's id is written there at each `assign`, so the hook can count by task across sessions.
 
 **Permission mode.** It holds the [`PermissionMode`](agents.md#permissionmode) in memory, Manual at every launch. The owning module builds each session's command for `permission_mode` (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Mid-task, a switch to Manual sends `ClaudeSession.set_permission_mode(manual_claude_mode)` when the running session is in Auto. Every switch is logged, published as `AgentActivity`, and published as [`PermissionModeChanged`](agents.md#permissionmodechanged).
 
@@ -185,9 +191,25 @@ An [`ITaskAgent`](agents.md#itaskagent) backed by one `ClaudeSession`: the share
 
 **Defined in:** `src/assistant/infra/session_agent.py`
 
+## `ContextWatch`
+
+**Reusable** · Used by: `talker` (`context_warning`), `SessionTaskAgent` (`context_reminder`, in `main_assistant`) · built 2026-11-03
+
+`ContextWatch(limit: int)`
+
+Says when a session's context first passes `limit` tokens, once per crossing. `crossed(key, tokens) -> bool` is `True` the first time `key`'s context is at or past the limit, `False` while it stays over, and re-arms once that context comes back under (a reset or a fresh session). Keys are independent (the Talker watches itself and the worker). A `limit` of 0 or less turns it off. `limit` is readable.
+
+**Example**
+
+    watch = ContextWatch(150_000)
+    if watch.crossed("main_assistant", usage.context_tokens):
+        ...  # warn or remind, once
+
+**Defined in:** `src/assistant/infra/context_watch.py`
+
 ## `agent_tags`
 
-**Reusable** · Used by: `talker` (`find_tags`, `parse_show`), `html_viewer` module (`find_tags`, `parse_show`), `SessionTaskAgent` (`last_line`) · built 2026-11-02
+**Reusable** · Used by: `talker` (`find_tags`, `parse_show`), `html_viewer` module (`find_tags`, `parse_show`), `SessionTaskAgent` (`last_line`), `talker` (`last_line` for `RESTART_READY`) · built 2026-11-02
 
 `from assistant.infra import find_tags, last_line, parse_show, Tag, ShowTag`
 

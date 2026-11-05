@@ -37,6 +37,16 @@ Load the TOML file `base`, then deep-merge `local` over it if it exists (default
 
 **Defined in:** `src/app_kit/config.py`
 
+## `local_path`
+
+**Reusable** · Used by: `load_layered` (its default `local`), `voice_service` (`server.py`: the engine watch reads both files)
+
+`local_path(base: str | Path) -> Path`
+
+The local override's path for `base`: `.local` before the suffix (`voice_service.toml` → `voice_service.local.toml`). Added 2026-11-03.
+
+**Defined in:** `src/app_kit/config.py`
+
 ## `CompanionApp`
 
 **Reusable** · Used by: `html_viewer` module (launch, calls, and the relay of the viewer's event stream); `voice_in` (launch on the first mic click, `/health` calls, quit at stop if it launched it); any app that launches `voice_service`

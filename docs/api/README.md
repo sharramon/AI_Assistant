@@ -2,7 +2,7 @@
 
 Every public class and function, grouped by area. Check here before writing something new. If it already exists, reuse or extend it.
 
-Each group links to a page with full signatures, parameters, return values, errors and examples. For how the pieces fit together, see the [architecture overview](../architecture/README.md).
+Each group links to a page with full signatures, parameters, return values, errors and examples. For how the pieces fit together, see the [architecture overview](../architecture/README.md). For which module handles, sends, and listens to each type, see the [module library](../architecture/module-library.md).
 
 Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Agents**, **Infrastructure**, and **App kit**. **Core host** is internal to `assistant.core`; it's listed so nothing gets duplicated.
 
@@ -13,9 +13,9 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 **Check the [reusable parts index](reusable.md) before writing a helper.** One line per part (name, kind, purpose, where, used by), sorted by where it lives:
 
 - **Contracts** (`assistant.contracts`): `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
-- **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream` and `AudioSource` / `FakeSource`
-- **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `agent_tags`
-- **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `CompanionApp`
+- **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
+- **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `ContextWatch`, `agent_tags`
+- **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `local_path`, `CompanionApp`
 
 ## Groups
 
@@ -48,12 +48,12 @@ Commands, events, and results. `from assistant.contracts import ...`
 | [`ViewerClip`](messaging.md#viewerclip) | event | You snipped part of a page in the HTML viewer: an image for the Talker |
 | [`ViewerClipDropped`](messaging.md#viewerclipdropped) | event | You dropped a snip before sending it |
 | [`StartListening`](messaging.md#startlistening) | command | ♻ Turn the mic on; `send_as_input` decides whether the Talker gets the text |
-| [`StopListening`](messaging.md#stoplistening) | command | ♻ Turn the mic off; the result has the final text |
-| [`ListeningState`](messaging.md#listeningstate) | enum | ♻ `idle`, `starting`, `listening`, `failed` |
+| [`StopListening`](messaging.md#stoplistening) | command | ♻ Turn the mic off; the result has the final text. `discard=True` throws it away (the clear button) |
+| [`ListeningState`](messaging.md#listeningstate) | enum | ♻ `idle`, `starting`, `listening`, `dropped`, `finishing`, `failed` |
 | [`VoiceState`](messaging.md#voicestate) | event | ♻ The mic's state changed, for the button |
 | [`VoiceTranscript`](messaging.md#voicetranscript) | event | ♻ Live and final voice text, for any subscriber |
 | [Voice service protocol](messaging.md#the-voice-service-protocol) | models | ♻ `/ws/listen` messages shared by `voice_service` and `voice_in` (`from voice_service.protocol import ...`) |
-| [Voice service parts](messaging.md#the-voice-services-parts) | classes | ♻ Inside the service app: `SttEngine` / `SttStream`, `AudioSource` (`MicSource`, `FakeSource`), `create_app`, `load_engine`, `load_service_config`, `download_model` |
+| [Voice service parts](messaging.md#the-voice-services-parts) | classes | ♻ Inside the service app: `SttEngine` / `SttStream` (`live_partials`, `set_prompt`, `cancel`; `ZipformerEngine`, `WhisperEngine`), `PieceCutter` (two passes), `AudioSource` (`MicSource`, `FileSource`, `FakeSource`), `transcribe` / `transcribe_file`, `create_app`, `load_engine`, `load_service_config`, `download_model` |
 
 ### [Tools](tools.md)
 Capabilities invocable by name. `from assistant.contracts import ...`
@@ -73,8 +73,10 @@ Turning modules on and off while the app runs. Handled by the core. `from assist
 | [`ListModules`](control.md#listmodules) | command | Every available module and its state |
 | [`ActivateModule`](control.md#activatemodule) | command | Turn a module on, with the providers it requires |
 | [`DeactivateModule`](control.md#deactivatemodule) | command | Turn a module off, respecting dependents |
+| [`ReloadModule`](control.md#reloadmodule) | command | Swap a module's code while the app runs; old code back if the new fails |
+| [`AddModule`](control.md#addmodule) | command | Load a brand-new module while the app runs (a new contract still needs a restart) |
 | [`ModuleInfo`](control.md#moduleinfo) | data | A module's id, state, and contracts |
-| [`ModuleState`](control.md#modulestate) | enum | `inactive`, `starting`, `active`, `stopping`, `failed` |
+| [`ModuleState`](control.md#modulestate) | enum | `inactive`, `starting`, `active`, `stopping`, `reloading`, `failed` |
 | [`ModuleStateChanged`](control.md#modulestatechanged) | event | A module moved to a new state |
 
 ### [Agents](agents.md)
@@ -118,6 +120,7 @@ Shared services for the main app's modules. `from assistant.infra import ...`
 | [`path_rule`](infra.md#path_rule) | function | ♻ A permission rule (`Read(//c/x/**)`) for a folder |
 | [`SessionTaskAgent`](infra.md#sessiontaskagent) | class | ♻ An `ITaskAgent` backed by a `ClaudeSession`, a fresh one per task, with handoffs and the permission mode; reuse it for every task agent |
 | [`session_usage`](infra.md#session_usage) | function | ♻ A `ClaudeSession`'s usage so far as a `SessionUsage` event |
+| [`ContextWatch`](infra.md#contextwatch) | class | ♻ Says once when a context passes a size (the Talker's warning, the worker's reminder) |
 | [`agent_tags`](infra.md#agent_tags) | functions | ♻ Read SHOW tags, `NEED:` and `HANDOFF:` lines the same way everywhere |
 
 ### [App kit](app_kit.md)
@@ -127,6 +130,7 @@ Shared by the main app and the independent apps; standard library only. `from ap
 |------|------|---------|
 | [`window`](app_kit.md#window) | functions | ♻ Edge app window: `open_app_window`, `close_app_windows`, `raise_window`, `devtools_port` |
 | [`load_layered`](app_kit.md#load_layered) | function | ♻ A TOML file plus its `.local` override, deep-merged |
+| [`local_path`](app_kit.md#local_path) | function | ♻ A config file's `.local` override path |
 | [`CompanionApp`](app_kit.md#companionapp) | class | ♻ Launch a companion app if needed, call its API, read its event stream, quit it if we launched it |
 
 ### [Core host](core.md) (internal)
@@ -137,7 +141,8 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`App`](core.md#app) | class | Wires the core together and runs the enabled modules |
 | [`StartupError`](core.md#startuperror) | exception | The configured modules can't start together |
 | [`resolve_modules`](core.md#resolve_modules) | function | Select enabled modules, validate dependencies, return start order |
-| [`LifecycleManager`](core.md#lifecyclemanager) | class | Init, start, and stop modules in dependency order; activate and deactivate at runtime |
+| [`LifecycleManager`](core.md#lifecyclemanager) | class | Init, start, and stop modules in dependency order; activate, deactivate, reload, and add at runtime |
+| [`loader`](core.md#loader) | functions | Fresh import of a module's package; what may be reloaded |
 | [`ScopedContext`](core.md#scopedcontext) | class | The `ModuleContext` implementation; undoes registrations on close |
 | [`AllowAllPermissions`](core.md#allowallpermissions) | class | The `ctx.permissions` stand-in: allows, warns once per module and permission |
 | [`CommandRouter`](core.md#commandrouter) | class | One handler per command; timeouts, cancellation, `Result`s |
