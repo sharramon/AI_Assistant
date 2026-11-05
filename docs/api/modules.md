@@ -196,7 +196,7 @@ Publish an event. Returns immediately and never waits on subscribers. Events are
 
 `handle(command_type: type[K], handler: Callable[[K], Awaitable[Result]]) -> None`
 
-Become the single handler for `command_type`. The handler must return a [`Result`](messaging.md#result). List the type in `manifest.handles`: today the core logs a warning when it isn't there; refusing it is planned (module system, chunk 9).
+Become the single handler for `command_type`. The handler must return a [`Result`](messaging.md#result). List the type in `manifest.handles`: if it isn't there, `handle` raises `ValueError` and the module fails to start (strict since 2026-11-05).
 
 **Raises:** `ValueError` if the command type already has a handler.
 

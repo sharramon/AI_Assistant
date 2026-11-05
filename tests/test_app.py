@@ -89,7 +89,7 @@ class Busy(Command):
 class Everything(ModuleProtocol, IToolProvider):
     """Registers one of each kind of thing, to check that stop removes them all."""
 
-    manifest = Manifest(id="everything", provides=(IToolProvider,))
+    manifest = Manifest(id="everything", provides=(IToolProvider,), handles=(Busy,))
 
     async def init(self, ctx: ModuleContext) -> None:
         ctx.subscribe(InputReceived, self._on_input)

@@ -111,6 +111,22 @@ def test_the_worker_session_gets_the_door(tmp_path):
     assert "--mcp-config" not in build_command({}, tmp_path, PermissionMode.MANUAL)
 
 
+async def test_the_talker_session_gets_the_door():
+    from assistant.modules.talker import TalkerModule
+    from tests.test_agents import FAKE
+
+    config = {"modules": {"enabled": ["agent_hub", "talker"], "talker": {"program": FAKE}}, "core": {}}
+    app = App([AgentHubModule, TalkerModule], config)
+    await app.start()
+    try:
+        command = app._lifecycle._active["talker"][0]._command()
+        door = app.container.get_one(IModuleDoor).mcp_config()
+        assert json.loads(command[command.index("--mcp-config") + 1]) == door
+        assert set(TOOL_NAMES) <= set(command[command.index("--allowedTools") + 1].split(","))
+    finally:
+        await app.stop()
+
+
 @pytest.mark.claude
 async def test_real_claude_calls_a_menu_item_through_the_door(app, tmp_path):
     """Needs a logged-in claude CLI (a paid call): `pytest -m claude tests/test_mcp_door.py`."""

@@ -57,13 +57,13 @@ class Listed(Unlisted):
     manifest = Manifest(id="listed", handles=(StartListening,))
 
 
-@pytest.mark.parametrize("module, warned", [(Unlisted, True), (Listed, False)])
-async def test_handling_an_unlisted_command_warns(module, warned, caplog):
+@pytest.mark.parametrize("module, refused", [(Unlisted, True), (Listed, False)])
+async def test_handling_an_unlisted_command_is_refused(module, refused, caplog):
     app = App(available=[module], config={"modules": {"enabled": [module.manifest.id]}})
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.ERROR):
         await app.start()
         await app.stop()
-    assert ("without listing it in manifest.handles" in caplog.text) is warned
+    assert ("must list" in caplog.text and "in manifest.handles" in caplog.text) is refused
 
 
 @pytest.mark.parametrize("module_id", module_ids())

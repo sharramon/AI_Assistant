@@ -338,9 +338,9 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 <tr>
 <td>9</td>
-<td>not started</td>
-<td></td>
-<td></td>
+<td>built: the Talker reads its command at each session start and gets the module door (all three tools allowed); <code>ctx.handle</code> refuses a command not in <code>manifest.handles</code> (every real module already listed its own; three test stand-ins fixed)</td>
+<td>see <code>git log</code> ("Module system, chunk 9")</td>
+<td>yes (core)</td>
 </tr>
 </tbody>
 </table>
@@ -368,6 +368,8 @@ class HtmlViewerModule(ModuleProtocol):
 <li><strong>D20 (chunk 8): the viewer keeps watching the Main Assistant's SHOW tags.</strong> The worker's standing prompt (the one this run uses) relies on SHOW tags to open pages, so dropping that now would break page showing until the prompt changes. The door is added alongside; drop the tag watching once the real-<code>claude</code> test passes and the prompt says to use <code>viewer.open</code>.</li>
 <li><strong>D21 (chunk 8): in Auto, <code>use_item</code> runs without a card.</strong> That's <code>bypassPermissions</code>, like every other tool in Auto. The core menu's risky items (<code>modules.off</code> with dependents, <code>modules.add</code>) still go through the permissions stand-in, which allows and logs (D8).</li>
 <li><strong>D22 (chunk 8): the door's port is free by default.</strong> <code>door_port = 0</code> (no config change), handed to the new copy with the token on a Hub reload, so tests never collide with the running app.</li>
+<li><strong>D23 (chunk 9): the Talker may use all three door tools without a card.</strong> It runs with no permission prompts, so a tool outside its rules would just be refused. <code>use_item</code> is allowed; the core's risky items (<code>modules.off</code> with dependents, <code>modules.add</code>) still go through the permissions stand-in (D8). Its prompt says to use the door for quick things and hand real work to the worker.</li>
+<li><strong>D24 (chunk 9): SHOW stays.</strong> The plan said the Talker drops its hardcoded viewer mapping. Its SHOW tag is how pages reach you today (and the worker's prompt uses it), so it stays as a shorthand for the viewer's menu items <code>viewer.open</code> / <code>viewer.highlight</code>, still sent through <code>InvokeTool</code>. Everything else goes list → menu → call.</li>
 <li><strong>Known flake 2:</strong> <code>tests/test_html_viewer.py::test_refuses_what_it_cant_do</code> once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).</li>
 </ul>
 <p><strong>Before the build (2026-11-05):</strong> this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in <code>docs/temp/</code> (not in the docs build): <code>tool-paths.html</code>, <code>tool-mcp-wrapper.html</code>, and <code>one-door-vs-many.html</code>.</p>
@@ -414,7 +416,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 </tbody>
 </table>
-<p><strong>Next:</strong> chunk 9, the Talker: drop its hardcoded viewer mapping (SHOW tags → <code>viewer.*</code>) for list → menu → call, and make commands strict (<code>ctx.handle</code> refuses a command not in <code>handles</code>; check every manifest first). The Talker is a <code>claude</code> session too, so it can take the same <code>IModuleDoor</code> (<code>mcp_config()</code>) as the worker; keep SHOW working as the note says. Then the end-of-refactor checks and the restart test checklist (see the handoff section). Restart: chunks 4 to 8 are waiting for one.</p>
+<p><strong>Next:</strong> all nine chunks are built. Left: the end-of-refactor checks (the module philosophy table, the diagrams against the code, every module with the new tests) and the restart test checklist and script; then the README row moves to the right status. Restart: chunks 4 to 9 are waiting for one.</p>
 <h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
 <p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
 <ul>

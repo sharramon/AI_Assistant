@@ -119,7 +119,7 @@ class _FakeVoice(IVoice):
 class FakeVoiceIn(ModuleProtocol):
     """Stands in for voice_in: answers the two commands and IVoice with the events voice_in publishes."""
 
-    manifest = Manifest(id="voice_in", provides=(IVoice,))
+    manifest = Manifest(id="voice_in", provides=(IVoice,), handles=(StartListening, StopListening))
 
     async def init(self, ctx: ModuleContext) -> None:
         self.ctx, self.session, self.commands = ctx, None, []

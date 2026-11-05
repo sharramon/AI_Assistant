@@ -73,7 +73,7 @@
 <p>Each manifest gets a one-line description, the core gets the two asks, and both assistants use them instead of hardcoded tags. All of it is planned and needs an app restart (it touches the core and contracts).</p>
 <h3 id="how-the-agents-reach-the-menus-one-door">How the agents reach the menus: one door</h3>
 <blockquote>
-<p><strong>Status: built for the Main Assistant (2026-11-05); the Talker is next</strong> (chunk 9 of the module system change note, <code>docs/next-steps/module-system.md</code>). The door is a small <strong>stdio relay</strong> that <code>claude</code> starts itself (<code>python -m assistant.infra.mcp_door</code>, from the session's <code>--mcp-config</code>); it passes each call over local HTTP, with a token, to a <code>DoorServer</code> the Agent Hub hosts, which sends <code>ListModules</code>, <code>GetMenu</code> or <code>InvokeTool</code> through the core. The Hub offers it as the <a href="../api/tools.html#imoduledoor"><code>IModuleDoor</code></a> contract. In Manual, <code>use_item</code> asks with the permission card; the two read-only tools don't.</p>
+<p><strong>Status: built (2026-11-05)</strong> for both the Main Assistant and the Talker (chunks 8 and 9 of the module system change note, <code>docs/next-steps/module-system.md</code>). The Talker's SHOW tags stay a shorthand for the viewer's <code>viewer.open</code> / <code>viewer.highlight</code>. The door is a small <strong>stdio relay</strong> that <code>claude</code> starts itself (<code>python -m assistant.infra.mcp_door</code>, from the session's <code>--mcp-config</code>); it passes each call over local HTTP, with a token, to a <code>DoorServer</code> the Agent Hub hosts, which sends <code>ListModules</code>, <code>GetMenu</code> or <code>InvokeTool</code> through the core. The Hub offers it as the <a href="../api/tools.html#imoduledoor"><code>IModuleDoor</code></a> contract. In Manual, <code>use_item</code> asks with the permission card; the two read-only tools don't.</p>
 </blockquote>
 <p>The agents are <code>claude</code> sessions, and MCP is how a <code>claude</code> session calls tools in the middle of a reply. So the app serves <strong>one MCP server, the door</strong>, in front of the core. It has three fixed tools that map onto the three steps above: <strong>list modules</strong>, <strong>show a menu</strong>, <strong>use an item</strong>. Everything behind it is our own wrapper: the core's directory, <code>InvokeTool</code>, and the permission check.</p>
 <pre><code class="language-mermaid">flowchart TB
@@ -240,7 +240,7 @@
 </tr>
 <tr>
 <td>Manifest description, commands (<code>handles</code>, <code>sends</code>) and events (<code>publishes</code>, <code>listens</code>)</td>
-<td>Built (2026-11-05); the core warns on an unlisted handled command, refusing it is planned</td>
+<td>Built (2026-11-05); the core refuses a handled command the manifest doesn't list</td>
 </tr>
 <tr>
 <td><code>ctx.logs</code> port</td>
@@ -252,7 +252,7 @@
 </tr>
 <tr>
 <td>Both assistants using them through one MCP door</td>
-<td>Main Assistant built (2026-11-05: <code>IModuleDoor</code>, the stdio relay); the Talker planned (chunk 9)</td>
+<td>Built (2026-11-05): <code>IModuleDoor</code>, the stdio relay; the Main Assistant and the Talker get it in each session</td>
 </tr>
 <tr>
 <td>Finding modules by folder</td>

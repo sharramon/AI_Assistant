@@ -29,6 +29,7 @@ from assistant.contracts import (
     AnswerPermission,
     CancelTask,
     GetTaskStatus,
+    IModuleDoor,
     InputReceived,
     InvokeTool,
     Manifest,
@@ -62,6 +63,14 @@ from assistant.infra import (
     session_usage,
     theme_slug,
 )
+from assistant.infra.mcp_door import TOOL_NAMES as DOOR_TOOLS
+
+DOOR_NOTE = """
+
+The app's modules: your `modules` tools reach every module's menu. Call `list_modules` \
+(one line each), then `show_menu` for the one you need, then `use_item` with an item's name \
+and inputs. Use them for quick things the user asks of a module (open a page, look at the \
+viewer's tabs); hand real work to the worker as before. SHOW tags still open pages."""
 
 TALKER_PROMPT = """\
 You are the voice of a personal AI assistant. Keep replies short and conversational, \
@@ -248,14 +257,8 @@ class TalkerModule(ModuleProtocol):
         self._ctx = ctx
         self._turn_timeout = ctx.config.get("turn_timeout", 120.0)
         self._worker_id = ctx.config.get("worker", "main_assistant")  # what <<RESET: worker>> resets
-        command = claude_command(
-            model=ctx.config.get("model", "sonnet"),
-            tools="",
-            system_prompt=TALKER_PROMPT,
-            program=ctx.config.get("program", ["claude"]),
-        )
         self._session = ClaudeSession(
-            command,
+            self._command,  # read at each session start: the module door may have come up since
             cwd=ctx.config.get("cwd"),
             log=ctx.log,
             on_event=self._on_event,
@@ -469,6 +472,22 @@ class TalkerModule(ModuleProtocol):
             self._ctx.log.warning("Talker turn took over %ss; interrupting", self._turn_timeout)
             await self._session.interrupt()
             return await asyncio.wait_for(self._turn, 10)
+
+    def _command(self) -> list[str]:
+        """The Talker's command line, with the module door when the Hub offers it: list → menu →
+        call for any module. All three door tools are allowed (the Talker has no permission
+        cards); the core's risky items still ask the permissions first."""
+        config = self._ctx.config
+        door = self._ctx.get_one(IModuleDoor) if config.get("door", True) else None
+        mcp = door.mcp_config() if door is not None else {}
+        return claude_command(
+            model=config.get("model", "sonnet"),
+            tools="",
+            allowed=list(DOOR_TOOLS) if mcp else (),
+            system_prompt=TALKER_PROMPT + (DOOR_NOTE if mcp else ""),
+            program=config.get("program", ["claude"]),
+            mcp_config=mcp or None,
+        )
 
     async def _run_tag(self, tag: str, argument: str) -> None:
         ctx = self._ctx

@@ -134,7 +134,7 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | 6 | built: `IVoice` + `VoiceDestination` (`contracts/voice.py`); `voice_in` provides it (`_Voice` part, same sessions as the commands, `finish` ends only its own id); `voice_notes` requires it, no longer sends commands; the temp UI keeps the commands | see `git log` ("Module system, chunk 6") | yes (new contract) |
 | 7 | built: `CompanionApp.code_changed()` (`source_stamp`) and `stop(adopted=True)` in `app_kit`; `voice_in` and `html_viewer` hand their app over on a reload unless its code changed, else quit it so the new copy launches the new code; `html_viewer` gained the handover | see `git log` ("Module system, chunk 7") | yes (`app_kit`) |
 | 8 | built: the one MCP door. `infra/mcp_door.py` (a stdio relay `claude` starts, and the app-side `DoorServer`), the `IModuleDoor` contract provided by `agent_hub` (port and token handed over on reload), `main_assistant` passes it as `--mcp-config` to each new session (read-only tools allowed, `use_item` asks in Manual) | see `git log` ("Module system, chunk 8") | yes (contracts, infra) |
-| 9 | not started | | |
+| 9 | built: the Talker reads its command at each session start and gets the module door (all three tools allowed); `ctx.handle` refuses a command not in `manifest.handles` (every real module already listed its own; three test stand-ins fixed) | see `git log` ("Module system, chunk 9") | yes (core) |
 
 **Decisions taken while building** (the most conservative choice each time, for you to check):
 
@@ -160,6 +160,8 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 - **D20 (chunk 8): the viewer keeps watching the Main Assistant's SHOW tags.** The worker's standing prompt (the one this run uses) relies on SHOW tags to open pages, so dropping that now would break page showing until the prompt changes. The door is added alongside; drop the tag watching once the real-`claude` test passes and the prompt says to use `viewer.open`.
 - **D21 (chunk 8): in Auto, `use_item` runs without a card.** That's `bypassPermissions`, like every other tool in Auto. The core menu's risky items (`modules.off` with dependents, `modules.add`) still go through the permissions stand-in, which allows and logs (D8).
 - **D22 (chunk 8): the door's port is free by default.** `door_port = 0` (no config change), handed to the new copy with the token on a Hub reload, so tests never collide with the running app.
+- **D23 (chunk 9): the Talker may use all three door tools without a card.** It runs with no permission prompts, so a tool outside its rules would just be refused. `use_item` is allowed; the core's risky items (`modules.off` with dependents, `modules.add`) still go through the permissions stand-in (D8). Its prompt says to use the door for quick things and hand real work to the worker.
+- **D24 (chunk 9): SHOW stays.** The plan said the Talker drops its hardcoded viewer mapping. Its SHOW tag is how pages reach you today (and the worker's prompt uses it), so it stays as a shorthand for the viewer's menu items `viewer.open` / `viewer.highlight`, still sent through `InvokeTool`. Everything else goes list → menu → call.
 - **Known flake 2:** `tests/test_html_viewer.py::test_refuses_what_it_cant_do` once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).
 
 **Before the build (2026-11-05):** this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in `docs/temp/` (not in the docs build): `tool-paths.html`, `tool-mcp-wrapper.html`, and `one-door-vs-many.html`.
@@ -177,7 +179,7 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | New session | Sees the current set. Verified |
 | HTTP server inside our app; a new tool not on the allow list | Not tested |
 
-**Next:** chunk 9, the Talker: drop its hardcoded viewer mapping (SHOW tags → `viewer.*`) for list → menu → call, and make commands strict (`ctx.handle` refuses a command not in `handles`; check every manifest first). The Talker is a `claude` session too, so it can take the same `IModuleDoor` (`mcp_config()`) as the worker; keep SHOW working as the note says. Then the end-of-refactor checks and the restart test checklist (see the handoff section). Restart: chunks 4 to 8 are waiting for one.
+**Next:** all nine chunks are built. Left: the end-of-refactor checks (the module philosophy table, the diagrams against the code, every module with the new tests) and the restart test checklist and script; then the README row moves to the right status. Restart: chunks 4 to 9 are waiting for one.
 
 ## Handoff: how the unattended run continues
 

@@ -63,9 +63,8 @@ class ScopedContext(ModuleContext):
     def handle(self, command_type, handler) -> None:
         self._check_open()
         if command_type not in self._manifest.handles:
-            # A warning for now; refused once every module declares its commands (module system, chunk 9).
-            self.log.warning("%s handles %s without listing it in manifest.handles",
-                             self.module_id, command_type.__name__)
+            # Strict since module system chunk 9: a module's inputs are what its manifest says.
+            raise ValueError(f"{self.module_id!r} must list {command_type.__name__} in manifest.handles")
         self._router.register(command_type, handler)
         self._handlers.append((command_type, handler))
 

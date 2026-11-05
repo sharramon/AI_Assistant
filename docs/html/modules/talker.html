@@ -72,6 +72,7 @@
 <ul>
 <li><strong>One <code>claude -p</code> process</strong> (<a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>), restarted on a <code>ResetRequested</code> for <code>talker</code>.</li>
 <li><strong>Its transcript</strong> in the launch's log folder, and the <strong>restart note</strong> kept across a <code>&lt;&lt;RESTART&gt;&gt;</code>.</li>
+<li><strong>The module door</strong> (built 2026-11-05): its command line is read at each session start, with <code>IModuleDoor.mcp_config()</code> from the Agent Hub as <code>--mcp-config</code> and all three door tools (<code>list_modules</code>, <code>show_menu</code>, <code>use_item</code>) allowed, since it has no permission cards. The core's risky items still ask the permissions first. Its prompt says to use them for quick things and to hand real work to the worker. SHOW tags stay a shorthand for <code>viewer.open</code> / <code>viewer.highlight</code>. <code>door = false</code> in its config turns it off.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
 <pre><code class="language-mermaid">flowchart LR

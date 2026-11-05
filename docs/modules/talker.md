@@ -26,6 +26,7 @@ A fast `claude` session that talks with you and hands work to the Agent Hub. Tag
 
 - **One `claude -p` process** ([`ClaudeSession`](../api/infra.md#claudesession)), restarted on a `ResetRequested` for `talker`.
 - **Its transcript** in the launch's log folder, and the **restart note** kept across a `<<RESTART>>`.
+- **The module door** (built 2026-11-05): its command line is read at each session start, with `IModuleDoor.mcp_config()` from the Agent Hub as `--mcp-config` and all three door tools (`list_modules`, `show_menu`, `use_item`) allowed, since it has no permission cards. The core's risky items still ask the permissions first. Its prompt says to use them for quick things and to hand real work to the worker. SHOW tags stay a shorthand for `viewer.open` / `viewer.highlight`. `door = false` in its config turns it off.
 
 ## Inner workings
 

@@ -308,7 +308,7 @@ transcript = ctx.logs.sink(name) if name else None
 <p>Publish an event. Returns immediately and never waits on subscribers. Events are dropped for a subscriber whose queue is full.</p>
 <h3 id="modulecontexthandle"><code>ModuleContext.handle</code></h3>
 <p><code>handle(command_type: type[K], handler: Callable[[K], Awaitable[Result]]) -&gt; None</code></p>
-<p>Become the single handler for <code>command_type</code>. The handler must return a <a href="messaging.html#result"><code>Result</code></a>. List the type in <code>manifest.handles</code>: today the core logs a warning when it isn't there; refusing it is planned (module system, chunk 9).</p>
+<p>Become the single handler for <code>command_type</code>. The handler must return a <a href="messaging.html#result"><code>Result</code></a>. List the type in <code>manifest.handles</code>: if it isn't there, <code>handle</code> raises <code>ValueError</code> and the module fails to start (strict since 2026-11-05).</p>
 <p><strong>Raises:</strong> <code>ValueError</code> if the command type already has a handler.</p>
 <h3 id="modulecontextsend"><code>ModuleContext.send</code></h3>
 <p><code>async send(command: Command, timeout: float | None = None) -&gt; Result</code></p>
