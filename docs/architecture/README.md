@@ -50,14 +50,14 @@ flowchart LR
     VoiceOut -- audio --> You
     Window -. later .-> Talker
     Quest -. later .-> Talker
-    Talker -. "1 list · 2 menu" .-> Dir
-    Main -. "1 list · 2 menu" .-> Dir
+    Talker -- "1 list · 2 menu (MCP door)" --> Dir
+    Main -- "1 list · 2 menu (MCP door)" --> Dir
     Talker -- "3 call (InvokeTool)" --> Cmds
-    Main -. "3 call · one MCP door" .-> Cmds
+    Main -- "3 call (InvokeTool)" --> Cmds
     Cmds -- "open a page" --> Viewer
     VoiceIn -- VoiceTranscript --> Events
-    Events -. listens .-> Notes
-    Notes -. requires .-> Contracts
+    Events -- listens --> Notes
+    Notes -- "requires IVoice" --> Contracts
     Main -- "may I?" --> Perms
     Perms -- "allow? (card · voice)" --> Talker
     You -. on / off .-> Control

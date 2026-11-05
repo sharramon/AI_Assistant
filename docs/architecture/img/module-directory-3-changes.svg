@@ -70,5 +70,5 @@
   <text x="1045" y="222" text-anchor="middle" class="lb">Both use generic asks</text>
 
   <rect x="440" y="270" width="320" height="44" rx="22" class="tagO"/>
-  <text x="600" y="298" text-anchor="middle" class="oT" style="font-size:16px">Needs restart · Planned, not built</text>
+  <text x="600" y="298" text-anchor="middle" class="oT" style="font-size:16px">Built 2026-11-05 · needed a restart</text>
 </svg>

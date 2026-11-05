@@ -1,6 +1,6 @@
 # Module system: one interface, a directory, menus everywhere
 
-> **Status: building (2026-11-05).** Approved 2026-11-05: you sent the whole refactor to run unattended in Auto. Progress per chunk and the choices made on the way: [Progress and decision log](#progress-and-decision-log). **Supersedes** the [module shape note](module-shape-refactor.md) (approved 2026-11-04, never built). Its design stays on the [Modules](../architecture/modules.md) page, and its "Diagrams to update" table is still the full list of doc changes. This note adds the one interface, puts every module in the build order, and brings in the agents.
+> **Status: built (waiting on you) (2026-11-05):** all nine chunks are built and committed; the app needs a restart, then the [restart test](#restart-test-after-you-restart-the-app). Approved 2026-11-05: you sent the whole refactor to run unattended in Auto. Progress per chunk and the choices made on the way: [Progress and decision log](#progress-and-decision-log). **Supersedes** the [module shape note](module-shape-refactor.md) (approved 2026-11-04, never built). Its design stays on the [Modules](../architecture/modules.md) page, and its "Diagrams to update" table is still the full list of doc changes. This note adds the one interface, puts every module in the build order, and brings in the agents.
 
 **Asked:** rework all tools, modules and the architecture around modules, so everything is hot-swappable. Every module is a wrapper with inputs and outputs (a menu), the main system knows which modules exist, and the Talker and Main Assistant can find modules and call them. One reusable module interface (`ModuleProtocol`) that every module implements, and every existing module recoded with it in mind.
 
@@ -179,8 +179,43 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | New session | Sees the current set. Verified |
 | HTTP server inside our app; a new tool not on the allow list | Not tested |
 
-**Next:** all nine chunks are built. Left: the end-of-refactor checks (the module philosophy table, the diagrams against the code, every module with the new tests) and the restart test checklist and script; then the README row moves to the right status. Restart: chunks 4 to 9 are waiting for one.
+**Next:** nothing left to build. The restart test below is for you (or the Talker) after the restart. Delete `docs/temp/tool-*.html` and `one-door-vs-many.html` when you're done with them.
 
+## Final checks (2026-11-05)
+
+**Module philosophy** (principles 2, 3, 11 to 17; the modules and communication pages), checked against the code of every module. Columns: one interface and a description; inputs and outputs declared (`handles` is strict now); dependencies by contract only; imports only `assistant.contracts`, `assistant.infra`, `app_kit` (and shared protocols); hot swap (reload, off, on: `tests/test_swap_every_module.py`).
+
+| Module | Interface, description | Declared in / out | By contract | Imports | Menu | Hot swap | Agrees? |
+|---|---|---|---|---|---|---|---|
+| `console_io` | yes | yes | nothing needed | yes | none | reload in `test_reload` (reads the console, so not in the swap-all test) | yes |
+| `echo_orchestrator` | yes | yes | `optional IToolProvider` | yes | `echo.say` | yes | yes |
+| `agent_hub` | yes | yes | provides `IModuleDoor`, `optional ITaskAgent` | yes (+ `infra.mcp_door`) | none | yes; door handed over; waits while tasks are open | yes |
+| `main_assistant` | yes | yes | provides `ITaskAgent`; reads `IModuleDoor` without listing it (D19, would be circular) | yes | none | yes; waits while busy; a fresh session after | yes, one documented exception |
+| `talker` | yes | yes | `optional IModuleDoor` (**fixed in this check**: it read it without listing it) | yes | none | yes | yes (fixed) |
+| `assistant_view` | yes | yes | nothing needed | yes | none | yes | yes |
+| `temp_ui` | yes | yes | sends the voice commands (the UI button form, D15) | yes | none | yes | yes (stand-in) |
+| `html_viewer` | yes | yes | nothing needed; listens to `AgentActivity` for SHOW tags (D20) | yes | `viewer.open / highlight / tabs` | yes; viewer handed over, restarted when its code changed | yes |
+| `voice_in` | yes | yes | provides `IVoice` | yes (+ `voice_service.protocol`, the shared wire protocol) | none | yes; service handed over or restarted | yes |
+| `voice_notes` | yes | yes | `requires IVoice` | yes | none | yes; its recorder comes back after a `voice_in` reload | yes |
+
+Known gaps, not disagreements: most modules have no menu items yet (principle 14's "Today"); the Talker, Main Assistant and Agent Hub hand over no task state, so a reload waits until idle and starts them clean; the permissions handler is still the allow-all stand-in.
+
+**Diagrams against the code:** the overview chart's agent edges (list · menu · call through the MCP door) and voice notes' `requires IVoice` are now solid lines, and the Lifecycle box drops "find by folder: planned". The modules page's door and chaining charts match the code. The SVGs `module-directory-2-steps` and `-3-changes` say "Built 2026-11-05". The module library table is generated from the manifests, so it can't drift. The core page's lifecycle chart starts with `find_modules()`.
+
+**Tests:** 413 tests, plus the two real-`claude` ones (deselected, paid). Two flaky tests, both in companion-app server code this refactor didn't change, fail now and then in a full run and pass alone: `test_voice_pieces::test_closing_the_socket_…` and `test_html_viewer::test_refuses_what_it_cant_do`.
+
+## Restart test (after you restart the app)
+
+Every chunk from 4 on needs it (core, contracts, `infra`, `app_kit`). No reset steps: the default config already enables the same modules, in an order the core works out.
+
+1. **It starts:** the temp UI and the voice notes window open; nothing in the app log says `Skipping the module folder` or `must list … in manifest.handles`. The log says `The agents' module door is at http://127.0.0.1:<port>`.
+2. **The door, paid check (optional, about one cent):** `.\.venv\Scripts\python -m pytest -m claude tests/test_mcp_door.py`.
+3. **The Talker finds modules:** ask "which modules are there?". It should call `list_modules` and name ten modules plus `core`. Ask "open docs/html/architecture/modules.html": a page opens (through `use_item viewer.open` or a SHOW tag).
+4. **The worker finds modules:** give it a small task like "list the modules through your modules tools and show the HTML viewer's menu". In Manual, `use_item` asks with a card; `list_modules` and `show_menu` don't.
+5. **Hot swap each module:** from the Talker, "reload <id>" (`use_item modules.reload`), or a worker `RELOAD: <id>` line. Do `voice_in`, `voice_notes`, `html_viewer` (tabs stay), `temp_ui` (the page reconnects), `agent_hub` (when no task is open), `main_assistant` (from the Talker), and `talker` (from the worker's `RELOAD: talker`, not from itself). Each should end `active`.
+6. **On and off, with dependencies:** "turn voice_in off" is refused while voice notes is on. "Turn voice_notes off", then "turn voice_in off": both go. "Turn voice_notes on": `voice_in` comes on first by itself.
+7. **Voice notes uses the recorder through `IVoice`:** in the voice notes window press Record, speak, then Stop: the text lands in the notes, never in the chat. Press Record, then the chat's mic: the notes say "cancelled" and only the chat gets the words. Then reload `voice_in` and record again: it still works (the new provider is looked up per call).
+8. **A companion app with new code:** edit any file under `src/voice_service/` (a comment is enough), then reload `voice_in`. The log says "The voice service's code changed; it restarts with the new code", and the next mic press launches it fresh.
 ## Handoff: how the unattended run continues
 
 The user is away. Run every remaining chunk in Auto without asking for plan approval. **One chunk per session:** build it, run the tests and ruff, the `architecture-check` skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (`scripts\build_docs.py`), commit locally ("Module system, chunk N: …", like `git log`), update the progress table above, then end with `HANDOFF: docs/next-steps/module-system.md`.

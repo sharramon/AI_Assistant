@@ -49,7 +49,7 @@
   <text x="125" y="348" class="sm" text-anchor="end">questions ↑</text>
   <rect x="30" y="515" width="210" height="52" rx="12" class="tagO"/>
   <text x="135" y="537" text-anchor="middle" class="oT">Main Assistant uses these</text>
-  <text x="135" y="556" text-anchor="middle" style="font-size:13px;fill:#c0661b">Planned</text>
+  <text x="135" y="556" text-anchor="middle" style="font-size:13px;fill:#3b8a52">Built 2026-11-05</text>
 
   <line x1="234" y1="210" x2="290" y2="270" stroke="#c0661b" stroke-width="4" stroke-dasharray="9 6" marker-end="url(#aO)"/>
   <line x1="234" y1="455" x2="290" y2="395" stroke="#c0661b" stroke-width="4" stroke-dasharray="9 6" marker-end="url(#aO)"/>

@@ -248,6 +248,7 @@ class TalkerModule(ModuleProtocol):
     manifest = Manifest(
         id="talker",
         description="Talks with you; hands work to the Agent Hub",
+        optional=(IModuleDoor,),  # the agents' door to the module menus, from the Agent Hub
         sends=(StartTask, GetTaskStatus, SendToTask, CancelTask, AnswerPermission, SetPermissionMode, InvokeTool,),
         publishes=(ResponseReady, SessionUsage, SessionTheme, ResetRequested, ShutdownRequested,),
         listens=(InputReceived, TaskUpdated, SessionUsage, ResetRequested, PermissionModeChanged, ViewerTabsChanged, ViewerClip, ViewerClipDropped,),

@@ -58,14 +58,14 @@
     VoiceOut -- audio --&gt; You
     Window -. later .-&gt; Talker
     Quest -. later .-&gt; Talker
-    Talker -. &quot;1 list · 2 menu&quot; .-&gt; Dir
-    Main -. &quot;1 list · 2 menu&quot; .-&gt; Dir
+    Talker -- &quot;1 list · 2 menu (MCP door)&quot; --&gt; Dir
+    Main -- &quot;1 list · 2 menu (MCP door)&quot; --&gt; Dir
     Talker -- &quot;3 call (InvokeTool)&quot; --&gt; Cmds
-    Main -. &quot;3 call · one MCP door&quot; .-&gt; Cmds
+    Main -- &quot;3 call (InvokeTool)&quot; --&gt; Cmds
     Cmds -- &quot;open a page&quot; --&gt; Viewer
     VoiceIn -- VoiceTranscript --&gt; Events
-    Events -. listens .-&gt; Notes
-    Notes -. requires .-&gt; Contracts
+    Events -- listens --&gt; Notes
+    Notes -- &quot;requires IVoice&quot; --&gt; Contracts
     Main -- &quot;may I?&quot; --&gt; Perms
     Perms -- &quot;allow? (card · voice)&quot; --&gt; Talker
     You -. on / off .-&gt; Control
