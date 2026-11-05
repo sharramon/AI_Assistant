@@ -323,6 +323,36 @@ if watch.crossed("main_assistant", usage.context_tokens):
 question = last_line(text, "NEED:")   # "Which folder?" or None
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/agent_tags.py</code> · <strong>Tests:</strong> <code>tests/test_agent_tags.py</code></p>
+<h2 id="mcp_door"><code>mcp_door</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> (hosts the <code>DoorServer</code>), <code>main_assistant</code> (its sessions run the relay) · built 2026-11-05</p>
+<p>The agents' one MCP door to the module menus (<a href="../architecture/modules.html#how-the-agents-reach-the-menus-one-door">design</a>). <code>from assistant.infra.mcp_door import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>relay: <code>python -m assistant.infra.mcp_door</code></td>
+<td>A stdio MCP server <code>claude</code> starts from its <code>--mcp-config</code> (standard library only). Three fixed tools, <code>list_modules</code>, <code>show_menu(module_id)</code>, <code>use_item(name, args)</code>; each call is passed to the app over local HTTP with a token (env <code>ASSISTANT_DOOR_URL</code>, <code>ASSISTANT_DOOR_TOKEN</code>). If the app doesn't answer (a restart), the call returns an error and the next one tries again</td>
+</tr>
+<tr>
+<td><code>DoorServer(send, commands, host="127.0.0.1", port=0, token=None, core_line=None)</code></td>
+<td>The app-side endpoint, <code>POST /tool</code> with <code>{"tool", "arguments"}</code> and the <code>x-door-token</code> header (403 without it). <code>commands</code> maps <code>list</code> / <code>menu</code> / <code>call</code> to <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code>, sent with <code>send</code> (a module's <code>ctx.send</code>). <code>async start()</code> / <code>stop()</code>, <code>url</code>, <code>token</code>, <code>mcp_config()</code> (the relay's config, <code>{}</code> while down), <code>async call(tool, arguments)</code></td>
+</tr>
+<tr>
+<td><code>TOOLS</code>, <code>TOOL_NAMES</code>, <code>READ_ONLY</code></td>
+<td>The tools' MCP specs; their names as claude sees them (<code>mcp__modules__list_modules</code>, …); the two that only read</td>
+</tr>
+<tr>
+<td><code>plain(value)</code></td>
+<td>A result as plain JSON data (pydantic models, dataclasses, enums)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/mcp_door.py</code> · <strong>Tests:</strong> <code>tests/test_mcp_door.py</code> (the relay as a real process; one real-<code>claude</code> test under the <code>claude</code> marker)</p>
 <p>The Edge window functions (<code>open_app_window</code>, <code>close_app_windows</code>) moved to <a href="app_kit.html#window">App kit</a>; they aren't re-exported here.</p>
 <footer>Generated from <code>docs/api/infra.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

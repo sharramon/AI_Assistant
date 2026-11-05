@@ -90,6 +90,24 @@
 <pre><code>result = await ctx.send(InvokeTool(name="add", args={"a": 1, "b": 2}), timeout=10)
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/tools.py</code></p>
+<h2 id="imoduledoor"><code>IModuleDoor</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> provides; <code>main_assistant</code> reads it at each session start · built 2026-11-05</p>
+<p><code>class IModuleDoor(Contract)</code>, single provider, in <code>assistant.contracts</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mcp_config() -&gt; dict</code></td>
+<td>The <code>--mcp-config</code> for one <code>claude</code> session: the door's stdio relay (<a href="infra.html#mcp_door"><code>mcp_door</code></a>), or <code>{}</code> while it's down. Pass it to <a href="infra.html#claude_command"><code>claude_command(mcp_config=...)</code></a></td>
+</tr>
+</tbody>
+</table>
+<p>The session then has three fixed tools, the same whatever modules are on: <code>mcp__modules__list_modules</code> (one line per module, plus <code>core</code>), <code>mcp__modules__show_menu(module_id)</code> (that module's <code>ToolSpec</code>s) and <code>mcp__modules__use_item(name, args)</code> (<code>InvokeTool</code>). They go through the core, so the directory, the menus' argument checks, permissions and hot swap all apply. Modules never provide or use it: MCP stays at the agents' edge.</p>
 <h2 id="tools-offered-today">Tools offered today</h2>
 <p>Every item of every module's menu; the <a href="../architecture/module-library.html">module library</a> lists them per module (generated). Arguments are checked against the item's schema first: a missing or empty required one, a wrong type or an unknown one gives <code>invalid_arguments</code>.</p>
 <table>

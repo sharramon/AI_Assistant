@@ -37,6 +37,7 @@ def claude_command(
     permission_prompts: bool = False,
     system_prompt: str | None = None,
     program: Sequence[str] = ("claude",),
+    mcp_config: dict | None = None,
 ) -> list[str]:
     """The command line for a stream-json `claude -p` session.
 
@@ -48,6 +49,8 @@ def claude_command(
     `permission_prompts`, anything the rules don't allow arrives as a
     `can_use_tool` control request instead of being refused; answer it with
     `ClaudeSession.answer_permission`. `program` is replaceable so tests can run a fake.
+    `mcp_config` (e.g. the module door's, `IModuleDoor.mcp_config()`) becomes `--mcp-config`;
+    with `--strict-mcp-config` it's the only MCP server the session sees.
     """
     command = [
         *program, "-p",
@@ -57,6 +60,8 @@ def claude_command(
         "--strict-mcp-config",
         "--tools", tools,
     ]
+    if mcp_config:
+        command += ["--mcp-config", json.dumps(mcp_config)]
     if model:
         command += ["--model", model]
     if permission_mode:

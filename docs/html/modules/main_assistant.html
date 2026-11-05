@@ -76,6 +76,7 @@
 <ul>
 <li><strong>A <code>claude -p</code> process</strong> per task (<code>fresh_sessions</code>), through the shared <a href="../api/infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> and <a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>. It starts with the module and stops with it.</li>
 <li><strong>Its transcript</strong> in the launch's log folder.</li>
+<li><strong>The module door</strong> in each new session (built 2026-11-05): <code>IModuleDoor.mcp_config()</code>, read at each session start, becomes <code>--mcp-config</code>. Its tools <code>list_modules</code> and <code>show_menu</code> are allowed; <code>use_item</code> asks with the card in Manual. The prompt tells it to use them. <code>door = false</code> in its config turns it off. It doesn't list <code>IModuleDoor</code> as <code>optional</code> (the Hub lists <code>ITaskAgent</code>, and the two would be circular), so its first session may start before the door is up; the next task's fresh session has it.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
 <pre><code class="language-mermaid">flowchart LR

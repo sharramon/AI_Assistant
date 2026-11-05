@@ -34,6 +34,7 @@ from assistant.contracts.control import (
     ModuleStateChanged,
     ReloadModule,
 )
+from assistant.contracts.door import IModuleDoor
 from assistant.contracts.menu import Menu, MenuItem
 from assistant.contracts.messages import (
     Command,
@@ -129,4 +130,5 @@ __all__ = [
     "VoiceDestination",
     "VoiceTranscript",
     "IVoice",
+    "IModuleDoor",
 ]

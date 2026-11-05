@@ -328,6 +328,13 @@
 <td><code>infra/agent_tags.py</code></td>
 <td><code>talker</code> (also <code>RESTART_READY</code>), <code>html_viewer</code> module, <code>SessionTaskAgent</code></td>
 </tr>
+<tr>
+<td><a href="infra.html#mcp_door"><code>mcp_door</code></a>, <a href="tools.html#imoduledoor"><code>IModuleDoor</code></a></td>
+<td>module, contract</td>
+<td>The agents' one MCP door: a stdio relay <code>claude</code> starts, and the app-side <code>DoorServer</code> sending <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code></td>
+<td><code>infra/mcp_door.py</code>, <code>contracts/door.py</code></td>
+<td><code>agent_hub</code> (hosts, provides), <code>main_assistant</code> (each session)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="shared-with-the-independent-apps-app_kit">Shared with the independent apps: <code>app_kit</code></h2>

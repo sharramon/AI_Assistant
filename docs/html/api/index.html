@@ -21,7 +21,7 @@
 <ul>
 <li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code>, <code>Manifest</code>, the Event Bus, <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
 <li><strong>Voice service</strong> (<code>voice_service</code>): the <code>/ws/listen</code> messages (<code>protocol</code>); inside the service, <code>SttEngine</code> / <code>SttStream</code>, <code>AudioSource</code> / <code>FakeSource</code> / <code>FileSource</code>, and <code>transcribe</code> / <code>transcribe_file</code></li>
-<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code></li>
+<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>mcp_door</code></li>
 <li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code>, <code>load_layered</code>, <code>local_path</code>, <code>CompanionApp</code></li>
 </ul>
 <h2 id="groups">Groups</h2>
@@ -211,6 +211,11 @@
 <td><a href="tools.html#invoketool"><code>InvokeTool</code></a></td>
 <td>command</td>
 <td>Run a tool by name; routed to its provider</td>
+</tr>
+<tr>
+<td><a href="tools.html#imoduledoor"><code>IModuleDoor</code></a></td>
+<td>contract</td>
+<td>♻ The agents' one MCP door: <code>mcp_config()</code> for a <code>claude</code> session (list modules · show a menu · use an item); <code>agent_hub</code> provides it</td>
 </tr>
 <tr>
 <td><a href="tools.html#tools-offered-today">Tools offered today</a></td>
@@ -465,6 +470,11 @@
 <td><a href="infra.html#agent_tags"><code>agent_tags</code></a></td>
 <td>functions</td>
 <td>♻ Read SHOW tags, <code>NEED:</code> and <code>HANDOFF:</code> lines the same way everywhere</td>
+</tr>
+<tr>
+<td><a href="infra.html#mcp_door"><code>mcp_door</code></a></td>
+<td>module</td>
+<td>♻ The door's stdio relay (<code>python -m assistant.infra.mcp_door</code>) and its app-side <code>DoorServer</code></td>
 </tr>
 </tbody>
 </table>

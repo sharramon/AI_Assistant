@@ -49,7 +49,7 @@ Each manifest gets a one-line description, the core gets the two asks, and both 
 
 ### How the agents reach the menus: one door
 
-> **Status: decided 2026-11-05, planned** (chunk 8 of the module system change note, `docs/next-steps/module-system.md`).
+> **Status: built for the Main Assistant (2026-11-05); the Talker is next** (chunk 9 of the module system change note, `docs/next-steps/module-system.md`). The door is a small **stdio relay** that `claude` starts itself (`python -m assistant.infra.mcp_door`, from the session's `--mcp-config`); it passes each call over local HTTP, with a token, to a `DoorServer` the Agent Hub hosts, which sends `ListModules`, `GetMenu` or `InvokeTool` through the core. The Hub offers it as the [`IModuleDoor`](../api/tools.md#imoduledoor) contract. In Manual, `use_item` asks with the permission card; the two read-only tools don't.
 
 The agents are `claude` sessions, and MCP is how a `claude` session calls tools in the middle of a reply. So the app serves **one MCP server, the door**, in front of the core. It has three fixed tools that map onto the three steps above: **list modules**, **show a menu**, **use an item**. Everything behind it is our own wrapper: the core's directory, `InvokeTool`, and the permission check.
 
@@ -172,7 +172,7 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Manifest description, commands (`handles`, `sends`) and events (`publishes`, `listens`) | Built (2026-11-05); the core warns on an unlisted handled command, refusing it is planned |
 | `ctx.logs` port | Built (2026-11-05) |
 | Directory and menu asks (`ListModules` with descriptions, `GetMenu`, the core's `modules.*` menu) | Built (2026-11-05) |
-| Both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
+| Both assistants using them through one MCP door | Main Assistant built (2026-11-05: `IModuleDoor`, the stdio relay); the Talker planned (chunk 9) |
 | Finding modules by folder | Built (2026-11-05) |
 | Voice contract; voice sessions with a destination | Built (2026-11-05): `IVoice`, one mic, each caller owns its session; parallel sessions would need the voice service to take several listeners |
 | Voice-notes module | Built (v1 2026-11-04; requires `IVoice` 2026-11-05) |

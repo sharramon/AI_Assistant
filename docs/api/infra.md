@@ -231,4 +231,19 @@ Reads the tags agents write in their text, the same way everywhere. Replaced the
 
 **Defined in:** `src/assistant/infra/agent_tags.py` · **Tests:** `tests/test_agent_tags.py`
 
+## `mcp_door`
+
+**Reusable** · Used by: `agent_hub` (hosts the `DoorServer`), `main_assistant` (its sessions run the relay) · built 2026-11-05
+
+The agents' one MCP door to the module menus ([design](../architecture/modules.md#how-the-agents-reach-the-menus-one-door)). `from assistant.infra.mcp_door import ...`
+
+| Item | Does |
+|------|------|
+| relay: `python -m assistant.infra.mcp_door` | A stdio MCP server `claude` starts from its `--mcp-config` (standard library only). Three fixed tools, `list_modules`, `show_menu(module_id)`, `use_item(name, args)`; each call is passed to the app over local HTTP with a token (env `ASSISTANT_DOOR_URL`, `ASSISTANT_DOOR_TOKEN`). If the app doesn't answer (a restart), the call returns an error and the next one tries again |
+| `DoorServer(send, commands, host="127.0.0.1", port=0, token=None, core_line=None)` | The app-side endpoint, `POST /tool` with `{"tool", "arguments"}` and the `x-door-token` header (403 without it). `commands` maps `list` / `menu` / `call` to `ListModules` / `GetMenu` / `InvokeTool`, sent with `send` (a module's `ctx.send`). `async start()` / `stop()`, `url`, `token`, `mcp_config()` (the relay's config, `{}` while down), `async call(tool, arguments)` |
+| `TOOLS`, `TOOL_NAMES`, `READ_ONLY` | The tools' MCP specs; their names as claude sees them (`mcp__modules__list_modules`, …); the two that only read |
+| `plain(value)` | A result as plain JSON data (pydantic models, dataclasses, enums) |
+
+**Defined in:** `src/assistant/infra/mcp_door.py` · **Tests:** `tests/test_mcp_door.py` (the relay as a real process; one real-`claude` test under the `claude` marker)
+
 The Edge window functions (`open_app_window`, `close_app_windows`) moved to [App kit](app_kit.md#window); they aren't re-exported here.

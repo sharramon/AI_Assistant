@@ -331,7 +331,13 @@ class HtmlViewerModule(ModuleProtocol):
 <td>yes (<code>app_kit</code>)</td>
 </tr>
 <tr>
-<td>8 to 9</td>
+<td>8</td>
+<td>built: the one MCP door. <code>infra/mcp_door.py</code> (a stdio relay <code>claude</code> starts, and the app-side <code>DoorServer</code>), the <code>IModuleDoor</code> contract provided by <code>agent_hub</code> (port and token handed over on reload), <code>main_assistant</code> passes it as <code>--mcp-config</code> to each new session (read-only tools allowed, <code>use_item</code> asks in Manual)</td>
+<td>see <code>git log</code> ("Module system, chunk 8")</td>
+<td>yes (contracts, infra)</td>
+</tr>
+<tr>
+<td>9</td>
 <td>not started</td>
 <td></td>
 <td></td>
@@ -357,6 +363,11 @@ class HtmlViewerModule(ModuleProtocol):
 <li><strong>D15 (chunk 6): the temp UI keeps <code>StartListening</code> / <code>StopListening</code>.</strong> The commands stay as the UI button's form, backed by the same session code, so the throwaway temp UI isn't reworked. It doesn't list <code>IVoice</code>; its mic says "voice input is off" when no handler is there, as before.</li>
 <li><strong>D16 (chunk 7): "reload with restart" is automatic, no new command field.</strong> A reload compares the companion app's source with what it was when the module started using it (<code>CompanionApp.code_changed()</code>: newest <code>.py</code> mtime and file count). Changed: no handover, and the old copy quits the app; unchanged: handed over. No <code>ReloadModule(restart_apps=...)</code> flag, so nothing in the contracts changed.</li>
 <li><strong>D17 (chunk 7): turning a module off still quits only an app it launched.</strong> A viewer or voice service you started yourself stays open on <code>DeactivateModule</code>; only a reload with changed code quits an adopted one (<code>stop(adopted=True)</code>), because otherwise the old code would keep running.</li>
+<li><strong>D18 (chunk 8): the stdio relay, not an MCP server inside the app.</strong> The early check: no MCP library is installed (installing one needs your OK), and the streamable-HTTP MCP flavour can't be checked against the real <code>claude</code> without a paid call. So I took the fallback the note names: a tiny stdio relay <code>claude</code> starts itself (the experiment verified stdio servers with Claude Code 2.1.318), passing calls to a plain local HTTP endpoint in the app. Hand-written JSON-RPC, standard library only. The real-<code>claude</code> test is written (<code>tests/test_mcp_door.py</code>, <code>claude</code> marker) but <strong>not run</strong>: it costs a call. Run it after the restart: <code>.\.venv\Scripts\python -m pytest -m claude tests/test_mcp_door.py</code>.</li>
+<li><strong>D19 (chunk 8): <code>main_assistant</code> doesn't list <code>IModuleDoor</code> as <code>optional</code>.</strong> The Hub lists <code>ITaskAgent</code> as <code>optional</code>, so the two would be a circular dependency. It looks the door up at each session start instead, so the first session after launch may start before the door is up; every later task's fresh session has it.</li>
+<li><strong>D20 (chunk 8): the viewer keeps watching the Main Assistant's SHOW tags.</strong> The worker's standing prompt (the one this run uses) relies on SHOW tags to open pages, so dropping that now would break page showing until the prompt changes. The door is added alongside; drop the tag watching once the real-<code>claude</code> test passes and the prompt says to use <code>viewer.open</code>.</li>
+<li><strong>D21 (chunk 8): in Auto, <code>use_item</code> runs without a card.</strong> That's <code>bypassPermissions</code>, like every other tool in Auto. The core menu's risky items (<code>modules.off</code> with dependents, <code>modules.add</code>) still go through the permissions stand-in, which allows and logs (D8).</li>
+<li><strong>D22 (chunk 8): the door's port is free by default.</strong> <code>door_port = 0</code> (no config change), handed to the new copy with the token on a Hub reload, so tests never collide with the running app.</li>
 <li><strong>Known flake 2:</strong> <code>tests/test_html_viewer.py::test_refuses_what_it_cant_do</code> once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).</li>
 </ul>
 <p><strong>Before the build (2026-11-05):</strong> this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in <code>docs/temp/</code> (not in the docs build): <code>tool-paths.html</code>, <code>tool-mcp-wrapper.html</code>, and <code>one-door-vs-many.html</code>.</p>
@@ -403,7 +414,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 </tbody>
 </table>
-<p><strong>Next:</strong> chunk 8, the MCP door (decision 2). First the HTTP spike: can a small MCP server inside our app (streamable HTTP on a local port) be passed to a <code>claude -p</code> session and its tools called? If not, the stdio relay fallback. Then three fixed tools (list modules, show a menu, use an item) going through the core (<code>ListModules</code>, <code>GetMenu</code>, <code>InvokeTool</code>) and the permission card; <code>main_assistant</code> uses it; the viewer stops watching its SHOW tags; <code>agent_hub</code> as needed. Riskiest: it changes the agent that runs this work, so test with the fake <code>claude</code> plus one real-<code>claude</code> test. Restart: chunks 4 to 7 are waiting for one.</p>
+<p><strong>Next:</strong> chunk 9, the Talker: drop its hardcoded viewer mapping (SHOW tags → <code>viewer.*</code>) for list → menu → call, and make commands strict (<code>ctx.handle</code> refuses a command not in <code>handles</code>; check every manifest first). The Talker is a <code>claude</code> session too, so it can take the same <code>IModuleDoor</code> (<code>mcp_config()</code>) as the worker; keep SHOW working as the note says. Then the end-of-refactor checks and the restart test checklist (see the handoff section). Restart: chunks 4 to 8 are waiting for one.</p>
 <h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
 <p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
 <ul>

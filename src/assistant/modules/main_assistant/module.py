@@ -17,6 +17,7 @@ from typing import Any
 from assistant.contracts import (
     AgentActivity,
     AgentStateChanged,
+    IModuleDoor,
     ITaskAgent,
     Manifest,
     ModuleContext,
@@ -29,6 +30,15 @@ from assistant.contracts import (
 )
 from assistant.infra import ClaudeSession, SessionTaskAgent, claude_command
 from assistant.infra.claude_session import path_rule
+from assistant.infra.mcp_door import READ_ONLY as DOOR_READ_TOOLS
+
+DOOR_PROMPT = """
+
+The app's modules: your `modules` tools reach every module's menu through the app's core. \
+Call `list_modules` (one line each), then `show_menu` for the module you need, then \
+`use_item` with an item's name and inputs (for example `viewer.open` with a path). \
+Module control (on, off, reload, add) is the `core` menu. The SHOW, RELOAD and ADD_MODULE \
+lines still work as before."""
 
 WORKER_PROMPT = """\
 You are the Main Assistant of a personal AI assistant. Tasks are handed to you \
@@ -123,7 +133,7 @@ class MainAssistantModule(ModuleProtocol):
         task_file = self._workspace / ".claude" / "state" / f"{self.manifest.id}-task.txt"
         # Read on every session start, so a new session gets the mode of that moment.
         self._session = ClaudeSession(
-            lambda: build_command(ctx.config, self._workspace, self._agent.permission_mode),
+            lambda: build_command(ctx.config, self._workspace, self._agent.permission_mode, self._door()),
             cwd=self._workspace, log=ctx.log, transcript=ctx.logs.sink(ctx.config["transcript"]) if ctx.config.get("transcript") else None,
             env=hook_env(self.manifest.id, task_file, edit_note),
         )
@@ -150,6 +160,15 @@ class MainAssistantModule(ModuleProtocol):
             if not result.is_ok:
                 self._ctx.log.warning("Couldn't reset: %s", result.error)
 
+    def _door(self) -> dict:
+        """The module door's MCP config for the next session, read at each session start (the
+        hub may have been reloaded), or {} if it's off or not there yet. Not in the manifest's
+        `optional`: the hub already lists `ITaskAgent` there, and the two would be circular."""
+        if not self._ctx.config.get("door", True):
+            return {}
+        door = self._ctx.get_one(IModuleDoor)
+        return door.mcp_config() if door is not None else {}
+
     def busy(self) -> str | None:
         """A reload waits while a task runs (no handover of the task yet)."""
         return "working on a task" if self._agent.info().busy else None
@@ -163,18 +182,24 @@ class MainAssistantModule(ModuleProtocol):
         await self._session.close()
 
 
-def build_command(config: dict[str, Any], workspace: Path, mode: PermissionMode) -> list[str]:
+def build_command(
+    config: dict[str, Any], workspace: Path, mode: PermissionMode, door: dict | None = None
+) -> list[str]:
     """The worker's command line and prompt for `mode`.
 
     Both modes keep the standing rules and the permission prompts, so a switch to Manual
     mid-task (a live `set_permission_mode`) asks through the cards again. Auto adds
     `bypassPermissions`, the `git push` block, and the risky-step rule in the prompt.
+    With the module `door` (an `IModuleDoor.mcp_config()`), its two read-only tools are
+    allowed; `use_item` asks with a card in Manual, like any tool outside the rules.
     """
     read_dirs = config.get("read_dirs", [])
     write_dirs = config.get("write_dirs", [])
     commands = config.get("allowed_commands", [])
     allowed = [path_rule("Read", d) for d in read_dirs] + [path_rule("Edit", d) for d in write_dirs]
     allowed += [rule for c in commands for rule in command_rules(c)]
+    if door:
+        allowed += list(DOOR_READ_TOOLS)
     auto = mode is PermissionMode.AUTO
     return claude_command(
         model=config.get("model"),
@@ -183,8 +208,10 @@ def build_command(config: dict[str, Any], workspace: Path, mode: PermissionMode)
         allowed=allowed,
         disallowed=AUTO_BLOCKED if auto else (),
         permission_prompts=config.get("permission_prompts", True),
-        system_prompt=WORKER_PROMPT + _access(workspace, read_dirs, write_dirs, commands, mode),
+        system_prompt=WORKER_PROMPT + _access(workspace, read_dirs, write_dirs, commands, mode)
+        + (DOOR_PROMPT if door else ""),
         program=config.get("program", ["claude"]),
+        mcp_config=door or None,
     )
 
 

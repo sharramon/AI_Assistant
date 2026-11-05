@@ -79,6 +79,18 @@ Run the tool called `name`. Handled by the core, which routes it to the provider
 
 **Defined in:** `src/assistant/contracts/tools.py`
 
+## `IModuleDoor`
+
+**Reusable** · Used by: `agent_hub` provides; `main_assistant` reads it at each session start · built 2026-11-05
+
+`class IModuleDoor(Contract)`, single provider, in `assistant.contracts`.
+
+| Method | Does |
+|--------|------|
+| `mcp_config() -> dict` | The `--mcp-config` for one `claude` session: the door's stdio relay ([`mcp_door`](infra.md#mcp_door)), or `{}` while it's down. Pass it to [`claude_command(mcp_config=...)`](infra.md#claude_command) |
+
+The session then has three fixed tools, the same whatever modules are on: `mcp__modules__list_modules` (one line per module, plus `core`), `mcp__modules__show_menu(module_id)` (that module's `ToolSpec`s) and `mcp__modules__use_item(name, args)` (`InvokeTool`). They go through the core, so the directory, the menus' argument checks, permissions and hot swap all apply. Modules never provide or use it: MCP stays at the agents' edge.
+
 ## Tools offered today
 
 Every item of every module's menu; the [module library](../architecture/module-library.md) lists them per module (generated). Arguments are checked against the item's schema first: a missing or empty required one, a wrong type or an unknown one gives `invalid_arguments`.

@@ -59,6 +59,7 @@ Its own app; never imports `assistant`. The protocol is shared with its Python c
 | [`session_usage`](infra.md#session_usage) | function | A session's usage as `SessionUsage` | `infra/session_agent.py` | `SessionTaskAgent`, `talker` |
 | [`ContextWatch`](infra.md#contextwatch) | class | Says once when a context passes a size; re-arms when it's back under | `infra/context_watch.py` | `talker` (`context_warning`), `SessionTaskAgent` (`context_reminder`) |
 | [`agent_tags`](infra.md#agent_tags) | functions | Read `<<TAG: …>>` tags, SHOW arguments, `NEED:` and `HANDOFF:` lines | `infra/agent_tags.py` | `talker` (also `RESTART_READY`), `html_viewer` module, `SessionTaskAgent` |
+| [`mcp_door`](infra.md#mcp_door), [`IModuleDoor`](tools.md#imoduledoor) | module, contract | The agents' one MCP door: a stdio relay `claude` starts, and the app-side `DoorServer` sending `ListModules` / `GetMenu` / `InvokeTool` | `infra/mcp_door.py`, `contracts/door.py` | `agent_hub` (hosts, provides), `main_assistant` (each session) |
 
 ## Shared with the independent apps: `app_kit`
 

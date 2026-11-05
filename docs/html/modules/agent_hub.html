@@ -29,7 +29,7 @@
 </tr>
 <tr>
 <td>provides / requires</td>
-<td>nothing</td>
+<td>provides <a href="../api/tools.html#imoduledoor"><code>IModuleDoor</code></a>, the agents' one MCP door to the module menus; requires nothing</td>
 </tr>
 <tr>
 <td>optional</td>
@@ -74,6 +74,7 @@
 </table>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
+<li><strong>The module door</strong> (built 2026-11-05): a <a href="../api/infra.html#mcp_door"><code>DoorServer</code></a>, a local HTTP endpoint (<code>door_host</code>, <code>door_port</code>, default a free port; <code>door = false</code> turns it off) behind the stdio relay each <code>claude</code> session starts. Each call becomes <code>ListModules</code>, <code>GetMenu</code> or <code>InvokeTool</code> through the core. A reload hands the port and token to the new copy, so running sessions keep their door.</li>
 <li><strong>Task records</strong>: id, agent, text, <a href="../api/agents.html#taskstate"><code>TaskState</code></a>, recent activity. State changes only from commands, so dropped events can't corrupt it.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>

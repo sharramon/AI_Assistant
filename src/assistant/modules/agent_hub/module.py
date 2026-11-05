@@ -18,9 +18,13 @@ from assistant.contracts import (
     AgentActivity,
     AnswerPermission,
     CancelTask,
+    GetMenu,
     GetTaskStatus,
+    IModuleDoor,
+    InvokeTool,
     ITaskAgent,
     ListAgents,
+    ListModules,
     Manifest,
     ModuleContext,
     ModuleProtocol,
@@ -36,6 +40,7 @@ from assistant.contracts import (
     TaskState,
     TaskUpdated,
 )
+from assistant.infra.mcp_door import DoorServer
 
 RECENT_REPORTS = 10
 RECENT_ACTIVITY = 15
@@ -61,18 +66,44 @@ class _TaskRecord:
         )
 
 
+CORE_LINE = {"id": "core", "description": "Module control: list, menu, on, off, reload, add", "state": "active"}
+
+
+class _Door(IModuleDoor):
+    """The hub's `IModuleDoor` part: the MCP config for the relay in front of its `DoorServer`."""
+
+    def __init__(self, server: DoorServer) -> None:
+        self._server = server
+
+    def mcp_config(self) -> dict:
+        return self._server.mcp_config()
+
+
 class AgentHubModule(ModuleProtocol):
     manifest = Manifest(
         id="agent_hub",
-        description="Task state and routing between the agents",
+        description="Task state and routing between the agents; hosts the agents' door to the module menus",
+        provides=(IModuleDoor,),
         optional=(ITaskAgent,),
         handles=(ListAgents, StartTask, GetTaskStatus, SendToTask, CancelTask, ReportTask, AnswerPermission, SetPermissionMode,),
+        sends=(ListModules, GetMenu, InvokeTool,),
         publishes=(TaskUpdated,),
         listens=(AgentActivity,),
     )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
+        # The door's port and token survive a reload, so a running session's relay keeps working.
+        handover = ctx.handover if isinstance(ctx.handover, dict) else {}
+        self._door = DoorServer(
+            ctx.send,
+            {"list": ListModules, "menu": GetMenu, "call": InvokeTool},
+            host=ctx.config.get("door_host", "127.0.0.1"),
+            port=int(handover.get("door_port", ctx.config.get("door_port", 0))),
+            token=handover.get("door_token"),
+            core_line=CORE_LINE,
+        )
+        ctx.provide(IModuleDoor, _Door(self._door))
         self._tasks: dict[str, _TaskRecord] = {}  # insertion order is start order
         ctx.handle(ListAgents, self._list_agents)
         ctx.handle(StartTask, self._start_task)
@@ -83,6 +114,23 @@ class AgentHubModule(ModuleProtocol):
         ctx.handle(AnswerPermission, self._answer_permission)
         ctx.handle(SetPermissionMode, self._set_permission_mode)
         ctx.subscribe(AgentActivity, self._on_activity)
+
+    async def start(self) -> None:
+        if self._ctx.config.get("door", True):
+            try:
+                await self._door.start()
+                self._ctx.log.info("The agents' module door is at %s", self._door.url)
+            except OSError as exc:  # its port is taken: the agents just go without the door
+                self._ctx.log.warning("Couldn't open the agents' module door: %s", exc)
+
+    async def stop(self) -> None:
+        await self._door.stop()
+
+    def export_state(self) -> dict | None:
+        """For a reload: the door's port and token, so the new copy opens the same door."""
+        if not self._door.url:
+            return None
+        return {"door_port": int(self._door.url.rsplit(":", 1)[1]), "door_token": self._door.token}
 
     def busy(self) -> str | None:
         """A reload waits while tasks are open: their records would be lost (no handover yet)."""

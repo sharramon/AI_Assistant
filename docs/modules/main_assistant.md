@@ -27,6 +27,7 @@ A `claude` session with file tools that does the work handed to it by the Agent 
 
 - **A `claude -p` process** per task (`fresh_sessions`), through the shared [`SessionTaskAgent`](../api/infra.md#sessiontaskagent) and [`ClaudeSession`](../api/infra.md#claudesession). It starts with the module and stops with it.
 - **Its transcript** in the launch's log folder.
+- **The module door** in each new session (built 2026-11-05): `IModuleDoor.mcp_config()`, read at each session start, becomes `--mcp-config`. Its tools `list_modules` and `show_menu` are allowed; `use_item` asks with the card in Manual. The prompt tells it to use them. `door = false` in its config turns it off. It doesn't list `IModuleDoor` as `optional` (the Hub lists `ITaskAgent`, and the two would be circular), so its first session may start before the door is up; the next task's fresh session has it.
 
 ## Inner workings
 

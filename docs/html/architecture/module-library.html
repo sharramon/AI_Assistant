@@ -47,12 +47,12 @@
 </tr>
 <tr>
 <td><a href="../modules/agent_hub.html"><code>agent_hub</code></a></td>
-<td>Task state and routing between the agents</td>
+<td>Task state and routing between the agents; hosts the agents' door to the module menus</td>
 <td>yes</td>
 <td>none</td>
-<td>optional <code>ITaskAgent</code></td>
+<td>provides <code>IModuleDoor</code>; optional <code>ITaskAgent</code></td>
 <td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code></td>
-<td>none</td>
+<td><code>ListModules</code>, <code>GetMenu</code>, <code>InvokeTool</code></td>
 <td><code>TaskUpdated</code></td>
 <td><code>AgentActivity</code></td>
 </tr>

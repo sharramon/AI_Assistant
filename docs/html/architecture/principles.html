@@ -42,7 +42,7 @@
 </ul>
 </li>
 <li><strong>Directory, then menu.</strong> The Talker and the Main Assistant find capabilities the same way, one line per module first, then only that module's menu, then <code>InvokeTool</code>; no agent has another module's tools written into it (<a href="modules.html#find-a-module-then-open-its-menu">modules</a>).<ul>
-<li><strong>Today:</strong> planned. The Talker is hardcoded to the viewer's tools and the Main Assistant can't call tools; both are known gaps.</li>
+<li><strong>Today:</strong> the Main Assistant finds and calls modules through the one MCP door (2026-11-05); the Talker is still hardcoded to the viewer's tools, a known gap.</li>
 </ul>
 </li>
 <li><strong>Chain, don't glue.</strong> A module uses another only through what that one declares (its events, commands, or menu), and a shared service serves several users through sessions with a destination each, never through copies of itself (<a href="modules.html#chaining-modules">modules</a>). Refines 3; it's 13's "build it once" for running services.<ul>

@@ -14,7 +14,7 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 
 - **Contracts** (`assistant.contracts`): `ModuleProtocol`, `Menu`, `ModuleContext`, `ctx.logs`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `IVoice`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
-- **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `ContextWatch`, `agent_tags`
+- **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `ContextWatch`, `agent_tags`, `mcp_door`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `local_path`, `CompanionApp`
 
 ## Groups
@@ -66,6 +66,7 @@ Capabilities invocable by name. `from assistant.contracts import ...`
 | [`IToolProvider`](tools.md#itoolprovider) | contract | ♻ A module that offers tools (any number of providers) |
 | [`ToolSpec`](tools.md#toolspec) | data | Tool name, description, and JSON Schema for its arguments |
 | [`InvokeTool`](tools.md#invoketool) | command | Run a tool by name; routed to its provider |
+| [`IModuleDoor`](tools.md#imoduledoor) | contract | ♻ The agents' one MCP door: `mcp_config()` for a `claude` session (list modules · show a menu · use an item); `agent_hub` provides it |
 | [Tools offered today](tools.md#tools-offered-today) | list | `viewer.open`, `viewer.highlight`, `viewer.tabs`, `echo.say` |
 
 ### [Module control](control.md)
@@ -127,6 +128,7 @@ Shared services for the main app's modules. `from assistant.infra import ...`
 | [`session_usage`](infra.md#session_usage) | function | ♻ A `ClaudeSession`'s usage so far as a `SessionUsage` event |
 | [`ContextWatch`](infra.md#contextwatch) | class | ♻ Says once when a context passes a size (the Talker's warning, the worker's reminder) |
 | [`agent_tags`](infra.md#agent_tags) | functions | ♻ Read SHOW tags, `NEED:` and `HANDOFF:` lines the same way everywhere |
+| [`mcp_door`](infra.md#mcp_door) | module | ♻ The door's stdio relay (`python -m assistant.infra.mcp_door`) and its app-side `DoorServer` |
 
 ### [App kit](app_kit.md)
 Shared by the main app and the independent apps; standard library only. `from app_kit import ...`

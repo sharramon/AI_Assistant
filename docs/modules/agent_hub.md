@@ -9,7 +9,7 @@ Holds the authoritative task state and routes work between the Talker and the ta
 | Field | Value |
 |-------|-------|
 | id | `agent_hub` |
-| provides / requires | nothing |
+| provides / requires | provides [`IModuleDoor`](../api/tools.md#imoduledoor), the agents' one MCP door to the module menus; requires nothing |
 | optional | [`ITaskAgent`](../api/agents.md#itaskagent) (every task agent; it never imports one) |
 | permissions | none |
 
@@ -25,6 +25,7 @@ Holds the authoritative task state and routes work between the Talker and the ta
 
 ## Owns and launches
 
+- **The module door** (built 2026-11-05): a [`DoorServer`](../api/infra.md#mcp_door), a local HTTP endpoint (`door_host`, `door_port`, default a free port; `door = false` turns it off) behind the stdio relay each `claude` session starts. Each call becomes `ListModules`, `GetMenu` or `InvokeTool` through the core. A reload hands the port and token to the new copy, so running sessions keep their door.
 - **Task records**: id, agent, text, [`TaskState`](../api/agents.md#taskstate), recent activity. State changes only from commands, so dropped events can't corrupt it.
 
 ## Inner workings
