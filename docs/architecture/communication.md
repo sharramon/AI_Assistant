@@ -67,7 +67,7 @@ sequenceDiagram
 
 ## Chaining modules
 
-One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (a voice-notes module listening to `VoiceTranscript`), or sends its commands. A shared service serves several users through sessions, each with its own destination, instead of running copies. Events between modules are built; sessions and the voice contract are planned ([modules](modules.md#chaining-modules)).
+One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (a voice-notes module listening to `VoiceTranscript`), or sends its commands. A shared service serves several users through sessions, each with its own destination, instead of running copies. Events between modules, the voice contract `IVoice` and its sessions are built ([modules](modules.md#chaining-modules)).
 
 ## Command results
 

@@ -26,7 +26,7 @@ What's decided, what's still open, and what's deliberately deferred. Back to the
 - **UI handler:** a separate part that owns the user-facing UIs (chat window, Quest, glasses) instead of each UI being its own ad hoc module. Its shape isn't decided; the temp UI is a throwaway stand-in until it is.
 - **Self-improvement permissions:** how the Main Assistant gets access to its own code ([plan](../agents/self-improvement.md)); will go through the [permissions handler](permissions.md)
 - **How general event types are:** one general event (for example a text stream carrying its source and destination) reused by voice, notes and transcription, or a new type per use. Fewer types mean fewer restarts; too few make events vague ([modules](modules.md#chaining-modules)).
-- **The voice contract's shape:** its name and methods, and how a session's destination is given, decided with the voice-notes build.
+- **The voice contract's shape:** decided 2026-11-05 (module system, chunk 6): `IVoice` with `listen(session_id, destination)` and `finish(session_id, discard)`; `VoiceDestination` is `talker` or `caller` ([messaging](../api/messaging.md#ivoice)). Parallel sessions stay open: they'd need the voice service to take several listeners.
 
 ## Deliberately deferred
 

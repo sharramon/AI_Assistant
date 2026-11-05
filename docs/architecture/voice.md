@@ -211,7 +211,7 @@ One-piece recordings (6.7 s, 16.7 s) waited 1.17 to 1.48 s on `small.en`, 0.45 t
 Voice to text is wanted in several apps, so `voice_service` is shared. Any app connects over the same WebSocket protocol and decides what to do with the text. This app sends the final message to the Talker; another might type it into a box.
 
 - **Each app keeps only a thin client.** Everything specific to an app (here: the Talker, the UI events, the permission check) stays in that client, never in the service.
-- **One listener at a time** at first: a second `start` gets `busy`. Planned: a voice contract that `voice_in` provides, and sessions with a destination, so several modules (the mic button, voice notes) share one service ([modules](modules.md#chaining-modules)).
+- **One listener at a time:** a second `start` gets `busy`. Several modules (the mic button, voice notes) share the one service through `voice_in`: the voice contract [`IVoice`](../api/messaging.md#ivoice) (built 2026-11-05) gives each caller its own session id and destination, and the second press wins ([modules](modules.md#chaining-modules)).
 - **Localhost only** at first, with no access control between apps.
 
 ## The protocol

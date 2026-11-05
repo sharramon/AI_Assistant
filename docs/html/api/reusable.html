@@ -139,6 +139,13 @@
 <td><code>SessionTaskAgent</code> → <code>talker</code>, <code>temp_ui</code></td>
 </tr>
 <tr>
+<td><a href="messaging.html#ivoice"><code>IVoice</code></a>, <code>VoiceDestination</code></td>
+<td>contract</td>
+<td>The voice contract: <code>listen(session_id, destination)</code> / <code>finish(session_id)</code>, each caller ends only its own session</td>
+<td><code>contracts/voice.py</code>, <code>modules/voice_in/module.py</code> (<code>_Voice</code>)</td>
+<td><code>voice_in</code> provides; <code>voice_notes</code> requires</td>
+</tr>
+<tr>
 <td><a href="messaging.html#startlistening"><code>StartListening</code></a>, <a href="messaging.html#stoplistening"><code>StopListening</code></a></td>
 <td>command</td>
 <td>Turn the mic on and off; any UI may send them</td>

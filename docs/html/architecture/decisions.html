@@ -40,7 +40,7 @@
 <li><strong>UI handler:</strong> a separate part that owns the user-facing UIs (chat window, Quest, glasses) instead of each UI being its own ad hoc module. Its shape isn't decided; the temp UI is a throwaway stand-in until it is.</li>
 <li><strong>Self-improvement permissions:</strong> how the Main Assistant gets access to its own code (<a href="../agents/self-improvement.html">plan</a>); will go through the <a href="permissions.html">permissions handler</a></li>
 <li><strong>How general event types are:</strong> one general event (for example a text stream carrying its source and destination) reused by voice, notes and transcription, or a new type per use. Fewer types mean fewer restarts; too few make events vague (<a href="modules.html#chaining-modules">modules</a>).</li>
-<li><strong>The voice contract's shape:</strong> its name and methods, and how a session's destination is given, decided with the voice-notes build.</li>
+<li><strong>The voice contract's shape:</strong> decided 2026-11-05 (module system, chunk 6): <code>IVoice</code> with <code>listen(session_id, destination)</code> and <code>finish(session_id, discard)</code>; <code>VoiceDestination</code> is <code>talker</code> or <code>caller</code> (<a href="../api/messaging.html#ivoice">messaging</a>). Parallel sessions stay open: they'd need the voice service to take several listeners.</li>
 </ul>
 <h2 id="deliberately-deferred">Deliberately deferred</h2>
 <p>Don't add more architectural machinery until two or three very different modules (e.g. a text input, a browser tool, and a view) are built and we've checked that each can be replaced independently. Let those real modules show which abstractions are actually missing.</p>

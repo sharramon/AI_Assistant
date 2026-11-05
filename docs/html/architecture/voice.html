@@ -366,7 +366,7 @@
 <p>Voice to text is wanted in several apps, so <code>voice_service</code> is shared. Any app connects over the same WebSocket protocol and decides what to do with the text. This app sends the final message to the Talker; another might type it into a box.</p>
 <ul>
 <li><strong>Each app keeps only a thin client.</strong> Everything specific to an app (here: the Talker, the UI events, the permission check) stays in that client, never in the service.</li>
-<li><strong>One listener at a time</strong> at first: a second <code>start</code> gets <code>busy</code>. Planned: a voice contract that <code>voice_in</code> provides, and sessions with a destination, so several modules (the mic button, voice notes) share one service (<a href="modules.html#chaining-modules">modules</a>).</li>
+<li><strong>One listener at a time:</strong> a second <code>start</code> gets <code>busy</code>. Several modules (the mic button, voice notes) share the one service through <code>voice_in</code>: the voice contract <a href="../api/messaging.html#ivoice"><code>IVoice</code></a> (built 2026-11-05) gives each caller its own session id and destination, and the second press wins (<a href="modules.html#chaining-modules">modules</a>).</li>
 <li><strong>Localhost only</strong> at first, with no access control between apps.</li>
 </ul>
 <h2 id="the-protocol">The protocol</h2>

@@ -46,11 +46,11 @@
 </ul>
 </li>
 <li><strong>Chain, don't glue.</strong> A module uses another only through what that one declares (its events, commands, or menu), and a shared service serves several users through sessions with a destination each, never through copies of itself (<a href="modules.html#chaining-modules">modules</a>). Refines 3; it's 13's "build it once" for running services.<ul>
-<li><strong>Today:</strong> events between modules are built; voice sessions are planned (the voice service takes one listener at a time).</li>
+<li><strong>Today:</strong> events between modules and the voice contract's sessions are built; the voice service still takes one listener at a time, so one session runs at once.</li>
 </ul>
 </li>
 <li><strong>Declared dependencies, found by folder.</strong> A module is its folder: the core finds it there and first starts whatever provides the contracts its manifest <code>requires</code>; a module depends on contracts, never on another module's id, and never starts another module itself (<a href="modules.html#dependencies">modules</a>). Extends 11's "dependencies are respected".<ul>
-<li><strong>Today:</strong> both built (finding by folder 2026-11-05); the voice contract that voice notes will require is planned.</li>
+<li><strong>Today:</strong> both built (finding by folder 2026-11-05); voice notes requires the voice contract, not <code>voice_in</code>.</li>
 </ul>
 </li>
 </ol>

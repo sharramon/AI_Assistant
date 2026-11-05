@@ -1,15 +1,49 @@
-"""Voice input: the commands any UI sends to turn the mic on and off, and the events
-`voice_in` publishes. Design: docs/architecture/voice.md#the-voice_in-module.
+"""Voice input: the voice contract (`IVoice`) other modules require, the commands any UI sends
+to turn the mic on and off, and the events `voice_in` publishes.
+Design: docs/architecture/voice.md#the-voice_in-module.
 
 `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the
-`StartListening` command's id), so a UI can drop a stale session's updates.
+`StartListening` command's id, or the id given to `IVoice.listen`), so a module follows
+only its own session and drops a stale one's updates.
 """
 
 from __future__ import annotations
 
+from abc import abstractmethod
 from enum import StrEnum
 
-from assistant.contracts.messages import Command, Event
+from assistant.contracts.messages import Command, Event, Result
+from assistant.contracts.module import Contract
+
+
+class VoiceDestination(StrEnum):
+    """Where a voice session's final text goes."""
+
+    TALKER = "talker"  # also to the Talker, as InputReceived(source="voice")
+    CALLER = "caller"  # only the VoiceTranscript events, for the module that asked
+
+
+class IVoice(Contract):
+    """Speech to text from the one mic, in sessions that each belong to their caller.
+
+    Provided by `voice_in`; a module that needs the mic (voice notes) lists it in `requires`,
+    so the core turns voice input on first. Look it up at each call (`ctx.get_one(IVoice)`),
+    never keep it: a reload swaps the provider.
+
+    One mic, one session at a time; the second `listen` wins. The session it ends gets
+    `VoiceState(idle, reason="taken_over")` and an empty final `VoiceTranscript`.
+    """
+
+    @abstractmethod
+    async def listen(self, session_id: str, destination: VoiceDestination = VoiceDestination.CALLER) -> Result:
+        """Open a session under `session_id`, which the caller makes (e.g. `uuid4().hex`), so it can
+        follow its events from the first one. Result value: `{"session_id": ...}`."""
+
+    @abstractmethod
+    async def finish(self, session_id: str, discard: bool = False) -> Result:
+        """End that session only; another caller's session is never touched. Result value:
+        `{"text": ...}` with the final text. `discard=True` throws the words away. A session that
+        already ended (taken over, failed, a silence stop) gives `{"text": "", "ended": True}`."""
 
 
 class ListeningState(StrEnum):

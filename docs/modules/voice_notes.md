@@ -9,7 +9,7 @@ A small page in its own window: Record / Stop, a notes area you can edit, a stat
 |-------|-------|
 | id | `voice_notes` |
 | provides | nothing |
-| requires / optional | none in v1 (no voice contract yet); with `voice_in` off, Record says "voice input is off" |
+| requires / optional | requires [`IVoice`](../api/messaging.md#ivoice): turning voice notes on turns `voice_in` on first. Record calls `listen(id, caller)`, Stop `finish(id)`, looked up at each call; if no provider is there for a moment (mid-reload), Record says "voice input is off" |
 | permissions | none of its own (the mic is `voice_in`'s) |
 
 ## Interface
@@ -90,4 +90,4 @@ sequenceDiagram
 
 ## Planned
 
-From the module-shape refactor: requires the **voice contract** and starts a **voice session with a destination** instead of following command ids; the page server becomes a shared one.
+Built 2026-11-05: requires the voice contract and opens its own session through it. Still later: the page server becomes a shared one.

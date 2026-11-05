@@ -24,6 +24,7 @@ Every reusable part, one line each. **Check here before writing a helper**; afte
 | [`PermissionMode`](agents.md#permissionmode) | enum | A task agent's mode: `manual`, `auto` | `contracts/agents.py` | `SessionTaskAgent`, `main_assistant`, `talker`, `temp_ui` |
 | [`SetPermissionMode`](agents.md#setpermissionmode) | command | Switch a task agent's mode; any UI or the control panel later | `contracts/agents.py` | `temp_ui` (button), `talker` (Manual only) → `agent_hub` |
 | [`PermissionModeChanged`](agents.md#permissionmodechanged) | event | A task agent's mode was set, and when it applies | `contracts/agents.py` | `SessionTaskAgent` → `talker`, `temp_ui` |
+| [`IVoice`](messaging.md#ivoice), `VoiceDestination` | contract | The voice contract: `listen(session_id, destination)` / `finish(session_id)`, each caller ends only its own session | `contracts/voice.py`, `modules/voice_in/module.py` (`_Voice`) | `voice_in` provides; `voice_notes` requires |
 | [`StartListening`](messaging.md#startlistening), [`StopListening`](messaging.md#stoplistening) | command | Turn the mic on and off; any UI may send them | `contracts/voice.py` | `temp_ui` → `voice_in` |
 | [`ListeningState`](messaging.md#listeningstate) | enum | The mic's state: `idle`, `starting`, `listening`, `dropped`, `finishing`, `failed` | `contracts/voice.py` | `VoiceState` |
 | [`VoiceState`](messaging.md#voicestate) | event | The mic's state changed, for the button | `contracts/voice.py` | `voice_in` → `temp_ui` |

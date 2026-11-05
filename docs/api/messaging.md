@@ -144,11 +144,29 @@ You dropped a snip before sending it (the × on its thumbnail). The Talker forge
 
 ## Voice
 
-Voice input ([design](../architecture/voice.md#the-voice_in-module)). Any UI sends the commands; `voice_in` handles them and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id), so a UI can drop a stale session's updates. Built 2026-11-03; `voice_in` built 2026-11-03; the temp UI's mic button sends the commands (step 4).
+Voice input ([design](../architecture/voice.md#the-voice_in-module)). A module that needs the mic requires the voice contract [`IVoice`](#ivoice); a UI button may send the commands instead. `voice_in` provides the one and handles the other, with the same sessions, and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id, or the id given to `IVoice.listen`), so each caller follows only its own session. Built 2026-11-03; `IVoice` built 2026-11-05.
+
+### `IVoice`
+
+**Reusable** · Used by: `voice_in` provides; `voice_notes` requires · built 2026-11-05
+
+`class IVoice(Contract)`, single provider, in `assistant.contracts`.
+
+| Method | Does |
+|--------|------|
+| `async listen(session_id, destination=VoiceDestination.CALLER) -> Result` | Open a session under an id the caller made (`uuid4().hex`), so it can follow its events from the first one. Value `{"session_id"}`. The second `listen` wins, as with `StartListening` |
+| `async finish(session_id, discard=False) -> Result` | End **that** session only; another caller's is never touched. Value `{"text"}`. A session that already ended (taken over, failed, a silence stop) gives `{"text": "", "ended": true}` |
+
+`VoiceDestination` (enum): `talker` (the final text also goes to the Talker as `InputReceived(source="voice")`) or `caller` (only the events). One mic, one session at a time: "sessions" means each caller owns its own session id, not two at once. Look the provider up at each call (`ctx.get_one(IVoice)`), never keep it: a reload of `voice_in` swaps it. Requiring it makes the core turn `voice_in` on first, and refuse to turn it off while you're on.
+
+    voice = ctx.get_one(IVoice)
+    session = uuid4().hex
+    await voice.listen(session, VoiceDestination.CALLER)   # then follow VoiceTranscript with correlation_id == session
+    text = (await voice.finish(session)).value["text"]
 
 ### `StartListening`
 
-**Reusable** · Used by: `temp_ui` and `voice_notes` send; `voice_in` handles
+**Reusable** · Used by: `temp_ui` sends; `voice_in` handles (the command form of `IVoice.listen`, for UI buttons)
 
 `StartListening(send_as_input: bool = True)` (command)
 

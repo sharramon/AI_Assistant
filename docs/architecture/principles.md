@@ -27,6 +27,6 @@ The rules every design and implementation decision follows. If a change conflict
 15. **Directory, then menu.** The Talker and the Main Assistant find capabilities the same way, one line per module first, then only that module's menu, then `InvokeTool`; no agent has another module's tools written into it ([modules](modules.md#find-a-module-then-open-its-menu)).
     - **Today:** planned. The Talker is hardcoded to the viewer's tools and the Main Assistant can't call tools; both are known gaps.
 16. **Chain, don't glue.** A module uses another only through what that one declares (its events, commands, or menu), and a shared service serves several users through sessions with a destination each, never through copies of itself ([modules](modules.md#chaining-modules)). Refines 3; it's 13's "build it once" for running services.
-    - **Today:** events between modules are built; voice sessions are planned (the voice service takes one listener at a time).
+    - **Today:** events between modules and the voice contract's sessions are built; the voice service still takes one listener at a time, so one session runs at once.
 17. **Declared dependencies, found by folder.** A module is its folder: the core finds it there and first starts whatever provides the contracts its manifest `requires`; a module depends on contracts, never on another module's id, and never starts another module itself ([modules](modules.md#dependencies)). Extends 11's "dependencies are respected".
-    - **Today:** both built (finding by folder 2026-11-05); the voice contract that voice notes will require is planned.
+    - **Today:** both built (finding by folder 2026-11-05); voice notes requires the voice contract, not `voice_in`.

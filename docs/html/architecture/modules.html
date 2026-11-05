@@ -14,7 +14,7 @@
 <h1 id="modules">Modules</h1>
 <p>How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in <a href="core.html">core</a>; the messages are in <a href="communication.html">communication</a>. Each module's own page, and every module's interface side by side: the <a href="module-library.html">module library</a>. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), the <code>Menu</code> part (the HTML viewer's and the echo stand-in's), the generated module library, <code>requires</code> by contract, reloading a module while the app runs, the directory (<code>ListModules</code>, <code>GetMenu</code>, the core's <code>modules.*</code> menu), and finding modules by folder. Planned: both assistants using the directory, a voice contract, and voice sessions. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
+<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), the <code>Menu</code> part (the HTML viewer's and the echo stand-in's), the generated module library, <code>requires</code> by contract, reloading a module while the app runs, the directory (<code>ListModules</code>, <code>GetMenu</code>, the core's <code>modules.*</code> menu), finding modules by folder, the <code>ctx.logs</code> port, and the voice contract (<code>IVoice</code>) with sessions each owned by their caller. Planned: both assistants using the directory. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
 </blockquote>
 <h2 id="a-module-is-a-wrapper-with-a-menu">A module is a wrapper with a menu</h2>
 <p>Every module has the same <strong>wrapper</strong>, owned by the core, and inside it a <strong>menu</strong> of what it can do.</p>
@@ -152,7 +152,7 @@
 </ul>
 <h2 id="chaining-modules">Chaining modules</h2>
 <blockquote>
-<p><strong>Status:</strong> events between modules are built (<code>voice_in</code> publishes <code>VoiceTranscript</code> and <code>VoiceState</code>; voice notes v1 listens to them). The voice contract and voice sessions are planned.</p>
+<p><strong>Status:</strong> events between modules are built (<code>voice_in</code> publishes <code>VoiceTranscript</code> and <code>VoiceState</code>; voice notes listens to them), and so is the voice contract <code>IVoice</code> (2026-11-05): <code>voice_in</code> provides it, voice notes requires it, and each caller opens and ends only its own session. One mic, so one session at a time; the second press wins.</p>
 </blockquote>
 <p>Modules are combined through what they declare, with no glue code between pairs:</p>
 <ul>
@@ -165,9 +165,9 @@
     Btn[&quot;&lt;b&gt;Mic button&lt;/b&gt;&lt;br/&gt;temp UI&quot;]
     Rec[&quot;&lt;b&gt;Record button&lt;/b&gt;&lt;br/&gt;voice notes&quot;]
     Video[&quot;&lt;b&gt;Video file&lt;/b&gt;&lt;br/&gt;transcription app&quot;]
-    Voice[&quot;&lt;b&gt;voice_in&lt;/b&gt;&lt;br/&gt;provides the voice contract&quot;]
+    Voice[&quot;&lt;b&gt;voice_in&lt;/b&gt;&lt;br/&gt;provides IVoice&quot;]
     Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
-    Notes[&quot;&lt;b&gt;Voice notes&lt;/b&gt;&lt;br/&gt;v1 built · requires the voice contract: planned&quot;]
+    Notes[&quot;&lt;b&gt;Voice notes&lt;/b&gt;&lt;br/&gt;requires IVoice&quot;]
 
     Btn -- &quot;StartListening&lt;br/&gt;send to the Talker&quot; --&gt; Voice
     Voice -- &quot;final text&quot; --&gt; Talker
@@ -182,13 +182,13 @@
 <p>Solid: built (the mic button's flow, and voice notes v1, which follows its own sessions by the <code>StartListening</code> id; see <a href="../modules/voice_notes.html">voice_notes</a>). Purple, dashed: planned. Today the voice service takes one listener at a time (a second <code>start</code> gets <code>busy</code>) and <code>StartListening</code> only chooses whether the Talker gets the text (<code>send_as_input</code>). The video case feeds a file instead of the mic; the service already has a file source and <code>transcribe_file</code> (<a href="voice.html#a-shared-service">voice</a>).</p>
 <h2 id="dependencies">Dependencies</h2>
 <blockquote>
-<p><strong>Status:</strong> built, by contract. The voice contract is planned.</p>
+<p><strong>Status:</strong> built, by contract, including the voice contract (2026-11-05).</p>
 </blockquote>
 <ul>
 <li><strong>A manifest requires contracts, never module ids</strong> (<a href="principles.html">principle 2</a>). The core starts the provider first: in dependency order at startup, and at runtime <code>ActivateModule</code> activates the sole provider first. It refuses to turn a provider off while an active module requires it (<a href="core.html#runtime-module-control">runtime module control</a>).</li>
 <li><strong><code>optional</code></strong> contracts are used if some module provides them, and the module copes without them.</li>
 <li><strong>No module starts another itself.</strong> Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.</li>
-<li><strong>Voice:</strong> <code>voice_in</code> will provide a new voice contract (planned; its name and methods are decided when it's built), and voice notes requires it. Any other module that provides the same contract can replace <code>voice_in</code>.</li>
+<li><strong>Voice:</strong> <code>voice_in</code> provides the voice contract <a href="../api/messaging.html#ivoice"><code>IVoice</code></a>, and voice notes requires it: turning voice notes on turns <code>voice_in</code> on first, and <code>voice_in</code> can't be turned off while voice notes is on. Any other module that provides <code>IVoice</code> can replace <code>voice_in</code>.</li>
 </ul>
 <h2 id="hot-swap">Hot swap</h2>
 <blockquote>
@@ -260,11 +260,11 @@
 </tr>
 <tr>
 <td>Voice contract; voice sessions with a destination</td>
-<td>Planned</td>
+<td>Built (2026-11-05): <code>IVoice</code>, one mic, each caller owns its session; parallel sessions would need the voice service to take several listeners</td>
 </tr>
 <tr>
 <td>Voice-notes module</td>
-<td>v1 built (2026-11-04), without the voice contract; the version that requires it is planned</td>
+<td>Built (v1 2026-11-04; requires <code>IVoice</code> 2026-11-05)</td>
 </tr>
 <tr>
 <td>A page per module and the <a href="module-library.html">module library</a></td>

@@ -2,7 +2,7 @@
 
 How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in [core](core.md); the messages are in [communication](communication.md). Each module's own page, and every module's interface side by side: the [module library](module-library.md). Back to the [overview](README.md).
 
-> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), the `Menu` part (the HTML viewer's and the echo stand-in's), the generated module library, `requires` by contract, reloading a module while the app runs, the directory (`ListModules`, `GetMenu`, the core's `modules.*` menu), and finding modules by folder. Planned: both assistants using the directory, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
+> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), the `Menu` part (the HTML viewer's and the echo stand-in's), the generated module library, `requires` by contract, reloading a module while the app runs, the directory (`ListModules`, `GetMenu`, the core's `modules.*` menu), finding modules by folder, the `ctx.logs` port, and the voice contract (`IVoice`) with sessions each owned by their caller. Planned: both assistants using the directory. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
 
 ## A module is a wrapper with a menu
 
@@ -104,7 +104,7 @@ Purple: planned. Dashed grey: an example for later. Agents, other modules and UI
 
 ## Chaining modules
 
-> **Status:** events between modules are built (`voice_in` publishes `VoiceTranscript` and `VoiceState`; voice notes v1 listens to them). The voice contract and voice sessions are planned.
+> **Status:** events between modules are built (`voice_in` publishes `VoiceTranscript` and `VoiceState`; voice notes listens to them), and so is the voice contract `IVoice` (2026-11-05): `voice_in` provides it, voice notes requires it, and each caller opens and ends only its own session. One mic, so one session at a time; the second press wins.
 
 Modules are combined through what they declare, with no glue code between pairs:
 
@@ -118,9 +118,9 @@ flowchart LR
     Btn["<b>Mic button</b><br/>temp UI"]
     Rec["<b>Record button</b><br/>voice notes"]
     Video["<b>Video file</b><br/>transcription app"]
-    Voice["<b>voice_in</b><br/>provides the voice contract"]
+    Voice["<b>voice_in</b><br/>provides IVoice"]
     Talker["<b>Talker</b>"]
-    Notes["<b>Voice notes</b><br/>v1 built · requires the voice contract: planned"]
+    Notes["<b>Voice notes</b><br/>requires IVoice"]
 
     Btn -- "StartListening<br/>send to the Talker" --> Voice
     Voice -- "final text" --> Talker
@@ -137,12 +137,12 @@ Solid: built (the mic button's flow, and voice notes v1, which follows its own s
 
 ## Dependencies
 
-> **Status:** built, by contract. The voice contract is planned.
+> **Status:** built, by contract, including the voice contract (2026-11-05).
 
 - **A manifest requires contracts, never module ids** ([principle 2](principles.md)). The core starts the provider first: in dependency order at startup, and at runtime `ActivateModule` activates the sole provider first. It refuses to turn a provider off while an active module requires it ([runtime module control](core.md#runtime-module-control)).
 - **`optional`** contracts are used if some module provides them, and the module copes without them.
 - **No module starts another itself.** Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.
-- **Voice:** `voice_in` will provide a new voice contract (planned; its name and methods are decided when it's built), and voice notes requires it. Any other module that provides the same contract can replace `voice_in`.
+- **Voice:** `voice_in` provides the voice contract [`IVoice`](../api/messaging.md#ivoice), and voice notes requires it: turning voice notes on turns `voice_in` on first, and `voice_in` can't be turned off while voice notes is on. Any other module that provides `IVoice` can replace `voice_in`.
 
 ## Hot swap
 
@@ -174,6 +174,6 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Directory and menu asks (`ListModules` with descriptions, `GetMenu`, the core's `modules.*` menu) | Built (2026-11-05) |
 | Both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
 | Finding modules by folder | Built (2026-11-05) |
-| Voice contract; voice sessions with a destination | Planned |
-| Voice-notes module | v1 built (2026-11-04), without the voice contract; the version that requires it is planned |
+| Voice contract; voice sessions with a destination | Built (2026-11-05): `IVoice`, one mic, each caller owns its session; parallel sessions would need the voice service to take several listeners |
+| Voice-notes module | Built (v1 2026-11-04; requires `IVoice` 2026-11-05) |
 | A page per module and the [module library](module-library.md) | Built; the library's table is generated from the manifests and menus (2026-11-05), the module pages are hand-written |

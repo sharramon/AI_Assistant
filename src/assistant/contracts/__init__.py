@@ -59,9 +59,11 @@ from assistant.contracts.module import (
 )
 from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
 from assistant.contracts.voice import (
+    IVoice,
     ListeningState,
     StartListening,
     StopListening,
+    VoiceDestination,
     VoiceState,
     VoiceTranscript,
 )
@@ -124,5 +126,7 @@ __all__ = [
     "ViewerClipDropped",
     "ViewerTabsChanged",
     "VoiceState",
+    "VoiceDestination",
     "VoiceTranscript",
+    "IVoice",
 ]

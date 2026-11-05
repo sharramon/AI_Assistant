@@ -26,6 +26,7 @@ from typing import Any
 from app_kit import CompanionApp
 from assistant.contracts import (
     InputReceived,
+    IVoice,
     ListeningState,
     Manifest,
     ModuleContext,
@@ -34,6 +35,7 @@ from assistant.contracts import (
     StartListening,
     Status,
     StopListening,
+    VoiceDestination,
     VoiceState,
     VoiceTranscript,
 )
@@ -89,10 +91,24 @@ class _Session:
     result: asyncio.Future = field(default_factory=lambda: asyncio.get_running_loop().create_future())
 
 
+class _Voice(IVoice):
+    """voice_in's `IVoice` part: the same sessions as the commands, each ended only by its id."""
+
+    def __init__(self, module: VoiceInModule) -> None:
+        self._module = module
+
+    async def listen(self, session_id: str, destination: VoiceDestination = VoiceDestination.CALLER) -> Result:
+        return await self._module._begin(session_id, VoiceDestination(destination) is VoiceDestination.TALKER)
+
+    async def finish(self, session_id: str, discard: bool = False) -> Result:
+        return await self._module._finish_session(session_id, discard)
+
+
 class VoiceInModule(ModuleProtocol):
     manifest = Manifest(
         id="voice_in",
         description="Speech to text; launches the voice service app",
+        provides=(IVoice,),
         optional_permissions=("microphone",),
         handles=(StartListening, StopListening,),
         publishes=(VoiceState, VoiceTranscript, InputReceived,),
@@ -134,6 +150,7 @@ class VoiceInModule(ModuleProtocol):
         self._cleared_at = float("-inf")  # time.monotonic() of the last clear
         ctx.handle(StartListening, self._start_listening)
         ctx.handle(StopListening, self._stop_listening)
+        ctx.provide(IVoice, _Voice(self))
 
     async def start(self) -> None:
         pass  # nothing to launch until the first click
@@ -160,10 +177,18 @@ class VoiceInModule(ModuleProtocol):
     # --- the commands ---
 
     async def _start_listening(self, command: StartListening) -> Result:
+        return await self._begin(command.id, command.send_as_input)
+
+    async def _stop_listening(self, command: StopListening) -> Result:
+        # getattr: a reload onto an app with the older contract
+        return await self._finish_session(None, getattr(command, "discard", False))
+
+    async def _begin(self, session_id: str, send_as_input: bool) -> Result:
+        """Open a session (the command, or `IVoice.listen`)."""
         async with self._lock:
             if self._session is not None:  # the second press wins: end the open session, nothing sent from it
                 await self._discard(self._session, TAKEN_OVER, "another part of the app took the mic")
-            session = _Session(command.id, command.send_as_input)
+            session = _Session(session_id, send_as_input)
             self._session = session
             self._state(session, ListeningState.STARTING)
             result = await self._open(session)
@@ -171,12 +196,15 @@ class VoiceInModule(ModuleProtocol):
                 await self._close(session)
             return result
 
-    async def _stop_listening(self, command: StopListening) -> Result:
+    async def _finish_session(self, session_id: str | None, discard: bool) -> Result:
+        """End the open session (`StopListening`), or only the one called `session_id` (`IVoice.finish`)."""
         async with self._lock:
             session = self._session
+            if session_id is not None and (session is None or session.id != session_id):
+                return Result.ok({"text": "", "ended": True})  # that session is over; another one is never touched
             if session is None:
                 return Result.ok(None)
-            if getattr(command, "discard", False):  # getattr: a reload onto an app with the older contract
+            if discard:
                 return await self._discard(session)
             try:
                 await session.ws.send(dump(Stop()))

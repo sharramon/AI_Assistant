@@ -213,9 +213,36 @@
 <p>You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by <code>temp_ui</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="voice">Voice</h2>
-<p>Voice input (<a href="../architecture/voice.html#the-voice_in-module">design</a>). Any UI sends the commands; <code>voice_in</code> handles them and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id), so a UI can drop a stale session's updates. Built 2026-11-03; <code>voice_in</code> built 2026-11-03; the temp UI's mic button sends the commands (step 4).</p>
+<p>Voice input (<a href="../architecture/voice.html#the-voice_in-module">design</a>). A module that needs the mic requires the voice contract <a href="#ivoice"><code>IVoice</code></a>; a UI button may send the commands instead. <code>voice_in</code> provides the one and handles the other, with the same sessions, and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id, or the id given to <code>IVoice.listen</code>), so each caller follows only its own session. Built 2026-11-03; <code>IVoice</code> built 2026-11-05.</p>
+<h3 id="ivoice"><code>IVoice</code></h3>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> provides; <code>voice_notes</code> requires · built 2026-11-05</p>
+<p><code>class IVoice(Contract)</code>, single provider, in <code>assistant.contracts</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async listen(session_id, destination=VoiceDestination.CALLER) -&gt; Result</code></td>
+<td>Open a session under an id the caller made (<code>uuid4().hex</code>), so it can follow its events from the first one. Value <code>{"session_id"}</code>. The second <code>listen</code> wins, as with <code>StartListening</code></td>
+</tr>
+<tr>
+<td><code>async finish(session_id, discard=False) -&gt; Result</code></td>
+<td>End <strong>that</strong> session only; another caller's is never touched. Value <code>{"text"}</code>. A session that already ended (taken over, failed, a silence stop) gives <code>{"text": "", "ended": true}</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>VoiceDestination</code> (enum): <code>talker</code> (the final text also goes to the Talker as <code>InputReceived(source="voice")</code>) or <code>caller</code> (only the events). One mic, one session at a time: "sessions" means each caller owns its own session id, not two at once. Look the provider up at each call (<code>ctx.get_one(IVoice)</code>), never keep it: a reload of <code>voice_in</code> swaps it. Requiring it makes the core turn <code>voice_in</code> on first, and refuse to turn it off while you're on.</p>
+<pre><code>voice = ctx.get_one(IVoice)
+session = uuid4().hex
+await voice.listen(session, VoiceDestination.CALLER)   # then follow VoiceTranscript with correlation_id == session
+text = (await voice.finish(session)).value["text"]
+</code></pre>
 <h3 id="startlistening"><code>StartListening</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> and <code>voice_notes</code> send; <code>voice_in</code> handles</p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> sends; <code>voice_in</code> handles (the command form of <code>IVoice.listen</code>, for UI buttons)</p>
 <p><code>StartListening(send_as_input: bool = True)</code> (command)</p>
 <p>Turn the mic on. With <code>send_as_input=False</code> (dictating into a text box, say) the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker. <strong>Result:</strong> <code>ok</code> once the service says <code>started</code>, value <code>{"session_id"}</code>. <strong>The second press wins</strong> (added 2026-11-04): a start while a session is open ends that session the way <code>discard=True</code> does, with <code>VoiceState(idle, reason="taken_over")</code> and an empty final for it, so its text never reaches the Talker; a <code>StopListening</code> it was waiting on gets <code>ok</code>, value <code>{"text": "", "taken_over": true}</code>. Each UI follows only the sessions it started (by this command's id). <code>not_available</code> (retryable) if the service couldn't start or the mic or engine failed; <code>failed</code> for <code>busy</code> or a denied <code>microphone</code> permission. A running service that <code>voice_in</code> reuses gets a quick <code>/health</code> check first, so a failed model fails at once with <code>engine_failed</code>.</p>
 <h3 id="stoplistening"><code>StopListening</code></h3>

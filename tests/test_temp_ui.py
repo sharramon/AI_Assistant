@@ -7,6 +7,7 @@ import time
 from assistant.contracts import (
     AgentActivity,
     InputReceived,
+    IVoice,
     ListeningState,
     Manifest,
     ModuleContext,
@@ -21,6 +22,7 @@ from assistant.contracts import (
     StopListening,
     TaskState,
     TaskUpdated,
+    VoiceDestination,
     VoiceState,
     VoiceTranscript,
 )
@@ -99,16 +101,32 @@ async def test_page_input_and_events():
         await app.stop()
 
 
-class FakeVoiceIn(ModuleProtocol):
-    """Stands in for voice_in: answers the two commands with the events voice_in publishes."""
+class _FakeVoice(IVoice):
+    """The fake's IVoice: the same sessions as its commands; finish ends only its own id."""
 
-    manifest = Manifest(id="voice_in")
+    def __init__(self, fake: "FakeVoiceIn") -> None:
+        self.fake = fake
+
+    async def listen(self, session_id, destination=VoiceDestination.CALLER):
+        return await self.fake.listen(StartListening(id=session_id, send_as_input=destination == VoiceDestination.TALKER))
+
+    async def finish(self, session_id, discard=False):
+        if self.fake.session != session_id:
+            return Result.ok({"text": "", "ended": True})
+        return await self.fake.stop_listening(StopListening(discard=discard))
+
+
+class FakeVoiceIn(ModuleProtocol):
+    """Stands in for voice_in: answers the two commands and IVoice with the events voice_in publishes."""
+
+    manifest = Manifest(id="voice_in", provides=(IVoice,))
 
     async def init(self, ctx: ModuleContext) -> None:
         self.ctx, self.session, self.commands = ctx, None, []
         self.fail: tuple[str, str] | None = None  # (reason, detail): the next start fails so
         ctx.handle(StartListening, self.listen)
         ctx.handle(StopListening, self.stop_listening)
+        ctx.provide(IVoice, _FakeVoice(self))
 
     async def listen(self, command: StartListening) -> Result:
         self.commands.append(command)

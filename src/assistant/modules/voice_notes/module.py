@@ -1,20 +1,20 @@
 """Voice notes: speak into a page of notes you can edit and copy.
 
-(The module's one-line description. `Manifest` has no `description` field yet; it moves there
-with the module-shape refactor: docs/next-steps/module-shape-refactor.md.)
+A small page in its own window (docs/modules/voice_notes.md): a blank notes area, Record / Stop,
+a status line, and Copy; the page keeps the text in its local storage. While you speak, the
+cleaned start of the live text (its `settled` characters) shows in the notes in normal type and
+the not-yet-cleaned rest right after it, grey and italic; at Stop the final text replaces that
+whole stretch.
 
-v1, a quick version (docs/next-steps/voice-notes.md). A small page in its own window: a blank
-notes area, Record / Stop, a status line, and Copy; the page keeps the text in its local
-storage. While you speak, the cleaned start of the live text (its `settled` characters) shows in
-the notes in normal type and the not-yet-cleaned rest right after it, grey and italic; at Stop the
-final text replaces that whole stretch. Record sends `StartListening(send_as_input=False)` to `voice_in`, so the words go only to
-this page, never to the Talker. Only sessions this module started are followed (by the command's
-id). The second press wins: if another part of the app (the temp UI's mic) takes the mic, this
-session ends with `VoiceState(idle, reason="taken_over")`; the page says cancelled, drops those
-words, and sends no stop for it.
+It requires the voice contract (`IVoice`), so turning it on turns voice input on first. Record
+calls `IVoice.listen(session_id, VoiceDestination.CALLER)` with an id it made, so the words go
+only to this page, never to the Talker, and only its own sessions are followed. Stop calls
+`IVoice.finish(session_id)`, which never ends another part's session. The provider is looked up
+at each call, so a reload of `voice_in` is picked up. The second press wins: if another part of
+the app (the temp UI's mic) takes the mic, this session ends with
+`VoiceState(idle, reason="taken_over")`; the page says cancelled and drops those words.
 
-Imports only `assistant.contracts` and `app_kit.window`. No `requires` in v1 (no voice contract
-yet): with `voice_in` off, Record says "voice input is off".
+Imports only `assistant.contracts` and `app_kit.window`.
 
 Serves `page.html` on http://127.0.0.1:<port>/ (default 8770; standard library only):
 - `GET /events`: Server-Sent Events: the `voice` item (state, detail, live text, settled) on connect
@@ -34,16 +34,16 @@ import subprocess
 import webbrowser
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from app_kit.window import close_app_windows, open_app_window
 from assistant.contracts import (
+    IVoice,
     ListeningState,
     Manifest,
     ModuleContext,
     ModuleProtocol,
-    StartListening,
-    Status,
-    StopListening,
+    VoiceDestination,
     VoiceState,
     VoiceTranscript,
 )
@@ -57,7 +57,7 @@ class VoiceNotesModule(ModuleProtocol):
     manifest = Manifest(
         id="voice_notes",
         description="Speak into a page of notes; the words never go to the Talker",
-        sends=(StartListening, StopListening,),
+        requires=(IVoice,),
         listens=(VoiceState, VoiceTranscript,),
     )
 
@@ -72,7 +72,7 @@ class VoiceNotesModule(ModuleProtocol):
         self._server: asyncio.Server | None = None
         self._connections: set[asyncio.Task] = set()
         self._clients: set[asyncio.Queue[dict[str, Any]]] = set()
-        self._mine: set[str] = set()  # ids of the StartListening commands this module sent
+        self._mine: set[str] = set()  # ids of the sessions this module opened
         self._session: str | None = None  # the followed session: the latest of ours that sent `starting`
         self._open = False  # it's starting or on: a stop has something to stop
         self._voice: dict[str, Any] = {
@@ -95,8 +95,9 @@ class VoiceNotesModule(ModuleProtocol):
         self._edge = open_app_window(self.url, self._profile, log=self._ctx.log)
 
     async def stop(self) -> None:
-        if self._open:  # don't leave the mic on for a page that's gone
-            await self._ctx.send(StopListening(discard=True))
+        voice = self._ctx.get_one(IVoice)
+        if self._open and voice is not None and self._session:  # don't leave the mic on for a page that's gone
+            await voice.finish(self._session, discard=True)
         if self._edge and self._edge.poll() is None:
             await asyncio.to_thread(close_app_windows, self._profile, self._ctx.log)
         if self._server:
@@ -134,18 +135,22 @@ class VoiceNotesModule(ModuleProtocol):
         self._push({"kind": "final", "text": event.text})
 
     async def _record(self, on: bool) -> dict[str, Any]:
+        voice = self._ctx.get_one(IVoice)  # at each call: a reloaded voice_in is a new provider
         if not on:
-            if not self._open:
+            if not self._open or voice is None or self._session is None:
                 return {"ok": True, "error": None}  # nothing of ours is on (it ended, or was taken over)
-            result = await self._ctx.send(StopListening())
+            result = await voice.finish(self._session)  # ends only our session
             return {"ok": result.is_ok, "error": result.error}
-        command = StartListening(send_as_input=False)  # the words go to this page only
-        self._mine.add(command.id)  # before sending: its first state comes while it's handled
-        result = await self._ctx.send(command)
-        if not result.is_ok and self._session != command.id:  # no state came: nothing handled it
-            detail = "voice input is off" if result.status is Status.NOT_AVAILABLE else result.error
-            self._session, self._open = command.id, False
-            self._set_voice(state=str(ListeningState.FAILED), detail=detail, text="", settled=0)
+        session_id = uuid4().hex
+        self._mine.add(session_id)  # before listening: its first state comes while it opens
+        if voice is None:  # voice input is mid-reload, or was turned off around us
+            self._session, self._open = session_id, False
+            self._set_voice(state=str(ListeningState.FAILED), detail="voice input is off", text="", settled=0)
+            return {"ok": False, "error": "voice input is off"}
+        result = await voice.listen(session_id, VoiceDestination.CALLER)  # the words go to this page only
+        if not result.is_ok and self._session != session_id:  # no state came for it
+            self._session, self._open = session_id, False
+            self._set_voice(state=str(ListeningState.FAILED), detail=result.error, text="", settled=0)
         return {"ok": result.is_ok, "error": result.error}
 
     def _set_voice(self, **changes: Any) -> None:

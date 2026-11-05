@@ -33,7 +33,7 @@
 </tr>
 <tr>
 <td>requires / optional</td>
-<td>none in v1 (no voice contract yet); with <code>voice_in</code> off, Record says "voice input is off"</td>
+<td>requires <a href="../api/messaging.html#ivoice"><code>IVoice</code></a>: turning voice notes on turns <code>voice_in</code> on first. Record calls <code>listen(id, caller)</code>, Stop <code>finish(id)</code>, looked up at each call; if no provider is there for a moment (mid-reload), Record says "voice input is off"</td>
 </tr>
 <tr>
 <td>permissions</td>
@@ -136,7 +136,7 @@
 <li><code>tests/test_voice_notes.py</code></li>
 </ul>
 <h2 id="planned">Planned</h2>
-<p>From the module-shape refactor: requires the <strong>voice contract</strong> and starts a <strong>voice session with a destination</strong> instead of following command ids; the page server becomes a shared one.</p>
+<p>Built 2026-11-05: requires the voice contract and opens its own session through it. Still later: the page server becomes a shared one.</p>
 <footer>Generated from <code>docs/modules/voice_notes.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

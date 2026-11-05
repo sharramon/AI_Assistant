@@ -9,7 +9,7 @@ Speech to text for the whole app. `voice_in` is the thin module; the **voice ser
 | Field | Value |
 |-------|-------|
 | id | `voice_in` |
-| provides | nothing yet (the voice contract is planned) |
+| provides | [`IVoice`](../api/messaging.md#ivoice), the voice contract (a `_Voice` part using the same sessions as the commands) |
 | requires / optional | none |
 | permissions | optional: `microphone` |
 
@@ -72,4 +72,4 @@ A session: `StartListening` launches the service if needed and opens a socket; t
 
 ## Planned
 
-From the module-shape refactor: `voice_in` provides a **voice contract**, and the service takes **sessions with a destination**, so several modules share one mic and engine.
+Built 2026-11-05: `voice_in` provides the voice contract `IVoice`, sessions each owned by their caller with a destination. Still later: the service taking several listeners at once, so two sessions could run together.

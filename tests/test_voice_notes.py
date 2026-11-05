@@ -7,8 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from assistant.contracts import InputReceived, ListeningState, VoiceState, VoiceTranscript
-from assistant.core import App
+from assistant.contracts import (
+    ActivateModule,
+    DeactivateModule,
+    InputReceived,
+    IVoice,
+    ListeningState,
+    VoiceDestination,
+    VoiceState,
+    VoiceTranscript,
+)
+from assistant.core import App, StartupError
 from assistant.modules.temp_ui import TempUIModule
 from assistant.modules.voice_notes import VoiceNotesModule
 from tests.test_temp_ui import FakeVoiceIn, next_item, post, request
@@ -99,13 +108,23 @@ def test_the_page_keeps_the_tail_out_of_saved_and_copied_text():
     assert "writeText(plain())" in page and "setItem(KEY, plain())" in page  # plain() skips the tail
 
 
-async def test_record_without_voice_in_says_it_is_off():
-    app = App([VoiceNotesModule], {"modules": {"enabled": ["voice_notes"], "voice_notes": NONE}, "core": {}})
+def test_voice_notes_needs_the_voice_contract():
+    with pytest.raises(StartupError, match="requires IVoice"):
+        App([VoiceNotesModule], {"modules": {"enabled": ["voice_notes"], "voice_notes": NONE}, "core": {}})
+
+
+async def test_turning_voice_notes_on_turns_voice_input_on_first():
+    config = {"modules": {"enabled": [], "voice_notes": NONE}, "core": {}}
+    app = App([VoiceNotesModule, FakeVoiceIn], config)
     await app.start()
     try:
+        assert (await app.router.send(ActivateModule(module_id="voice_notes"))).is_ok
+        assert {"voice_in", "voice_notes"} <= set(app._lifecycle._active)
+        # voice_in can't go while voice notes needs it
+        assert not (await app.router.send(DeactivateModule(module_id="voice_in"))).is_ok
         events, writer = await events_of(app, "voice_notes")
-        assert not (await post(port_of(app, "voice_notes"), "/record", {"on": True}))["ok"]
-        assert (await next_item(events, voice(lambda i: i["state"] == "failed")))["detail"] == "voice input is off"
+        assert (await post(port_of(app, "voice_notes"), "/record", {"on": True}))["ok"]
+        await next_item(events, voice(lambda i: i["state"] == "listening"))
         writer.close()
     finally:
         await app.stop()
@@ -135,6 +154,25 @@ async def both():
     finally:
         await app.stop()
         svc.close()
+
+
+async def test_two_sessions_through_the_contract_each_get_only_their_own_text(both):
+    app, rec = both
+    voice = app.container.get_one(IVoice)
+    assert (await voice.listen("first", VoiceDestination.CALLER)).is_ok
+    await rec.wait(lambda r: said(r, "first"))
+    assert (await voice.listen("second", VoiceDestination.TALKER)).is_ok  # the second wins
+    await rec.wait(lambda r: any(s.reason == "taken_over" for s in r.of(VoiceState) if s.correlation_id == "first"))
+
+    # The first caller's stop ends nothing of the second's.
+    assert (await voice.finish("first")).value == {"text": "", "ended": True}
+    assert Probe.last._session is not None and Probe.last._session.id == "second"
+
+    await rec.wait(lambda r: any(t.text == TEXT for t in r.of(VoiceTranscript) if t.correlation_id == "second"))
+    assert (await voice.finish("second")).value["text"] == TEXT
+    assert [t.text for t in rec.of(VoiceTranscript) if t.correlation_id == "first" and t.final] == [""]
+    await rec.wait(lambda r: r.of(InputReceived))
+    assert [i.text for i in rec.of(InputReceived)] == [TEXT]  # only the TALKER session reaches the Talker
 
 
 def started(rec: Recorder) -> list[str]:

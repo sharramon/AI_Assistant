@@ -319,7 +319,13 @@ class HtmlViewerModule(ModuleProtocol):
 <td>yes (contracts, core, <code>__main__</code>)</td>
 </tr>
 <tr>
-<td>6 to 9</td>
+<td>6</td>
+<td>built: <code>IVoice</code> + <code>VoiceDestination</code> (<code>contracts/voice.py</code>); <code>voice_in</code> provides it (<code>_Voice</code> part, same sessions as the commands, <code>finish</code> ends only its own id); <code>voice_notes</code> requires it, no longer sends commands; the temp UI keeps the commands</td>
+<td>see <code>git log</code> ("Module system, chunk 6")</td>
+<td>yes (new contract)</td>
+</tr>
+<tr>
+<td>7 to 9</td>
 <td>not started</td>
 <td></td>
 <td></td>
@@ -340,6 +346,9 @@ class HtmlViewerModule(ModuleProtocol):
 <li><strong>D10 (chunk 4): a bad folder is skipped, not fatal.</strong> One broken module folder doesn't stop the app: it's logged as a warning and the rest load. If that module is in <code>modules.enabled</code>, startup still fails, with the existing "Enabled modules not found". Folders starting with <code>_</code> are ignored. <code>AddModule</code> checks id = folder only for packages directly under <code>assistant.modules</code>, so tests and other roots can still add packages of any name.</li>
 <li><strong>D11 (chunk 4): <code>App(available, ...)</code> keeps its parameter.</strong> <code>__main__</code> passes <code>find_modules()</code>; tests keep passing their own classes. Every module folder is still imported at launch, as the old static imports did.</li>
 <li><strong>D12 (chunk 5): <code>ctx.logs</code> covers the Talker and Main Assistant too.</strong> The plan named <code>temp_ui</code> and <code>html_viewer</code>, but "nothing in config" also meant the transcript sinks <code>wire_modules</code> put into <code>talker</code> and <code>main_assistant</code>'s sections, so both now ask <code>ctx.logs.sink(name)</code>. Config keeps only the file name. Without a <code>LogSession</code> (tests), <code>sink</code> gives a plain <code>Path</code> under <code>logging.dir</code>, which <code>ClaudeSession</code> already accepts; an absolute name stays absolute.</li>
+<li><strong>D13 (chunk 6): one mic, sessions owned by their caller, not parallel.</strong> The voice service takes one listener, so <code>IVoice</code> keeps "the second press wins". What's new is that each caller opens its session under its own id and <code>finish(id)</code> never ends anyone else's (before, <code>StopListening</code> stopped whatever was open). Parallel sessions would need a service change, left for later (open in <a href="../html/architecture/decisions.html">decisions</a>).</li>
+<li><strong>D14 (chunk 6): the caller makes the session id.</strong> <code>listen(session_id, destination)</code> takes the id rather than returning one, so the caller can follow <code>VoiceState</code> / <code>VoiceTranscript</code> from the very first event (they can arrive before <code>listen</code> returns).</li>
+<li><strong>D15 (chunk 6): the temp UI keeps <code>StartListening</code> / <code>StopListening</code>.</strong> The commands stay as the UI button's form, backed by the same session code, so the throwaway temp UI isn't reworked. It doesn't list <code>IVoice</code>; its mic says "voice input is off" when no handler is there, as before.</li>
 <li><strong>Known flake 2:</strong> <code>tests/test_html_viewer.py::test_refuses_what_it_cant_do</code> once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).</li>
 </ul>
 <p><strong>Before the build (2026-11-05):</strong> this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in <code>docs/temp/</code> (not in the docs build): <code>tool-paths.html</code>, <code>tool-mcp-wrapper.html</code>, and <code>one-door-vs-many.html</code>.</p>
@@ -386,14 +395,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 </tbody>
 </table>
-<p><strong>Next:</strong> chunk 6 (the voice contract <code>IVoice</code> with sessions and a destination; <code>voice_in</code> provides it, <code>voice_notes</code> requires it, the temp UI's mic button goes through it). Nothing edited yet. Findings so far, from reading <code>modules/voice_in/module.py</code>:</p>
-<ul>
-<li><code>voice_in</code> holds one <code>_Session</code> at a time and the second press wins (<code>taken_over</code>). The voice service also takes one listener. So "sessions" means <strong>one mic, and each caller owns its own session id</strong>, not parallel sessions. Parallel would need a service change: log that as the next D entry.</li>
-<li>Today <code>StopListening</code> stops whatever session is open, so voice notes could stop the chat mic's session. Planned fix: <code>IVoice.finish(session_id, discard=False)</code> only ends that session; a stale id gets <code>ok</code> with <code>taken_over</code> and an empty text.</li>
-<li>Sketch: <code>VoiceDestination</code> enum (<code>talker</code>: the final becomes <code>InputReceived(source="voice")</code>; <code>caller</code>: only <code>VoiceTranscript</code> / <code>VoiceState</code> with the session id, which the caller filters on). <code>IVoice(Contract)</code> in <code>contracts/voice.py</code>, single provider: <code>listen(destination, owner) -&gt; Result{"session_id"}</code> and <code>finish(session_id, discard) -&gt; Result{"text"}</code>. <code>voice_in</code> provides it with an object that calls its existing internals. Callers look it up at call time (<code>ctx.get_one(IVoice)</code>), never cached, so hot swap still works. Keep <code>StartListening</code> / <code>StopListening</code> as the command form for UIs (<code>send_as_input</code> maps to the destination); decide whether <code>temp_ui</code> moves to <code>IVoice</code> as <code>optional</code>.</li>
-<li>Still to read: <code>modules/voice_notes/module.py</code>, <code>contracts/voice.py</code>, the temp UI's mic path, <code>docs/architecture/voice.md</code> (the planned contract), <code>docs/modules/voice_notes.md</code>, and <code>tests/test_voice_notes.py</code> / <code>test_voice_in*.py</code> (the fake engine, for the "two sessions, each gets only its own text" test).</li>
-<li>Restart: chunks 4 and 5 are waiting for one too. The Talker said it can wait until the end unless a later chunk can't be checked without it. The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</li>
-</ul>
+<p><strong>Next:</strong> chunk 7 (companion apps follow the module: turning <code>voice_in</code> / <code>html_viewer</code> off quits their app, on starts it, and a "reload with restart" brings up new service code; <code>CompanionApp</code> in <code>app_kit</code> quits an adopted app too. Today <code>voice_in</code> hands its <code>CompanionApp</code> over on reload, see <code>export_state</code>). Restart: chunks 4 to 6 are waiting for one; the Talker said it can wait until the end unless a later chunk cannot be checked without it. The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</p>
 <h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
 <p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
 <ul>

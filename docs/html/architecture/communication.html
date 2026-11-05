@@ -109,7 +109,7 @@
 </code></pre>
 <p><strong>Where message types live:</strong> shared commands and events (<code>InputReceived</code>, <code>ResponseReady</code>, <code>InvokeTool</code>) are defined in Contracts. The AI calls tools through the single generic <code>InvokeTool(name, args)</code> command, using the name and argument schema each <code>IToolProvider</code> advertises, so the orchestrator needs no per-tool code. A typed command such as <code>CreateCalendarEvent</code> is added to Contracts only when one module needs to call another directly.</p>
 <h2 id="chaining-modules">Chaining modules</h2>
-<p>One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (a voice-notes module listening to <code>VoiceTranscript</code>), or sends its commands. A shared service serves several users through sessions, each with its own destination, instead of running copies. Events between modules are built; sessions and the voice contract are planned (<a href="modules.html#chaining-modules">modules</a>).</p>
+<p>One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (a voice-notes module listening to <code>VoiceTranscript</code>), or sends its commands. A shared service serves several users through sessions, each with its own destination, instead of running copies. Events between modules, the voice contract <code>IVoice</code> and its sessions are built (<a href="modules.html#chaining-modules">modules</a>).</p>
 <h2 id="command-results">Command results</h2>
 <p>Every command returns exactly one of these statuses. They mean different things, especially to an AI agent deciding what to do next:</p>
 <table>
