@@ -134,6 +134,62 @@ if not result.is_ok:
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="reloadmodule"><code>ReloadModule</code></h2>
+<p><code>ReloadModule(module_id: str, now: bool = False)</code> (command)</p>
+<p>Swap a module's code while the app runs: stop it, import its package fresh (with every submodule), re-read its config section, start the new code. Active modules that require something only it provides are stopped and started around it. If the module says it's <a href="modules.html#modulebusy"><code>busy</code></a>, the reload waits until it isn't (up to <code>core.reload_idle_timeout</code>, 300 s), unless <code>now</code>, which cuts in. The old instance's <a href="modules.html#moduleexport_state"><code>export_state</code></a> reaches the new one as <code>ctx.handover</code>. How it works: <a href="../architecture/core.html#reloading-a-modules-code">reloading</a>.</p>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>The new code runs (or is loaded, if the module was inactive)</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td>No module has that id</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>Its code is shared (core, contracts, <code>infra</code>, <code>app_kit</code>) or not in its own package; it stayed busy past <code>core.reload_idle_timeout</code> (the error says why, and to use <code>now</code>); or the new code failed to import, <code>init</code>, or <code>start</code>. Then the old code is put back and started, and the error says so</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(ReloadModule(module_id="voice_in"))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="addmodule"><code>AddModule</code></h2>
+<p><code>AddModule(package: str, activate: bool = True)</code> (command)</p>
+<p>Load a module that wasn't there at launch, from its package, and activate it unless <code>activate</code> is false. Its package must export exactly one <code>Module</code> subclass. To keep it on the next launch, add it to <code>MODULES</code> in <code>__main__.py</code> (and to <code>modules.enabled</code>).</p>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>Value: the new module's id</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>Already loaded (use <code>ReloadModule</code>), an id that's taken, an import error, or its code needs a contract the running app doesn't have: new contracts and port types need a restart</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(AddModule(package="assistant.modules.weather"))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="moduleinfo"><code>ModuleInfo</code></h2>
 <p><code>class ModuleInfo(BaseModel)</code> (frozen)</p>
 <table>
@@ -169,7 +225,7 @@ if not result.is_ok:
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="modulestate"><code>ModuleState</code></h2>
-<p><code>class ModuleState(StrEnum)</code>: <code>INACTIVE</code>, <code>STARTING</code>, <code>ACTIVE</code>, <code>STOPPING</code>, <code>FAILED</code>. Values are the lowercase names. <code>FAILED</code> modules can be activated again.</p>
+<p><code>class ModuleState(StrEnum)</code>: <code>INACTIVE</code>, <code>STARTING</code>, <code>ACTIVE</code>, <code>STOPPING</code>, <code>RELOADING</code> (its code is being swapped), <code>FAILED</code>. Values are the lowercase names. <code>FAILED</code> modules can be activated again.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="modulestatechanged"><code>ModuleStateChanged</code></h2>
 <p><code>ModuleStateChanged(module_id: str, state: ModuleState)</code> (event)</p>

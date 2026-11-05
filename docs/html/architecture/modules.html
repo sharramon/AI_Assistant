@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules</title>
+<!-- Generated from docs/architecture/modules.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/modules.html"></nav>
+<main>
+<h1 id="modules">Modules</h1>
+<p>How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in <a href="core.html">core</a>; the messages are in <a href="communication.html">communication</a>. Each module's own page, and every module's interface side by side: the <a href="module-library.html">module library</a>. Back to the <a href="index.html">overview</a>.</p>
+<blockquote>
+<p><strong>Status: decided 2026-11-04, mostly planned.</strong> Built: the wrapper (manifest, lifecycle, context), a menu through <code>IToolProvider</code> (the HTML viewer's), <code>requires</code> by contract, and reloading a module while the app runs. Planned: the one-line description, the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module-shape change note (<code>docs/next-steps/module-shape-refactor.md</code>).</p>
+</blockquote>
+<h2 id="a-module-is-a-wrapper-with-a-menu">A module is a wrapper with a menu</h2>
+<p>Every module has the same <strong>wrapper</strong>, owned by the core, and inside it a <strong>menu</strong> of what it can do.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it is</th>
+<th>Built?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Manifest</strong></td>
+<td>Its id, a one-line description, the contracts it provides, requires, and optionally uses, the events it announces, the commands it handles, its permissions</td>
+<td>Id, contracts, permissions: built. Description, events, <code>handles</code>: planned</td>
+</tr>
+<tr>
+<td><strong>Lifecycle</strong></td>
+<td><code>init</code>, <code>start</code>, <code>stop</code>, <code>busy</code>, <code>export_state</code>; the core starts, stops, and reloads it</td>
+<td>Built</td>
+</tr>
+<tr>
+<td><strong>Context</strong></td>
+<td><code>ctx</code>, its only access to the app: commands, events, contracts, config, log, permissions</td>
+<td>Built; <code>ctx.logs</code> planned</td>
+</tr>
+<tr>
+<td><strong>Menu</strong></td>
+<td>Named tools, each with a one-line description and its inputs (<code>ToolSpec</code>), offered through <code>IToolProvider</code> and called with <code>InvokeTool</code></td>
+<td>Built; only the HTML viewer has one (<code>open</code>, <code>highlight</code>, <code>tabs</code>)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The wrapper is ours only.</strong> Every module has the same one, so the core can start, stop, swap, and list any module without knowing what it does.</li>
+<li><strong>The menu is MCP-like:</strong> a list of tools a model can read and call, with a description and an argument schema each. It isn't MCP itself; an MCP bridge could expose menus later.</li>
+<li><strong>A menu can be empty.</strong> <code>voice_in</code> offers commands (<code>StartListening</code>, <code>StopListening</code>) and events, not tools.</li>
+</ul>
+<h2 id="find-a-module-then-open-its-menu">Find a module, then open its menu</h2>
+<p>Both the Talker and the Main Assistant find what to use the same way: first a <strong>directory</strong> with one line per module, then the <strong>menu</strong> of the one module they need, then a call. They never see every tool at once, and no agent has another module's tools written into it.</p>
+<p>Colors in the pictures: solid lines are built today, dashed orange is planned. Blue is a module's wrapper (ours only), yellow its menu (MCP-like), purple the core, faded grey the old way.</p>
+<h3 id="before-the-refactor-november-2026">Before the refactor (November 2026)</h3>
+<p><a href="img/module-directory-1-before.svg"><img alt="Before the refactor: the Talker hardcoded to the viewer, the Main Assistant unable to call tools" src="img/module-directory-1-before.svg" /></a></p>
+<p>One shortcut to one module. The Talker turns its SHOW tags into the viewer's <code>viewer.open</code> / <code>viewer.highlight</code>; the Main Assistant can't call module tools at all, so the viewer watches its SHOW tags instead. The core keeps a flat list of tools, with no directory and no one-line descriptions.</p>
+<h3 id="step-by-step-planned">Step by step (planned)</h3>
+<p><a href="img/module-directory-2-steps.svg"><img alt="Step by step: list modules, open one menu, call one item" src="img/module-directory-2-steps.svg" /></a></p>
+<ol>
+<li><strong>List modules</strong> (planned): the directory, one line each, from each manifest's description.</li>
+<li><strong>Give me its menu</strong> (planned): that module's <code>ToolSpec</code>s only.</li>
+<li><strong>Call an item</strong> (built): <code>InvokeTool(name, args)</code>, routed to the module that offers it.</li>
+</ol>
+<p>Asks 1 and 2 are new core asks: an extended <code>ListModules</code> or new commands, decided at build time. How the Main Assistant sends them (tags in its reply, or one generic tag) is <a href="decisions.html#open-decisions">open</a>.</p>
+<h3 id="what-changes">What changes</h3>
+<p><a href="img/module-directory-3-changes.svg"><img alt="What changes: a one-line description, two new asks, both assistants using them" src="img/module-directory-3-changes.svg" /></a></p>
+<p>Each manifest gets a one-line description, the core gets the two asks, and both assistants use them instead of hardcoded tags. All of it is planned and needs an app restart (it touches the core and contracts).</p>
+<h2 id="chaining-modules">Chaining modules</h2>
+<blockquote>
+<p><strong>Status:</strong> events between modules are built (<code>voice_in</code> publishes <code>VoiceTranscript</code> and <code>VoiceState</code>; voice notes v1 listens to them). The voice contract and voice sessions are planned.</p>
+</blockquote>
+<p>Modules are combined through what they declare, with no glue code between pairs:</p>
+<ul>
+<li><strong>Listen to events.</strong> A module uses another's output by subscribing to the events it announces. A voice-notes module listens to <code>VoiceTranscript</code>; it never imports <code>voice_in</code>.</li>
+<li><strong>Call commands or menu items.</strong> For an action with a result, through the core (<code>StartListening</code>, <code>InvokeTool</code>).</li>
+<li><strong>Share a service through sessions.</strong> A shared service runs once and serves several users. Each user starts a <strong>session</strong> and says where the result goes (its <strong>destination</strong>); the service keeps them apart by session id. Two copies of <code>voice_in</code> would fight over the one mic and load the speech engine twice.</li>
+<li><strong>Keep message shapes general.</strong> Reuse a general event (for example a text stream carrying its source and destination) before adding a new type per use: a new type is a contract change and needs a restart. How general is <a href="decisions.html#open-decisions">open</a>.</li>
+</ul>
+<pre><code class="language-mermaid">flowchart LR
+    Btn[&quot;&lt;b&gt;Mic button&lt;/b&gt;&lt;br/&gt;temp UI&quot;]
+    Rec[&quot;&lt;b&gt;Record button&lt;/b&gt;&lt;br/&gt;voice notes&quot;]
+    Video[&quot;&lt;b&gt;Video file&lt;/b&gt;&lt;br/&gt;transcription app&quot;]
+    Voice[&quot;&lt;b&gt;voice_in&lt;/b&gt;&lt;br/&gt;provides the voice contract&quot;]
+    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
+    Notes[&quot;&lt;b&gt;Voice notes&lt;/b&gt;&lt;br/&gt;v1 built · requires the voice contract: planned&quot;]
+
+    Btn -- &quot;StartListening&lt;br/&gt;send to the Talker&quot; --&gt; Voice
+    Voice -- &quot;final text&quot; --&gt; Talker
+    Rec -- &quot;StartListening&lt;br/&gt;not to the Talker&quot; --&gt; Voice
+    Voice -- &quot;VoiceTranscript&lt;br/&gt;its sessions only&quot; --&gt; Notes
+    Rec -. &quot;planned: a session&lt;br/&gt;destination: notes&quot; .-&gt; Voice
+    Video -. &quot;file source&lt;br/&gt;(the service has one)&quot; .-&gt; Voice
+
+    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    class Video planned
+</code></pre>
+<p>Solid: built (the mic button's flow, and voice notes v1, which follows its own sessions by the <code>StartListening</code> id; see <a href="../modules/voice_notes.html">voice_notes</a>). Purple, dashed: planned. Today the voice service takes one listener at a time (a second <code>start</code> gets <code>busy</code>) and <code>StartListening</code> only chooses whether the Talker gets the text (<code>send_as_input</code>). The video case feeds a file instead of the mic; the service already has a file source and <code>transcribe_file</code> (<a href="voice.html#a-shared-service">voice</a>).</p>
+<h2 id="dependencies">Dependencies</h2>
+<blockquote>
+<p><strong>Status:</strong> built, by contract. The voice contract is planned.</p>
+</blockquote>
+<ul>
+<li><strong>A manifest requires contracts, never module ids</strong> (<a href="principles.html">principle 2</a>). The core starts the provider first: in dependency order at startup, and at runtime <code>ActivateModule</code> activates the sole provider first. It refuses to turn a provider off while an active module requires it (<a href="core.html#runtime-module-control">runtime module control</a>).</li>
+<li><strong><code>optional</code></strong> contracts are used if some module provides them, and the module copes without them.</li>
+<li><strong>No module starts another itself.</strong> Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.</li>
+<li><strong>Voice:</strong> <code>voice_in</code> will provide a new voice contract (planned; its name and methods are decided when it's built), and voice notes requires it. Any other module that provides the same contract can replace <code>voice_in</code>.</li>
+</ul>
+<h2 id="hot-swap">Hot swap</h2>
+<blockquote>
+<p><strong>Status:</strong> built (2026-11-03).</p>
+</blockquote>
+<p>A module's code is swapped while the app runs: <code>ReloadModule</code> stops it, imports its package fresh, and starts a new instance; if the new code fails, the old code runs again. <code>AddModule</code> loads a brand-new module. Changes to the core, contracts, <code>infra</code>, <code>app_kit</code>, or <code>__main__</code>, and a new contract, still need a restart. Details: <a href="core.html#reloading-a-modules-code">reloading a module's code</a>.</p>
+<h2 id="found-by-folder">Found by folder</h2>
+<blockquote>
+<p><strong>Status: planned.</strong> Today each module is imported by hand in <code>__main__.py</code> and listed in <code>MODULES</code>.</p>
+</blockquote>
+<ul>
+<li><strong>A module is its folder:</strong> <code>src/assistant/modules/&lt;id&gt;/</code>, with the folder name equal to the manifest id.</li>
+<li><strong>The core scans the folder</strong> to know which modules are available; <code>modules.enabled</code> still says which start. It reuses the reload's loader (<code>core/loader.py</code>).</li>
+<li><strong>Adding a module is adding a folder,</strong> then <code>AddModule</code> while the app runs, or a restart.</li>
+</ul>
+<h2 id="built-and-planned">Built and planned</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wrapper: manifest (id, contracts, permissions), lifecycle, context</td>
+<td>Built</td>
+</tr>
+<tr>
+<td>Menus through <code>IToolProvider</code>, called with <code>InvokeTool</code></td>
+<td>Built (the HTML viewer)</td>
+</tr>
+<tr>
+<td><code>requires</code> / <code>optional</code> by contract, dependency order, refusal to stop a needed provider</td>
+<td>Built</td>
+</tr>
+<tr>
+<td>Reload and add while running</td>
+<td>Built (2026-11-03)</td>
+</tr>
+<tr>
+<td>Events from one module heard by another (<code>VoiceTranscript</code>, <code>VoiceState</code>)</td>
+<td>Built</td>
+</tr>
+<tr>
+<td>Manifest description, announced events, <code>handles</code> (the core checks every command)</td>
+<td>Planned</td>
+</tr>
+<tr>
+<td><code>ctx.logs</code> port</td>
+<td>Planned</td>
+</tr>
+<tr>
+<td>Directory and menu asks; both assistants using them</td>
+<td>Planned</td>
+</tr>
+<tr>
+<td>Finding modules by folder</td>
+<td>Planned</td>
+</tr>
+<tr>
+<td>Voice contract; voice sessions with a destination</td>
+<td>Planned</td>
+</tr>
+<tr>
+<td>Voice-notes module</td>
+<td>v1 built (2026-11-04), without the voice contract; the version that requires it is planned</td>
+</tr>
+<tr>
+<td>A page per module and the <a href="module-library.html">module library</a></td>
+<td>Built, hand-written; generated from the manifests: planned</td>
+</tr>
+</tbody>
+</table>
+<footer>Generated from <code>docs/architecture/modules.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

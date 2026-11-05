@@ -14,7 +14,7 @@
 <h1 id="agents">Agents</h1>
 <p>How the AI side fits the system: an <strong>Agent Hub</strong> coordinates a <strong>Talker</strong>, a <strong>Main Assistant</strong>, and <strong>subagents</strong>. Back to the <a href="index.html">overview</a>. How we actually run and test the agents is in the <a href="../agents/index.html">Agents tab</a>.</p>
 <blockquote>
-<p><strong>Status: built (2026-10-25)</strong> for the Talker, one Main Assistant, and the Hub. Hub subagents are still to come; for now the Main Assistant uses Claude Code's own subagents (a <code>debugger</code>) inside its session. Since 2026-10-27 the Main Assistant starts a fresh session per task and hands off between big parts (<a href="../agents/runtime.html#fresh-sessions-and-handoffs">runtime</a>). The <a href="../agents/spike.html">spike</a> confirmed the interrupt the design relies on. API: <a href="../api/agents.html">Agents</a>.</p>
+<p><strong>Status: built (2026-10-25)</strong> for the Talker, one Main Assistant, and the Hub. Hub subagents are still to come; for now the Main Assistant uses Claude Code's own subagents (a <code>debugger</code>) inside its session. Since 2026-10-27 the Main Assistant starts a fresh session per task and hands off between big parts (<a href="../agents/runtime.html#fresh-sessions-and-handoffs">runtime</a>). Since 2026-11-03 the worker is reminded at 150k and hands off to a fresh session by itself, and batches its edits through a standing prompt line and a once-per-file hook note, with no interrupts (<a href="../agents/runtime.html#fresh-sessions-and-handoffs">runtime</a>, <a href="decisions.html#decided">decision</a>). <strong>Restart:</strong> <code>python -m assistant</code> is a launcher that starts the app again whenever it exits with code 75; when you ask for a restart, the Talker gets reset instructions from the worker, the app exits with 75, and the new launch hands those instructions to the Talker as its first input (<a href="core.html#lifecycle">core</a>, <a href="../agents/runtime.html#the-talker-on-its-own">runtime</a>). The <a href="../agents/spike.html">spike</a> confirmed the interrupt the design relies on. API: <a href="../api/agents.html">Agents</a>.</p>
 </blockquote>
 <h2 id="the-idea">The idea</h2>
 <p>Separate <strong>communication</strong> (Talker), <strong>coordination</strong> (Hub), <strong>intelligence</strong> (Main Assistant), and <strong>execution</strong> (subagents), each a replaceable module.</p>
@@ -70,7 +70,7 @@
 </tr>
 <tr>
 <td><strong>Talker</strong></td>
-<td>Converse, answer simple things directly, hand substantial work to the Main Assistant, report progress and results, relay clarification questions, stay responsive and interruptible</td>
+<td>Converse, answer simple things directly, hand substantial work to the Main Assistant, report progress and results, relay clarification questions, stay responsive and interruptible. Read spoken input (marked <code>[Spoken]</code>, from <code>InputReceived(source="voice")</code>) for what was meant, using the conversation, with no extra cleanup call</td>
 <td>Do substantial work itself</td>
 </tr>
 <tr>
@@ -251,7 +251,7 @@
 </code></pre>
 <p>Solid: commands and contract calls, which always return a <code>Result</code>. Dotted: events, which may be dropped.</p>
 <ul>
-<li><strong>Talker → Hub:</strong> commands <code>StartTask</code>, <code>GetTaskStatus</code> (status without bothering the agent), <code>SendToTask</code> (a question, extra instruction, or your answer), <code>CancelTask</code>. In v1 the <code>talker</code> module turns tags in the Talker's text (<code>&lt;&lt;WORK: …&gt;&gt;</code>, <code>&lt;&lt;ASK: …&gt;&gt;</code>, <code>&lt;&lt;PAUSE: …&gt;&gt;</code>, <code>&lt;&lt;CANCEL&gt;&gt;</code> etc.) into these commands; real tools need an MCP bridge, later.</li>
+<li><strong>Talker → Hub:</strong> commands <code>StartTask</code>, <code>GetTaskStatus</code> (status without bothering the agent), <code>SendToTask</code> (a question, extra instruction, or your answer), <code>CancelTask</code>. In v1 the <code>talker</code> module turns tags in the Talker's text (<code>&lt;&lt;WORK: …&gt;&gt;</code>, <code>&lt;&lt;ASK: …&gt;&gt;</code>, <code>&lt;&lt;PAUSE: …&gt;&gt;</code>, <code>&lt;&lt;CANCEL&gt;&gt;</code> etc.) into these commands. Planned: both agents find module tools through the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a> instead of hardcoded tags.</li>
 <li><strong>You never use keywords or flags.</strong> You just talk; the Talker (a Claude too) infers from context whether you meant continue, pause, or cancel, and emits the matching tag.</li>
 <li><strong>Agent → any UI:</strong> the <code>AgentStateChanged</code> event whenever <code>busy</code> or <code>working</code> changes, so a UI shows it live. <code>ListAgents</code> (Hub) is the authoritative read.</li>
 <li><strong>Hub → agent:</strong> the <code>ITaskAgent</code> methods.</li>

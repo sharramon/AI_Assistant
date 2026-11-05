@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module library</title>
+<!-- Generated from docs/architecture/module-library.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/module-library.html"></nav>
+<main>
+<h1 id="module-library">Module library</h1>
+<p>Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own page. The data types are listed below the table, with links to their API entries. Back to the <a href="index.html">overview</a>.</p>
+<blockquote>
+<p><strong>Hand-written</strong> from the code, checked 2026-11-04. The manifest doesn't yet carry the description, the handled commands or the events, so this page can fall behind the code. A test (<code>tests/test_module_docs.py</code>) checks that every module has a row here and a page. It becomes generated once the manifests carry the data (<a href="#generated-later">generated later</a>).</p>
+</blockquote>
+<h2 id="modules">Modules</h2>
+<!-- library:start (hand-written until generated from the manifests) -->
+
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>What it does</th>
+<th>On</th>
+<th>Tools (menu)</th>
+<th>Handles</th>
+<th>Calls</th>
+<th>Publishes</th>
+<th>Listens to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../modules/voice_in.html"><code>voice_in</code></a></td>
+<td>Speech to text; launches the voice service app</td>
+<td>yes</td>
+<td>none</td>
+<td><code>StartListening</code>, <code>StopListening</code></td>
+<td>none</td>
+<td><code>VoiceState</code>, <code>VoiceTranscript</code>, <code>InputReceived</code></td>
+<td>none</td>
+</tr>
+<tr>
+<td><a href="../modules/voice_notes.html"><code>voice_notes</code></a></td>
+<td>Speak into a page of notes; the words never go to the Talker</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td><code>StartListening</code>, <code>StopListening</code></td>
+<td>none</td>
+<td><code>VoiceState</code>, <code>VoiceTranscript</code></td>
+</tr>
+<tr>
+<td><a href="../modules/html_viewer.html"><code>html_viewer</code></a></td>
+<td>View, edit, highlight and snip HTML; launches the viewer app</td>
+<td>yes</td>
+<td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
+<td><code>InvokeTool</code> (its tools)</td>
+<td>none</td>
+<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code></td>
+<td><code>AgentActivity</code></td>
+</tr>
+<tr>
+<td><a href="../modules/talker.html"><code>talker</code></a></td>
+<td>Talks with you; hands work to the Agent Hub</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td><code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
+<td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
+<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code></td>
+</tr>
+<tr>
+<td><a href="../modules/main_assistant.html"><code>main_assistant</code></a></td>
+<td>The worker: does the tasks (provides <code>ITaskAgent</code>)</td>
+<td>yes</td>
+<td>none</td>
+<td>none (called through <code>ITaskAgent</code>)</td>
+<td><code>ReportTask</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
+<td><code>ResetRequested</code></td>
+</tr>
+<tr>
+<td><a href="../modules/agent_hub.html"><code>agent_hub</code></a></td>
+<td>Task state and routing between the agents</td>
+<td>yes</td>
+<td>none</td>
+<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code></td>
+<td><code>ITaskAgent</code> methods</td>
+<td><code>TaskUpdated</code></td>
+<td><code>AgentActivity</code></td>
+</tr>
+<tr>
+<td><a href="../modules/temp_ui.html"><code>temp_ui</code></a></td>
+<td>Temporary two-pane page: worker and Talker, mic, usage, permissions</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td><code>ListModules</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
+<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>ViewerClipDropped</code></td>
+<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code></td>
+</tr>
+<tr>
+<td><a href="../modules/console_io.html"><code>console_io</code></a></td>
+<td>Terminal 1: type and read replies</td>
+<td>yes</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>InputReceived</code>, <code>ShutdownRequested</code></td>
+<td><code>ResponseReady</code></td>
+</tr>
+<tr>
+<td><a href="../modules/assistant_view.html"><code>assistant_view</code></a></td>
+<td>Terminal 2: view-only agent activity</td>
+<td>no</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>TaskUpdated</code></td>
+</tr>
+<tr>
+<td><a href="../modules/echo_orchestrator.html"><code>echo_orchestrator</code></a></td>
+<td>Stand-in orchestrator: echoes, <code>/tools</code></td>
+<td>no</td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>ResponseReady</code></td>
+<td><code>InputReceived</code></td>
+</tr>
+</tbody>
+</table>
+<p>The core itself handles the <a href="../api/control.html">module control</a> commands (<code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code>), routes <code>InvokeTool</code> to the module that offers the tool, and publishes <code>ModuleStateChanged</code>.</p>
+<!-- library:end -->
+
+<h2 id="data-types">Data types</h2>
+<p>What travels between modules. Fields are the main ones; the API entry has them all.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Kind</th>
+<th>Carries</th>
+<th>API</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>InputReceived</code></td>
+<td>event</td>
+<td><code>text</code>, <code>source</code>, <code>conversation_id</code></td>
+<td><a href="../api/messaging.html#inputreceived">messaging</a></td>
+</tr>
+<tr>
+<td><code>ResponseReady</code></td>
+<td>event</td>
+<td><code>text</code>, <code>conversation_id</code>, <code>correlation_id</code></td>
+<td><a href="../api/messaging.html#responseready">messaging</a></td>
+</tr>
+<tr>
+<td><code>ShutdownRequested</code></td>
+<td>event</td>
+<td><code>reason</code>, <code>restart</code></td>
+<td><a href="../api/messaging.html#shutdownrequested">messaging</a></td>
+</tr>
+<tr>
+<td><code>SessionTheme</code></td>
+<td>event</td>
+<td><code>text</code></td>
+<td><a href="../api/messaging.html#sessiontheme">messaging</a></td>
+</tr>
+<tr>
+<td><code>StartListening</code></td>
+<td>command</td>
+<td><code>send_as_input</code></td>
+<td><a href="../api/messaging.html#startlistening">messaging</a></td>
+</tr>
+<tr>
+<td><code>StopListening</code></td>
+<td>command</td>
+<td><code>discard</code>; the result has the final text</td>
+<td><a href="../api/messaging.html#stoplistening">messaging</a></td>
+</tr>
+<tr>
+<td><code>VoiceState</code></td>
+<td>event</td>
+<td><code>state</code> (<code>ListeningState</code>), <code>reason</code>, <code>detail</code></td>
+<td><a href="../api/messaging.html#voicestate">messaging</a></td>
+</tr>
+<tr>
+<td><code>VoiceTranscript</code></td>
+<td>event</td>
+<td><code>session_id</code>, <code>text</code>, <code>settled_chars</code>, <code>final</code></td>
+<td><a href="../api/messaging.html#voicetranscript">messaging</a></td>
+</tr>
+<tr>
+<td><code>ViewerTabsChanged</code></td>
+<td>event</td>
+<td><code>tabs</code>, <code>active</code>, <code>highlights</code></td>
+<td><a href="../api/messaging.html#viewertabschanged">messaging</a></td>
+</tr>
+<tr>
+<td><code>ViewerClip</code></td>
+<td>event</td>
+<td><code>id</code>, <code>image_path</code>, <code>file</code>, <code>heading</code></td>
+<td><a href="../api/messaging.html#viewerclip">messaging</a></td>
+</tr>
+<tr>
+<td><code>ViewerClipDropped</code></td>
+<td>event</td>
+<td><code>id</code></td>
+<td><a href="../api/messaging.html#viewerclipdropped">messaging</a></td>
+</tr>
+<tr>
+<td><code>InvokeTool</code></td>
+<td>command</td>
+<td><code>name</code>, <code>args</code></td>
+<td><a href="../api/tools.html#invoketool">tools</a></td>
+</tr>
+<tr>
+<td><code>StartTask</code></td>
+<td>command</td>
+<td><code>text</code>, <code>context</code></td>
+<td><a href="../api/agents.html#starttask">agents</a></td>
+</tr>
+<tr>
+<td><code>GetTaskStatus</code></td>
+<td>command</td>
+<td><code>task_id</code></td>
+<td><a href="../api/agents.html#gettaskstatus">agents</a></td>
+</tr>
+<tr>
+<td><code>SendToTask</code></td>
+<td>command</td>
+<td><code>task_id</code>, <code>text</code>, <code>resume</code></td>
+<td><a href="../api/agents.html#sendtotask">agents</a></td>
+</tr>
+<tr>
+<td><code>CancelTask</code></td>
+<td>command</td>
+<td><code>task_id</code></td>
+<td><a href="../api/agents.html#canceltask">agents</a></td>
+</tr>
+<tr>
+<td><code>AnswerPermission</code></td>
+<td>command</td>
+<td><code>task_id</code>, <code>allow</code></td>
+<td><a href="../api/agents.html#answerpermission">agents</a></td>
+</tr>
+<tr>
+<td><code>SetPermissionMode</code></td>
+<td>command</td>
+<td><code>agent_id</code>, <code>mode</code> (<code>PermissionMode</code>)</td>
+<td><a href="../api/agents.html#setpermissionmode">agents</a></td>
+</tr>
+<tr>
+<td><code>ListAgents</code></td>
+<td>command</td>
+<td>none; the result lists <code>AgentInfo</code></td>
+<td><a href="../api/agents.html#listagents">agents</a></td>
+</tr>
+<tr>
+<td><code>ReportTask</code></td>
+<td>command</td>
+<td>the report's kind and text</td>
+<td><a href="../api/agents.html#reporttask">agents</a></td>
+</tr>
+<tr>
+<td><code>TaskUpdated</code></td>
+<td>event</td>
+<td><code>task_id</code>, <code>state</code>, <code>kind</code>, <code>text</code></td>
+<td><a href="../api/agents.html#taskupdated">agents</a></td>
+</tr>
+<tr>
+<td><code>AgentActivity</code></td>
+<td>event</td>
+<td>an agent's raw activity</td>
+<td><a href="../api/agents.html#agentactivity">agents</a></td>
+</tr>
+<tr>
+<td><code>AgentStateChanged</code></td>
+<td>event</td>
+<td>an agent's <code>busy</code> and <code>working</code></td>
+<td><a href="../api/agents.html#agentstatechanged">agents</a></td>
+</tr>
+<tr>
+<td><code>PermissionModeChanged</code></td>
+<td>event</td>
+<td>the mode, <code>now</code> or <code>next_task</code></td>
+<td><a href="../api/agents.html#permissionmodechanged">agents</a></td>
+</tr>
+<tr>
+<td><code>SessionUsage</code></td>
+<td>event</td>
+<td>context now, tokens and ~$ since launch</td>
+<td><a href="../api/agents.html#sessionusage">agents</a></td>
+</tr>
+<tr>
+<td><code>ResetRequested</code></td>
+<td>event</td>
+<td><code>agent_id</code></td>
+<td><a href="../api/agents.html#resetrequested">agents</a></td>
+</tr>
+<tr>
+<td><code>ListModules</code></td>
+<td>command</td>
+<td>none; the result lists <code>ModuleInfo</code></td>
+<td><a href="../api/control.html#listmodules">control</a></td>
+</tr>
+<tr>
+<td><code>ModuleStateChanged</code></td>
+<td>event</td>
+<td>a module's new <code>ModuleState</code></td>
+<td><a href="../api/control.html#modulestatechanged">control</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="generated-later">Generated later</h2>
+<blockquote>
+<p><strong>Planned</strong>, with the module-shape refactor (change note <code>docs/next-steps/module-shape-refactor.md</code>, items 2 and 5).</p>
+</blockquote>
+<p>A script reads each module's <code>Manifest</code> and menu and rewrites the table between the <code>library:start</code> and <code>library:end</code> markers before the docs build. It needs:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Source</th>
+<th>Today</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it does</td>
+<td><code>Manifest.description</code></td>
+<td>planned (refactor item 5)</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td><code>Manifest.handles</code></td>
+<td>planned (refactor item 2)</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td>the announced events</td>
+<td>planned (refactor item 5)</td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td>a listened-events list in the manifest</td>
+<td>not yet in the refactor note; added there as an open point</td>
+</tr>
+<tr>
+<td>Tools</td>
+<td>the module's <code>ToolSpec</code>s, readable without starting it</td>
+<td>today only from a running module's <code>tools()</code>; open point in the note</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td>none of the above; stays hand-written or is dropped</td>
+<td>hand-written</td>
+</tr>
+</tbody>
+</table>
+<p>The data types table can then be generated from <code>assistant.contracts</code>, linking each type to its API anchor.</p>
+<footer>Generated from <code>docs/architecture/module-library.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

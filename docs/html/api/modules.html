@@ -55,8 +55,14 @@
     async def _on_input(self, event: InputReceived) -&gt; None:
         self._ctx.publish(ResponseReady(text=f"Echo: {event.text}", correlation_id=event.id))
 </code></pre>
+<h3 id="modulebusy"><code>Module.busy</code></h3>
+<p><code>busy(self) -&gt; str | None</code></p>
+<p>Why this module's code shouldn't be swapped right now (for example <code>"replying to you"</code>), or <code>None</code>. A <a href="control.html#reloadmodule"><code>ReloadModule</code></a> waits until it's <code>None</code> (up to <code>core.reload_idle_timeout</code>), unless it says <code>now</code>. Default <code>None</code>. Today: the Talker (a turn is running), the Agent Hub (tasks open), the Main Assistant (working on a task).</p>
+<h3 id="moduleexport_state"><code>Module.export_state</code></h3>
+<p><code>export_state(self) -&gt; Any</code></p>
+<p>Called before a reload stops this instance. What it returns reaches the new instance as <a href="#modulecontext"><code>ctx.handover</code></a> in <code>init</code> (and goes back to the old instance if the new code fails). Return plain data or <code>assistant.infra</code> / <code>app_kit</code> objects, which are never reloaded; never this module's own classes, which change with the code. Default <code>None</code>: the new instance starts clean. A hook that raises counts as <code>None</code>. Today: <code>voice_in</code> hands over its <code>CompanionApp</code>, so the voice app keeps running.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code>
-<strong>See also:</strong> <a href="#manifest"><code>Manifest</code></a>, <a href="#modulecontext"><code>ModuleContext</code></a>, <a href="../architecture/core.html#adding-replacing-or-removing-a-module">adding a module</a></p>
+<strong>See also:</strong> <a href="#manifest"><code>Manifest</code></a>, <a href="#modulecontext"><code>ModuleContext</code></a>, <a href="../architecture/core.html#adding-replacing-or-removing-a-module">adding a module</a>, <a href="../architecture/core.html#reloading-a-modules-code">reloading</a></p>
 <h2 id="manifest"><code>Manifest</code></h2>
 <p><strong>Reusable</strong> · Used by: every module</p>
 <p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = ())</code></p>
@@ -145,6 +151,11 @@
 <td><code>permissions</code></td>
 <td><code>ModulePermissions</code></td>
 <td>This module's permission checks; see below</td>
+</tr>
+<tr>
+<td><code>handover</code></td>
+<td><code>Any</code></td>
+<td>After a reload, what the old instance's <a href="#moduleexport_state"><code>export_state</code></a> returned; otherwise <code>None</code></td>
 </tr>
 </tbody>
 </table>

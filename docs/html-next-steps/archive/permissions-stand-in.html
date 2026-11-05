@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permissions stand-in (`ctx.permissions`)</title>
+<!-- Generated from docs/next-steps/archive/permissions-stand-in.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/permissions-stand-in.html"></nav>
+<main>
+<h1 id="permissions-stand-in-ctxpermissions">Permissions stand-in (<code>ctx.permissions</code>)</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-02).</strong> Approved as written, with both recommendations: warn once per module and permission, then debug; no startup check yet. Built with <code>tests/test_permissions.py</code> (150 tests pass, ruff clean). Next: the voice contracts (step 1 of <a href="../index.html#next-voice-in-phase-1">voice in</a>), a separate task.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Build the permissions stand-in, the first step before voice input": <code>ctx.permissions</code> with <code>has</code> and <code>request</code>, which allows every request and logs it until the real handler exists. Step 5 of <a href="reusable-parts.html#downstream-effects-in-order">Reusable parts</a>.</p>
+<p><strong>Why:</strong> <code>voice_in</code> (and every later module) can ask for the mic the final way from day one. When the <a href="../permissions-handler.html">permissions handler</a> is built, it plugs in behind the same calls and no module changes. Behavior follows the decided <a href="../../html/architecture/permissions.html#what-happens-when-one-is-missing">no handler running</a> rule.</p>
+<h2 id="touches">Touches</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/assistant/contracts/module.py</code></td>
+<td><code>Manifest</code> gains <code>permissions</code> and <code>optional_permissions</code> (<code>tuple[str, ...] = ()</code>). New ABC <code>ModulePermissions</code>. <code>ModuleContext</code> gains the attribute <code>permissions: ModulePermissions</code></td>
+</tr>
+<tr>
+<td><code>src/assistant/contracts/__init__.py</code></td>
+<td>Export <code>ModulePermissions</code></td>
+</tr>
+<tr>
+<td><code>src/assistant/core/permissions.py</code> (new)</td>
+<td><code>AllowAllPermissions(ModulePermissions)</code>: the stand-in, bound to one module id</td>
+</tr>
+<tr>
+<td><code>src/assistant/core/context.py</code></td>
+<td><code>ScopedContext.__init__</code> sets <code>self.permissions = AllowAllPermissions(manifest.id)</code></td>
+</tr>
+<tr>
+<td><code>tests/test_permissions.py</code> (new)</td>
+<td>Tests below</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td><code>api/modules.md</code> (planned → built), <code>api/core.md</code> (<code>AllowAllPermissions</code>, internal), <code>api/README.md</code> + <code>api/reusable.md</code> (drop <em>planned</em>, Used by), <code>architecture/permissions.md</code> (stand-in built), <a href="../permissions-handler.html">permissions-handler</a> (one line: the stand-in exists), this note, Pending changes; rebuild</td>
+</tr>
+</tbody>
+</table>
+<p>No module, config, or lifecycle changes. Nothing uses <code>ctx.permissions</code> yet; <code>voice_in</code> is the first.</p>
+<h2 id="contract-shape">Contract shape</h2>
+<pre><code class="language-python"># contracts/module.py
+@dataclass(frozen=True)
+class Manifest:
+    ...
+    permissions: tuple[str, ...] = ()            # can't run without
+    optional_permissions: tuple[str, ...] = ()   # asked in the moment; a feature is off without
+
+class ModulePermissions(ABC):
+    &quot;&quot;&quot;One module's permission checks. The core fills in the caller's id.&quot;&quot;&quot;
+    @abstractmethod
+    def has(self, name: str) -&gt; bool: ...
+    @abstractmethod
+    async def request(self, name: str, reason: str = &quot;&quot;) -&gt; bool: ...
+
+class ModuleContext(ABC):
+    ...
+    permissions: ModulePermissions
+</code></pre>
+<pre><code class="language-python"># core/permissions.py (internal to the core)
+class AllowAllPermissions(ModulePermissions):
+    def __init__(self, module_id: str): ...
+    def has(self, name) -&gt; bool:              # True, logs
+    async def request(self, name, reason=&quot;&quot;) -&gt; bool:  # True, logs (with the reason)
+</code></pre>
+<ul>
+<li><strong>Log line:</strong> <code>WARNING assistant.core.permissions: no permissions handler: allowing voice_in microphone (You clicked the mic)</code>. One core logger, so every stand-in grant is in one place.</li>
+<li><strong>Later:</strong> the real handler provides an <code>IPermissions</code> contract; <code>ScopedContext</code> then builds a <code>ModulePermissions</code> that forwards to it with the module id, and falls back to <code>AllowAllPermissions</code> when no handler runs. Modules see no difference.</li>
+<li><strong>Reuse checked:</strong> nothing in the <a href="../../html/api/reusable.html">reusable parts index</a> does this; no new helper beyond the class itself.</li>
+</ul>
+<h2 id="tests-teststest_permissionspy">Tests (<code>tests/test_permissions.py</code>)</h2>
+<ol>
+<li><code>has</code> and <code>request</code> return <code>True</code> for any name.</li>
+<li>Each logs a warning naming the module and the permission; <code>request</code> includes the reason (<code>caplog</code>).</li>
+<li>A real module's context (through <code>App</code>, like <code>test_control.py</code>) has <code>ctx.permissions</code> bound to its own id: two modules' calls log their own ids.</li>
+<li><code>Manifest</code> defaults: both permission fields are <code>()</code>; a manifest can declare them.</li>
+</ol>
+<p>Then <code>pytest</code> and <code>ruff check</code>.</p>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>Log every call, or once per module and permission?</strong> The decided rule says each check is logged. A module calling <code>has</code> in a loop would flood the log. <strong>Recommend:</strong> warning the first time per (module, permission), debug after that.</li>
+<li><strong>Required permissions at start:</strong> the design blocks a module whose required permission is missing. With the stand-in everything is allowed, so <strong>recommend</strong> no lifecycle change now; the handler adds the check.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/archive/permissions-stand-in.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

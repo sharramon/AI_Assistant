@@ -31,7 +31,7 @@
 <p><strong>Left, for the user only:</strong> speak during <code>check</code>; click the mic and speak, noting the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence. <strong>Next for the build:</strong> step 7, the engine comparison.</p>
 <h2 id="update-2026-11-03-step-4-done-step-6-the-real-mic-in-progress">Update 2026-11-03: step 4 done, step 6 (the real mic) in progress</h2>
 <p>The task runs in <strong>full auto</strong>: the user pre-approved everything. Decide from the docs, record each decision here or in the change note, commit locally per finished chunk (short messages like recent commits), never push, never touch git config. Run ruff and the full tests, plus the <code>architecture-check</code> skill, after each chunk. The final report includes a Diagrams line, the relaunch steps (ask whether to relaunch), and a checklist for the user.</p>
-<p><strong>Done and committed:</strong> step 4, the temp UI's mic button and live line (<code>b22be25</code>, <a href="voice-temp-ui.html">note</a>, with 7 decisions). <code>voice_in</code> is in <code>enabled</code>. Ruff is clean and 226 tests pass. The architecture check passed, and the Voice flowchart, the sequence diagram, and the runtime temp UI flowchart are updated.</p>
+<p><strong>Done and committed:</strong> step 4, the temp UI's mic button and live line (<code>b22be25</code>, <a href="archive/voice-temp-ui.html">note</a>, with 7 decisions). <code>voice_in</code> is in <code>enabled</code>. Ruff is clean and 226 tests pass. The architecture check passed, and the Voice flowchart, the sequence diagram, and the runtime temp UI flowchart are updated.</p>
 <p><strong>Found on this laptop (step 6):</strong></p>
 <ul>
 <li>The voice extra is installed: sounddevice 0.5.6, sherpa-onnx 2.0.1.</li>
@@ -68,7 +68,7 @@
    - A user checklist: run <code>check</code> while speaking; click the mic and speak; note the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence and look for the drop symbol, then the mic coming back or failing.</li>
 </ol>
 <blockquote>
-<p><strong>Written 2026-11-03</strong> at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on <a href="../html/architecture/voice.html">Voice</a> (built parts are marked there); the step's note is <a href="voice-in-module.html">voice-in-module.md</a>, with what was built differently at its top. The step list is in <a href="index.html#next-voice-in-phase-1">Next steps</a>.</p>
+<p><strong>Written 2026-11-03</strong> at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on <a href="../html/architecture/voice.html">Voice</a> (built parts are marked there); the step's note is <a href="archive/voice-in-module.html">voice-in-module.md</a>, with what was built differently at its top. The step list is in <a href="index.html#next-voice-in-phase-1">Next steps</a>.</p>
 </blockquote>
 <h2 id="done">Done</h2>
 <ul>
@@ -109,7 +109,7 @@
 <ul>
 <li><strong>New:</strong> <code>src/assistant/modules/voice_in/__init__.py</code>, <code>module.py</code>; <code>tests/test_voice_in.py</code>; this note.</li>
 <li><strong>Changed, code:</strong> <code>src/voice_service/protocol.py</code>, <code>session.py</code>, <code>config.py</code>, <code>server.py</code>; <code>config/voice_service.toml</code>; <code>src/assistant/contracts/voice.py</code>; <code>src/assistant/__main__.py</code>; <code>config/default.toml</code>; <code>tests/test_voice_service.py</code>, <code>tests/test_voice_contracts.py</code>.</li>
-<li><strong>Changed, docs:</strong> <code>docs/architecture/voice.md</code>, <code>docs/architecture/README.md</code>, <code>docs/api/messaging.md</code>, <code>docs/api/reusable.md</code>, <code>docs/api/app_kit.md</code>, <code>docs/api/modules.md</code>, <code>docs/agents/runtime.md</code>, <code>docs/next-steps/README.md</code>, <code>docs/next-steps/voice-in-module.md</code>, and the regenerated <code>docs/html/</code> and <code>docs/html-next-steps/</code>.</li>
+<li><strong>Changed, docs:</strong> <code>docs/architecture/voice.md</code>, <code>docs/architecture/README.md</code>, <code>docs/api/messaging.md</code>, <code>docs/api/reusable.md</code>, <code>docs/api/app_kit.md</code>, <code>docs/api/modules.md</code>, <code>docs/agents/runtime.md</code>, <code>docs/next-steps/README.md</code>, <code>docs/next-steps/archive/voice-in-module.md</code>, and the regenerated <code>docs/html/</code> and <code>docs/html-next-steps/</code>.</li>
 </ul>
 <h2 id="half-finished-or-open">Half-finished or open</h2>
 <ul>
@@ -119,7 +119,7 @@
 </ul>
 <h2 id="next">Next</h2>
 <ol>
-<li>~~<strong>Step 4, the temp UI</strong>~~ done 2026-11-03 (<a href="voice-temp-ui.html">note</a>); <code>voice_in</code> is now enabled. As planned:
+<li>~~<strong>Step 4, the temp UI</strong>~~ done 2026-11-03 (<a href="archive/voice-temp-ui.html">note</a>); <code>voice_in</code> is now enabled. As planned:
    - The mic button sends <code>StartListening</code> and <code>StopListening</code>, and shows <code>VoiceState</code>: <em>starting</em> as a spinner, <em>dropped</em> as an amber crossed-out mic with a countdown and the word count of the last partial, and <em>failed</em> with its <code>detail</code>.
    - The grey live line comes from <code>VoiceTranscript</code>. Drop updates whose <code>correlation_id</code> isn't the current session's, and clear the line on <code>final=True</code>.
    - Show <code>InputReceived(source="voice")</code> as your own message.

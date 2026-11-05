@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blue highlight in the HTML viewer</title>
+<!-- Generated from docs/next-steps/archive/blue-highlight.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/blue-highlight.html"></nav>
+<main>
+<h1 id="blue-highlight-in-the-html-viewer">Blue highlight in the HTML viewer</h1>
+<blockquote>
+<p><strong>Status: done (2026-10-28).</strong></p>
+</blockquote>
+<p><strong>Asked:</strong> "Or just make the highlight color blue or red right?" The viewer's yellow highlight on white letters doesn't work in the dark theme (snip <code>logs/2026-10-28_01-32-08_trying-the-html-viewer-highlight/snips/snip_e39a39ee.png</code>, from <code>docs/html/architecture/index.html</code>).</p>
+<p><strong>Why:</strong> the highlight is pale yellow (<code>#ffe26a</code>) and keeps the page's text color (<code>color: inherit</code>). On a dark page the text is near-white, so white on yellow is about 1.2:1 and nearly unreadable.</p>
+<p><strong>Touches:</strong> <code>src/html_viewer/page.html</code>, the <code>MARK_STYLE</code> rule <code>mark.hv-mark</code> (line 191). Nothing else; highlights are drawn in the browser only.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>Change <code>mark.hv-mark</code> from <code>background: #ffe26a; color: inherit; … box-shadow: 0 0 0 2px #ffe26a;</code> to <code>background: #2f5fa8; color: #fff; … box-shadow: 0 0 0 2px #2f5fa8;</code>.</li>
+<li>Set the text to white instead of inheriting it, so it reads on both themes and inside links (link colors would otherwise be blue on blue).</li>
+<li>Contrast, worked out from the colors:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Contrast</th>
+<th>Needed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>White text on <code>#2f5fa8</code></td>
+<td>6.3:1</td>
+<td>4.5:1 (WCAG AA)</td>
+</tr>
+<tr>
+<td>Highlight against a dark page (<code>~#18191d</code>)</td>
+<td>2.8:1</td>
+<td>stands out</td>
+</tr>
+<tr>
+<td>Highlight against a light page (<code>#fff</code>)</td>
+<td>6.3:1</td>
+<td>stands out</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Blue, not red: red reads as an error.</li>
+<li>Check by hand: highlight a sentence in <code>docs/html/architecture/index.html</code> in the dark theme and in the light theme, including a link and inline code.</li>
+</ul>
+<p><strong>Decided:</strong></p>
+<ul>
+<li>Shade: <code>#2f5fa8</code>, chosen by the user from a side-by-side preview against the darker <code>#1f4e8c</code> (8.3:1, but stands out less on a dark page).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/archive/blue-highlight.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

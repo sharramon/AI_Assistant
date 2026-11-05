@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice: two passes (live text while you talk, whisper cleans it piece by piece)</title>
+<!-- Generated from docs/next-steps/voice-two-pass.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-two-pass.html"></nav>
+<main>
+<h1 id="voice-two-passes-live-text-while-you-talk-whisper-cleans-it-piece-by-piece">Voice: two passes (live text while you talk, whisper cleans it piece by piece)</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Loaded at the relaunch of 2026-11-03 16:02. You approved every recommendation in the <a href="#open-questions">open questions</a>; the answers are recorded there. The real check passed (<a href="#results">Results</a>). The design now lives on the voice page: <a href="../html/architecture/voice.html#two-passes-live-text-cleaned-piece-by-piece">Two passes</a>. Then your check (step 3.5).</p>
+<p><strong>Revised:</strong> whisper now works on pieces while you talk ("chunked whisper"), instead of only once after you stop. This replaces the earlier answer to open question 9 ("no background decoding"). It's now <a href="#decided-in-this-revision">decided</a>.</p>
+</blockquote>
+<p><strong>Asked (in your words, spoken):</strong> "I want the first pass to show the words as I talk, and then I want whisper to clean up when I press the mic button, so that it cleans it up and sends." Then: "a real-time update, since it does show my words going up, but that whisper replaces the parts as it goes, and when I press the send button it just finishes the task of sending the entire message."</p>
+<p><strong>What you get:</strong></p>
+<ul>
+<li>While you talk, the live engine (the Zipformer) shows your words in the live line, as it does now.</li>
+<li>At each natural pause, the service cuts the audio so far into a <strong>piece</strong> and hands that piece to whisper in the background.</li>
+<li>When a piece's whisper text arrives, it <strong>replaces the matching rough Zipformer words</strong> in the live line. The line cleans itself up, piece by piece, while you keep talking.</li>
+<li>When you press stop, the Zipformer finishes as now. Only the <strong>last piece</strong> still goes to whisper. Then the joined whisper text of all pieces is sent to the Talker.</li>
+<li>If whisper fails or is slow on a piece, that part keeps the Zipformer words. The 20 s timeout after stop falls back to the live text for anything still not cleaned.</li>
+</ul>
+<p><strong>Why:</strong> each engine alone falls short. The Zipformer gives words as you speak but in capitals with no punctuation, and it makes more mistakes on long talk. Whisper is more accurate and comes cased and punctuated, but it gives nothing until it has the audio. Pieces give both: live words at once, clean text a second or two later, and a short wait after stop however long you talked.</p>
+<p><strong>What changes from the whisper build:</strong> decision 4 on the <a href="../html/architecture/voice.html#hot-swappable-engines">voice page</a> ("whisper is used for the live mic too, with the text on send") becomes "the live engine listens, the final engine cleans each piece and writes the text you send". One-engine mode stays: leave the final engine empty and the service behaves exactly as today.</p>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><strong><code>src/voice_service/</code></strong> (still never imports <code>assistant</code>):</li>
+<li><code>config.py</code>: <code>[engine] final</code>, <code>[engine] final_timeout_seconds</code>, and a new <code>[pieces]</code> section (<code>pause_seconds</code>, <code>min_seconds</code>, <code>max_seconds</code>, <code>cut_search_seconds</code>).</li>
+<li><code>pieces.py</code> (new): <code>PieceCutter</code>, which decides where pieces end, from each chunk's level. Pure, no threads, easy to test.</li>
+<li><code>session.py</code>: <code>ListenSession</code> feeds the cutter, keeps the current piece's audio, records each piece's span of live words, and runs a <strong><code>voice-clean</code></strong> worker thread that sends pieces to the final engine in order. On stop: the last piece, the timeout, the fallbacks. A second <code>EngineLoader</code> for the final engine. Reuses <code>rms</code> and <code>speech_rms</code>.</li>
+<li><code>engines/__init__.py</code>: an optional <code>SttStream.cancel()</code> (default: does nothing), so a dropped piece stops early.</li>
+<li><code>engines/whisper.py</code>: <code>_WhisperStream.cancel()</code>, checked between segments; an optional <code>prompt</code> for the previous piece's text (<a href="#open-questions">question 13</a>).</li>
+<li><code>protocol.py</code>: <code>Started.clean_pieces</code>, a new <code>Cleaned</code> message, a new <code>Refining</code> message, and <code>Final.parts</code>. All optional, with defaults that mean "as today".</li>
+<li><code>server.py</code>: build and load both engines; <code>/health</code> reports the final engine too.</li>
+<li><code>__main__.py</code>: build the final engine from config and pass it to <code>create_app</code>.</li>
+<li><strong><code>src/assistant/contracts/voice.py</code></strong> (a contract change, so <strong>the app needs a restart</strong>):</li>
+<li><code>ListeningState.FINISHING</code>: the mic is off, and the last piece is being cleaned.</li>
+<li><code>VoiceTranscript.settled_chars</code>: how much of the line, from the start, is settled (cleaned, or given up on). The rest is rough live text. Default 0, as today.</li>
+<li><strong><code>src/assistant/modules/voice_in/</code></strong>:</li>
+<li><code>line.py</code> (new): <code>LiveLine</code>, which builds the line from the live words and the cleaned spans. Pure, easy to test.</li>
+<li><code>module.py</code>: reads <code>started.clean_pieces</code>; handles <code>Cleaned</code> and <code>Refining</code>; publishes <code>FINISHING</code>; cleans each part of the final and joins them; uses <code>final_timeout_on_send</code> for the wait.</li>
+<li><code>cleanup.py</code>: ~~no change~~ <strong>as built:</strong> one flag, <code>clean_text(..., capitalize=True)</code>: a part that carries on a sentence keeps a small first letter. It already leaves cased text alone and cleans all-caps text, and it's now called per part.</li>
+<li><strong><code>src/assistant/modules/temp_ui/</code></strong> (<code>module.py</code>, <code>page.html</code>): the settled part of the line in normal text, the rough tail dimmed, and the finishing look.</li>
+<li><strong><code>config/voice_service.toml</code></strong>: <code>final = "whisper"</code> and the new settings. Config files, so the build asks you before editing.</li>
+<li><strong>No new packages:</strong> faster-whisper and both models are already installed.</li>
+</ul>
+<h2 id="approach">Approach</h2>
+<h3 id="1-the-config">1. The config</h3>
+<pre><code class="language-toml"># config/voice_service.toml
+[engine]
+name = &quot;zipformer&quot;            # the live engine: listens, fills the live line
+final = &quot;whisper&quot;             # the final engine: cleans each piece; &quot;&quot; = one engine (as today)
+final_timeout_seconds = 20.0  # after stop: what isn't cleaned by then keeps the live words
+
+[pieces]
+pause_seconds = 0.7           # this long below speech_rms ends a piece
+min_seconds = 4.0             # a pause before this doesn't cut (short pieces cost almost as much as long ones)
+max_seconds = 20.0            # no pause by then: cut anyway, at the quietest point
+cut_search_seconds = 3.0      # a forced cut looks this far back for the quietest chunk
+</code></pre>
+<ul>
+<li><strong><code>name</code> keeps its meaning and its name</strong> (the engine that listens), so existing <code>.local</code> files still work. <code>final</code> is new. <code>[engine.whisper]</code> and <code>[engine.zipformer]</code> configure each engine whichever role it has.</li>
+<li><strong>The combinations:</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th><code>name</code></th>
+<th><code>final</code></th>
+<th>What you get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zipformer</code></td>
+<td><code>whisper</code></td>
+<td><strong>Two passes</strong> (this note): live line, cleaned piece by piece, whisper's text is sent</td>
+</tr>
+<tr>
+<td><code>zipformer</code></td>
+<td><code>""</code></td>
+<td>Today's live mode: the Zipformer's text is sent</td>
+</tr>
+<tr>
+<td><code>whisper</code></td>
+<td><code>""</code></td>
+<td>Today's on-send mode: no live line, whisper's text</td>
+</tr>
+<tr>
+<td>same as <code>name</code></td>
+<td></td>
+<td>Treated as <code>""</code> (one engine)</td>
+</tr>
+<tr>
+<td><code>whisper</code></td>
+<td><code>zipformer</code></td>
+<td>Refused with a log line and run as one engine: an engine with no live text can't be the live one</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong><code>load_engine</code> stays the only place that knows engine names</strong>, called once per role. The server and the session see two <code>SttEngine</code>s and nothing else.</li>
+<li><strong>The swap still works:</strong> <code>final</code> is in <code>[engine]</code> and <code>[pieces]</code> is read per session, so changing <code>final</code> restarts an idle service, as changing <code>name</code> does.</li>
+<li><strong>Dropped from the first version of this note:</strong> <code>[audio] keep_max_seconds</code> and the <code>too_long</code> fallback. The session no longer keeps the whole recording: each piece's audio is freed once whisper has read it.</li>
+</ul>
+<h3 id="2-cutting-pieces-at-pauses">2. Cutting pieces at pauses</h3>
+<p><code>PieceCutter</code> sees every chunk's level (<code>rms</code>, the same one the silence stop uses for engines with no live text) and says when the current piece ends. The silence stop itself (<code>silence_stop_seconds</code>) is unchanged.</p>
+<ul>
+<li><strong>A pause</strong> is <code>pause_seconds</code> (0.7 s) of chunks in a row below <code>speech_rms</code> (300), after some speech in the piece.</li>
+<li><strong>A cut at a pause</strong> happens at the end of that quiet stretch, once the piece is at least <code>min_seconds</code> (4 s) long. A pause before 4 s doesn't cut; the piece carries on to the next pause. The trailing quiet stays in the piece, and whisper's VAD skips it.</li>
+<li><strong>No pause by <code>max_seconds</code></strong> (20 s, below whisper's 30 s window, so a piece is always one window): a <strong>forced cut</strong> at the quietest chunk in the last <code>cut_search_seconds</code> (3 s). The audio after that chunk starts the next piece.</li>
+<li><strong>A mic drop</strong> also ends the piece: the audio before the drop is a piece. The next piece starts when the mic is back.</li>
+<li><strong>Stop or a silence stop</strong> ends the last piece.</li>
+<li><strong>No overlap</strong> between pieces (<a href="#open-questions">question 12</a>): a pause cut falls in quiet, where there's nothing to lose. A forced cut falls at the quietest point near the end, which is usually between words.</li>
+<li><strong>A piece with no speech at all</strong> (no chunk at or above <code>speech_rms</code>) is never cut; quiet only adds to the current piece. So a long silence doesn't make empty pieces.</li>
+</ul>
+<h3 id="3-matching-the-zipformer-words-to-a-piece">3. Matching the Zipformer words to a piece</h3>
+<p>The live line is the Zipformer's text so far, as a list of words (<code>partial().split()</code>). With <code>greedy_search</code> (the config's decoding), words it has given out don't change, apart from the last word still growing.</p>
+<ul>
+<li><strong>At each cut</strong>, the session notes how many live words there are. Piece <em>k</em> covers live words <code>[start, end)</code>: <code>start</code> is the previous cut's count, <code>end</code> is this cut's count. So the spans run back to back from word 0, in order.</li>
+<li><strong>Why this works:</strong> a pause cut comes after 0.7 s of quiet, and the Zipformer gives a word out a few hundred milliseconds after it's said. By the cut it has caught up, and the last word is finished.</li>
+<li><strong>When it's off by a word</strong> (the Zipformer gives a word just after the cut), that word falls into the next piece's span. The line shows it twice for a second or two: once in piece <em>k</em>'s whisper text, and once rough, until piece <em>k+1</em> is cleaned. <strong>The text that's sent never has it twice</strong>, because it's whisper's text, not the spans.</li>
+<li><strong>The matching only matters for the live line and for fallbacks.</strong> A failed piece keeps exactly the words of its span.</li>
+<li><strong>The last piece</strong> covers from the last cut to the end of the Zipformer's final text after stop.</li>
+<li><strong>A sharper option, if the build sees doubled words often:</strong> sherpa-onnx can report a time for each token. Words would then be matched to a piece by time, not by count (<a href="#open-questions">question 10</a>).</li>
+</ul>
+<h3 id="4-cleaning-pieces-in-the-background">4. Cleaning pieces in the background</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant Mic as MicSource
+    participant S as ListenSession (voice-engine thread)
+    participant W as voice-clean thread
+    participant C as voice_in
+    Mic-&gt;&gt;S: chunks
+    S-&gt;&gt;S: live stream.accept, cutter.feed(rms), keep the piece's audio
+    S--&gt;&gt;C: partial (all live words so far)
+    S-&gt;&gt;W: piece 0 (audio, live words 0 to 12)
+    W--&gt;&gt;C: cleaned (piece 0, words 0 to 12, whisper's text)
+    S-&gt;&gt;W: piece 1 (words 12 to 30)
+    C-&gt;&gt;S: stop
+    S-&gt;&gt;S: live stream.finish() (about 0.03 s)
+    S--&gt;&gt;C: refining (the live final text, 2 pieces left)
+    S-&gt;&gt;W: the last piece (words 30 to 41)
+    W--&gt;&gt;C: cleaned (piece 1)
+    W--&gt;&gt;C: cleaned (piece 2)
+    S--&gt;&gt;C: final (the joined text, its parts)
+</code></pre>
+<ul>
+<li><strong>The <code>voice-clean</code> thread</strong>, one per session, takes pieces from a queue <strong>in order</strong>, one at a time. For each: <code>final_engine.new_stream()</code>, <code>accept</code> the piece's audio, <code>finish()</code>. These are the same three calls <code>transcribe()</code> makes. Then it posts <code>Cleaned</code>.</li>
+<li><strong>Results come in piece order</strong>, since there's one worker. A slow piece holds the ones behind it. Out-of-order results can't happen.</li>
+<li><strong>The final engine still loading</strong> when you start talking: pieces wait in the queue until it's ready.</li>
+<li><strong>Whisper falling behind</strong> (pieces arrive faster than it cleans them): they keep queueing, nothing is dropped, and the log shows the queue length. At 20 s per piece at most, a waiting piece is under 0.7 MB. The build measures whether this happens at all (<a href="#9-cpu-load-while-you-talk">section 9</a>).</li>
+<li><strong>On stop:</strong> the engine thread drains the chunk queue and calls the live stream's <code>finish()</code> as today. It posts <code>Refining</code>, cuts the last piece, and queues it. Then it waits for the worker to empty the queue, up to <code>final_timeout_seconds</code> from the stop. Then it posts <code>Final</code>.</li>
+<li><strong>The same after a silence stop</strong> (<code>ended_by: "silence"</code>).</li>
+<li><strong>The session ended early</strong> (<code>complete: false</code>, the mic was lost): no last piece, and queued pieces are dropped. <code>voice_in</code> drops that text anyway.</li>
+<li><strong>The log:</strong> each piece's audio length, its live words, whisper's text, its time, and the queue length. Also the wait after stop. The engine comparison (step 7 of the voice roadmap) can use these lines too.</li>
+</ul>
+<h3 id="5-whisper-failing-or-slow-on-a-piece">5. Whisper failing or slow on a piece</h3>
+<table>
+<thead>
+<tr>
+<th>What happens to a piece</th>
+<th>What it becomes</th>
+<th><code>fallback</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Whisper's text arrives</td>
+<td>Whisper's text</td>
+<td><code>""</code></td>
+</tr>
+<tr>
+<td>The final engine raises on it</td>
+<td>Its live words</td>
+<td><code>"failed"</code></td>
+</tr>
+<tr>
+<td>Whisper gives <code>""</code> but the span has live words (its VAD cut quiet speech)</td>
+<td>Its live words</td>
+<td><code>"empty"</code></td>
+</tr>
+<tr>
+<td>Still waiting or running at stop + <code>final_timeout_seconds</code></td>
+<td>Its live words; the running one is cancelled</td>
+<td><code>"timed_out"</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>A failed piece during talk</strong> still sends <code>Cleaned</code>, with <code>fallback</code> set and no text, so the client settles that span on the live words. The pieces after it are cleaned as usual.</li>
+<li><strong>A piece with no live words</strong> but whisper text (the Zipformer missed quiet speech): whisper's text is inserted at that point. The span is empty (<code>start == end</code>).</li>
+<li><strong>The timeout:</strong> 20 s from the stop, for the last piece and anything still queued. Normally only the last piece is left, about 1 to 1.5 s.</li>
+<li><strong>Cancelling:</strong> a running whisper call can't be killed. ~~<code>stream.cancel()</code> sets a flag that <code>_WhisperStream</code> checks between segments, so it stops soon after~~ <strong>As built:</strong> faster-whisper decodes a piece's whole 30 s window in one call, so <code>cancel()</code> can't cut it short; it only throws the text away, and the session doesn't wait for it (at most one 20 s piece runs on in the background).</li>
+<li><strong>The final engine didn't load</strong> (model missing, say): the service still starts and runs as one engine. <code>started.clean_pieces</code> is false, nothing is cut, and the final is the Zipformer's text as today. <code>/health</code> says <code>final_ready: false</code> with the error, and the log says it once. The mic button never fails because of the final engine.</li>
+</ul>
+<h3 id="6-protocol-changes-voice_serviceprotocolpy">6. Protocol changes (<code>voice_service/protocol.py</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Change</th>
+<th>Default (older client, or one engine)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>started</code></td>
+<td><code>clean_pieces: bool</code>: this session's live text is cleaned piece by piece, and its final is whisper's text</td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>partial</code></td>
+<td>No change: all live words so far, rough, as now</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cleaned</code> (new, service → app)</td>
+<td><code>piece: int</code>, <code>start: int</code>, <code>end: int</code>, <code>text: str</code>, <code>fallback: str</code>. <strong>Live words <code>[start, end)</code> are replaced by <code>text</code>.</strong> With <code>fallback</code> set (<code>failed</code>, <code>empty</code>, <code>timed_out</code>), <code>text</code> is empty and the span keeps its live words. Sent in piece order</td>
+<td>not sent</td>
+</tr>
+<tr>
+<td><code>refining</code> (new, service → app)</td>
+<td><code>text: str</code>: the live engine's final text (empty when <code>partials</code> is off). <code>pending: int</code>: pieces still to clean. Sent once, after stop, when <code>clean_pieces</code> is true</td>
+<td>not sent</td>
+</tr>
+<tr>
+<td><code>final</code></td>
+<td><code>text</code>: all parts joined with spaces. New <code>parts: list</code> of <code>{text, cleaned, fallback}</code>, one per piece, in order. <code>cleaned</code> is false for a part that kept its live words</td>
+<td><code>parts: []</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Spans count words in the <code>partial</code> text</strong>, split on spaces, from the start of the session. They never change once sent, so a client can build the line from the latest <code>partial</code> and the <code>cleaned</code> spans so far.</li>
+<li><strong>Still no model names:</strong> a client learns "pieces are cleaned", never which engine does it.</li>
+<li><strong>No client switch</strong> to turn cleaning off (<a href="#open-questions">question 5</a>). The service config decides.</li>
+<li><strong>An older <code>voice_in</code></strong> would skip <code>cleaned</code> and <code>refining</code> as unknown frames, with a warning, and read <code>final.text</code> as usual. Both sides change in this build anyway.</li>
+</ul>
+<h3 id="7-voice_in">7. <code>voice_in</code></h3>
+<ul>
+<li><strong>Reads <code>started.clean_pieces</code></strong> (with <code>getattr</code>, as for <code>partials</code>).</li>
+<li><strong><code>LiveLine</code></strong> keeps the latest live words and the spans cleaned so far. Its <code>text()</code> is: each settled span's text (whisper's, or the span's own live words when it fell back), then the live words after the last settled span. <code>settled_chars</code> is the length of the settled part. Spans settle in order, so the settled part is always at the start of the line.</li>
+<li><strong>Cleaning the line:</strong> whisper's spans keep their case (<code>clean_text</code> leaves cased text alone, apart from <code>terms</code>). Fallback spans and the rough tail go through <code>clean_text</code> as all-caps text, as today.</li>
+<li><strong>On <code>partial</code> and on <code>cleaned</code>:</strong> publishes <code>VoiceTranscript(text=line, settled_chars=n, final=False)</code>.</li>
+<li><strong>On <code>refining</code>:</strong> updates the line with the live final text, then publishes <code>VoiceState(FINISHING, detail="cleaning up…")</code>.</li>
+<li><strong>The wait after <code>stop</code>:</strong> <code>final_timeout_on_send</code> (90 s) when <code>clean_pieces</code> or not <code>partials</code>, otherwise <code>reply_timeout</code> (10 s), as today. The service's 20 s comes first; the 90 s only catches a stuck service.</li>
+<li><strong>On <code>final</code>:</strong> cleans each part (a whisper part kept as it is; a fallback part as all-caps text), joins them, and gives the last part its end mark. Logs the parts and their fallbacks with the raw text. The Talker still gets one <code>InputReceived(source="voice")</code>. With no <code>parts</code> (an older service, or one engine), it cleans <code>final.text</code> as today.</li>
+<li><strong>Discard while talking or finishing:</strong> <code>_discard</code> already ends the session and closes the socket. A late <code>cleaned</code> or <code>final</code> is dropped, as now.</li>
+</ul>
+<h3 id="8-what-you-see">8. What you see</h3>
+<ol>
+<li><strong>While you talk:</strong> the live line fills with your words as now, dimmed (rough). After each pause, a second or two later, the part you said before the pause turns into whisper's text, cased and punctuated, in normal text. The rough tail carries on after it. The swap is instant, with no animation (<a href="#open-questions">question 11</a>).</li>
+<li><strong>You press stop.</strong> The mic closes. The button shows <strong>finishing</strong> (a spinner; clicks are ignored). The rough tail gets the Zipformer's last word or two, with "cleaning up…" after it.</li>
+<li><strong>About 1 to 1.5 s later</strong> (the last piece on <code>small.en</code>), the line clears and the joined text appears in the chat as your message, marked spoken, as sent messages already do. The button goes back to idle.</li>
+<li><strong>On a fallback</strong>, that part of the message is the live words, cleaned as today. The chat message gets no extra mark; the reason is in the log.</li>
+</ol>
+<p><strong>Temp UI</strong> (<code>temp_ui</code> is throwaway, so this is the minimum; the real UI handler gets its own design):</p>
+<ul>
+<li><code>module.py</code>: passes <code>settled_chars</code> to the page. <code>FINISHING</code> keeps the line's text; the final clears it as now.</li>
+<li><code>page.html</code>: the line's first <code>settled_chars</code> characters in normal text, the rest dimmed. The finishing look: a spinner on the button, which ignores clicks; the ✕ stays; "cleaning up…" after the line.</li>
+</ul>
+<h3 id="9-cpu-load-while-you-talk">9. CPU load while you talk</h3>
+<p>Whisper <code>small.en</code> now runs <strong>while the Zipformer is listening</strong>. Estimates from last build's numbers; <strong>the build must measure them</strong> (step 3).</p>
+<ul>
+<li><strong>The PC:</strong> an Ultra 9 275HX, 24 cores (8 performance, 16 efficient), no hyperthreading.</li>
+<li><strong>The Zipformer:</strong> 2 threads, the whole time you talk, as today.</li>
+<li><strong>Whisper per piece:</strong> 8 threads (<code>cpu_threads</code>) for about <strong>1 to 1.5 s</strong>. Whisper pads every piece to its 30 s window, so a short piece costs nearly as much as a long one: measured 1.19 s for 6.6 s of speech and 1.62 s for 16.7 s. That's why pieces have a 4 s minimum.</li>
+<li><strong>While you talk:</strong> with a piece every 5 to 10 s, whisper is busy about 15 to 30 % of the time, in bursts of 8 of the 24 cores. On average, about 2 cores.</li>
+<li><strong>What could go wrong:</strong> the bursts slow the Zipformer, so live words lag. Or Windows puts whisper on the efficient cores and pieces take longer than expected. Or it's on battery and everything is slower.</li>
+<li><strong>The build measures</strong>, with both real models over test recordings fed in real time (<code>FileSource</code>, <code>realtime=True</code>): CPU use, each piece's whisper time, the queue length, how late the Zipformer's partials come during a burst compared with no whisper, and the wait after stop. <strong>Pass:</strong> partials stay within about 100 ms of their usual timing, the queue never holds more than one piece, and the wait after stop is under 2 s. If not: fewer whisper threads, a longer <code>min_seconds</code>, or <code>base.en</code> (0.4 to 0.6 s per piece), and the build reports which.</li>
+<li><strong>Memory:</strong> both models loaded, under 1 GB of the 31 GB (Zipformer about 150 to 300 MB, <code>small.en</code> about 400 to 600 MB). Pieces waiting: under 0.7 MB each. Loading both at start: about 2 to 3 s on two background threads. Also measured.</li>
+</ul>
+<h3 id="10-the-clear-button-and-the-force-on-send-setting">10. The clear button (✕) and the force-on-send setting</h3>
+<ul>
+<li><strong>✕ while you talk:</strong> the socket closes and the session aborts, as today. That also stops the <code>voice-clean</code> thread: queued pieces are dropped and the running one is cancelled (<code>stream.cancel()</code>). Nothing is sent. The temp UI's ✕ then starts a new session, as now. If whisper is still finishing a segment of the old piece, the new session's live text may lag for a moment.</li>
+<li><strong>✕ while finishing:</strong> the same.</li>
+<li><strong><code>live_text = false</code> (force on send) with two passes:</strong> <code>start.partials: false</code>, so no <code>partial</code> and no <code>cleaned</code> messages go out, and the line shows "text appears when you stop", as today. Inside the service, pieces are still cut and cleaned in the background, so the wait after stop is still only the last piece. On stop, <code>refining</code> comes with empty text, then whisper's joined text is sent. So the setting still means "no words on screen while I talk", and the text sent is whisper's either way.</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<p>Each step ends with <code>pytest</code> and <code>ruff</code>. Steps 1 and 2 are one chunk each. The <a href="../../.claude/skills/architecture-check/SKILL.md">architecture-check</a> runs after each chunk and before the final report.</p>
+<ol>
+<li><strong>The service</strong> (testable with fake engines):</li>
+<li>Config: <code>[engine] final</code>, <code>final_timeout_seconds</code>, <code>[pieces]</code>.</li>
+<li><code>PieceCutter</code> and its tests.</li>
+<li><code>SttStream.cancel()</code> and whisper's flag (and the <code>prompt</code>, if question 13 is yes).</li>
+<li>The protocol: <code>Started.clean_pieces</code>, <code>Cleaned</code>, <code>Refining</code>, <code>Final.parts</code>.</li>
+<li><code>ListenSession</code>: the cutter, the spans, the <code>voice-clean</code> thread, stop and the last piece, the timeout and the fallbacks, abort.</li>
+<li><code>create_app(…, final_engine=…)</code> with a second loader and the <code>/health</code> fields; <code>__main__.py</code>.</li>
+<li><strong>The main app:</strong> <code>ListeningState.FINISHING</code> and <code>VoiceTranscript.settled_chars</code>; <code>LiveLine</code> and its tests; <code>voice_in</code> (<code>clean_pieces</code>, <code>Cleaned</code>, <code>Refining</code>, the final's parts, the wait); the temp UI's settled and rough text and the finishing look.</li>
+<li><strong>Real check, then docs:</strong></li>
+<li>Ask you before editing <code>config/voice_service.toml</code> (<code>NEED: Risky</code>).</li>
+<li>Run the service with both real models over last build's test recordings (6.6, 16.7 and 46.7 s), fed in real time. Measure what <a href="#9-cpu-load-while-you-talk">section 9</a> lists. Also count the pieces and doubled words, and compare the joined text with whisper on the whole recording, to see whether cutting costs accuracy.</li>
+<li>Tune the <code>[pieces]</code> defaults from what it finds, and report.</li>
+<li>Update the docs below, rebuild, run the architecture check, and hand over. <strong>The app needs a restart</strong> (contract and protocol changes).</li>
+<li>Your check: talk with a few pauses, watch the line clean up behind you, stop, and see the clean text arrive in the chat at once.</li>
+</ol>
+<h2 id="tests">Tests</h2>
+<ul>
+<li><strong>Config:</strong> <code>final = ""</code> and <code>final = name</code> give one engine. <code>name = "whisper", final = "zipformer"</code> logs and gives one engine. Changing <code>final</code> restarts an idle service (the existing watch test, with <code>final</code>).</li>
+<li><strong><code>PieceCutter</code></strong> (levels in, cuts out):</li>
+<li>A pause of <code>pause_seconds</code> after speech cuts; a shorter one doesn't.</li>
+<li>No cut before <code>min_seconds</code>, even at a long pause.</li>
+<li>Talk with no pause cuts at <code>max_seconds</code>, at the quietest chunk of the last <code>cut_search_seconds</code>.</li>
+<li>Quiet with no speech never cuts.</li>
+<li><strong>Two passes, with fakes</strong> (a live <code>FakeEngine</code> that gives words per chunk, and a final fake that returns a marked text per piece):</li>
+<li><code>started.clean_pieces</code> is true, then partials, then <code>cleaned</code> for each piece in order with back-to-back spans, then <code>refining</code>, then the last <code>cleaned</code>, then <code>final</code> with the parts joined.</li>
+<li>The pieces' audio, joined, is exactly the audio the live engine got, with nothing lost or doubled at a cut, across a mic drop and back too.</li>
+<li><strong>Fallbacks:</strong> a raising final engine gives <code>fallback: "failed"</code> and the span's live words, and later pieces still get cleaned. One returning <code>""</code> gives <code>"empty"</code>. A slow one past a short <code>final_timeout_seconds</code> gives <code>"timed_out"</code>, and its <code>cancel()</code> was called. A final engine that fails to load: <code>clean_pieces</code> false, the session works as one engine, and <code>/health</code> shows <code>final_ready: false</code>.</li>
+<li><strong>Order:</strong> a final fake that's slow on piece 0 only. Piece 1's <code>cleaned</code> still comes after piece 0's.</li>
+<li><strong>No pieces:</strong> a one-engine config sends no <code>cleaned</code> or <code>refining</code>. A mic lost for good (<code>complete: false</code>) drops the queue.</li>
+<li><strong>Discard:</strong> closing the socket while talking, or while finishing, cancels the running piece, drops the queue, frees the slot, and a new <code>start</code> works.</li>
+<li><strong><code>partials: false</code> with two passes:</strong> no partials and no <code>cleaned</code> go out, pieces are still cleaned inside, <code>refining</code> has empty text, and the final is whisper's.</li>
+<li><strong><code>LiveLine</code>:</strong> the spans replace the right words; a fallback span keeps its words; an empty span inserts text; <code>settled_chars</code> is right; a late live word shows up again in the rough tail.</li>
+<li><strong><code>voice_in</code>:</strong> <code>cleaned</code> publishes the new line with <code>settled_chars</code>. <code>refining</code> publishes <code>FINISHING</code>. The longer wait is used. A final's parts are cleaned per part and joined. An older service (no <code>clean_pieces</code>, no <code>parts</code>) works as today.</li>
+<li><strong>Temp UI:</strong> <code>FINISHING</code> keeps the line's text, the final clears it, and <code>settled_chars</code> reaches the page.</li>
+<li><strong>Whisper's <code>cancel</code>:</strong> with the real model, marked to skip when the model folder is missing. A cancel during <code>finish</code> returns soon after.</li>
+</ul>
+<h2 id="docs-to-update">Docs to update</h2>
+<ul>
+<li><strong><a href="../html/architecture/voice.html">Voice</a>:</strong></li>
+<li>Layers: the session connects a source to a live engine and an optional final engine, with the piece cutter. The diagram gets both.</li>
+<li>Hot-swappable engines: decision 4 revised (two passes with pieces; one engine still possible). <code>final</code> is in the swap.</li>
+<li>Threads: the <code>voice-clean</code> thread and the piece queue. Files and classes: <code>pieces.py</code>, <code>SttStream.cancel</code>, <code>ListenSession</code>'s two engines, in the class diagram.</li>
+<li>Config (<code>final</code>, <code>final_timeout_seconds</code>, <code>[pieces]</code>), the protocol table (<code>started.clean_pieces</code>, <code>cleaned</code>, <code>refining</code>, <code>final.parts</code>), errors (the per-piece fallbacks), the <code>voice_in</code> section (<code>LiveLine</code>, <code>FINISHING</code>, the wait).</li>
+<li><strong><a href="../html/api/messaging.html">Messaging API</a>:</strong> <code>ListeningState.FINISHING</code>, <code>VoiceTranscript.settled_chars</code>, the protocol's new fields and messages, <code>SttStream.cancel</code>, <code>PieceCutter</code>.</li>
+<li><strong><a href="../html/api/index.html">API index</a>:</strong> the <code>ListeningState</code> line gets <code>finishing</code>; the voice service parts line gets <code>PieceCutter</code>.</li>
+<li><strong><a href="../html/api/reusable.html">Reusable parts index</a>:</strong> <code>SttStream</code>'s line mentions <code>cancel</code>. <code>PieceCutter</code> is added if another part could use it (a later whisper-only live mode could); otherwise it stays internal.</li>
+<li><strong>Overview <a href="../html/architecture/index.html#parts">Parts table</a>:</strong> the Voice handler row says live and final engines, cleaned piece by piece.</li>
+<li><strong><a href="../html/agents/runtime.html#temp-ui">Runtime</a> page:</strong> the temp UI's settled and rough text and the finishing look.</li>
+<li><strong><a href="voice-layers-whisper.html">The whisper note</a>:</strong> one line pointing here, since its decision 4 is revised. Then this note and the <a href="index.html">next-steps list</a>: the status.</li>
+</ul>
+<h2 id="results">Results</h2>
+<p>Built 2026-11-03 as above. Tests: 341 passed, ruff clean. <code>config/voice_service.toml</code> now has <code>final</code>, <code>final_timeout_seconds</code> and <code>[pieces]</code> (with <code>prompt_previous</code>), the code's defaults (asked and approved). The real check is <code>scripts/voice_two_pass_check.py</code> (kept, for the engine comparison too): the service in-process with the real models, the test recordings fed at speech speed, config overrides in memory.</p>
+<table>
+<thead>
+<tr>
+<th>Run (49.8 s of speech, 4 pieces)</th>
+<th>CPU avg / peak (cores of 24)</th>
+<th>Live-word lag, max</th>
+<th>Whisper per piece</th>
+<th>Most waiting</th>
+<th>Wait after stop</th>
+<th>Text vs whisper on the whole</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zipformer alone</td>
+<td>2.84 / 3.25</td>
+<td></td>
+<td></td>
+<td></td>
+<td>0.08 s</td>
+<td></td>
+</tr>
+<tr>
+<td><code>small.en</code>, prompt on (default)</td>
+<td>3.54 / 10.6</td>
+<td>47 ms</td>
+<td>1.14 to 1.80 s</td>
+<td>1</td>
+<td><strong>1.74 s</strong></td>
+<td>0.977</td>
+</tr>
+<tr>
+<td><code>small.en</code>, prompt off</td>
+<td>3.49 / 10.8</td>
+<td>63 ms</td>
+<td>1.14 to 1.45 s</td>
+<td>1</td>
+<td>1.48 s</td>
+<td>0.977</td>
+</tr>
+<tr>
+<td><code>base.en</code>, prompt on</td>
+<td>3.11 / 10.9</td>
+<td>32 ms</td>
+<td>0.44 to 0.59 s</td>
+<td>1</td>
+<td>0.69 s</td>
+<td>1.000</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Pass test: passed</strong> on every run: live words on time, at most one piece waiting, wait after stop under 2 s. One-piece recordings waited 1.17 to 1.48 s on <code>small.en</code>, 0.45 to 0.61 s on <code>base.en</code>.</li>
+<li><strong>CPU:</strong> whisper adds about 0.7 cores on average (estimated 2), in bursts to about 11 cores.</li>
+<li><strong>Accuracy:</strong> no fallbacks, no doubled words; the only differences from whisper on the whole recording were "for ever" for "forever" and one comma.</li>
+<li><strong>The prompt (question 13):</strong> no difference in the text, slightly slower long pieces. Every cut fell at a sentence end, so mid-sentence joins weren't tested; it stays on. Defaults not changed.</li>
+<li><strong>Built differently from the note:</strong> <code>cancel()</code> only throws the text away (see section 5); <code>clean_text</code> gained <code>capitalize</code>; the finishing look is a pulsing button, not a spinner.</li>
+</ul>
+<h2 id="decided-in-this-revision">Decided in this revision</h2>
+<ul>
+<li><strong>Whisper works while you talk</strong> (was question 9, "no background decoding"): you chose chunked whisper for this build. Pieces are cut at pauses and cleaned in the background, and the line updates as they come back.</li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<p><strong>Answered (2026-11-03): you approved every recommendation.</strong> In short:</p>
+<ol>
+<li>Keep <code>name</code> for the live engine and add <code>final</code>.</li>
+<li>Two passes are the default, with <code>final = "whisper"</code>.</li>
+<li>A fixed 20 s timeout after stop.</li>
+<li>Mic clicks while finishing are ignored.</li>
+<li>No client switch to turn cleaning off.</li>
+<li>The text is sent at once after stop.</li>
+<li>A new <code>FINISHING</code> mic state.</li>
+<li>No saved recordings.</li>
+<li>A 0.7 s pause, pieces of 4 to 20 s, tuned after the real check.</li>
+<li>Live words are matched to a piece by the word count at the cut.</li>
+<li>Cleaned text normal, rough text dimmed, the swap instant.</li>
+<li>No overlap at cuts for now.</li>
+<li>Whisper gets the previous piece's text as its prompt, behind a setting; the real check compares with and without it.</li>
+<li>Pieces keep queueing if whisper falls behind.</li>
+<li>With force-on-send, pieces are still cleaned in the background.</li>
+</ol>
+<p>The questions as asked, each with its recommendation. Questions 1 to 8 are from the first version, reworded where pieces change them. Questions 9 to 15 are new.</p>
+<ol>
+<li><strong>The config names:</strong> keep <code>[engine] name</code> as the live engine and add <code>final</code>? Or rename to <code>live</code> / <code>final</code>? <strong>Recommended: keep <code>name</code>, add <code>final</code>.</strong> Existing <code>.local</code> files keep working, and the swap watch needs no change.</li>
+<li><strong>The default:</strong> make two passes (<code>final = "whisper"</code>) the default in <code>config/voice_service.toml</code>? <strong>Recommended: yes</strong>, since it's how you want to use it. One-engine mode stays one line away (<code>final = ""</code>).</li>
+<li><strong>The timeout:</strong> a fixed 20 s after stop for the last piece and anything still queued, or one that grows with the queue? <strong>Recommended: fixed 20 s.</strong> With pieces, normally only the last one is left (about 1 to 1.5 s), so 20 s is a wide margin.</li>
+<li><strong>Clicking the mic while finishing:</strong> ignore it (the spinner shows for about a second), or start a new session at once while whisper finishes the old one? <strong>Recommended: ignore it for now.</strong> Starting at once needs two sessions in flight in both the service and <code>voice_in</code>, for a wait of about a second.</li>
+<li><strong>A client switch to turn cleaning off</strong> (<code>start.clean_pieces: false</code>, for speed): <strong>Recommended: not now.</strong> The service config decides, and no client needs anything else yet.</li>
+<li><strong>After stop, sending at once or waiting for you to confirm:</strong> <strong>Recommended: at once</strong>, as now. You've already watched the line clean up while you talked. A "check before sending" mode would be its own change.</li>
+<li><strong>A new <code>FINISHING</code> state</strong> in the voice contract, or reuse <code>LISTENING</code> with a "cleaning up…" detail? <strong>Recommended: the new state.</strong> The mic is off, so "listening" would be wrong for the button and for any later UI. The contract changes anyway (<code>settled_chars</code>), so it costs no extra restart.</li>
+<li><strong>Keeping session recordings</strong> (WAVs of what you said, for the engine comparison): <strong>Recommended: not in this change.</strong> Pieces now free their audio as they go; saving a session is a small change later, once we decide where and for how long.</li>
+<li><strong>Pause and piece lengths:</strong> a pause of 0.7 s, pieces at least 4 s and at most 20 s? <strong>Recommended: yes, then tuned in step 3.</strong> Short pauses inside a sentence are usually under half a second, so 0.7 s mostly cuts between sentences or thoughts. The 4 s minimum is about cost: a short piece costs whisper nearly as much as a long one. The 20 s maximum keeps each piece inside whisper's 30 s window, and the wait for a forced last piece short.</li>
+<li><strong>Matching live words to a piece:</strong> by the word count at the cut, or by the Zipformer's token times? <strong>Recommended: the word count</strong>, which is simple and right after a 0.7 s pause. A late word only shows twice on the line for a second or two, never in the sent text. Switch to token times only if step 3 sees it often.</li>
+<li><strong>What the line shows when a piece is replaced:</strong> <strong>Recommended:</strong> the settled part in normal text and the rough tail dimmed, with the swap instant and no animation. The text may get shorter or longer, and the tail moves with it. A fade or a highlight on the new text is easy to add later in the real UI.</li>
+<li><strong>Overlap at cuts</strong>, so no word is lost at a cut: <strong>Recommended: no overlap.</strong> Pause cuts fall in quiet; forced cuts fall at the quietest chunk of the last 3 s. Overlap would make whisper write the words at the join twice, and then the service has to find and remove the repeat, which is error-prone. If step 3 finds words lost at forced cuts, add 0.5 s overlap with the repeat removed then.</li>
+<li><strong>Joins between pieces:</strong> whisper writes each piece as if it were a whole message, so a piece cut mid-sentence may start with a capital or end with a full stop. Give whisper the previous piece's text as its prompt (faster-whisper's <code>initial_prompt</code>), so it carries on in the same style? <strong>Recommended: yes, behind a setting</strong>, and step 3 compares the joined text with and without it. It costs almost nothing.</li>
+<li><strong>Whisper falling behind</strong> (more than one piece waiting): keep queueing, or drop pieces so they keep their live words? <strong>Recommended: keep queueing</strong> and log it. Dropping would make the sent text worse to save a few seconds, and step 3 checks it doesn't happen on this PC.</li>
+<li><strong>Cleaning pieces with force-on-send on</strong> (<code>live_text = false</code>): clean in the background even though nothing is shown, or clean the whole recording after stop as in the first version? <strong>Recommended: in the background</strong>, so the wait after stop stays about a second there too. Nothing on screen changes.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/voice-two-pass.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

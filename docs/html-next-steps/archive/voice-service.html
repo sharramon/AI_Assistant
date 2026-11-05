@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice in: the voice service app (step 2)</title>
+<!-- Generated from docs/next-steps/archive/voice-service.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/voice-service.html"></nav>
+<main>
+<h1 id="voice-in-the-voice-service-app-step-2">Voice in: the voice service app (step 2)</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Approved with your four answers (install the packages, CI installs the voice extra, download the model, int8 by default); built and tested. Not committed. Results under <a href="#built-2026-11-03">Built</a>. Next: step 3, <code>voice_in</code>.</p>
+</blockquote>
+<p><strong>Asked:</strong> step 2 of <a href="../index.html#next-voice-in-phase-1">voice in</a>: the <code>voice_service</code> app itself, as its own independent app in <code>src/voice_service/</code>. It holds the mic and the speech engine, serves the WebSocket protocol from <code>protocol.py</code>, and uses <code>app_kit</code> pieces like <code>load_layered</code> where they fit. It never imports <code>assistant</code>. The thin <code>voice_in</code> module is step 3.</p>
+<p><strong>Why:</strong> everything else in voice input talks to this service. Built and tested alone first, step 3 can be built against a real service.</p>
+<p><strong>The design is already approved</strong> (<a href="../../html/architecture/voice.html#code-design-phase-1">Code design (phase 1)</a>): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.</p>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><strong>New, <code>src/voice_service/</code>:</strong> <code>__main__.py</code>, <code>config.py</code>, <code>server.py</code>, <code>session.py</code>, <code>audio.py</code>, <code>download.py</code>, <code>engines/__init__.py</code>, <code>engines/zipformer.py</code>, <code>engines/fake.py</code>. <code>__init__.py</code> stays empty and <code>protocol.py</code> stays as built.</li>
+<li><strong>New:</strong> <code>config/voice_service.toml</code> (the design's file as is); <code>tests/test_voice_service.py</code>.</li>
+<li><strong>Changed:</strong> <code>pyproject.toml</code> (the <code>voice</code> extra; <code>voice_service</code> in ruff's first-party list; a <code>voice-service</code> script like <code>html-viewer</code>); <code>.gitignore</code> (<code>config/*.local.toml</code>, so <code>voice_service.local.toml</code> is never committed); <code>.github/workflows/ci.yml</code> (question 2).</li>
+<li><strong>Docs:</strong> <a href="../../html/architecture/voice.html">Voice</a> (status: step 2 built), the overview's Parts table (the voice handler's location), <a href="../../html/api/app_kit.html">App kit</a> and the <a href="../../html/api/reusable.html">reusable parts index</a> (Used by lines), <a href="../index.html">Next steps</a>. Then rebuild.</li>
+</ul>
+<h2 id="how-it-starts-and-stops">How it starts and stops</h2>
+<ul>
+<li><strong>Start:</strong> <code>python -m voice_service [--config F] [--host H] [--port P]</code> (or <code>voice-service</code>). It reads the config, sets up logging, builds the FastAPI app, and runs Uvicorn on <code>127.0.0.1:8767</code>. The model loads in the background (<code>asyncio.to_thread</code>), so <code>/health</code> answers at once with <code>ready: false</code> until the model is in.</li>
+<li><strong><code>/health</code></strong> answers <code>{"app": "voice_service", "engine", "ready", "error"}</code>: the convention <a href="../../html/api/app_kit.html#companionapp"><code>CompanionApp</code></a> pings, so step 3 needs no launch code of its own.</li>
+<li><strong>Stop:</strong> <code>POST /quit</code> (JSON body, like the viewer) aborts any session (mic closed, engine thread joined, no final) and tells Uvicorn to exit. Ctrl+C does the same. Step 3 passes <code>quit="/quit"</code> to <code>CompanionApp</code>.</li>
+<li><strong><code>python -m voice_service download zipformer</code></strong> fetches the model once into <code>models_dir</code> (standard library <code>urllib</code> and <code>tarfile</code>, extracted with tarfile's safe <code>data</code> filter). It's never called while the service runs.</li>
+</ul>
+<h2 id="how-the-engine-is-chosen-and-configured">How the engine is chosen and configured</h2>
+<ul>
+<li><code>[engine] name</code> in the config picks it: <code>"zipformer"</code> (the default) or <code>"fake"</code>. <code>load_engine(name, config)</code> in <code>engines/__init__.py</code> is the only place that knows the names; the server, the session, and the protocol see only <code>SttEngine</code> / <code>SttStream</code>.</li>
+<li><strong>Zipformer:</strong> <code>[engine.zipformer]</code> (<code>model</code> folder under <code>models_dir</code>, <code>num_threads</code>, <code>decoding</code>, and <code>int8</code>, question 4). It checks the model files exist before importing sherpa-onnx, so a missing model gives a clear error naming the <code>download</code> command. sherpa-onnx and sounddevice are imported only inside <code>zipformer.py</code> and <code>MicSource</code>, so the server and the tests run without them.</li>
+<li><strong><code>models_dir</code>:</strong> <code>""</code> means <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>; the env var <code>VOICE_SERVICE_MODELS</code> overrides it.</li>
+<li><strong>Config layers:</strong> the built-in defaults (a pydantic <code>ServiceConfig</code>), then <code>config/voice_service.toml</code> and its <code>.local.toml</code> through <code>app_kit.load_layered</code>, then the command-line flags. If the default file is missing, the built-in defaults apply; a <code>--config</code> that doesn't exist is an error.</li>
+</ul>
+<h2 id="how-the-five-error-codes-are-produced">How the five error codes are produced</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Produced when</th>
+<th>Then</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>busy</code></td>
+<td>A <code>start</code> arrives while another connection holds the one session slot</td>
+<td>That connection gets the error; the first session carries on</td>
+</tr>
+<tr>
+<td><code>mic_unavailable</code></td>
+<td><code>AudioSource.start()</code> raises (sounddevice can't open the device, no device, Windows' mic privacy switch off); <code>MicSource</code> turns it into <code>MicUnavailable</code> with the device and reason</td>
+<td>Session over, slot freed</td>
+</tr>
+<tr>
+<td><code>mic_lost</code></td>
+<td>The stream ends without our <code>stop</code> (sounddevice's finished callback) or reports an input error</td>
+<td>The engine thread finishes with what it has: <code>final</code> with <code>complete: false</code>, then the error</td>
+</tr>
+<tr>
+<td><code>engine_failed</code></td>
+<td>The model failed to load (every <code>start</code> gets it; <code>/health</code> shows the error), or <code>accept</code> / <code>partial</code> / <code>finish</code> raised in the engine thread</td>
+<td>Session over; a loaded model stays loaded for the next try</td>
+</tr>
+<tr>
+<td><code>bad_message</code></td>
+<td><code>parse_client_message</code> raises <code>ProtocolError</code> (bad JSON, unknown type)</td>
+<td>Only the error; the session, if any, carries on</td>
+</tr>
+</tbody>
+</table>
+<p>Also as designed: a <code>stop</code> with nothing listening gets an empty <code>final</code>; a long silence ends with <code>final</code> and <code>ended_by: "silence"</code>; a client that disconnects mid-session gets <code>abort()</code>. A <code>start</code> while the model is still loading opens the mic at once and buffers, as designed.</p>
+<h2 id="tests-no-mic-no-model-no-network">Tests (no mic, no model, no network)</h2>
+<ul>
+<li><strong>The fakes:</strong> <code>FakeEngine</code> reveals a set text one word per few chunks (a different word each time <code>partial()</code> changes), and can be told to fail on load or on <code>accept</code>. <code>FakeSource</code> feeds chunks from a list on its own thread, and can be told to fail on open (<code>mic_unavailable</code>) or stop after N chunks as if unplugged (<code>mic_lost</code>). Tests build the app with <code>create_app(config, FakeEngine(...), lambda: FakeSource(...))</code> and drive <code>/ws/listen</code> with FastAPI's test client.</li>
+<li><strong>Cases:</strong> <code>/health</code> before and after the model loads; start → started → partials (only when changed) → stop → final with the text and <code>latency_ms</code>; stop with nothing listening → empty final; a second client → <code>busy</code>; bad JSON and an unknown type → <code>bad_message</code>, session still running; load failure → <code>engine_failed</code> and <code>/health</code> shows it; engine crash → <code>engine_failed</code>, next start works; open failure → <code>mic_unavailable</code>; lost mic → <code>final(complete=false)</code> then <code>mic_lost</code>; a tiny <code>silence_stop_seconds</code> → <code>ended_by: "silence"</code>; disconnect mid-session → slot freed; <code>/quit</code> ends the server.</li>
+<li><strong>Config:</strong> defaults, the <code>.local.toml</code> override, flags over both, <code>models_dir</code> from the env var. <strong>Zipformer:</strong> a missing model folder → the load error names <code>download</code> (no sherpa-onnx needed). <strong>Download:</strong> extracts a small tar made in the test, with the fetch faked (no network). <strong>Import rule:</strong> the existing check that <code>voice_service</code> never imports <code>assistant</code> covers every new file.</li>
+<li>Then all of <code>pytest</code> and <code>ruff</code>.</li>
+</ul>
+<h2 id="reuse">Reuse</h2>
+<ul>
+<li><strong>Used:</strong> <code>app_kit.load_layered</code> (config), <code>voice_service.protocol</code> (every frame in and out), and the <code>CompanionApp</code> conventions (<code>/health</code> with <code>app</code>, JSON <code>POST /quit</code>).</li>
+<li><strong>Checked, not reusable here:</strong> <code>setup_logging</code> and <code>load_config</code> are in <code>assistant.infra</code>, which the service can't import, so <code>__main__.py</code> sets up logging in a few lines of its own. <code>app_kit.window</code> isn't needed (no window).</li>
+<li><strong>New parts for the index:</strong> <code>SttEngine</code> / <code>SttStream</code> and <code>AudioSource</code> (the extension points for Nemotron in step 7 and <code>RemoteSource</code> for <code>/ws/audio</code> later), listed under <code>voice_service</code>.</li>
+</ul>
+<h2 id="left-for-step-3-and-later">Left for step 3 and later</h2>
+<ul>
+<li><strong>Step 3, <code>voice_in</code>:</strong> <code>CompanionApp("voice_service", host, 8767, ping="/health", quit="/quit")</code>, the mic permission through <code>ctx.permissions</code>, one WebSocket per session with the <code>websockets</code> client, the two commands and the events, <code>[modules.voice_in]</code> config, <code>core.command_timeouts.StartListening = 30</code>.</li>
+<li><strong>Steps 4 to 7:</strong> the temp UI's mic button and live line; trying it on your own mic (the real latency check); Nemotron and the comparison.</li>
+</ul>
+<h2 id="open-questions-for-you">Open questions (for you)</h2>
+<ol>
+<li><strong>Install the packages into <code>.venv</code>?</strong> <code>fastapi</code>, <code>uvicorn</code>, <code>sherpa-onnx</code>, <code>sounddevice</code> (the <code>voice</code> extra, plus <code>websockets</code> for step 3), and <code>httpx</code> in the <code>dev</code> extra (FastAPI's test client needs it). Nothing can run or be tested without them. <strong>Recommend: yes</strong>, with <code>pip install -e ".[dev,voice]"</code>.</li>
+<li><strong>CI:</strong> install the <code>voice</code> extra on GitHub too, so the service tests run there. They never touch a mic or a model, and sherpa-onnx and sounddevice are only imported by the real engine and mic. <strong>Recommend: yes.</strong> The other choice: the tests skip themselves when FastAPI isn't installed, and CI stays as it is.</li>
+<li><strong>Download the Zipformer model now?</strong> It comes once from sherpa-onnx's GitHub releases (a few hundred MB, into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>). With it, I can check the real engine on the model's bundled test recordings (latency, the text) without a mic. <strong>Recommend: yes</strong>, and leave your own mic try for step 6. Without it, the real engine is built but only checked up to "model missing".</li>
+<li><strong>int8 or full-precision model?</strong> The download has both. int8 is smaller and faster on a CPU, with a small loss of accuracy. <strong>Recommend: int8 by default</strong>, with <code>int8 = false</code> in <code>[engine.zipformer]</code> to switch.</li>
+</ol>
+<h2 id="built-2026-11-03">Built (2026-11-03)</h2>
+<ul>
+<li><strong>Installed</strong> into <code>.venv</code> with <code>pip install -e ".[dev,voice]"</code>: fastapi 0.162.0, uvicorn 0.54.0, sherpa-onnx 2.0.1, sounddevice 0.5.6, websockets 17.4, httpx 0.28.1 (and their dependencies, starlette 1.10.0 among them). sherpa-onnx brought no numpy, so the Zipformer stream converts PCM16 with the standard library's <code>array</code>; no numpy is needed.</li>
+<li><strong>CI</strong> installs <code>.[dev,voice]</code> in the test job.</li>
+<li><strong>The model</strong> (<code>sherpa-onnx-streaming-zipformer-en-2023-06-26</code>, 310 MB with both the int8 and full-precision files) is in <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo, so it can never be committed and git lfs isn't needed. <code>.gitignore</code> also has <code>voice_models/</code> in case <code>models_dir</code> is ever pointed inside the repo, and <code>config/*.local.toml</code>.</li>
+<li><strong>Real-engine check</strong> on the model's test recordings (<code>0.wav</code>, 6.7 s; <code>1.wav</code>, 16.7 s), fed at the speed of speech through the whole service (<code>create_app</code> + <code>ZipformerEngine</code> + <code>FakeSource.from_wav</code>): the model loads in about 1.9 s. int8 matched both reference texts exactly; the final came 46 and 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>, including the recording's lead-in before the first word, so the real first-partial latency is measured on your mic in step 6. Full precision: the same text except <em>dishonored</em> for <em>dishonoured</em>, finals 62 and 93 ms.</li>
+<li><strong>Changed from the design:</strong> the model loads on a daemon thread rather than <code>asyncio.to_thread</code>, so a shutdown never waits on a load. <code>SttEngine</code> got a <code>load()</code> method (blocking, once), so the server loads any engine in the background and <code>/health</code> reports it.</li>
+<li><strong>Tests:</strong> <code>tests/test_voice_service.py</code>; the import rule in <code>tests/test_voice_contracts.py</code> now scans the whole package, <code>engines/</code> included.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/archive/voice-service.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

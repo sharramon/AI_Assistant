@@ -24,8 +24,8 @@
 <li><strong>Independent lifecycles.</strong> Modules can be initialized, started, suspended, and stopped independently.</li>
 <li><strong>Graceful removal.</strong> Removing an optional module must not break unrelated modules or require widespread changes.</li>
 <li><strong>Technology independence.</strong> Modules may later run out of process in other languages, so messages crossing module boundaries are plain, serializable data.</li>
-<li><strong>Avoid premature complexity.</strong> No distributed infrastructure, elaborate plugin systems, or speculative abstractions without an actual requirement.</li>
-<li><strong>Runtime module control.</strong> Every eligible module can be activated and deactivated independently through a central control interface while the app runs. The core owns lifecycle transitions; each module owns its resources and loads expensive ones only when needed. Dependencies are respected. Code changes may need a restart; runtime configuration changes never need a rebuild.</li>
+<li><strong>Avoid premature complexity.</strong> No distributed infrastructure, elaborate plugin systems, or speculative abstractions without an actual requirement. The one plugin mechanism is the module shape itself: modules found by folder, listed in the directory, and used through their menus (<a href="modules.html">modules</a>).</li>
+<li><strong>Runtime module control.</strong> Every eligible module can be activated and deactivated independently through a central control interface while the app runs. The core owns lifecycle transitions; each module owns its resources and loads expensive ones only when needed. Dependencies are respected. A module's code is hot-swapped in place, and if the new code fails the old code runs again. A module's code changes, and adding a new module, never need a restart; only changes to the core, contracts or shared helpers do, including a new contract or port type. Runtime configuration changes never need a rebuild.</li>
 <li><strong>Interfaces by inheritance, functionality by composition.</strong> Classes inherit only interfaces (<code>Module</code>, <code>Contract</code> subclasses) to establish contracts, and are assembled from composed parts to get behavior. No deep inheritance hierarchies: no intermediate base classes that carry implementation. Shared behavior is a shared part, not a shared parent. A module can provide a contract through a composed object: <code>ctx.provide(ITaskAgent, self._agent)</code>.<ul>
 <li><strong>Naming:</strong> <code>I</code> prefix if and only if the class subclasses <code>Contract</code> (<code>IToolProvider</code>, <code>ITaskAgent</code>). <code>Module</code>, <code>ModuleContext</code>, <code>Contract</code>, and concrete classes get no prefix.</li>
 <li><strong>Mechanism:</strong> contracts are <code>ABC</code>s, not <code>Protocol</code>s, because the core checks providers with <code>isinstance</code>.</li>
@@ -35,6 +35,22 @@
 <li><strong>When it counts:</strong> a second user exists or is in an approved change note, or the part implements a decided pattern (task agents, companion apps). "Might be useful one day" doesn't count (principle 10).</li>
 <li><strong>What qualifies:</strong> the behavior is the same, not just similar, and it knows nothing about any one module; a module's specifics come in as parameters.</li>
 <li><strong>How:</strong> by composition (principle 12): an object or function you compose, never a base class with code in it. Check the index before writing a helper. Where reusable parts live: <a href="reusable-parts.html">Reusable parts</a>.</li>
+</ul>
+</li>
+<li><strong>A module is a wrapper with a menu.</strong> Every module is the same wrapper the core manages (a manifest with a one-line description, a lifecycle, a context) holding a menu of named tools, each with a description and its inputs: MCP-like, but ours only (<a href="modules.html#a-module-is-a-wrapper-with-a-menu">modules</a>). Refines 3 and 12.<ul>
+<li><strong>Today:</strong> the wrapper and <code>IToolProvider</code> menus are built; the one-line description is planned.</li>
+</ul>
+</li>
+<li><strong>Directory, then menu.</strong> The Talker and the Main Assistant find capabilities the same way, one line per module first, then only that module's menu, then <code>InvokeTool</code>; no agent has another module's tools written into it (<a href="modules.html#find-a-module-then-open-its-menu">modules</a>).<ul>
+<li><strong>Today:</strong> planned. The Talker is hardcoded to the viewer's tools and the Main Assistant can't call tools; both are known gaps.</li>
+</ul>
+</li>
+<li><strong>Chain, don't glue.</strong> A module uses another only through what that one declares (its events, commands, or menu), and a shared service serves several users through sessions with a destination each, never through copies of itself (<a href="modules.html#chaining-modules">modules</a>). Refines 3; it's 13's "build it once" for running services.<ul>
+<li><strong>Today:</strong> events between modules are built; voice sessions are planned (the voice service takes one listener at a time).</li>
+</ul>
+</li>
+<li><strong>Declared dependencies, found by folder.</strong> A module is its folder: the core finds it there and first starts whatever provides the contracts its manifest <code>requires</code>; a module depends on contracts, never on another module's id, and never starts another module itself (<a href="modules.html#dependencies">modules</a>). Extends 11's "dependencies are respected".<ul>
+<li><strong>Today:</strong> <code>requires</code> by contract is built; finding modules by folder is planned (modules are still listed in <code>__main__.py</code>).</li>
 </ul>
 </li>
 </ol>

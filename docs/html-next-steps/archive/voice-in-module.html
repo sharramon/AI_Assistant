@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice in: the voice_in module (step 3)</title>
+<!-- Generated from docs/next-steps/archive/voice-in-module.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/voice-in-module.html"></nav>
+<main>
+<h1 id="voice-in-the-voice_in-module-step-3">Voice in: the voice_in module (step 3)</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Approved and built, not committed. Ruff is clean, and 224 tests pass (1 deselected). Where the build stands and what's next: <a href="../handoff-voice-in.html">handoff</a>. The permanent design is on <a href="../../html/architecture/voice.html#the-voice_in-module">Voice</a>.</p>
+<p><strong>Built differently from this note</strong> (decided with you or found while building):
+- <strong>A mic that doesn't come back drops the text</strong> (your answer: "let it try to recover for a bit, but lose the text"). <code>voice_in</code> publishes <code>VoiceTranscript(final=True, text="")</code>, which clears the line, and then <code>VoiceState(failed, mic_lost)</code>. The text isn't kept as a last partial or greyed out, and a waiting <code>StopListening</code> gets <code>failed</code>, not <code>ok</code>. The service still sends <code>final complete=false</code> then <code>error mic_lost</code>, so the protocol is unchanged for that case.
+- <strong>The service sends the last partial before <code>mic_dropped</code></strong>, after reading what the lost mic had already queued. That way the line shows the text so far during the drop.
+- <strong>The retry interval</strong> is <code>ListenSession.retry_seconds = 1.0</code>, a class attribute that the tests shorten, not a config setting.
+- <strong>Tests the note didn't list:</strong> a stub <code>CompanionApp</code> checks the health check's calls. <code>init</code> without <code>websockets</code> names the extra. The service's own tests cover the drop, the timeout, a stop while dropped, the paused silence timer, and <code>mic_recovery_seconds = 0</code>.
+- <strong>Found by the tests:</strong> <code>TimeoutError</code> is an <code>OSError</code>, so the launch-timeout case is caught before the launch-failure case.</p>
+<p><strong>Changed after your first check:</strong> a lost mic now waits for the mic to come back (<a href="#when-the-mic-drops-mid-session-new">When the mic drops</a>), and a quick <code>/health</code> check runs before reusing a running service (<a href="#the-health-check-before-reusing-a-running-service-new">The health check</a>).</p>
+</blockquote>
+<p><strong>Asked:</strong> step 3 of <a href="../index.html#next-voice-in-phase-1">voice in</a>: the thin <code>voice_in</code> module in the main app. It launches the <code>voice_service</code> through <code>CompanionApp</code>, handles <code>StartListening</code> and <code>StopListening</code>, asks for the microphone through <code>ctx.permissions</code>, opens one WebSocket per mic session using <code>voice_service.protocol</code>, publishes <code>VoiceState</code> and <code>VoiceTranscript</code>, and with <code>send_as_input</code> on, sends the final text to the Talker as <code>InputReceived</code>. It only launches, calls and relays. It has no speech logic, and it imports nothing from <code>voice_service</code> except <code>protocol</code>. No UI button (step 4).</p>
+<p><strong>Why:</strong> steps 1 and 2 built the contracts and the service. This module connects them to the app, so any UI can turn the mic on, and the Talker gets what you said.</p>
+<p><strong>The design is already approved</strong> (<a href="../../html/architecture/voice.html#the-voice_in-module">the voice_in module</a>). This note says how it gets built, fills a few gaps the design left open (marked <strong>new</strong>), and ends with three choices for you.</p>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><strong>New:</strong> <code>src/assistant/modules/voice_in/__init__.py</code> and <code>module.py</code> (<code>VoiceInModule</code>); <code>tests/test_voice_in.py</code>.</li>
+<li><strong>Changed:</strong></li>
+<li><code>src/assistant/__main__.py</code>: <code>VoiceInModule</code> in <code>MODULES</code>. It stays out of <code>enabled</code>, so it's off by default.</li>
+<li><code>config/default.toml</code>: <code>[modules.voice_in]</code> and <code>StartListening = 30.0</code> under <code>[core.command_timeouts]</code>.</li>
+<li><code>src/assistant/contracts/voice.py</code>: a new <code>ListeningState.DROPPED</code>, for the mic drop (below), and the <code>VoiceState</code> docstring listing the three new app-side reasons. No fields change.</li>
+<li><strong>The voice service (step 2, already committed), for the mic drop only:</strong> <code>protocol.py</code> (two new messages), <code>session.py</code> (the recovery wait), <code>config.py</code> (one setting), <code>server.py</code> (it passes the source factory to the session), and their tests in <code>tests/test_voice_service.py</code>. The <code>/health</code> reply already fits.</li>
+<li><strong>Not changed:</strong> <code>app_kit</code> (<code>CompanionApp</code> already does it all), the Talker (it already takes <code>InputReceived</code> from any source), <code>pyproject.toml</code> (<code>websockets</code> is already in the <code>voice</code> extra).</li>
+<li><strong>Docs:</strong> <a href="../../html/architecture/voice.html">Voice</a> (step 3 built), <a href="../../html/api/messaging.html#voice">Messaging</a> (the reasons and who handles the commands), the <a href="../../html/api/reusable.html">reusable parts index</a> and <a href="../../html/api/app_kit.html">App kit</a> (Used by lines: <code>voice_in</code> no longer <em>planned</em>), the overview's Parts table (the <code>voice_in</code> location), the <a href="../../html/agents/runtime.html">runtime</a> page's module list, and <a href="../index.html">Next steps</a>. Then rebuild.</li>
+</ul>
+<h2 id="manifest-and-config">Manifest and config</h2>
+<pre><code class="language-python">class VoiceInModule(Module):
+    manifest = Manifest(id=&quot;voice_in&quot;, optional_permissions=(&quot;microphone&quot;,))
+</code></pre>
+<p>It provides, requires, and optionally uses nothing, and it isn't an <code>IToolProvider</code>, because agents don't turn on your mic.</p>
+<pre><code class="language-toml">[modules.voice_in]
+# Voice input: launches the voice service (its own app) on the first mic click.
+host = &quot;127.0.0.1&quot;
+port = 8767
+start_timeout = 20.0      # seconds for the service to answer /health after launch
+service_config = &quot;&quot;       # optional path passed as --config to the service
+reply_timeout = 10.0      # new: seconds to wait for `started` after start, and for `final` after stop
+</code></pre>
+<p><code>reply_timeout</code> is <strong>new</strong>. Without it, a service that hangs without closing the socket would leave the button stuck in <em>starting</em> until the command's 30 s timeout, and in <code>StopListening</code> forever.</p>
+<h2 id="how-the-service-is-launched-and-stopped-with-the-module">How the service is launched and stopped with the module</h2>
+<ul>
+<li><strong><code>init</code>:</strong> imports <code>websockets</code>. If it's missing, <code>init</code> raises "install the voice extra: pip install -e .[voice]", so this module fails to start and the rest of the app runs. It builds <code>CompanionApp("voice_service", host, port, ping="/health", quit="/quit", args=["--host", host, "--port", port, (+ "--config", service_config)], start_timeout=..., log=ctx.log)</code> and registers the two command handlers. Nothing is launched yet.</li>
+<li><strong><code>start</code>:</strong> does nothing. The service launches lazily, on the first <code>StartListening</code>.</li>
+<li><strong>On each <code>StartListening</code>:</strong> <code>await app.ensure_running()</code>. A service already running (one you started yourself, or one we launched earlier) is used, after the <a href="#the-health-check-before-reusing-a-running-service-new">health check</a>. Otherwise it's launched with no console and polled until it answers.</li>
+<li><strong><code>stop</code></strong> (app shutdown, or <code>DeactivateModule</code>): it aborts an open session (closes the socket, sends no <code>InputReceived</code>) and publishes <code>VoiceState(idle, reason="service_stopped")</code>. Then <code>await app.stop()</code> sends <code>POST /quit</code>, waits 5 s, and kills the service, but only if this module launched it. A service you started yourself keeps running.</li>
+<li><strong>No watchdog</strong> (as designed). A crash shows up as the socket closing. The next click runs <code>ensure_running</code> again, which relaunches it.</li>
+</ul>
+<h2 id="one-mic-session">One mic session</h2>
+<p>All of it happens under one lock, so a double click can't open two sessions.</p>
+<ol>
+<li><strong><code>StartListening</code>.</strong> If a session is already listening or starting, the result is <code>ok</code> with that session's id, and its <code>send_as_input</code> stays as it was. Otherwise:</li>
+<li>Publish <code>VoiceState(starting)</code>. <code>correlation_id</code> is the session id, which is this command's id, on every event of the session.</li>
+<li><code>await ctx.permissions.request("microphone", reason="You clicked the mic")</code>. If it's denied, see the table below.</li>
+<li><code>ensure_running()</code> (plus the health check if it didn't launch the service just now), then connect to <code>ws://host:port/ws/listen</code> and send <code>dump(Start())</code>.</li>
+<li>Wait up to <code>reply_timeout</code> for the first reply:
+   - <code>started</code>: publish <code>VoiceState(listening)</code>, start the reader task, and return <code>ok {"session_id"}</code>.
+   - <code>error</code>: map it with the table below.</li>
+<li><strong>The reader task</strong> parses every frame with <code>parse_service_message</code>:
+   - <code>partial</code> → <code>VoiceTranscript(text, final=False)</code>.
+   - <code>mic_dropped</code> → <code>VoiceState(dropped)</code>; <code>mic_back</code> → <code>VoiceState(listening)</code> (see <a href="#when-the-mic-drops-mid-session-new">When the mic drops</a>).
+   - <code>final</code> → <code>VoiceTranscript(text, final=True)</code>. Then <code>InputReceived(text, source="voice")</code> if the text is non-empty, <code>complete</code>, and <code>send_as_input</code> is on. Then <code>VoiceState(idle)</code>, with <code>reason="silence"</code> and <em>mic turned off after 2 minutes of silence</em> when <code>ended_by</code> is <code>"silence"</code>. Then it closes the socket.
+   - <code>error</code> → see the table.
+   - The socket closes with no final → <code>service_stopped</code>.</li>
+<li><strong><code>StopListening</code>.</strong> With nothing listening, the result is <code>ok</code> with <code>None</code>. Otherwise it sends <code>dump(Stop())</code> and waits up to <code>reply_timeout</code> for the reader to deliver the final. The result is <code>ok {"text", "latency_ms"}</code>.</li>
+<li><strong>Logging:</strong> each session's start, the final's text, its length and <code>latency_ms</code>, and how it ended. The service's <code>detail</code> goes to the log on every error. The permission warning comes from the stand-in; <code>voice_in</code> logs none of its own.</li>
+</ol>
+<p>The service never reports the audio length, so the log line has text length and latency only. The design's "audio length" would need a protocol change; I've left it out (say if you want it).</p>
+<h2 id="when-the-mic-drops-mid-session-new">When the mic drops mid-session (new)</h2>
+<p><strong>What the built service does today:</strong> it doesn't retry. When the mic goes away, <code>MicSource</code> calls <code>on_lost</code>, and the session stops listening at once. It finishes the text heard so far, sends <code>final</code> with <code>complete: false</code>, then <code>error mic_lost</code>, and frees the slot. So <code>mic_lost</code> always ends the session, and your idea needs a change in the service. Only the service can reopen the mic, so the wait has to live there.</p>
+<p><strong>The smallest version that fits your idea:</strong></p>
+<ul>
+<li><strong>Service (step 2 code, a small change):</strong></li>
+<li>A new setting under <code>[audio]</code>: <code>mic_recovery_seconds = 15.0</code>. <code>0</code> keeps today's behavior: end at once.</li>
+<li>On <code>on_lost</code>, the session doesn't end. It closes the dead source, keeps the engine stream (so the text so far is kept), and sends a new message <code>{"type": "mic_dropped", "detail": "...", "wait_seconds": 15}</code>.</li>
+<li>While dropped, it tries to open a fresh source about once a second. The session gets the server's <code>source_factory</code> for this, instead of one source. The silence timer is paused, so a drop never counts as silence.</li>
+<li>When a source opens, it sends <code>{"type": "mic_back"}</code> and keeps feeding the same stream. Your next words carry on from the text so far.</li>
+<li>If none opens within <code>mic_recovery_seconds</code>, it ends as today: <code>final complete=false</code>, then <code>error mic_lost</code>.</li>
+<li>A <code>stop</code> while dropped ends the session the same way, right away. That's you giving up on the mic, so it's treated as a drop.</li>
+<li>Protocol: two new service messages, <code>MicDropped</code> and <code>MicBack</code>. No new error code, and <code>mic_lost</code> keeps its meaning (the mic didn't come back).</li>
+<li><strong><code>voice_in</code>:</strong></li>
+<li><code>mic_dropped</code> → <code>VoiceState(dropped, reason="mic_dropped", detail="mic dropped, waiting 15 s for it to come back")</code>.</li>
+<li><code>mic_back</code> → <code>VoiceState(listening)</code>.</li>
+<li>On a timeout it's the <code>mic_lost</code> row of the table below. The text so far is published as a last <code>VoiceTranscript(final=False)</code>, then <code>VoiceState(failed, mic_lost)</code>. It isn't sent to the Talker.</li>
+<li>It needs no setting of its own. The wait comes in <code>wait_seconds</code>.</li>
+<li><strong>Contract:</strong> <code>ListeningState.DROPPED = "dropped"</code>, so every UI can show the drop the same way.</li>
+<li><strong>Temp UI (step 4):</strong></li>
+<li>The button shows an obvious drop symbol (a crossed-out mic, amber, with a countdown from <code>wait_seconds</code>).</li>
+<li>The live line keeps the text so far, with its word count, for example <em>"…42 words so far"</em>, counted from the last partial. That needs no new field.</li>
+<li>On <code>mic_back</code>, the button goes back to listening, and you carry on speaking.</li>
+<li>If the mic doesn't come back, the button shows <em>mic disconnected</em>. The text stays on the line, greyed out, until your next click.</li>
+</ul>
+<p><strong>Not covered (checked in step 6 on your real mic):</strong> if Windows doesn't report the unplug, the mic just goes quiet, and nothing is detected. A "no audio for 2 s counts as a drop" check would cover that. I've left it out until step 6 shows whether it's needed.</p>
+<h2 id="the-health-check-before-reusing-a-running-service-new">The health check before reusing a running service (new)</h2>
+<p><code>ensure_running()</code> returns whether it launched the service just now. Right after a fresh launch, <code>CompanionApp</code> has just pinged it, so nothing more is done. When it reuses a running service, <code>voice_in</code> first calls <code>GET /health</code> with a 2 s timeout:</p>
+<ul>
+<li><code>ready: false</code> with an <code>error</code>: fail at once with <code>engine_failed</code> and the error as the detail, without opening the WebSocket.</li>
+<li><code>ready: false</code>, no error: the model is still loading. Carry on, because the service buffers the audio until it's loaded.</li>
+<li>No answer, or a different <code>app</code>: the service died since the last click. Run <code>ensure_running()</code> once more, which relaunches it. If that fails, it's <code>service_unavailable</code>.</li>
+</ul>
+<p>This fails fast with a clear reason instead of waiting out <code>reply_timeout</code>.</p>
+<h2 id="how-every-error-maps-to-listeningstatefailed">How every error maps to <code>ListeningState.failed</code></h2>
+<p><code>reason</code> is the service's code where there is one. Three app-side reasons are <strong>new</strong>: <code>not_allowed</code>, <code>service_unavailable</code>, and <code>timed_out</code> (with the design's existing <code>service_stopped</code>). <code>detail</code> is the short sentence for the button. After every failure, the socket is closed and the module is ready for the next click.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th><code>VoiceState</code></th>
+<th><code>StartListening</code> result</th>
+<th>Sent to the Talker</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Permission denied</td>
+<td><code>failed</code>, <code>not_allowed</code>, <em>microphone not allowed</em></td>
+<td><code>failed</code> "microphone not allowed"</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>websockets</code> missing (main app has no voice extra)</td>
+<td>the module never starts</td>
+<td>the command has no handler: <code>not_available</code> from the router</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Service can't start: the voice extra isn't in the venv, a crash on launch, or the port is taken (<code>ensure_running</code> raises <code>OSError</code>)</td>
+<td><code>failed</code>, <code>service_unavailable</code>, <em>voice service didn't start</em> (the log adds: run <code>python -m voice_service</code> to see why)</td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Service never answers <code>/health</code> (<code>TimeoutError</code>)</td>
+<td><code>failed</code>, <code>service_unavailable</code>, <em>voice service didn't answer</em></td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Connecting the WebSocket fails</td>
+<td><code>failed</code>, <code>service_unavailable</code></td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td>No <code>started</code> within <code>reply_timeout</code></td>
+<td><code>failed</code>, <code>timed_out</code></td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>error busy</code></td>
+<td><code>failed</code>, <code>busy</code>, <em>another app is using the mic</em></td>
+<td><code>failed</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>error mic_unavailable</code></td>
+<td><code>failed</code>, <code>mic_unavailable</code>, <em>no microphone (or blocked in Windows settings)</em></td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>/health</code> on a reused service says <code>ready: false</code> with an error</td>
+<td><code>failed</code>, <code>engine_failed</code>, <em>speech model not installed</em></td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>error engine_failed</code> at start: the model is missing or didn't load, and the service's detail names the <code>download</code> command</td>
+<td><code>failed</code>, <code>engine_failed</code>, <em>speech model not installed</em></td>
+<td><code>not_available</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>error engine_failed</code> mid-session (engine crash)</td>
+<td><code>failed</code>, <code>engine_failed</code>, <em>speech engine error</em></td>
+<td>(already <code>ok</code>); a waiting <code>StopListening</code> → <code>failed</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>mic_dropped</code> (the mic went away; the service is waiting)</td>
+<td><code>dropped</code>, <code>mic_dropped</code>, <em>mic dropped, waiting 15 s for it to come back</em></td>
+<td>(already <code>ok</code>)</td>
+<td>not yet</td>
+</tr>
+<tr>
+<td><code>final complete=false</code> then <code>error mic_lost</code> (the mic didn't come back in time, or you stopped while dropped)</td>
+<td><code>failed</code>, <code>mic_lost</code>, <em>mic disconnected</em>; the text so far stays in the live line as a last partial</td>
+<td>(already <code>ok</code>); a waiting <code>StopListening</code> → <code>ok</code> with the text, <code>complete: false</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td>Socket closes with no final (the service crashed or quit)</td>
+<td><code>failed</code>, <code>service_stopped</code>, <em>voice service stopped</em></td>
+<td>a waiting <code>StopListening</code> → <code>failed</code>, retryable</td>
+<td>no</td>
+</tr>
+<tr>
+<td>No <code>final</code> within <code>reply_timeout</code> after stop</td>
+<td><code>failed</code>, <code>timed_out</code></td>
+<td><code>StopListening</code> → <code>failed</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>error bad_message</code></td>
+<td>no change: it means a bug on our side. Logged as an error; the session carries on</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>A frame <code>parse_service_message</code> rejects</td>
+<td>no change. Logged as a warning and skipped</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Final with empty text</td>
+<td><code>idle</code>; <code>VoiceTranscript(final=True, text="")</code> clears the line</td>
+<td><code>StopListening</code> → <code>ok</code> with <code>""</code></td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Not installed, all three ways:</strong> without <code>websockets</code>, <code>init</code> fails with the install hint. Without the service's packages (FastAPI and the rest), the launched process exits early, which gives <code>service_unavailable</code>. Without the model, the service runs but answers <code>engine_failed</code>, and its detail names <code>python -m voice_service download zipformer</code>.</p>
+<h2 id="tests-teststest_voice_inpy-no-mic-no-model">Tests (<code>tests/test_voice_in.py</code>; no mic, no model)</h2>
+<p>The module runs inside a real <code>App</code>, like the viewer tests. Commands go through <code>app.router.send</code>, and a bus subscriber collects the events. Something in the test has to play the voice service; which one is question 2.</p>
+<ul>
+<li><strong>Happy path:</strong> start → <code>starting</code>, <code>listening</code> → partials → stop → <code>VoiceTranscript(final=True)</code>, <code>InputReceived(source="voice")</code>, <code>idle</code>. The result has the text and <code>latency_ms</code>, and every event carries the session's <code>correlation_id</code>.</li>
+<li><strong>The options:</strong> <code>send_as_input=False</code> sends no <code>InputReceived</code>. Starting while listening returns the same session. Stopping with nothing listening gives <code>ok</code> with <code>None</code>. An empty final sends nothing. A silence stop gives <code>idle</code> with <code>reason="silence"</code>, then <code>InputReceived</code>.</li>
+<li><strong>Every error code:</strong> <code>busy</code> (a second connection holds the slot), <code>mic_unavailable</code> (the source fails on open), <code>mic_lost</code> (the source stops after N chunks and no new one opens: no <code>InputReceived</code>), <code>engine_failed</code> at start (the engine fails on load) and mid-session (it fails on accept), <code>bad_message</code> (fed to the reader directly: no state change).</li>
+<li><strong>The mic drop:</strong> the first source is lost after N chunks and the next one opens: <code>dropped</code>, then <code>listening</code>, and the final holds the text from before and after the drop. No source opens within a tiny <code>mic_recovery_seconds</code>: <code>dropped</code>, then <code>failed mic_lost</code>. A stop while dropped: <code>failed mic_lost</code>, nothing to the Talker.</li>
+<li><strong>The health check:</strong> a reused service whose <code>/health</code> says <code>ready: false</code> with an error fails with <code>engine_failed</code> without opening a WebSocket. A fresh launch makes no extra <code>/health</code> call.</li>
+<li><strong>In the service's own tests:</strong> <code>mic_dropped</code> and <code>mic_back</code> on the wire, the silence timer paused during a drop, and <code>mic_recovery_seconds = 0</code> keeps today's behavior.</li>
+<li><strong>The service's lifecycle:</strong></li>
+<li>A service you started yourself is used and left running at <code>stop</code>.</li>
+<li>A service that fails to launch gives <code>service_unavailable</code>. The test points <code>CompanionApp</code> at a module that doesn't exist, so <code>python -m</code> exits with 1.</li>
+<li>A service that never answers gives <code>service_unavailable</code> after a tiny <code>start_timeout</code>.</li>
+<li>A service that dies mid-session gives <code>service_stopped</code>.</li>
+<li>A denied permission gives <code>not_allowed</code> (with a test double for <code>ctx.permissions</code>).</li>
+<li><code>stop()</code> with a session open aborts it, and nothing goes to the Talker.</li>
+<li><strong>The import rule:</strong> a test that <code>assistant.modules.voice_in</code> imports nothing from <code>voice_service</code> except <code>protocol</code>.</li>
+<li><strong>Not tested here:</strong> launching the real <code>python -m voice_service</code>. With no fake mic option, it would open your real mic on this PC. The launch itself is <code>CompanionApp</code>'s, already tested in <code>test_app_kit.py</code>; your own try in step 6 covers it.</li>
+<li>Then all of <code>pytest</code> and <code>ruff</code>.</li>
+</ul>
+<h2 id="reuse">Reuse</h2>
+<ul>
+<li><strong>Used:</strong></li>
+<li><code>CompanionApp</code> for the launch, ping and quit, with no launch code of its own.</li>
+<li><code>voice_service.protocol</code> for every frame (<code>Start</code>, <code>Stop</code>, <code>parse_service_message</code>, <code>dump</code>, <code>ErrorCode</code>).</li>
+<li><code>ctx.permissions</code> for the mic check.</li>
+<li>The contracts from step 1, and the existing <code>InputReceived</code>.</li>
+<li><strong>New parts for the index:</strong> none. <code>voice_in</code> is a module, not a shared helper. The index gets Used by updates only: <code>voice_in</code> on <code>CompanionApp</code>, the protocol, <code>ctx.permissions</code>, <code>InputReceived</code>, the two commands, and the two events.</li>
+</ul>
+<h2 id="left-for-the-next-steps">Left for the next steps</h2>
+<ul>
+<li><strong>Step 4, the temp UI:</strong></li>
+<li>The mic button: send <code>StartListening</code> and <code>StopListening</code>, and show <code>VoiceState</code>, with <em>starting</em> as a spinner, <em>dropped</em> as the drop symbol with its countdown and word count, and <em>failed</em> showing <code>detail</code>.</li>
+<li>The grey live line above the input box, from <code>VoiceTranscript</code>. Drop updates whose <code>correlation_id</code> isn't the current session's. Clear the line on <code>final=True</code> and on the next start.</li>
+<li>The final text as your own chat message. The temp UI shows <code>InputReceived(source="voice")</code> like typed text.</li>
+<li>Turning <code>voice_in</code> on in <code>enabled</code>. Off by default until then, as designed.</li>
+<li><strong>Step 6:</strong> try it on your mic: the first real latency check, and the docs move from planned to built (the Voice page, the overview, the runtime page).</li>
+<li><strong>Step 7:</strong> Nemotron and the comparison. No change to <code>voice_in</code>, because the protocol names no engine.</li>
+</ul>
+<h2 id="open-questions-for-you">Open questions (for you)</h2>
+<ol>
+<li><strong>A lost mic. Decided:</strong> wait for it to come back, with a drop symbol (<a href="#when-the-mic-drops-mid-session-new">When the mic drops</a>). This changes the step 2 service. If it doesn't come back, the session is dropped <strong>and so is its text</strong> (revised at approval: the line is cleared, and nothing goes to the Talker).</li>
+<li><strong>What plays the voice service in the tests. Decided: A.</strong> It's the stand-in until you try your own mic (step 6).
+   - <strong>A (recommend):</strong> the real voice service app, started inside the test on a local port. It runs with its built-in fake engine (canned text, no model) and fake mic (canned audio, no microphone). So <code>voice_in</code> is tested against the real service, and if the service changes, these tests catch it.
+   - <strong>B:</strong> a small imitation server written in the test file, with canned replies. It's quicker to write, but it keeps passing even when the real service changes.</li>
+<li><strong>Health check. Decided:</strong> a quick <code>/health</code> before reusing a running service (<a href="#the-health-check-before-reusing-a-running-service-new">The health check</a>).</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/archive/voice-in-module.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

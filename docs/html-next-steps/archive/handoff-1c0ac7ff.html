@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: voice layers and whisper</title>
+<!-- Generated from docs/next-steps/archive/handoff-1c0ac7ff.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/handoff-1c0ac7ff.html"></nav>
+<main>
+<h1 id="handoff-voice-layers-and-whisper">Handoff: voice layers and whisper</h1>
+<blockquote>
+<p><strong>Finished (2026-11-03):</strong> the build is done; results and your check are in <a href="../voice-layers-whisper.html">the note</a>.</p>
+</blockquote>
+<p>Task: build <a href="../voice-layers-whisper.html">voice-layers-whisper.md</a> (approved 2026-11-03, answers recorded there and on the <a href="../../html/architecture/voice.html#hot-swappable-engines">voice page</a>). Follow the batching and architecture-first skills, run architecture-check before the final report. No commit, no push. <strong>The user said yes (2026-11-03) to the install, the model downloads and the config edits: all done.</strong></p>
+<h2 id="done-sessions-13">Done (sessions 1–3)</h2>
+<ul>
+<li><strong>Code, all of it:</strong> <code>app_kit/config.py</code> <code>local_path</code>; <code>voice_service</code> (<code>FileSource</code>, <code>transcribe.py</code>, <code>engines/whisper.py</code>, <code>live_partials</code>, <code>rms</code> silence stop, <code>Start/Started.partials</code>, the config watch and swap in <code>server.py</code>, <code>download whisper</code>, the <code>transcribe</code> command); <code>voice_in</code> (<code>live_text</code>, <code>final_timeout_on_send</code>, the "text appears when you stop" detail); <code>cleanup.py</code> (cased text kept, terms only); the temp UI's listening line shows the detail.</li>
+<li><strong>Tests:</strong> contracts' wire, cleanup, voice_in on-send (2 tests), voice service (whisper load/stream/download, FileSource, transcribe + subprocess import check, flag, rms silence, swap). <strong>310 passed</strong> after the install (numpy 2.5.4); ruff clean. Chunk-1 architecture check OK (voice_service imports no <code>assistant</code>; voice_in imports only <code>protocol</code>; new protocol fields default True).</li>
+<li><strong>Installed</strong> faster-whisper 1.2.1 (ctranslate2 4.8.5, numpy 2.5.4, 17 packages); <code>pyproject.toml</code> voice extra has <code>faster-whisper&gt;=1.2</code>.</li>
+<li><strong>Config edited:</strong> <code>config/voice_service.toml</code> (<code>speech_rms = 300</code>, engine name comment, <code>[engine.whisper]</code> block matching the defaults; engine still <code>zipformer</code>); <code>config/default.toml</code> (<code>live_text = true</code>, <code>final_timeout_on_send = 90.0</code>, cleanup comment; <code>[core.command_timeouts] StopListening = 120.0</code>).</li>
+<li><strong>Models:</strong> <code>faster-whisper-base.en</code> and <code>faster-whisper-small.en</code> are in <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>. <code>distil-large-v3.5</code> was still downloading in a background shell at the reset: check that its folder <code>faster-whisper-distil-large-v3.5</code> exists with a <code>model.bin</code>; if not, rerun <code>.\.venv\Scripts\python -m voice_service download whisper --model distil-large-v3.5</code>.</li>
+<li><strong>Measured (CPU int8, Ultra 9 275HX; the wait after the audio ends; script <code>%TEMP%\voice_bench\bench.py &lt;test_wavs dir&gt; &lt;out dir&gt; &lt;models…&gt;</code>, run with <code>python -I</code>):</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>0.wav (6.6 s)</th>
+<th>1.wav (16.7 s)</th>
+<th>long.wav (46.7 s, 0+1+0+1)</th>
+<th>Load</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zipformer (live; its real wait after stop is <code>finish</code> only, 0.03 s)</td>
+<td>0.03 s</td>
+<td>0.03 s</td>
+<td>0.03 s</td>
+<td>2.1 s</td>
+</tr>
+<tr>
+<td>whisper base.en</td>
+<td>0.42 s</td>
+<td>0.56 s</td>
+<td>1.83 s</td>
+<td>0.5 s</td>
+</tr>
+<tr>
+<td><strong>whisper small.en</strong> (default)</td>
+<td><strong>1.19 s</strong></td>
+<td><strong>1.62 s</strong></td>
+<td><strong>5.17 s</strong></td>
+<td>1.0 s</td>
+</tr>
+<tr>
+<td>distil-large-v3.5</td>
+<td>not measured yet</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Text: whisper gave correct, cased, punctuated text ("After early nightfall, the yellow lamps would light up here and there the squalid quarter of the brothels."); zipformer all caps, also correct. small.en is within the note's estimate (about 1–3 s for 20 s of speech); about 5 s for a 47 s message.
+- <strong>Swap tried by hand</strong> (<code>%TEMP%\voice_bench\swap.py</code>): the real service on a temp config with the fake engine; an <code>[audio]</code> change left it running; changing <code>[engine] name</code> to zipformer made it log "engine changed: fake → zipformer; restarting" and exit 0 in 1.2 s; the relaunch came up with zipformer, ready after the load.</p>
+<h2 id="next">Next</h2>
+<ol>
+<li>Measure distil-large-v3.5 with the bench script (<code>... distil-large-v3.5</code>), add its row.</li>
+<li><strong>Docs</strong> (each file: read once, edit all spots in one pass):
+   - <code>docs/architecture/voice.md</code>: status block, a "Built: layers and whisper" paragraph with the table above and the swap test; Layers banner, diagram (file source, whisper, utility now built: drop the <code>planned</code> class) and table; Hot-swappable banner → built; the Receiver row (sherpa-onnx or faster-whisper); protocol rows (<code>start.partials</code>, <code>started.partials</code>); the silence-stop bullet (level rule <code>speech_rms</code> without live text); files tree (<code>transcribe.py</code>, <code>engines/whisper.py</code>, <code>FileSource</code>, <code>transcribe</code> and <code>download whisper</code> commands) and class diagram (<code>FileSource</code>, <code>WhisperEngine</code>, <code>live_partials</code>); the service config block; the dependencies line; voice_in config block (<code>live_text</code>, <code>final_timeout_on_send</code>), the StopListening row (the on-send wait), the cleanup paragraph (cased text kept), the errors table row "No final within reply_timeout" (or final_timeout_on_send); Engines (measured waits).
+   - <code>docs/api/messaging.md</code> (protocol fields; FileSource, transcribe, transcribe_file, WhisperEngine, live_partials), <code>docs/api/reusable.md</code> (FileSource, transcribe/transcribe_file, local_path, WhisperEngine on SttEngine's line), <code>docs/api/app_kit.md</code> (<code>local_path</code>), the overview Parts row "Voice handler" (engines: zipformer live, whisper on send; swap by config), <code>docs/agents/runtime.md</code> temp UI line ("Listening… text appears when you stop").
+   - The change note: status "built", a Results section with the table; <code>docs/next-steps/README.md</code> row → built.
+   - Rebuild: <code>.\.venv\Scripts\python scripts\build_docs.py</code>.</li>
+<li>Final architecture-check (diagrams updated), <code>pytest</code>, <code>ruff check</code>.</li>
+<li>Report: changed files, 310 tests passing, the measured waits, <strong>an app restart is needed</strong> (new protocol fields and <code>app_kit</code> changed; <code>RELOAD: voice_in</code> isn't enough). The user's check after the restart: set <code>[engine] name = "whisper"</code> (in <code>config/voice_service.local.toml</code>), talk, stop, see the text arrive on send. No commit.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/archive/handoff-1c0ac7ff.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

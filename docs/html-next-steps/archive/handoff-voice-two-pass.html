@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: voice two passes (chunked whisper)</title>
+<!-- Generated from docs/next-steps/archive/handoff-voice-two-pass.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/handoff-voice-two-pass.html"></nav>
+<main>
+<h1 id="handoff-voice-two-passes-chunked-whisper">Handoff: voice two passes (chunked whisper)</h1>
+<blockquote>
+<p><strong>Finished (2026-11-03):</strong> config edited (approved), docs updated and rebuilt. Nothing left but the app restart and your check. The restart happened (relaunch 2026-11-03 16:02); your check is tracked in <a href="../voice-two-pass.html">voice two passes</a>.</p>
+</blockquote>
+<p>The build of <a href="../voice-two-pass.html">voice-two-pass.md</a>. The user approved every recommendation (recorded in the note's Open questions; the README row says "approved (all recommendations), in progress"). Runs in Auto. <strong>Ask with <code>NEED: Risky</code> before editing <code>config/voice_service.toml</code> or any config file.</strong> No commit, no push. The app needs a restart at the end.</p>
+<h2 id="done">Done</h2>
+<p><strong>Chunk 1 (the service): built, tested, architecture-checked (OK).</strong></p>
+<ul>
+<li><code>src/voice_service/config.py</code>: <code>[engine] final</code> (default <code>"whisper"</code>), <code>final_timeout_seconds</code> (20); <code>PiecesConfig</code> (<code>pause_seconds</code> 0.7, <code>min_seconds</code> 4, <code>max_seconds</code> 20, <code>cut_search_seconds</code> 3, <code>prompt_previous</code> true); <code>final_engine_name(config)</code>.</li>
+<li><code>pieces.py</code> (new): <code>PieceCutter</code>. <code>engines/__init__.py</code>: <code>SttStream.set_prompt</code> / <code>cancel</code> (no-ops). <code>engines/whisper.py</code>: prompt → <code>initial_prompt</code>; <code>cancel</code> drops the text. <strong>Finding:</strong> faster-whisper decodes a 30 s window at once, so cancel can't cut a piece short (at most 20 s): it only throws the text away; the session doesn't wait for it. The comment says so, and the real-whisper test is now <code>test_real_whisper_cancel_during_finish_drops_the_text</code>. The note's section 5 "Cancelling" line must say this in the docs step.</li>
+<li><code>protocol.py</code>: <code>Started.clean_pieces</code>, <code>Cleaned</code>, <code>Refining</code>, <code>FinalPart</code>, <code>Final.parts</code>. <code>session.py</code>: <code>Piece</code>, <code>_Cleaner</code> (<code>voice-clean</code> thread), the cut/finish logic. <code>server.py</code>: <code>final_engine</code>, second loader, <code>/health</code> <code>final</code>/<code>final_ready</code>/<code>final_error</code>. <code>__main__.py</code>.</li>
+<li>Check: <code>voice_service</code> imports only its own parts and <code>app_kit</code>; reuses <code>rms</code>, <code>EngineLoader</code>; protocol additions default to today's behaviour.</li>
+</ul>
+<p><strong>Chunk 2 (the main app): built, tested, architecture-checked.</strong></p>
+<ul>
+<li><code>contracts/voice.py</code>: <code>ListeningState.FINISHING</code> (between dropped and failed), <code>VoiceTranscript.settled_chars</code>.</li>
+<li><code>voice_in/line.py</code> (new): <code>LiveLine</code> (<code>set_live</code>, <code>settle</code>, <code>segments</code>), <code>Segment</code>, <code>render(segments, terms, final, cleanup) -&gt; (text, settled_chars)</code>. Always used, so one-engine mode goes through it too (same output as before).</li>
+<li><code>voice_in/cleanup.py</code>: <code>clean_text(..., capitalize=True)</code>: a part that carries on a sentence keeps a small first letter. (Note said "no change"; this one flag is the only change, document it.)</li>
+<li><code>voice_in/module.py</code>: <code>_Session.clean_pieces</code>, <code>.line</code>; <code>Cleaned</code> → settle and publish (warns on fallback); <code>Refining</code> → line update, <code>FINISHING</code> "cleaning up…"; final parts rendered per part and logged; stop waits <code>final_timeout_on_send</code> when <code>clean_pieces</code> or no partials.</li>
+<li><code>temp_ui/module.py</code>: <code>settled</code> in the voice item, cleared on starting/idle/failed/clear; FINISHING keeps the text. <code>page.html</code>: settled start in normal text (<code>#voice .settled</code>), rough rest dimmed; finishing: pulsing button (not a real spinner), clicks ignored, ✕ visible, "cleaning up…" after the line.</li>
+<li>Tests: new <code>tests/test_voice_line.py</code>; <code>test_voice_in.py</code> (<code>Service</code> takes <code>final</code>, <code>pieces</code>; two two-pass tests); <code>test_temp_ui.py</code> (settled + finishing); <code>test_voice_contracts.py</code> (state values, <code>settled_chars</code>, wire dicts with <code>clean_pieces</code> / <code>parts</code>).</li>
+<li><strong>Full suite: 341 passed, 1 deselected; ruff clean.</strong></li>
+<li>Small drift still open: <code>line.py</code> copies <code>_END_MARKS</code> from <code>cleanup.py</code>; change to <code>from .cleanup import _END_MARKS, clean_text</code> (one edit), rerun tests.</li>
+</ul>
+<h2 id="real-check-run-passed-2026-11-03">Real check: RUN, PASSED (2026-11-03)</h2>
+<p><code>_END_MARKS</code> drift fixed (line.py imports it). Suite 341 passed, ruff clean. Joined 49.8 s recording, 4 pieces each run, waiting ≤ 1, no fallbacks, 0 doubled words:</p>
+<ul>
+<li>live alone: CPU avg 2.84 / peak 3.25 cores, wait 0.03 to 0.09 s.</li>
+<li>small.en prompt on: avg 3.54 / peak 10.62; lag median 16, max 47 ms; pieces 1.14 to 1.80 s; wait 1.74 s; match 0.977 (only for ever/forever, one comma).</li>
+<li>small.en prompt off: avg 3.49 / peak 10.79; lag median 32, max 63 ms; pieces 1.14 to 1.45 s; wait 1.48 s; match 0.977; text identical to prompt on.</li>
+<li>base.en prompt on: avg 3.11 / peak 10.93; lag max 32 ms; pieces 0.44 to 0.59 s; wait 0.69 s; match 1.000.</li>
+<li>0.wav / 1.wav (one piece): small.en waits 1.17 to 1.48 s, base.en 0.45 to 0.61 s.</li>
+<li>Prompt: no difference seen, but every cut fell at a sentence end, so its purpose (mid-sentence joins) wasn't tested. Defaults kept. Script kept as a reusable check.</li>
+</ul>
+<h2 id="next">Next</h2>
+<ol>
+<li><strong>Real check</strong> (done, above): <code>scripts/voice_two_pass_check.py</code> runs the service app in-process (TestClient) with the real models, config overrides in memory only (no config file touched; the code default is already <code>final = "whisper"</code>, the toml has no <code>final</code>). Recordings: 0.wav, 1.wav and the four joined with 1 s gaps, fed at speech speed. Runs: live engine alone (baseline), small.en prompt on, small.en prompt off, base.en prompt on. Prints CPU avg/peak cores, partial lag vs baseline (median/p95/max), per-piece whisper times, most waiting at a cut, fallbacks, possible doubled words, wait after stop, sent text vs whole-recording whisper (word match ratio). Run it in the background: <code>.\.venv\Scripts\python scripts\voice_two_pass_check.py</code> (~6 min; if it errors, hand it to the <code>debugger</code> subagent). Pass: partial lag within ~100 ms, at most one piece waiting (<code>waiting</code> ≤ 1 counts the new piece), wait after stop under 2 s. Report numbers plainly, including a fail; tune <code>[pieces]</code> defaults in code if needed. Decide whether to keep the script (it'd be a reusable check for the engine comparison; then list it in the docs).</li>
+<li><strong><code>NEED: Risky</code></strong> to add <code>final = "whisper"</code>, <code>final_timeout_seconds</code> and <code>[pieces]</code> to <code>config/voice_service.toml</code> (check for a <code>.local</code> override; <code>test_config_file_matches_the_built_in_defaults</code> must still pass).</li>
+<li><strong>Docs</strong> per the note's "Docs to update" (voice.md incl. diagrams, messaging.md, api README <code>ListeningState</code> line + <code>PieceCutter</code>, reusable.md: <code>SttStream</code> line gets <code>set_prompt</code>/<code>cancel</code>; <code>LiveLine</code> stays internal unless a second user), overview Parts row, runtime page (temp UI), whisper note pointer line, the note's Results + status, README row. Rebuild with <code>.\.venv\Scripts\python scripts\build_docs.py</code>. Final architecture-check, full pytest + ruff.</li>
+<li>Final report: changed files, test results, measurements, Architecture check section, app restart needed (contract + protocol changes).</li>
+</ol>
+<h2 id="files-edited-more-than-once-so-far">Files edited more than once so far</h2>
+<p><code>voice-two-pass.md</code>, <code>protocol.py</code>, <code>__main__.py</code>, <code>session.py</code>, <code>test_voice_pieces.py</code>, <code>whisper.py</code>, <code>contracts/voice.py</code>, <code>voice_in/module.py</code>, <code>temp_ui/module.py</code>, <code>page.html</code>, <code>test_voice_in.py</code>, <code>test_voice_contracts.py</code>. The README row and the note get one more edit each at the end.</p>
+<footer>Generated from <code>docs/next-steps/archive/handoff-voice-two-pass.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restart with reset instructions</title>
+<!-- Generated from docs/next-steps/archive/restart.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/restart.html"></nav>
+<main>
+<h1 id="restart-with-reset-instructions">Restart with reset instructions</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Loaded at the next relaunch (2026-11-03 12:59). Approved 2026-11-03 with all four recommended answers. Needs one manual relaunch (core, contracts and <code>__main__.py</code> changed); after that, restarts work by voice or text.</p>
+</blockquote>
+<p><strong>Asked:</strong> "When I ask for a 'restart' I want something that triggers this app being closed and opened. But also for the worker to create a 'reset instructions' that is given as the first input."</p>
+<p><strong>Why:</strong> core, contract and <code>__main__.py</code> changes still need a full relaunch, and until now that was done by hand or from a Claude Code session (<a href="../../../.claude/skills/app-update/SKILL.md"><code>app-update</code></a> step 4). After a relaunch both sessions start blank, so you had to explain again where things stood.</p>
+<p><strong>Touched:</strong> <code>contracts/messages.py</code> (<code>ShutdownRequested.restart</code>), <code>core/app.py</code> (<code>restart_requested</code>), <code>__main__.py</code> (the launcher), the <code>talker</code> module (the <code>&lt;&lt;RESTART&gt;&gt;</code> tag, the reset-instructions request, the first input), <code>config/default.toml</code> (<code>[modules.talker] restart_note</code>, <code>restart_timeout</code>), <code>tests/fake_claude.py</code>, new <code>tests/test_restart.py</code>. Docs: <a href="../../html/agents/runtime.html#the-talker-on-its-own">agents runtime</a>, <a href="../../html/architecture/core.html#lifecycle">core</a>, <a href="../../html/api/messaging.html#shutdownrequested">messaging API</a>, the <code>agent_tags</code> Used by lines. Not voice, not hot-loading.</p>
+<h2 id="before-this-change">Before this change</h2>
+<ul>
+<li><code>ShutdownRequested(reason)</code> → <code>App</code> sets <code>_stopping</code> → modules stop in reverse order → <code>main()</code> returns 0. Only <code>console_io</code> publishes it (<code>exit</code>).</li>
+<li>The app is launched by hand: <code>python -m assistant</code> in a PowerShell window titled "Assistant: talk here". Nothing relaunches it.</li>
+<li><strong><code>HANDOFF:</code> lines:</strong> a worker turn ending <code>HANDOFF: &lt;note&gt;</code> makes <code>SessionTaskAgent</code> start a fresh session on the same task, reading that note. <strong><code>&lt;&lt;RESET: worker&gt;&gt;</code></strong> sends <code>RESET_NOW</code>: "write what's done and next into the change note, end with <code>HANDOFF:</code>". Both stay inside one launch.</li>
+</ul>
+<h2 id="as-built">As built</h2>
+<pre><code>you: &quot;restart&quot; → Talker &lt;&lt;RESTART&gt;&gt; → worker replies with reset instructions, last line RESTART_READY
+  → Talker saves them, publishes ShutdownRequested(restart=True) → app stops, exits with code 75
+  → launcher sees 75, starts the app again → Talker's first input = the note → note deleted
+</code></pre>
+<ol>
+<li><strong>Trigger:</strong> the Talker's <code>&lt;&lt;RESTART&gt;&gt;</code> tag, used only when you ask for a restart. It says in the same reply that it's restarting.</li>
+<li><strong>Reset instructions:</strong> the Talker sends the worker <code>WRITE_RESET_NOTE</code>, as <code>SendToTask(resume=false)</code> if a task runs or as a small <code>StartTask</code> if none does. The worker first updates the task's change note. It then replies with what was being worked on, what is done, what is left, and which notes to read, and ends with <code>RESTART_READY</code> (read with <code>agent_tags.last_line</code>). <strong>Change from the proposal:</strong> the worker writes the instructions in its reply and the Talker module saves the file. Writing under <code>.claude/</code> would ask for permission in Manual and hold up the restart.</li>
+<li><strong>Waiting on you:</strong> if the task waits on a <code>need</code> or a permission, a <code>[Status]</code> makes the Talker ask first, and only <code>&lt;&lt;RESTART: anyway&gt;&gt;</code> goes ahead (open question 2).</li>
+<li><strong>Fallback:</strong> if the worker can't be reached, its task fails, or it doesn't answer within <code>restart_timeout</code> (120 s), the Talker saves its own last few exchanges as the note and restarts anyway.</li>
+<li><strong>Closing:</strong> <code>ShutdownRequested(restart=True)</code> sets <code>App.restart_requested</code>, and the app exits with <code>core.restart_exit_code</code> (75). This is the normal clean stop.</li>
+<li><strong>Reopening:</strong> <code>python -m assistant</code> is now a launcher (<code>__main__.launch</code>). It runs the app (<code>run_app</code>) as a child process with <code>ASSISTANT_APP_CHILD=1</code>, in the same console. It waits through Ctrl+C, which the child handles, and starts the child again while it exits with 75. The <code>app-update</code> relaunch command still works, because it stops both processes.</li>
+<li><strong>Saved at:</strong> <code>restart_note</code> = <code>.claude/state/reset-instructions.md</code> (gitignored). If it isn't set, restarts carry no note, which keeps tests away from a real note.</li>
+<li><strong>Next launch:</strong> if the note is there, the Talker's first turn is <code>[Restart] The app was just restarted. Reset instructions from the last session: …</code>. Its prompt says to tell you where things stand and wait for your go (open question 1).</li>
+<li><strong>Used once:</strong> the note is deleted once that turn is sent. Any stop that isn't a restart deletes a leftover note too.</li>
+</ol>
+<p><strong>Reused:</strong> <code>ShutdownRequested</code>, <code>agent_tags.last_line</code>, <code>StartTask</code> / <code>SendToTask</code> / <code>GetTaskStatus</code>, the Talker's inbox and <code>[Status]</code> items. No new reusable part; <code>talker</code> was added to <code>agent_tags</code>' Used by.</p>
+<p><strong>Tests:</strong> <code>tests/test_restart.py</code>: restart with an idle worker; asking first when the task waits on you, then going ahead with <code>anyway</code>; the fallback note with no worker; the note given first at the next launch and then deleted; a stop that isn't a restart deleting a leftover note; the launcher looping on 75. 256 tests pass, ruff clean.</p>
+<h2 id="decided-2026-11-03">Decided (2026-11-03)</h2>
+<ol>
+<li>After a restart the Talker doesn't carry on by itself; it waits for your go.</li>
+<li>If the worker waits on a permission prompt or a <code>NEED:</code>, the Talker asks before restarting.</li>
+<li>No temp UI button for now.</li>
+<li>Exit code 75 (<code>core.restart_exit_code</code>) and <code>.claude/state/reset-instructions.md</code> (<code>[modules.talker] restart_note</code>) as defaults.</li>
+</ol>
+<h2 id="left">Left</h2>
+<ul>
+<li>One manual relaunch to load this code, then a live try: say "restart" mid-task and check the first message after the restart.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/archive/restart.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

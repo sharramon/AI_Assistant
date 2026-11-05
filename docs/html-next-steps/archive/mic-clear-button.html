@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mic clear button</title>
+<!-- Generated from docs/next-steps/archive/mic-clear-button.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="archive/mic-clear-button.html"></nav>
+<main>
+<h1 id="mic-clear-button">Mic clear button</h1>
+<blockquote>
+<p><strong>Status: done (2026-11-03).</strong> Loaded after a restart; the user checked that the ✕ clears the heard words. Approved 2026-11-03 as proposed (keep listening, no voice app change). Built and tested: 289 tests pass, ruff clean.</p>
+<p><strong>Correction to "a reload is enough" below:</strong> the <code>discard</code> field is in <code>assistant.contracts</code>, which a reload can't swap. Worse, the running app's old <code>StopListening</code> silently ignores an unknown field (pydantic's default), so a reloaded ✕ would do a normal stop and <strong>send</strong> the text to the Talker. So: restart the app once instead of <code>RELOAD: voice_in</code> / <code>temp_ui</code>. The voice service app is still unchanged. The "same voice app kept across a reload" check can be done after the restart: use the mic once, then <code>RELOAD: voice_in</code> (no code change needed for that test).</p>
+<p><strong>Same-voice-app check: passed (2026-11-03 14:18).</strong> The voice app had been running since 13:23:30, with several mic sessions. <code>RELOAD: voice_in</code> (its new code reads <code>discard</code> with <code>getattr</code>, so it runs on the old contract) logged "Kept the running voice service from before the reload", and the next mic click started a session 49 ms later with no new "Started voice_service" line. No warnings or errors. <code>temp_ui</code> was deliberately not reloaded, so the ✕ waits for the restart.</p>
+<p><strong>Left after the restart:</strong> the user tries the ✕ while listening (the words vanish, nothing reaches the Talker, the mic keeps listening; the log should show "Voice session … cleared; nothing was sent" and then a new session). If that's OK, set the Pending changes row to done. Nothing is committed yet (the user commits and pushes).</p>
+</blockquote>
+<p><strong>Asked:</strong> "a reset mic button, so I'm not sending everything that is recorded so far", because the mic sometimes picks up other people in the room. Throw away what's been recorded and transcribed, live text included, send nothing to the Talker, and leave the mic ready to go on. The filter for other voices and the Whisper second pass aren't part of this.</p>
+<p><strong>Why:</strong> today the only way out of a session is Stop, and Stop always sends the final text to the Talker.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><code>src/assistant/contracts/voice.py</code>: one option on <code>StopListening</code>. No new command, event or state.</li>
+<li><code>src/assistant/modules/voice_in/module.py</code>: the discard path.</li>
+<li><code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>page.html</code>): a small ✕ button next to the mic, and <code>POST /mic {"clear": true}</code>.</li>
+<li>Tests: <code>tests/test_voice_in*.py</code>, <code>tests/test_temp_ui.py</code>.</li>
+<li>Docs: <a href="../../html/api/messaging.html#stoplistening">Messaging API</a>, <a href="../../html/architecture/voice.html#the-voice_in-module">Voice</a>, the <a href="../../html/agents/runtime.html#temp-ui">runtime</a> page's temp UI section.</li>
+<li><strong>The voice service app doesn't change.</strong> The protocol stays as it is, so reloading <code>voice_in</code> and <code>temp_ui</code> is enough and the running voice app doesn't need a restart.</li>
+</ul>
+<p><strong>Approach:</strong></p>
+<ul>
+<li><strong>Reuse <code>StopListening</code>:</strong> add <code>StopListening(discard: bool = False)</code>. With <code>discard=True</code>, <code>voice_in</code> closes the session's socket instead of sending <code>stop</code>. The service already treats a closed socket as an abort: mic closed, engine stream dropped, no final. Then <code>voice_in</code>:</li>
+<li>marks the session discarded and ends it, so a final that still arrives is ignored and never becomes <code>InputReceived</code>;</li>
+<li>publishes an empty final <code>VoiceTranscript</code>, which clears the live line on any UI;</li>
+<li>publishes <code>VoiceState(idle, reason="cleared")</code>;</li>
+<li>returns <code>ok</code> with <code>{"text": "", "discarded": true}</code>. With nothing listening, it returns <code>ok</code> with <code>None</code>, the same as today.</li>
+<li><strong>Then the mic carries on.</strong> The temp UI's ✕ sends <code>StopListening(discard=True)</code> and then <code>StartListening()</code>. The mic goes <code>idle → starting → listening</code>, so no new state is needed. The new session has a new id, so anything late from the old one is dropped by id, both in <code>voice_in</code> and in the temp UI.</li>
+<li><strong>Why carry on, and why in the UI:</strong> you clear because you want to say it again, so leaving the mic on saves a click. The choice stays with the UI because a dictation box might want the mic off after a clear. <code>voice_in</code> keeps one simple meaning: discard and stop.</li>
+<li><strong>Page:</strong> the ✕ shows only while the mic is <code>listening</code> or <code>dropped</code>. A click empties the grey live line at once, and the server's empty final confirms it.</li>
+<li><strong>Restarting straight after an abort:</strong> if the service hasn't freed its mic slot yet, the new <code>start</code> can get <code>busy</code>. Right after a discard, <code>voice_in</code> retries such a <code>start</code> once after a short wait (about 0.3 s).</li>
+<li><strong>Tests:</strong></li>
+<li><code>voice_in</code> against the real service app with its fake engine and fake mic: partials, then a discard. Checks: no <code>InputReceived</code>, an empty final, <code>idle</code>/<code>cleared</code>, and a new <code>StartListening</code> works.</li>
+<li>A fake socket that sends a <code>Final</code> after the discard: still nothing sent to the Talker.</li>
+<li><code>temp_ui</code>: <code>POST /mic {"clear": true}</code> sends both commands and empties the line.</li>
+</ul>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li><strong>After a clear, keep listening or turn off?</strong> Recommended: keep listening, as above. The cost is a short gap while the mic reopens, under half a second; the model stays loaded.</li>
+<li><strong>Gapless clear?</strong> A new protocol message (<code>reset</code>: the service starts a fresh engine stream on the same open mic) would avoid the gap. It changes the voice service app, though, so the running voice app would need a restart. Recommended: not now. Add it only if the gap turns out to cut off your first words.</li>
+</ol>
+<p><strong>The open reload check:</strong> "the same running voice app is kept across a reload" needs a mic session before the reload. If you use the mic once before I send <code>RELOAD: voice_in</code>, the log will show whether the old voice app was kept or a new one was launched, and I'll report it.</p>
+<footer>Generated from <code>docs/next-steps/archive/mic-clear-button.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

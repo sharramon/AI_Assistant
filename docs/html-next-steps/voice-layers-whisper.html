@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice: the layers in code, and whisper as a second engine</title>
+<!-- Generated from docs/next-steps/voice-layers-whisper.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-layers-whisper.html"></nav>
+<main>
+<h1 id="voice-the-layers-in-code-and-whisper-as-a-second-engine">Voice: the layers in code, and whisper as a second engine</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Loaded at the relaunch of 2026-11-03 16:02. You checked the note and answered its <a href="#open-questions">open questions</a>. The design it builds is on the voice page: <a href="../html/architecture/voice.html#layers">Layers</a> and <a href="../html/architecture/voice.html#hot-swappable-engines">Hot-swappable engines</a>. Measured waits are under <a href="#results">Results</a>. Your check: set <code>[engine] name = "whisper"</code> in <code>config/voice_service.local.toml</code>, talk, stop, and see the text arrive on send.</p>
+<p><strong>Decision 4 revised (2026-11-03):</strong> whisper is now by default the final engine of <a href="voice-two-pass.html">two passes</a>, cleaning the Zipformer's live text piece by piece.</p>
+</blockquote>
+<h2 id="results">Results</h2>
+<p>Built as planned, in four steps; faster-whisper 1.2.1 installed (ctranslate2 4.8.5, numpy 2.5.4); the config files edited with your yes. Models in <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>: <code>faster-whisper-base.en</code>, <code>-small.en</code>, <code>-distil-large-v3.5</code>.</p>
+<p>The wait after the audio ends, CPU int8, Ultra 9 275HX, through <code>transcribe</code> (the Zipformer's test recordings, and the four joined):</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>6.6 s</th>
+<th>16.7 s</th>
+<th>46.7 s</th>
+<th>Load</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zipformer (live; at the stop only <code>finish</code> is left)</td>
+<td>0.03 s</td>
+<td>0.03 s</td>
+<td>0.03 s</td>
+<td>2.1 s</td>
+</tr>
+<tr>
+<td>whisper <code>base.en</code></td>
+<td>0.42 s</td>
+<td>0.56 s</td>
+<td>1.83 s</td>
+<td>0.5 s</td>
+</tr>
+<tr>
+<td><strong>whisper <code>small.en</code></strong> (default)</td>
+<td><strong>1.19 s</strong></td>
+<td><strong>1.62 s</strong></td>
+<td><strong>5.17 s</strong></td>
+<td>1.0 s</td>
+</tr>
+<tr>
+<td>whisper <code>distil-large-v3.5</code></td>
+<td>3.72 s</td>
+<td>3.85 s</td>
+<td>8.28 s</td>
+<td>2.8 s</td>
+</tr>
+</tbody>
+</table>
+<p><code>small.en</code> is inside the estimate (1 to 3 s for 20 s of speech), so the recommendation stands. <code>distil-large-v3.5</code> is slower than estimated for long talk. All whisper models gave correct, cased, punctuated text. The swap was tried by hand on the real service: an <code>[audio]</code> change kept it running; an <code>[engine] name</code> change restarted it in 1.2 s with the new engine.</p>
+<p><strong>Asked:</strong> build the voice service's layers in code, then add whisper through them. The engine has to work by itself, with no mic and no server, so other things (a utility transcribing a recording, say) can use it without going through the assistant. Engines swap by config with a restart of the voice service. Whisper is used for now, for the live mic too, and its text appears on send. Each engine says whether it gives live partial text, and a setting forces on-send even for a live engine. <code>voice_in</code> and the Talker never learn which engine runs.</p>
+<p><strong>Why:</strong> today the engine can only be reached through <code>/ws/listen</code> and a mic. Whisper is more accurate than the streaming Zipformer on long dictation, and the layers let it and the next engines (Nemotron, step 7) plug in without touching the main app.</p>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><strong><code>src/voice_service/</code></strong> (the voice service app; still never imports <code>assistant</code>):</li>
+<li><code>engines/__init__.py</code>: the <code>live_partials</code> flag on <code>SttEngine</code>, and <code>whisper</code> in <code>load_engine</code>.</li>
+<li><code>engines/whisper.py</code> (new): <code>WhisperEngine</code>, <code>WhisperStream</code>.</li>
+<li><code>audio.py</code>: <code>FileSource</code>.</li>
+<li><code>transcribe.py</code> (new): <code>transcribe(engine, source)</code> and <code>transcribe_file(path, engine_name, config)</code>, with no server and no session thread.</li>
+<li><code>session.py</code>: no partials when the engine gives none or the client asks for none, and a level-based silence check for that case.</li>
+<li><code>config.py</code>: <code>[engine.whisper]</code>, <code>[audio] speech_rms</code>.</li>
+<li><code>protocol.py</code>: <code>start.partials</code>, <code>started.partials</code> (both optional, so older clients still work).</li>
+<li><code>server.py</code>: watch the config and restart when the engine changes.</li>
+<li><code>download.py</code>: <code>download whisper</code>.</li>
+<li><code>__main__.py</code>: <code>transcribe &lt;file&gt;</code>.</li>
+<li><strong><code>src/assistant/modules/voice_in/</code></strong>:</li>
+<li><code>module.py</code>: send <code>partials</code> from its setting, read <code>started.partials</code>, and wait longer for an on-send final.</li>
+<li><code>cleanup.py</code>: leave text that comes already cased alone.</li>
+<li><strong><code>src/assistant/modules/temp_ui/</code></strong>: show "text appears when you stop" while listening without partials. This may need no change if the line already shows <code>VoiceState.detail</code>; check it in the build.</li>
+<li><strong><code>config/voice_service.toml</code>, <code>config/default.toml</code></strong>: new settings (below). Those are config files, so the build asks you before editing them.</li>
+<li><strong><code>pyproject.toml</code></strong>: <code>faster-whisper</code> in the <code>voice</code> extra. Installing it is a package install, so the build stops and asks first.</li>
+<li><strong>Restart and reload:</strong> the voice service restarts itself when its engine changes (that's the feature). <code>voice_in</code> and <code>temp_ui</code> changes reload with <code>RELOAD</code>. <strong>The new protocol fields need one app restart</strong>, because a reload of <code>voice_in</code> re-imports only <code>assistant.modules.voice_in</code>, not <code>voice_service.protocol</code>. Until that restart, <code>voice_in</code> reads the fields with <code>getattr</code> and behaves as today.</li>
+</ul>
+<h2 id="approach-layer-by-layer">Approach, layer by layer</h2>
+<h3 id="1-audio-sources-filesource">1. Audio sources: <code>FileSource</code></h3>
+<ul>
+<li><code>FileSource(path, chunk_ms=32, realtime=False)</code> reads a 16 kHz mono PCM16 WAV and gives it out in chunks through the usual <code>start(on_chunk, on_lost)</code>. With <code>realtime=True</code> it paces chunks at the speed of speech, so the service can be tested on a recording as if it were a mic.</li>
+<li><strong>Reuse:</strong> <code>FakeSource.from_wav</code> already reads WAVs. That reading moves into <code>FileSource</code>, and <code>FakeSource.from_wav</code> calls it, so there's one WAV reader.</li>
+<li>Any other format or rate is refused with a clear error, for now (<a href="#open-questions">question 4</a>).</li>
+</ul>
+<h3 id="2-speech-engine-the-flag-whisper-and-use-without-a-server">2. Speech engine: the flag, whisper, and use without a server</h3>
+<ul>
+<li><strong><code>SttEngine.live_partials: bool = True</code></strong>, a class attribute. <code>ZipformerEngine</code> and <code>FakeEngine</code> keep <code>True</code>. <code>WhisperEngine</code> sets <code>False</code>. Its stream's <code>partial()</code> returns <code>""</code> and is never called by the session.</li>
+<li><strong><code>WhisperEngine</code></strong> (recommended runtime: <strong>faster-whisper</strong>, CPU, int8; reasons <a href="#recommended-whisper-runtime-and-model">below</a>):</li>
+<li><code>load()</code> builds a <code>WhisperModel</code> from a <strong>local folder</strong> under <code>models_dir</code>, <code>local_files_only=True</code>. That keeps the page's rule that models are never downloaded while running.</li>
+<li><code>WhisperStream.accept(pcm)</code> only appends to a buffer. That's 32 KB/s, about 4 MB for two minutes.</li>
+<li><code>finish()</code> converts the buffer to float32, then runs <code>transcribe(language="en", vad_filter=True, beam_size=…)</code>. It returns the segments' text, joined and stripped. Its built-in VAD skips silence, which also stops whisper's habit of inventing "Thank you." on empty audio.</li>
+<li><strong><code>load_engine("whisper", config)</code></strong> is the only place that knows the name. It imports <code>faster_whisper</code> lazily, so a missing package is an <code>EngineError</code> ("install the voice extra"), the same as sherpa-onnx today.</li>
+<li><strong>Used by itself (the utility layer):</strong> <code>voice_service/transcribe.py</code> has <code>transcribe(engine, source) -&gt; str</code>. It loads the engine if needed, runs one stream over the source's chunks, and returns <code>finish()</code>. <code>transcribe_file(path, engine_name, config)</code> wraps it with <code>FileSource</code> and <code>load_engine</code>. It imports neither the server nor sounddevice. <code>python -m voice_service transcribe &lt;file.wav&gt; [--engine whisper]</code> prints the text and the time taken. The engine comparison (step 7) reuses this instead of writing its own loop.</li>
+</ul>
+<h3 id="3-the-voice-service-app-partials-or-not-and-the-swap">3. The voice service app: partials or not, and the swap</h3>
+<ul>
+<li><strong>Partials are sent only if</strong> the engine has <code>live_partials</code> <strong>and</strong> the client didn't send <code>start</code> with <code>partials: false</code>. <code>started</code> carries <code>partials: bool</code>, saying which way this session goes. The protocol still names no models: a client learns only whether live text will come.</li>
+<li><strong>The force-on-send setting</strong> lives in <code>voice_in</code> as <code>[modules.voice_in] live_text = true</code> (false = on-send even for a live engine). It's sent per session in <code>start</code>, so changing it needs only a <code>voice_in</code> reload, and later a checkbox can set it without touching the service (<a href="#open-questions">question 1</a>).</li>
+<li><strong>The silence stop without partials:</strong> today it watches the recognized text change. Whisper has no text until the end, so a 2-minute talk would be cut off as "silence". For sessions without engine partials, the session counts a chunk as speech when its level (RMS) is above <code>[audio] speech_rms</code> (default about 300 on the int16 scale, tuned in the build on your mic). It uses no new dependency. A forced on-send session on a live engine still reads the engine's partials internally and just doesn't send them, so it keeps today's check.</li>
+<li><strong>The final's latency:</strong> with whisper, <code>latency_ms</code> is the whole decode, which is the cost of on-send. It's logged as today.</li>
+<li><strong>Swap by config with a service restart</strong> (decided):</li>
+<li>The service checks its config files (the file and its <code>.local</code> override) every 2 s.</li>
+<li>When the <code>[engine]</code> section has changed, it waits until nothing is listening, logs "engine changed: zipformer → whisper; restarting", and shuts down through the same path as <code>/quit</code>.</li>
+<li>The next mic click relaunches it through <code>CompanionApp.ensure_running</code>, which <code>voice_in</code> already does after a crash. The new model loads in the background, and a <code>start</code> during the load buffers the audio, as today.</li>
+<li>A service started by hand (<code>python -m voice_service</code>) exits with that log line, and you start it again.</li>
+<li>Other config changes (audio, logging) don't restart it.</li>
+</ul>
+<h3 id="4-users-voice_in-stays-engine-blind">4. Users: <code>voice_in</code> stays engine-blind</h3>
+<ul>
+<li><strong><code>voice_in</code></strong> sends <code>start</code> with <code>partials</code> from <code>live_text</code> and reads <code>started.partials</code>. When it's false, <code>VoiceState(listening)</code> gets the detail "text appears when you stop". It never reads the engine's name; <code>/health</code>'s <code>engine</code> field stays for logs only.</li>
+<li><strong>Waiting for an on-send final:</strong> <code>reply_timeout</code> (10 s) is too short for whisper decoding a long talk on a CPU. When <code>started.partials</code> is false, the wait after <code>stop</code> is <code>final_timeout_on_send</code> (new, default 90 s), and <code>core.command_timeouts.StopListening</code> becomes 120 s. A live session keeps 10 s.</li>
+<li><strong>The text cleanup:</strong> <code>clean_text</code> lowercases and adds an end mark because the Zipformer gives all capitals with no punctuation. Whisper's text is already cased and punctuated, and lowercasing it would lose that. New rule, based on the text and not on the engine: case and end mark are fixed only when the text has no lowercase letters. <code>terms</code> still apply to every text.</li>
+<li><strong>The Talker doesn't change:</strong> it gets <code>InputReceived(source="voice")</code> as today.</li>
+</ul>
+<h2 id="recommended-whisper-runtime-and-model">Recommended whisper runtime and model</h2>
+<p><strong>Checked on this machine (2026-11-03):</strong></p>
+<ul>
+<li><strong>Hardware:</strong> Python 3.12.7 (64-bit), an Intel Core Ultra 9 275HX (24 threads), 31 GB RAM, and an NVIDIA RTX 5070 Laptop GPU with 8 GB.</li>
+<li><strong>faster-whisper:</strong> <code>pip install --dry-run faster-whisper</code> resolves to faster-whisper 1.2.1 and ctranslate2 4.8.5, all as Windows wheels with nothing to compile. It also pulls in <code>av</code>, <code>onnxruntime</code>, <code>tokenizers</code>, <code>huggingface_hub</code> and a few small packages, plus numpy 2.5.4.</li>
+<li><strong>sherpa-onnx:</strong> 2.0.1, already installed, also has <code>OfflineRecognizer.from_whisper</code>.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>faster-whisper</strong> (recommended)</th>
+<th>sherpa-onnx's whisper</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New dependencies</td>
+<td>Yes, about 17 packages (wheels)</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Speed on CPU</td>
+<td>CTranslate2 int8, the fastest common CPU runtime for whisper</td>
+<td>ONNX, slower for whisper's decoder</td>
+</tr>
+<tr>
+<td>Long audio</td>
+<td>Handles any length, with a built-in VAD that skips silence</td>
+<td>30 s per call, so the engine would have to cut and stitch the audio itself</td>
+</tr>
+<tr>
+<td>GPU later</td>
+<td>CUDA, through config (<code>device = "cuda"</code>)</td>
+<td>CUDA builds are separate</td>
+</tr>
+<tr>
+<td>Fits "every engine through sherpa-onnx"</td>
+<td>No: the page's Engines section would get a whisper exception</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommendation: faster-whisper on CPU, int8, with <code>small.en</code> as the default model.</strong></p>
+<ul>
+<li><strong>Why faster-whisper:</strong> a spoken message here can run a minute or two. faster-whisper handles that length and skips the silences, and it's the fastest of the two on a CPU. The sherpa-onnx route would mean writing our own cutting and stitching.</li>
+<li><strong>The cost:</strong> a bigger <code>voice</code> extra, and an exception to the page's "every engine through sherpa-onnx".</li>
+<li><strong>The numpy upgrade:</strong> sherpa-onnx and the existing tests have to pass on the new numpy, which the build checks right after the install.</li>
+</ul>
+<p><strong>Model size, speed against accuracy.</strong> These are estimates for this CPU; the build measures them (step 3 below):</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Size</th>
+<th>Accuracy</th>
+<th>On-send wait, CPU int8 (estimate)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base.en</code></td>
+<td>74 M</td>
+<td>Fair; misses names and technical words</td>
+<td>Under 1 s for 20 s of speech</td>
+</tr>
+<tr>
+<td><strong><code>small.en</code></strong> (default)</td>
+<td>244 M</td>
+<td>Good for English dictation; clearly better than the streaming Zipformer on long talk</td>
+<td>About 1 to 3 s for 20 s of speech</td>
+</tr>
+<tr>
+<td><code>distil-large-v3.5</code></td>
+<td>756 M</td>
+<td>Close to large-v3, English only</td>
+<td>About 3 to 6 s for 20 s</td>
+</tr>
+<tr>
+<td><code>large-v3-turbo</code></td>
+<td>809 M</td>
+<td>Best of these</td>
+<td>About 4 to 8 s for 20 s on CPU; under 1 s on the GPU</td>
+</tr>
+</tbody>
+</table>
+<p><code>small.en</code> keeps the wait after you stop at a few seconds for a normal message. The bigger models are one config change (<code>[engine.whisper] model</code>), the same swap. The GPU would make <code>large-v3-turbo</code> fast. It needs NVIDIA's CUDA 12 and cuDNN 9 libraries, though, and whether CTranslate2's wheels support this Blackwell GPU is unchecked, so it's left for later (<a href="#open-questions">question 3</a>).</p>
+<h2 id="config">Config</h2>
+<pre><code class="language-toml"># config/voice_service.toml
+[audio]
+speech_rms = 300            # level that counts as speech, for the silence stop when no partials come
+
+[engine]
+name = &quot;zipformer&quot;          # &quot;zipformer&quot;, &quot;whisper&quot;, or &quot;fake&quot;; changing it restarts the service
+
+[engine.whisper]
+model = &quot;faster-whisper-small.en&quot;   # folder under models_dir (`python -m voice_service download whisper`)
+device = &quot;cpu&quot;              # &quot;cuda&quot; later
+compute_type = &quot;int8&quot;
+beam_size = 5
+cpu_threads = 8
+
+# config/default.toml
+[modules.voice_in]
+live_text = true            # false = text on send even when the engine gives live text
+final_timeout_on_send = 90.0
+
+[core.command_timeouts]
+StopListening = 120.0       # an on-send final may take a while to decode
+</code></pre>
+<p><code>python -m voice_service download whisper [--model small.en]</code> fetches the CTranslate2 model once into <code>models_dir</code>, the same way as <code>download zipformer</code>.</p>
+<h2 id="steps">Steps</h2>
+<p>Each step ends with <code>pytest</code> and <code>ruff</code>. Steps 1 and 2 are one chunk, and steps 3 and 4 the next; the <a href="../../.claude/skills/architecture-check/SKILL.md">architecture-check</a> runs after each chunk and before the final report.</p>
+<ol>
+<li><strong>The layers, no whisper yet:</strong> <code>FileSource</code> (with <code>FakeSource.from_wav</code> reusing it), <code>live_partials</code> on <code>SttEngine</code>, <code>transcribe.py</code> and the <code>transcribe</code> command, <code>start.partials</code> and <code>started.partials</code>, the session's no-partials path and level-based silence stop, and <code>voice_in</code>'s <code>live_text</code>, longer final wait, and cleanup rule. All of it can be tested with the fake engine and needs nothing installed.</li>
+<li><strong>The swap:</strong> the config watch and the restart when idle. Then try it by hand between <code>zipformer</code> and <code>fake</code>.</li>
+<li><strong>Whisper.</strong> First ask you before installing (<code>NEED: Risky</code>). Then add <code>faster-whisper</code> to the <code>voice</code> extra, <code>WhisperEngine</code>, and <code>download whisper</code>. Then run <code>python -m voice_service transcribe</code> on the Zipformer model's test recordings and a longer recording, with <code>base.en</code>, <code>small.en</code> and <code>distil-large-v3.5</code>, and record the wait and the text. If the numbers differ much from the table, update the recommendation before you choose.</li>
+<li><strong>Docs, then hand over:</strong> the docs below, rebuilt. Then <code>RELOAD: voice_in</code> and <code>temp_ui</code>, then one app restart for the protocol fields. Then your check: switch <code>[engine] name</code> to <code>whisper</code>, talk, stop, and see the text arrive on send.</li>
+</ol>
+<h2 id="tests">Tests</h2>
+<ul>
+<li><strong><code>FileSource</code>:</strong> chunk sizes and the total length, <code>realtime</code> pacing, a non-16 kHz file refused; <code>FakeSource.from_wav</code> unchanged.</li>
+<li><strong><code>transcribe</code>:</strong> <code>FakeEngine</code> + <code>FileSource</code> gives the fake's text with no server running, and <code>transcribe.py</code> imports neither the server nor sounddevice (checked in a subprocess).</li>
+<li><strong>The flag:</strong> a fake engine with <code>live_partials = False</code> sends no <code>partial</code> and <code>started.partials</code> is false. A live engine with <code>start.partials: false</code> sends no partials either. Both still send the final.</li>
+<li><strong>Silence stop without partials:</strong> a loud fake source keeps the session going past <code>silence_stop_seconds</code>, and a quiet one ends it with <code>ended_by: "silence"</code>.</li>
+<li><strong>The swap:</strong> changing <code>[engine] name</code> in a temp config while idle shuts the server down. During a session, it waits until the session ends. A change elsewhere in the config doesn't restart it.</li>
+<li><strong><code>WhisperEngine</code>:</strong> <code>load_engine</code> without faster-whisper installed raises <code>EngineError</code> with the install hint. A test with the real model on a short WAV, marked to skip when the model folder is missing (not in CI).</li>
+<li><strong><code>voice_in</code>:</strong> <code>live_text = false</code> sends <code>partials: false</code>. <code>started.partials: false</code> sets the detail and uses the longer final wait. An older service with no <code>partials</code> field works as today.</li>
+<li><strong>Cleanup:</strong> all-caps text is cleaned as today. Cased, punctuated text comes back unchanged apart from <code>terms</code>.</li>
+</ul>
+<h2 id="docs-to-update">Docs to update</h2>
+<ul>
+<li><strong><a href="../html/architecture/voice.html">Voice</a>:</strong></li>
+<li>The Layers table and diagram: file source, whisper and the utility move from planned to built.</li>
+<li>The files tree and class diagram: <code>FileSource</code>, <code>transcribe.py</code>, <code>engines/whisper.py</code>, <code>live_partials</code>.</li>
+<li>The config block, the protocol table (<code>start.partials</code>, <code>started.partials</code>), the voice_in config, and the cleanup rule.</li>
+<li>Engines: whisper on faster-whisper, as the exception to "through sherpa-onnx".</li>
+<li>Hot-swappable engines: built.</li>
+<li><strong><a href="../html/api/messaging.html">Messaging API</a>:</strong> the protocol's new fields, and the voice service parts (<code>FileSource</code>, <code>transcribe</code>, <code>transcribe_file</code>, <code>WhisperEngine</code>, <code>live_partials</code>).</li>
+<li><strong><a href="../html/api/reusable.html">Reusable parts index</a>:</strong></li>
+<li>Add <code>FileSource</code> (used by <code>transcribe_file</code>, <code>FakeSource.from_wav</code>, the engine comparison) and <code>transcribe</code> / <code>transcribe_file</code> (used by the <code>transcribe</code> command and the engine comparison, step 7).</li>
+<li>Add <code>WhisperEngine</code> to <code>SttEngine</code>'s Used by line.</li>
+<li><strong>Overview <a href="../html/architecture/index.html#parts">Parts table</a>:</strong> the Voice handler row mentions the engines and the swap.</li>
+<li><strong>The <a href="../html/agents/runtime.html#temp-ui">runtime</a> page:</strong> the temp UI's line when text comes on send.</li>
+<li><strong>This note and the <a href="index.html">next-steps list</a>:</strong> the status.</li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<p>Answered by you, 2026-11-03 (the anchors above still point here):</p>
+<ol>
+<li><strong>Where the force-on-send setting lives:</strong> in <code>voice_in</code> (<code>live_text</code>), sent with each session, so changing it needs only a reload.</li>
+<li><strong>Runtime:</strong> faster-whisper (about 17 new packages, and an exception to "every engine through sherpa-onnx").</li>
+<li><strong>Model and GPU:</strong> <code>small.en</code> on the CPU (int8) now; the GPU later, as its own small step.</li>
+<li><strong>File formats for <code>FileSource</code>:</strong> 16 kHz mono PCM16 WAV only, for now.</li>
+<li><strong>Hiding whisper's wait:</strong> no background decoding while you talk; measure the plain wait first.</li>
+<li><strong>What triggers a swap:</strong> the config file is the only trigger for now. A picker or a command from the main app is a possible later option; nothing is built for it.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/voice-layers-whisper.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
