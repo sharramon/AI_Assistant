@@ -259,7 +259,7 @@ class TalkerModule(ModuleProtocol):
             cwd=ctx.config.get("cwd"),
             log=ctx.log,
             on_event=self._on_event,
-            transcript=ctx.config.get("transcript"),
+            transcript=ctx.logs.sink(ctx.config["transcript"]) if ctx.config.get("transcript") else None,
         )
         self._inbox: asyncio.Queue[_Item] = asyncio.Queue()
         self._history: deque[str] = deque(maxlen=2 * ctx.config.get("context_exchanges", 6))

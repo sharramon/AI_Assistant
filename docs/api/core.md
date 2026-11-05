@@ -4,7 +4,7 @@ The stable host in `assistant.core`. Modules never use these directly; they go t
 
 ## `App`
 
-`App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)`
+`App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None)`
 
 Wires the core together and runs the enabled modules. Construction validates the module selection. Handles `InvokeTool` and the [module control](control.md) commands, including `ReloadModule` and `AddModule`.
 
@@ -13,7 +13,8 @@ Wires the core together and runs the enabled modules. Construction validates the
 |------|------|----------|-------------|
 | `available` | `Sequence[type[ModuleProtocol]]` | yes | Every module the app can run: `__main__` passes [`find_modules()`](#loader) |
 | `config` | `dict` | yes | From [`load_config`](infra.md#load_config) |
-| `config_loader` | callable | no | Re-reads the config before a reload or add (`__main__` passes `load_config` plus its log wiring) |
+| `config_loader` | callable | no | Re-reads the config before a reload or add (`__main__` passes `load_config`) |
+| `logs` | `LogSession` | no | The launch's log handler; every module reaches it as `ctx.logs` through a [`SessionLogs`](#sessionlogs) (`app.logs`). Without it, `ctx.logs` gives paths under `logging.dir` |
 
 **Raises:** [`StartupError`](#startuperror) if the enabled modules can't run together.
 
@@ -83,15 +84,23 @@ Functions for finding the modules by folder and loading a module's code fresh. G
 
 ## `ScopedContext`
 
-`ScopedContext(manifest, router, bus, container, config, log)`
+`ScopedContext(manifest, router, bus, container, config, log, handover=None, logs=None)`
 
-The [`ModuleContext`](modules.md#modulecontext) implementation. Records every subscription, handler, and provided contract made through it. Sets the module's [`ctx.permissions`](modules.md#modulecontextpermissions) to an [`AllowAllPermissions`](#allowallpermissions) bound to its module id.
+The [`ModuleContext`](modules.md#modulecontext) implementation. Records every subscription, handler, and provided contract made through it. Sets the module's [`ctx.permissions`](modules.md#modulecontextpermissions) to an [`AllowAllPermissions`](#allowallpermissions) bound to its module id, and its [`ctx.logs`](modules.md#modulecontextlogs) to the app's `SessionLogs` (a default one if none is given).
 
 | Method | Description |
 |--------|-------------|
 | `close()` | Remove everything this module registered |
 
 **Defined in:** `src/assistant/core/context.py`
+
+## `SessionLogs`
+
+`SessionLogs(session: LogSession | None = None, root: str | Path = "logs")` (a `ModuleLogs`)
+
+The `ctx.logs` port. With a `LogSession`, `folder()` and `sink(name)` are the session's; without one (tests), `folder()` is `root` and `sink(name)` is `root / name`. `App` builds one for every module from its `logs` argument and `logging.dir`.
+
+**Defined in:** `src/assistant/core/logs.py`
 
 ## `AllowAllPermissions`
 

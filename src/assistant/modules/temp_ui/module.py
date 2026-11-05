@@ -124,8 +124,6 @@ class TempUIModule(ModuleProtocol):
         self._host = ctx.config.get("host", "127.0.0.1")
         self._port = ctx.config.get("port", 8765)
         self._window = ctx.config.get("window", "app")
-        # A folder, or a callable returning one (the session folder exists only after the first message).
-        self._logs_dir = ctx.config.get("logs_dir", "logs")
         default_profile = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / "temp_ui_window"
         self._profile = Path(ctx.config.get("window_profile", default_profile)).resolve()
         self._edge: subprocess.Popen | None = None
@@ -429,7 +427,7 @@ class TempUIModule(ModuleProtocol):
             writer.close()
 
     def _open_logs(self) -> None:
-        folder = Path(self._logs_dir() if callable(self._logs_dir) else self._logs_dir).resolve()
+        folder = self._ctx.logs.folder().resolve()  # the session folder exists only after the first message
         folder.mkdir(parents=True, exist_ok=True)
         if os.name == "nt":
             os.startfile(folder)

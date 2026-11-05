@@ -343,7 +343,7 @@
 <tr>
 <td><code>modules.&lt;id&gt;.transcript</code></td>
 <td></td>
-<td>A file name; <code>__main__</code> puts it in the session folder</td>
+<td>A file name; the module writes it through <code>ctx.logs.sink(name)</code>, in the session folder</td>
 </tr>
 </tbody>
 </table>
@@ -352,7 +352,7 @@
 <p><strong>One owner for where logs go:</strong> the log handler, <a href="../api/infra.html#logsession"><code>LogSession</code></a> in <code>src/assistant/infra/log.py</code>. It's shared infrastructure, not a module, because it must exist before any module starts. Modules decide <em>what</em> they write, through <code>ctx.log</code> or their own transcript; none picks its own path.</p>
 <ul>
 <li><strong>Session = one app launch.</strong> At startup <code>__main__.use_log_session()</code> creates a <code>LogSession</code>. It creates nothing on disk yet.</li>
-<li><strong>Nothing on disk until the first message:</strong> <code>__main__</code> hands out one <a href="../api/infra.html#logsink"><code>LogSink</code></a> per file: the app log through <code>LogSession.handler</code> (added by <code>setup_logging</code>), every module's <code>transcript</code> setting as a sink, and the temp UI's <code>logs_dir</code> as <code>LogSession.folder</code> (the folder once it exists, else <code>logs/</code>). Sinks hold what's written in memory until the folder exists.</li>
+<li><strong>Nothing on disk until the first message:</strong> there's one <a href="../api/infra.html#logsink"><code>LogSink</code></a> per file. The app log gets its sink through <code>LogSession.handler</code> (added by <code>setup_logging</code>). <code>__main__</code> gives the session to <code>App</code>, and every module reaches it through its <a href="../api/modules.html#modulecontextlogs"><code>ctx.logs</code></a> port: <code>sink(name)</code> for its transcript (the Talker, the Main Assistant), <code>folder()</code> for the folder once it exists, else <code>logs/</code> (the temp UI's Logs button, the viewer's snips). Nothing log-related goes into a module's config. Sinks hold what's written in memory until the folder exists.</li>
 <li><strong>Theme creates the folder:</strong> the Talker publishes a <a href="../api/messaging.html#sessiontheme"><code>SessionTheme</code></a> after your first message (its THEME tag, else the message itself, also if its turn failed). <code>__main__</code> passes it to <code>LogSession.set_theme</code>, which makes it folder-safe (at most five words), creates <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code> (<code>-2</code> added after the time if taken), and writes what was held. A session folder holds <code>assistant.log</code>, <code>talker.jsonl</code>, and <code>main_assistant.jsonl</code>. The name is final from the start, so a crash or a force-kill (relaunch) leaves it named.</li>
 <li><strong>A launch without a chat leaves no folder.</strong> At shutdown <code>LogSession.finish()</code> drops what was held, unless the app log has a warning or error (a module failed, <code>Startup failed</code>): then that log is appended to <code>logs/no-chat.log</code> under a <code>--- &lt;start time&gt;: no chat ---</code> line. If the app is killed before any message, nothing is kept.</li>
 <li><strong>Not in a session folder:</strong> <code>logs/no-chat.log</code>, and <code>logs/relaunch.log</code>, written by <code>scripts/relaunch.ps1</code> outside the app. Old session folders are kept, with no automatic cleanup.</li>
@@ -362,7 +362,7 @@
     participant L as LogSession
     participant A as App and modules
     M-&gt;&gt;L: LogSession(&quot;logs&quot;), nothing on disk
-    M-&gt;&gt;A: config with sinks
+    M-&gt;&gt;A: App(..., logs): each module's ctx.logs
     A-&gt;&gt;L: log and transcript lines, held in memory
     A--&gt;&gt;M: SessionTheme(&quot;session log folders&quot;)
     M-&gt;&gt;L: set_theme(...) creates logs/2026-10-26_03-06-52_session-log-folders/, writes what was held

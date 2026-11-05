@@ -14,7 +14,7 @@
 <h1 id="core-host-internal">Core host (internal)</h1>
 <p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
 <h2 id="app"><code>App</code></h2>
-<p><code>App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)</code></p>
+<p><code>App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None)</code></p>
 <p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> and the <a href="control.html">module control</a> commands, including <code>ReloadModule</code> and <code>AddModule</code>.</p>
 <p><strong>Parameters</strong></p>
 <table>
@@ -43,7 +43,13 @@
 <td><code>config_loader</code></td>
 <td>callable</td>
 <td>no</td>
-<td>Re-reads the config before a reload or add (<code>__main__</code> passes <code>load_config</code> plus its log wiring)</td>
+<td>Re-reads the config before a reload or add (<code>__main__</code> passes <code>load_config</code>)</td>
+</tr>
+<tr>
+<td><code>logs</code></td>
+<td><code>LogSession</code></td>
+<td>no</td>
+<td>The launch's log handler; every module reaches it as <code>ctx.logs</code> through a <a href="#sessionlogs"><code>SessionLogs</code></a> (<code>app.logs</code>). Without it, <code>ctx.logs</code> gives paths under <code>logging.dir</code></td>
 </tr>
 </tbody>
 </table>
@@ -173,8 +179,8 @@
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/loader.py</code></p>
 <h2 id="scopedcontext"><code>ScopedContext</code></h2>
-<p><code>ScopedContext(manifest, router, bus, container, config, log)</code></p>
-<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it. Sets the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> to an <a href="#allowallpermissions"><code>AllowAllPermissions</code></a> bound to its module id.</p>
+<p><code>ScopedContext(manifest, router, bus, container, config, log, handover=None, logs=None)</code></p>
+<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it. Sets the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> to an <a href="#allowallpermissions"><code>AllowAllPermissions</code></a> bound to its module id, and its <a href="modules.html#modulecontextlogs"><code>ctx.logs</code></a> to the app's <code>SessionLogs</code> (a default one if none is given).</p>
 <table>
 <thead>
 <tr>
@@ -190,6 +196,10 @@
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/context.py</code></p>
+<h2 id="sessionlogs"><code>SessionLogs</code></h2>
+<p><code>SessionLogs(session: LogSession | None = None, root: str | Path = "logs")</code> (a <code>ModuleLogs</code>)</p>
+<p>The <code>ctx.logs</code> port. With a <code>LogSession</code>, <code>folder()</code> and <code>sink(name)</code> are the session's; without one (tests), <code>folder()</code> is <code>root</code> and <code>sink(name)</code> is <code>root / name</code>. <code>App</code> builds one for every module from its <code>logs</code> argument and <code>logging.dir</code>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/logs.py</code></p>
 <h2 id="allowallpermissions"><code>AllowAllPermissions</code></h2>
 <p><code>AllowAllPermissions(module_id: str)</code></p>
 <p>The <code>ctx.permissions</code> stand-in, a <a href="modules.html#modulecontextpermissions"><code>ModulePermissions</code></a>: <code>has</code> and <code>request</code> always return <code>True</code>. The first use of each permission logs a warning on <code>assistant.core.permissions</code> ("no permissions handler: allowing voice_in microphone (You clicked the mic)"); later uses of the same one log at debug. Replaced by a forwarder to the <a href="../architecture/permissions.html">permissions handler</a> once it exists.</p>

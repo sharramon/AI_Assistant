@@ -170,8 +170,8 @@
 </tr>
 <tr>
 <td>Log handler</td>
-<td>Owns where logs go: one folder per app launch, named by start time and the theme of your first question</td>
-<td><code>src/assistant/infra/log.py</code></td>
+<td>Owns where logs go: one folder per app launch, named by start time and the theme of your first question. Modules reach it through their <code>ctx.logs</code> port</td>
+<td><code>src/assistant/infra/log.py</code>, <code>core/logs.py</code></td>
 <td><a href="core.html#logging">core</a></td>
 </tr>
 <tr>

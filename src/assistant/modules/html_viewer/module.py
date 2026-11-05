@@ -62,7 +62,6 @@ class HtmlViewerModule(ModuleProtocol):
             "html_viewer", host, port, ping="/api/ping", args=args,
             start_timeout=ctx.config.get("start_timeout", 10.0), log=ctx.log,
         )
-        self._logs_dir = ctx.config.get("logs_dir", "logs")  # a folder, or a callable returning one
         self._relay_task: asyncio.Task | None = None
         self._shows: set[asyncio.Task] = set()
         ctx.subscribe(AgentActivity, self._on_activity)
@@ -191,7 +190,7 @@ class HtmlViewerModule(ModuleProtocol):
 
     async def _relay_snip(self, item: dict[str, Any]) -> None:
         # The viewer's copy is temporary; keep one with this launch's logs.
-        folder = Path(self._logs_dir() if callable(self._logs_dir) else self._logs_dir) / "snips"
+        folder = self._ctx.logs.folder() / "snips"
         image = folder / Path(item["path"]).name
 
         def keep() -> None:

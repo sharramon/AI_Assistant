@@ -124,7 +124,7 @@ class MainAssistantModule(ModuleProtocol):
         # Read on every session start, so a new session gets the mode of that moment.
         self._session = ClaudeSession(
             lambda: build_command(ctx.config, self._workspace, self._agent.permission_mode),
-            cwd=self._workspace, log=ctx.log, transcript=ctx.config.get("transcript"),
+            cwd=self._workspace, log=ctx.log, transcript=ctx.logs.sink(ctx.config["transcript"]) if ctx.config.get("transcript") else None,
             env=hook_env(self.manifest.id, task_file, edit_note),
         )
         self._agent = SessionTaskAgent(

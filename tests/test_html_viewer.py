@@ -28,6 +28,7 @@ from assistant.contracts import (
     ViewerTabsChanged,
 )
 from assistant.core import App
+from assistant.infra import LogSession
 from assistant.modules.html_viewer import HtmlViewerModule
 from assistant.modules.html_viewer.module import parse_show
 from assistant.modules.talker import TalkerModule
@@ -543,7 +544,7 @@ async def test_module_relays_snips_into_the_log_folder(tmp_path):
     server.start()
     page = write(tmp_path / "page.html")
     logs = tmp_path / "logs" / "session"
-    app = App([HtmlViewerModule], module_config(server.port, logs_dir=lambda: logs))
+    app = App([HtmlViewerModule], module_config(server.port), logs=LogSession(logs))  # no theme: its root
     clips: asyncio.Queue[ViewerClip] = asyncio.Queue()
     app.bus.subscribe(ViewerClip, clips.put)
     await app.start()

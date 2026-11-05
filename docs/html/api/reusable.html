@@ -41,6 +41,13 @@
 <td>every module</td>
 </tr>
 <tr>
+<td><a href="modules.html#modulecontextlogs"><code>ctx.logs</code></a> (<code>ModuleLogs</code>)</td>
+<td>interface</td>
+<td>This launch's log folder (<code>folder()</code>) and files (<code>sink(name)</code>); the core backs it with the <code>LogSession</code> (<code>SessionLogs</code>)</td>
+<td><code>contracts/module.py</code>, <code>core/logs.py</code>, <code>core/context.py</code></td>
+<td>every module's context; callers: <code>talker</code>, <code>main_assistant</code> (transcripts), <code>temp_ui</code> (Logs button), <code>html_viewer</code> (snips)</td>
+</tr>
+<tr>
 <td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> (<code>ModulePermissions</code>)</td>
 <td>interface</td>
 <td><code>has</code> / <code>request</code> a permission; the stand-in <a href="core.html#allowallpermissions"><code>AllowAllPermissions</code></a> allows, warns once per module and permission</td>

@@ -12,7 +12,7 @@ Every module has the same **wrapper**, owned by the core, and inside it a **menu
 |------|------------|--------|
 | **Manifest** | Its id, a one-line `description`, the contracts it `provides`, `requires`, and optionally uses, the commands it `handles` and `sends`, the events it `publishes` and `listens` to, its permissions | Built (description, commands and events 2026-11-05). The core warns when a module handles a command it didn't list |
 | **Lifecycle** | `ModuleProtocol`: `init`, `start`, `stop`, `busy`, `export_state`; the core starts, stops, and reloads it | Built |
-| **Context** | `ctx`, its only access to the app: commands, events, contracts, config, log, permissions | Built; `ctx.logs` planned |
+| **Context** | `ctx`, its only access to the app: commands, events, contracts, config, log, permissions | Built, with `ctx.logs` (2026-11-05) |
 | **Menu** | A [`Menu`](../api/modules.md#menu) part on the module: named items, each with a one-line description and its inputs (`ToolSpec`), readable without starting the module. The core links it to the running copy, checks the arguments, and routes `InvokeTool` to it | Built (2026-11-05): the HTML viewer (`open`, `highlight`, `tabs`) and the echo stand-in (`echo.say`) |
 
 - **The wrapper is ours only.** Every module has the same one, so the core can start, stop, swap, and list any module without knowing what it does.
@@ -170,7 +170,7 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Events from one module heard by another (`VoiceTranscript`, `VoiceState`) | Built |
 | `ModuleProtocol`: the one interface, `Module` renamed | Built (2026-11-05) |
 | Manifest description, commands (`handles`, `sends`) and events (`publishes`, `listens`) | Built (2026-11-05); the core warns on an unlisted handled command, refusing it is planned |
-| `ctx.logs` port | Planned |
+| `ctx.logs` port | Built (2026-11-05) |
 | Directory and menu asks (`ListModules` with descriptions, `GetMenu`, the core's `modules.*` menu) | Built (2026-11-05) |
 | Both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
 | Finding modules by folder | Built (2026-11-05) |

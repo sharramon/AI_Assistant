@@ -56,7 +56,7 @@ def run_app() -> int:
     setup_logging(config["logging"], [logs.handler])
     app = None
     try:
-        app = App(find_modules(), config,lambda: wire_modules(load_config(), logs))
+        app = App(find_modules(), config, load_config, logs)
         asyncio.run(_run(app, logs))
     except StartupError as exc:
         log.error("Startup failed: %s", exc)
@@ -72,25 +72,10 @@ def run_app() -> int:
 
 
 def use_log_session(config: dict[str, Any]) -> LogSession:
-    """Create the launch's LogSession and point the app log, every module's transcript, and
-    the temp UI's Logs button at it. Nothing reaches disk before the first message's theme."""
+    """Create the launch's LogSession, which the app log writes to and every module reaches
+    as `ctx.logs`. Nothing reaches disk before the first message's theme."""
     settings = config.setdefault("logging", {})
-    logs = LogSession(settings.get("dir", "logs"), app_log=settings.pop("file", "assistant.log"))
-    wire_modules(config, logs)
-    return logs
-
-
-def wire_modules(config: dict[str, Any], logs: LogSession) -> dict[str, Any]:
-    """Point the module sections' transcripts and Logs buttons at the launch's LogSession.
-    Also used when the config is re-read for a reload: sinks are one per name, so nothing doubles."""
-    for module_id, section in config.get("modules", {}).items():
-        if not isinstance(section, dict):
-            continue
-        if section.get("transcript"):
-            section["transcript"] = logs.sink(section["transcript"])
-        if module_id in ("temp_ui", "html_viewer"):
-            section["logs_dir"] = logs.folder
-    return config
+    return LogSession(settings.get("dir", "logs"), app_log=settings.pop("file", "assistant.log"))
 
 
 async def _run(app: App, logs: LogSession) -> None:

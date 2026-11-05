@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from logging import Logger
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from assistant.contracts.messages import Command, Event, Result
@@ -86,6 +87,25 @@ class ModulePermissions(ABC):
         """Ask for `name` in the moment; `reason` is shown to the user. True if allowed."""
 
 
+class ModuleLogs(ABC):
+    """Where a module writes its own log files, reached as `ctx.logs`.
+
+    The core owns the paths (one folder per app launch, created at the first message), so a
+    module never picks one and nothing reaches it through its config.
+    """
+
+    @abstractmethod
+    def folder(self) -> Path:
+        """This launch's log folder once it exists, else the logs root. Ask each time you
+        write: it changes when the first message names the session."""
+
+    @abstractmethod
+    def sink(self, name: str) -> Any:
+        """The log file `name` in this launch's folder, for `ClaudeSession(transcript=...)` or
+        `.write()`: a `LogSink` that holds what's written until the folder exists, or, when
+        the app runs without a log session (tests), a `Path` under the logs root."""
+
+
 class ModuleContext(ABC):
     """A module's only access to the rest of the app.
 
@@ -97,6 +117,7 @@ class ModuleContext(ABC):
     config: dict[str, Any]
     log: Logger
     permissions: ModulePermissions
+    logs: ModuleLogs
     #: What the previous instance's `export_state()` returned, when this one replaces it in a
     #: reload; None on a normal start. Take it in `init`.
     handover: Any = None

@@ -49,7 +49,14 @@ from assistant.contracts.messages import (
     ViewerClipDropped,
     ViewerTabsChanged,
 )
-from assistant.contracts.module import Contract, Manifest, ModuleContext, ModulePermissions, ModuleProtocol
+from assistant.contracts.module import (
+    Contract,
+    Manifest,
+    ModuleContext,
+    ModuleLogs,
+    ModulePermissions,
+    ModuleProtocol,
+)
 from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
 from assistant.contracts.voice import (
     ListeningState,
@@ -86,6 +93,7 @@ __all__ = [
     "ModuleProtocol",
     "ModuleContext",
     "ModuleInfo",
+    "ModuleLogs",
     "ModulePermissions",
     "ModuleState",
     "ModuleStateChanged",

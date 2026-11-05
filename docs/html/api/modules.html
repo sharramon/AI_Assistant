@@ -239,12 +239,42 @@ class HtmlViewerModule(ModuleProtocol):
 <td>This module's permission checks; see below</td>
 </tr>
 <tr>
+<td><code>logs</code></td>
+<td><code>ModuleLogs</code></td>
+<td>This launch's log folder and files; see below</td>
+</tr>
+<tr>
 <td><code>handover</code></td>
 <td><code>Any</code></td>
 <td>After a reload, what the old instance's <a href="#moduleprotocolexport_state"><code>export_state</code></a> returned; otherwise <code>None</code></td>
 </tr>
 </tbody>
 </table>
+<h3 id="modulecontextlogs"><code>ModuleContext.logs</code></h3>
+<p><strong>Reusable</strong> · Used by: <code>talker</code>, <code>main_assistant</code> (their transcripts), <code>temp_ui</code> (the Logs button), <code>html_viewer</code> (snips) · built 2026-11-05</p>
+<p><code>class ModuleLogs(ABC)</code>, in <code>assistant.contracts</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>folder() -&gt; Path</code></td>
+<td>This launch's log folder once it exists (after the first message), else the logs root. Ask each time you write</td>
+</tr>
+<tr>
+<td><code>sink(name) -&gt; LogSink | Path</code></td>
+<td>The log file <code>name</code> in that folder: a <a href="infra.html#logsink"><code>LogSink</code></a> that holds what's written until the folder exists. Pass it to <code>ClaudeSession(transcript=...)</code> or <code>.write()</code> to it. When the app runs without a log session (tests), a <code>Path</code> under <code>logging.dir</code></td>
+</tr>
+</tbody>
+</table>
+<p>The core owns the paths (<a href="../architecture/core.html#logging">logging</a>); a module never picks one, and nothing log-related is put into its config. A module's config only names its file:</p>
+<pre><code>name = ctx.config.get("transcript")          # "talker.jsonl"
+transcript = ctx.logs.sink(name) if name else None
+</code></pre>
 <h3 id="modulecontextpermissions"><code>ModuleContext.permissions</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (<code>microphone</code>, built 2026-11-03); every module that needs a permission · built 2026-11-02 (stand-in)</p>
 <p><code>class ModulePermissions(ABC)</code>, in <code>assistant.contracts</code>.</p>

@@ -145,7 +145,24 @@ A module's only access to the rest of the app, passed to `init`. Everything regi
 | `config` | `dict[str, Any]` | The `[modules.<id>]` config section, or `{}` |
 | `log` | `logging.Logger` | Logger named `assistant.modules.<id>` |
 | `permissions` | `ModulePermissions` | This module's permission checks; see below |
+| `logs` | `ModuleLogs` | This launch's log folder and files; see below |
 | `handover` | `Any` | After a reload, what the old instance's [`export_state`](#moduleprotocolexport_state) returned; otherwise `None` |
+
+### `ModuleContext.logs`
+
+**Reusable** · Used by: `talker`, `main_assistant` (their transcripts), `temp_ui` (the Logs button), `html_viewer` (snips) · built 2026-11-05
+
+`class ModuleLogs(ABC)`, in `assistant.contracts`.
+
+| Member | Does |
+|--------|------|
+| `folder() -> Path` | This launch's log folder once it exists (after the first message), else the logs root. Ask each time you write |
+| `sink(name) -> LogSink \| Path` | The log file `name` in that folder: a [`LogSink`](infra.md#logsink) that holds what's written until the folder exists. Pass it to `ClaudeSession(transcript=...)` or `.write()` to it. When the app runs without a log session (tests), a `Path` under `logging.dir` |
+
+The core owns the paths ([logging](../architecture/core.md#logging)); a module never picks one, and nothing log-related is put into its config. A module's config only names its file:
+
+    name = ctx.config.get("transcript")          # "talker.jsonl"
+    transcript = ctx.logs.sink(name) if name else None
 
 ### `ModuleContext.permissions`
 

@@ -29,6 +29,7 @@ from assistant.core.container import Container
 from assistant.core.context import ScopedContext
 from assistant.core.directory import CORE_ID, CoreMenu
 from assistant.core.lifecycle import LifecycleManager
+from assistant.core.logs import SessionLogs
 from assistant.core.permissions import AllowAllPermissions
 from assistant.core.registry import resolve_modules
 from assistant.core.router import CommandRouter
@@ -43,15 +44,19 @@ class App:
         available: Sequence[type[ModuleProtocol]],
         config: dict[str, Any],
         config_loader: Callable[[], dict[str, Any]] | None = None,
+        logs: Any = None,
     ):
         """Validate the enabled modules. Raises StartupError before anything runs.
 
         `modules.enabled` are active at startup; every other module in `available`
         can be activated at runtime with `ActivateModule`. `config_loader`, if given,
         re-reads the config before `ReloadModule` and `AddModule`, so a reloaded or
-        added module gets its current config section.
+        added module gets its current config section. `logs` is the launch's
+        `LogSession`; every module reaches it as `ctx.logs`. Without one, `ctx.logs`
+        gives plain paths under `logging.dir`.
         """
         core = config.get("core", {})
+        self.logs = SessionLogs(logs, config.get("logging", {}).get("dir", "logs"))
         self._module_config = config.get("modules", {})
         self._config_loader = config_loader
         self._reload_idle_timeout = core.get("reload_idle_timeout", 300.0)
@@ -166,4 +171,5 @@ class App:
             self._module_config.get(manifest.id, {}),
             logging.getLogger(f"assistant.modules.{manifest.id}"),
             handover,
+            self.logs,
         )

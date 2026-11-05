@@ -6,6 +6,8 @@ from datetime import datetime
 import pytest
 
 from assistant.__main__ import use_log_session
+from assistant.contracts import Manifest, ModuleProtocol
+from assistant.core import App
 from assistant.infra import ClaudeSession, LogSession, setup_logging, theme_slug
 from tests.test_agents import FAKE
 
@@ -63,19 +65,28 @@ def test_two_launches_in_one_second_get_their_own_folders(tmp_path):
     assert second.path.name == "2026-10-26_03-06-52-2_same-theme"
 
 
+class _Writer(ModuleProtocol):
+    manifest = Manifest(id="writer", description="Writes through ctx.logs")
+
+    async def init(self, ctx):
+        self.ctx = ctx
+
+
 def test_app_log_and_transcripts_land_in_the_folder(tmp_path, root_logging):
     config = {
         "logging": {"dir": str(tmp_path / "logs"), "file": "assistant.log"},
-        "modules": {"enabled": [], "talker": {"transcript": "talker.jsonl"}, "temp_ui": {}},
+        "modules": {"enabled": ["writer"], "writer": {"transcript": "talker.jsonl"}},
     }
     logs = use_log_session(config)
     assert "file" not in config["logging"]
-    assert config["modules"]["talker"]["transcript"] is logs.sink("talker.jsonl")
-    assert config["modules"]["temp_ui"]["logs_dir"]() == tmp_path / "logs"
+    assert config["modules"]["writer"] == {"transcript": "talker.jsonl"}  # nothing put into config
+    ctx = App([_Writer], config, logs=logs)._make_context(_Writer.manifest)
+    assert ctx.logs.sink("talker.jsonl") is logs.sink("talker.jsonl")
+    assert ctx.logs.folder() == tmp_path / "logs"
 
     setup_logging(config["logging"], [logs.handler])
     logging.getLogger("assistant.test").info("before the first message")
-    config["modules"]["talker"]["transcript"].write("{}\n")
+    ctx.logs.sink(ctx.config["transcript"]).write("{}\n")
     logs.set_theme("Session log folders")
     logging.getLogger("assistant.test").info("after the first message")
     logs.finish()
@@ -83,7 +94,14 @@ def test_app_log_and_transcripts_land_in_the_folder(tmp_path, root_logging):
     text = (logs.path / "assistant.log").read_text(encoding="utf-8")
     assert "before the first message" in text and "after the first message" in text
     assert (logs.path / "talker.jsonl").read_text(encoding="utf-8") == "{}\n"
-    assert config["modules"]["temp_ui"]["logs_dir"]() == logs.path
+    assert ctx.logs.folder() == logs.path
+
+
+def test_without_a_log_session_ctx_logs_gives_paths_under_the_logs_dir(tmp_path):
+    config = {"logging": {"dir": str(tmp_path / "logs")}, "modules": {"enabled": []}}
+    ctx = App([_Writer], config)._make_context(_Writer.manifest)
+    assert ctx.logs.folder() == tmp_path / "logs"
+    assert ctx.logs.sink("talker.jsonl") == tmp_path / "logs" / "talker.jsonl"
 
 
 def test_a_session_without_chat_leaves_nothing(tmp_path, root_logging):

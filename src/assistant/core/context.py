@@ -5,9 +5,19 @@ from __future__ import annotations
 from logging import Logger
 from typing import Any
 
-from assistant.contracts import Command, Contract, Event, IToolProvider, Manifest, ModuleContext, Result
+from assistant.contracts import (
+    Command,
+    Contract,
+    Event,
+    IToolProvider,
+    Manifest,
+    ModuleContext,
+    ModuleLogs,
+    Result,
+)
 from assistant.core.bus import EventBus, Subscription
 from assistant.core.container import Container
+from assistant.core.logs import SessionLogs
 from assistant.core.permissions import AllowAllPermissions
 from assistant.core.router import CommandHandler, CommandRouter
 
@@ -22,12 +32,14 @@ class ScopedContext(ModuleContext):
         config: dict[str, Any],
         log: Logger,
         handover: Any = None,
+        logs: ModuleLogs | None = None,
     ):
         self.module_id = manifest.id
         self.config = config
         self.log = log
         self.handover = handover
         self.permissions = AllowAllPermissions(manifest.id)
+        self.logs = logs or SessionLogs()
         self._manifest = manifest
         self._router = router
         self._bus = bus
