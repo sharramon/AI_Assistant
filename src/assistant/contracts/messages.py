@@ -96,9 +96,10 @@ class ResponseReady(Event):
 
 
 class ShutdownRequested(Event):
-    """Asks the host to shut down cleanly."""
+    """Asks the host to shut down cleanly. With `restart`, the launcher starts the app again."""
 
     reason: str = ""
+    restart: bool = False
 
 
 class SessionTheme(Event):

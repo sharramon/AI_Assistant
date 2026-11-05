@@ -68,6 +68,9 @@ class ModuleContext(ABC):
     config: dict[str, Any]
     log: Logger
     permissions: ModulePermissions
+    #: What the previous instance's `export_state()` returned, when this one replaces it in a
+    #: reload; None on a normal start. Take it in `init`.
+    handover: Any = None
 
     @abstractmethod
     def subscribe(self, event_type: type[E], handler: Callable[[E], Awaitable[None]]) -> None:
@@ -127,3 +130,14 @@ class Module(ABC):
 
     async def stop(self) -> None:
         """Stop work and release resources."""
+
+    def busy(self) -> str | None:
+        """Why this module shouldn't have its code swapped right now (e.g. "replying to you"),
+        or None. A `ReloadModule` waits until it's None, unless it says `now`."""
+        return None
+
+    def export_state(self) -> Any:
+        """Called before a reload stops this instance. What it returns reaches the new
+        instance as `ctx.handover`. Return plain data, or objects from `assistant.infra`
+        (never reloaded), never this module's own classes: those change with the code."""
+        return None

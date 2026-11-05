@@ -21,10 +21,12 @@ class ScopedContext(ModuleContext):
         container: Container,
         config: dict[str, Any],
         log: Logger,
+        handover: Any = None,
     ):
         self.module_id = manifest.id
         self.config = config
         self.log = log
+        self.handover = handover
         self.permissions = AllowAllPermissions(manifest.id)
         self._manifest = manifest
         self._router = router

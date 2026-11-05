@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 
 from assistant.contracts import Command, Result
 
@@ -19,6 +20,22 @@ class CommandRouter:
         self._timeouts = timeouts or {}
         self._handlers: dict[type[Command], CommandHandler] = {}
         self._inflight: dict[str, tuple[Command, asyncio.Task]] = {}
+        self._holds = 0
+        self._released = asyncio.Event()
+        self._released.set()
+
+    @contextlib.contextmanager
+    def hold(self) -> Iterator[None]:
+        """While held (a module is being reloaded), a command with no handler waits for one,
+        up to its timeout, instead of failing at once."""
+        self._holds += 1
+        self._released.clear()
+        try:
+            yield
+        finally:
+            self._holds -= 1
+            if not self._holds:
+                self._released.set()
 
     def register(self, command_type: type[Command], handler: CommandHandler) -> None:
         if command_type in self._handlers:
@@ -37,11 +54,18 @@ class CommandRouter:
         then the default. On timeout the handler is cancelled.
         """
         name = type(command).__name__
-        handler = self._handlers.get(type(command))
-        if handler is None:
-            return Result.not_available(f"No handler for {name}")
         if timeout is None:
             timeout = self._timeouts.get(name, self._default_timeout)
+        handler = self._handlers.get(type(command))
+        if handler is None and self._holds:
+            loop = asyncio.get_running_loop()
+            started = loop.time()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._released.wait(), timeout)
+            timeout = max(0.0, timeout - (loop.time() - started))
+            handler = self._handlers.get(type(command))
+        if handler is None:
+            return Result.not_available(f"No handler for {name}")
 
         task = asyncio.create_task(handler(command), name=f"command:{name}:{command.id}")
         self._inflight[command.id] = (command, task)

@@ -25,11 +25,13 @@ from assistant.contracts.agents import (
 )
 from assistant.contracts.control import (
     ActivateModule,
+    AddModule,
     DeactivateModule,
     ListModules,
     ModuleInfo,
     ModuleState,
     ModuleStateChanged,
+    ReloadModule,
 )
 from assistant.contracts.messages import (
     Command,
@@ -57,6 +59,7 @@ from assistant.contracts.voice import (
 
 __all__ = [
     "ActivateModule",
+    "AddModule",
     "AgentActivity",
     "AgentInfo",
     "AgentStateChanged",
@@ -83,6 +86,7 @@ __all__ = [
     "ModuleStateChanged",
     "PermissionMode",
     "PermissionModeChanged",
+    "ReloadModule",
     "ReportKind",
     "ReportTask",
     "ResetRequested",

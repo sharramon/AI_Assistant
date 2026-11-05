@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable, Sequence
+from typing import Any
 
 from assistant.contracts import Contract, Manifest, Module, ModuleInfo, ModuleState, Result
+from assistant.core import loader
 from assistant.core.container import is_shared_contract
 from assistant.core.context import ScopedContext
 from assistant.core.registry import StartupError
@@ -19,7 +21,7 @@ class LifecycleManager:
         self,
         available: Sequence[type[Module]],
         start_order: list[type[Module]],
-        make_context: Callable[[Manifest], ScopedContext],
+        make_context: Callable[..., ScopedContext],  # (manifest, handover=None)
         stop_timeout: float = 5.0,
         on_change: Callable[[str, ModuleState], None] | None = None,
     ):
@@ -98,7 +100,124 @@ class LifecycleManager:
         async with self._lock:
             return await self._deactivate(module_id, with_dependents)
 
-    async def _activate(self, module_id: str, chain: tuple[str, ...]) -> Result:
+    async def reload(self, module_id: str, now: bool = False, idle_timeout: float = 300.0) -> Result:
+        """Swap a module's code: stop it (and modules that require it), import its package fresh,
+        start the new code with what the old instance exported. If the new code fails, the old
+        code is put back and started. Waits while the module is busy, unless `now`."""
+        if not now and (reason := await self._wait_idle(module_id, idle_timeout)):
+            return Result.failed(
+                f"{module_id!r} is still busy ({reason}) after {idle_timeout:g}s; reload with now to cut in"
+            )
+        async with self._lock:
+            old_cls = self._classes.get(module_id)
+            if old_cls is None:
+                return Result.invalid_arguments(f"No module called {module_id!r}")
+            package = loader.package_of(old_cls)
+            try:
+                loader.check_reloadable(package)
+            except loader.LoadError as exc:
+                return Result.failed(str(exc))
+
+            was_active = module_id in self._active
+            before = list(self._active)
+            state = None
+            if was_active:
+                for dependent in reversed(self._dependents(module_id)):
+                    await self._deactivate(dependent, True)
+                module, ctx = self._active.pop(module_id)
+                self._set(module_id, ModuleState.RELOADING)
+                state = self._export(module)
+                await self._stop_one(module, ctx)
+            else:
+                self._set(module_id, ModuleState.RELOADING)
+            stopped = [m for m in before if m not in self._active and m != module_id]
+
+            removed = loader.drop(package)
+            try:
+                self._classes[module_id] = loader.find_module_class(loader.import_fresh(package), module_id)
+            except Exception as exc:
+                log.error("Reloading %s failed; keeping the old code", module_id, exc_info=exc)
+                return await self._roll_back(module_id, old_cls, package, removed, was_active, stopped, exc, state)
+
+            if was_active:
+                result = await self._activate(module_id, (), state)
+                if not result.is_ok:
+                    return await self._roll_back(
+                        module_id, old_cls, package, removed, True, stopped, result.error, state
+                    )
+                await self._restart(stopped)
+            else:
+                self._set(module_id, ModuleState.INACTIVE)
+            log.info("Reloaded %s", module_id)
+            return Result.ok()
+
+    async def add(self, package: str, activate: bool = True) -> Result:
+        """Load a module that wasn't available at launch. Result value: its id."""
+        async with self._lock:
+            try:
+                loader.check_reloadable(package)
+                if any(loader.package_of(cls) == package for cls in self._classes.values()):
+                    raise loader.LoadError(f"{package!r} is already loaded; use ReloadModule")
+                loader.drop(package)
+                cls = loader.find_module_class(loader.import_fresh(package))
+            except Exception as exc:
+                log.error("Adding %s failed", package, exc_info=exc)
+                return Result.failed(f"Couldn't load {package!r}: {exc}")
+            module_id = cls.manifest.id
+            if module_id in self._classes:
+                return Result.failed(f"A module called {module_id!r} already exists")
+            self._classes[module_id] = cls
+            self._set(module_id, ModuleState.INACTIVE)
+            log.info("Added %s from %s", module_id, package)
+            if activate:
+                result = await self._activate(module_id, ())
+                if not result.is_ok:
+                    return result
+            return Result.ok(module_id)
+
+    async def _roll_back(self, module_id, old_cls, package, removed, was_active, stopped, error, state) -> Result:
+        loader.restore(package, removed)
+        self._classes[module_id] = old_cls
+        message = f"New code for {module_id!r} failed: {error}"
+        if was_active:
+            back = await self._activate(module_id, (), state)
+            await self._restart(stopped)
+            if back.is_ok:
+                return Result.failed(f"{message}; the old code is running again")
+            return Result.failed(f"{message}; the old code failed too: {back.error}")
+        self._set(module_id, ModuleState.INACTIVE)
+        return Result.failed(message)
+
+    async def _wait_idle(self, module_id: str, timeout: float) -> str | None:
+        """Wait until the active module's `busy()` is None; returns its last reason on timeout."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            entry = self._active.get(module_id)
+            reason = self._ask(entry[0], "busy") if entry else None
+            if not reason or loop.time() >= deadline:
+                return reason
+            await asyncio.sleep(0.2)
+
+    def _export(self, module: Module) -> Any:
+        return self._ask(module, "export_state")
+
+    @staticmethod
+    def _ask(module: Module, hook: str) -> Any:
+        """Call a module's `busy` or `export_state`; a failing hook counts as None."""
+        try:
+            return getattr(module, hook)()
+        except Exception:
+            log.exception("%s.%s raised; treating it as None", module.manifest.id, hook)
+            return None
+
+    async def _restart(self, module_ids: list[str]) -> None:
+        for other in module_ids:
+            result = await self._activate(other, ())
+            if not result.is_ok:
+                log.error("Couldn't restart %s after a reload: %s", other, result.error)
+
+    async def _activate(self, module_id: str, chain: tuple[str, ...], handover: Any = None) -> Result:
         cls = self._classes.get(module_id)
         if cls is None:
             return Result.invalid_arguments(f"No module called {module_id!r}")
@@ -131,7 +250,7 @@ class LifecycleManager:
                 return Result.failed(f"{module_id!r} requires {contract.__name__}: {result.error}")
 
         self._set(module_id, ModuleState.STARTING)
-        ctx = self._make_context(manifest)
+        ctx = self._make_context(manifest, handover)
         module = cls()
         try:
             await module.init(ctx)
