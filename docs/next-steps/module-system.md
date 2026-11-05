@@ -164,7 +164,12 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | New session | Sees the current set. Verified |
 | HTTP server inside our app; a new tool not on the allow list | Not tested |
 
-**Next:** chunk 6 (the voice contract `IVoice` with sessions and a destination; `voice_in` provides it, `voice_notes` requires it, the temp UI's mic button goes through it). The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete `docs/temp/tool-*.html` and `one-door-vs-many.html` when you're done with them.
+**Next:** chunk 6 (the voice contract `IVoice` with sessions and a destination; `voice_in` provides it, `voice_notes` requires it, the temp UI's mic button goes through it). Nothing edited yet. Findings so far, from reading `modules/voice_in/module.py`:
+- `voice_in` holds one `_Session` at a time and the second press wins (`taken_over`). The voice service also takes one listener. So "sessions" means **one mic, and each caller owns its own session id**, not parallel sessions. Parallel would need a service change: log that as the next D entry.
+- Today `StopListening` stops whatever session is open, so voice notes could stop the chat mic's session. Planned fix: `IVoice.finish(session_id, discard=False)` only ends that session; a stale id gets `ok` with `taken_over` and an empty text.
+- Sketch: `VoiceDestination` enum (`talker`: the final becomes `InputReceived(source="voice")`; `caller`: only `VoiceTranscript` / `VoiceState` with the session id, which the caller filters on). `IVoice(Contract)` in `contracts/voice.py`, single provider: `listen(destination, owner) -> Result{"session_id"}` and `finish(session_id, discard) -> Result{"text"}`. `voice_in` provides it with an object that calls its existing internals. Callers look it up at call time (`ctx.get_one(IVoice)`), never cached, so hot swap still works. Keep `StartListening` / `StopListening` as the command form for UIs (`send_as_input` maps to the destination); decide whether `temp_ui` moves to `IVoice` as `optional`.
+- Still to read: `modules/voice_notes/module.py`, `contracts/voice.py`, the temp UI's mic path, `docs/architecture/voice.md` (the planned contract), `docs/modules/voice_notes.md`, and `tests/test_voice_notes.py` / `test_voice_in*.py` (the fake engine, for the "two sessions, each gets only its own text" test).
+- Restart: chunks 4 and 5 are waiting for one too. The Talker said it can wait until the end unless a later chunk can't be checked without it. The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete `docs/temp/tool-*.html` and `one-door-vs-many.html` when you're done with them.
 
 ## Handoff: how the unattended run continues
 
