@@ -6,16 +6,20 @@ import asyncio
 import json
 from collections.abc import Coroutine
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from assistant.contracts import (
+    AddModule,
     AgentActivity,
     AgentInfo,
     AgentStateChanged,
+    Command,
     ITaskAgent,
     ModuleContext,
     PermissionMode,
     PermissionModeChanged,
+    ReloadModule,
     ReportKind,
     ReportTask,
     Result,
@@ -24,6 +28,7 @@ from assistant.contracts import (
 )
 from assistant.infra.agent_tags import last_line
 from assistant.infra.claude_session import ClaudeSession
+from assistant.infra.context_watch import ContextWatch
 
 NEW_TASK = "New task: {text}"
 NEW_TASK_CONTEXT = "\n\nContext:\n{context}"
@@ -45,7 +50,23 @@ RESET_NOW = (
     "docs/next-steps/handoff-{task_id}.md if it has none), then end with the line "
     "`HANDOFF: <that note's path>`."
 )
-TOO_MANY_HANDOFFS = "I've handed this task off {count} times (latest notes: {note}). Should I carry on?"
+CONTEXT_REMINDER = (
+    "[Context check] Your context is at {tokens}, past {limit}: every step now resends that "
+    "much. Find a good reset point: finish the step you're on or pause at a safe boundary "
+    "(tests passing, no half-done edits). Then write what's done and what's next into this "
+    "task's change note in docs/next-steps/ (or docs/next-steps/handoff-{task_id}.md), say in "
+    "one line that you're at a reset point, and end with `HANDOFF: <that note's path>`."
+)
+TOO_MANY_HANDOFFS ="I've handed this task off {count} times (latest notes: {note}). Should I carry on?"
+RELOAD_PREFIX = "RELOAD:"
+ADD_MODULE_PREFIX = "ADD_MODULE:"
+# Tools that edit a file, and where their input names it. scripts/hooks/edit_tracker.py
+# keeps the same list (it's a standalone script and can't import this).
+EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
+CODE_LOADED = (
+    "[App] {action}: {outcome} Continue the task. If it failed, fix the code and ask again, "
+    "or end with NEED."
+)
 
 
 class _Mode(StrEnum):
@@ -72,6 +93,18 @@ class SessionTaskAgent(ITaskAgent):
     `max_handoffs` times per task; then it asks the user (a `need` report).
     Publishes `SessionUsage` whenever the session's usage changes (every call).
 
+    With `context_reminder` (tokens, 0 = off), the first time the session's context
+    passes it during a task, the task gets `CONTEXT_REMINDER` the way `message` sends
+    any message (interrupt, then carry on), asking it to hand off at a safe point. Once
+    per crossing: a fresh session re-arms it. While the task waits on the user (a
+    question or a permission request), the reminder is held until it works again.
+
+    With `edit_note`, the second edit to a file in a task (any of `EDIT_TOOLS`, counted
+    across handoffs) gets one log line and one `AgentActivity`, once per file. It only
+    reports: the note the agent reads comes from the edit hook, with the tool call, so it
+    never interrupts. With `task_file`, the current task's id is written there at each
+    `assign`, so tools outside the app (the edit hook) can count by task across sessions.
+
     Holds the `permission_mode` (in memory, Manual at every launch). The owning module
     builds each session's command for that mode (pass the session a callable). A switch
     applies at the next session start; to Manual while a task runs it also applies at
@@ -90,6 +123,9 @@ class SessionTaskAgent(ITaskAgent):
         fresh_sessions: bool = True,
         max_handoffs: int = 3,
         manual_claude_mode: str = "acceptEdits",
+        context_reminder: int = 0,
+        edit_note: bool = False,
+        task_file: str | Path | None = None,
     ):
         self._session = session
         self._ctx = ctx
@@ -116,6 +152,11 @@ class SessionTaskAgent(ITaskAgent):
         self._background: set[asyncio.Task] = set()
         self._report_worker: asyncio.Task | None = None
         self._published: tuple[bool, bool] = (False, False)
+        self._context_watch = ContextWatch(context_reminder)
+        self._remind_at: int | None = None  # context size of a reminder due, sent once the task is working
+        self._edit_note = edit_note
+        self._task_file = Path(task_file) if task_file else None
+        self._edits: dict[str, int] = {}  # edits per file in the current task
         session.on_event = self._on_event
 
     @property
@@ -143,6 +184,8 @@ class SessionTaskAgent(ITaskAgent):
             return Result.failed(f"{self._agent_id} couldn't start: {exc}")
         # Set before writing: the turn's events may arrive while send drains.
         self._task, self._mode, self._handoffs = task, _Mode.WORKING, 0
+        self._edits = {}
+        self._write_task_file(task.id)
         try:
             await self._session.send(_task_text(NEW_TASK, task))
             self._used = True
@@ -235,6 +278,13 @@ class SessionTaskAgent(ITaskAgent):
         if request is None:
             return Result.invalid_arguments("No permission request is open")
         self._drop_permission()
+        if "app_command" in request:  # a reload or add the agent asked for, not a tool
+            self._activity(f"permission {'allowed' if allow else 'denied'}: {request['action']}")
+            if allow:
+                self._spawn(self._load_code(request["app_command"], request["action"]))
+            else:
+                self._spawn(self._send(CODE_LOADED.format(action=request["action"], outcome="the user said no.")))
+            return Result.ok()
         try:
             await self._session.answer_permission(request, allow)
         except Exception as exc:
@@ -281,6 +331,10 @@ class SessionTaskAgent(ITaskAgent):
         await asyncio.sleep(self._permission_timeout)
         if self._permission is event:
             self._permission = None
+            if "app_command" in event:
+                self._activity(f"permission timed out, denied: {event['action']}")
+                await self._send(CODE_LOADED.format(action=event["action"], outcome="nobody answered in time."))
+                return
             self._activity(f"permission timed out, denied: {_describe_request(event)}")
             await self._session.answer_permission(event, False, "Nobody answered the permission request in time.")
 
@@ -292,6 +346,28 @@ class SessionTaskAgent(ITaskAgent):
                 self._report(ReportKind.PROGRESS, text)
         elif block.get("type") == "tool_use":
             self._activity(f"→ {block.get('name')} {_summarize(block.get('input', {}))}")
+            self._count_edit(block)
+
+    def _count_edit(self, block: dict[str, Any]) -> None:
+        """Log the second edit to a file in the task, once per file (the hook gives the agent its note)."""
+        key = EDIT_TOOLS.get(block.get("name", ""))
+        path = (block.get("input") or {}).get(key) if key else None
+        if not self._edit_note or self._task is None or not path:
+            return
+        file = str(path).replace("\\", "/").rstrip("/").lower()
+        self._edits[file] = count = self._edits.get(file, 0) + 1
+        if count == 2:
+            self._ctx.log.info("batching note for task %s: %s edited twice", self._task.id, path)
+            self._activity(f"batching note: {file.rsplit('/', 1)[-1]}")
+
+    def _write_task_file(self, task_id: str) -> None:
+        if self._task_file is None:
+            return
+        try:
+            self._task_file.parent.mkdir(parents=True, exist_ok=True)
+            self._task_file.write_text(task_id, encoding="utf-8")
+        except OSError as exc:
+            self._ctx.log.warning("Couldn't write the task file %s: %s", self._task_file, exc)
 
     def _on_result(self, event: dict[str, Any]) -> None:
         text = (event.get("result") or "").strip()
@@ -329,11 +405,55 @@ class SessionTaskAgent(ITaskAgent):
         elif (question := last_line(text, NEED_PREFIX)) is not None:
             self._report(ReportKind.NEED, question)
             self._mode = _Mode.WAITING
+        elif (request := self._code_request(text)) is not None:
+            self._ask_to_load(*request)
         elif (note := last_line(text, HANDOFF_PREFIX)) is not None:
             self._hand_off(note)
         else:
             self._report(ReportKind.DONE, text)
             self._end_task()
+
+    def _code_request(self, text: str) -> tuple[Command, str] | None:
+        """A last line `RELOAD: <module id> [now]` or `ADD_MODULE: <package>`, as a command and its description."""
+        if (argument := last_line(text, RELOAD_PREFIX)) is not None:
+            words = argument.replace("`", " ").split()
+            if not words:
+                return None
+            now = len(words) > 1 and words[1].lower() == "now"
+            action = f"Reload the {words[0]} module with its new code" + (", now (cuts in)" if now else "")
+            return ReloadModule(module_id=words[0], now=now), action
+        if (argument := last_line(text, ADD_MODULE_PREFIX)) is not None:
+            words = argument.replace("`", " ").split()
+            if words:
+                return AddModule(package=words[0]), f"Add the new module {words[0]}"
+        return None
+
+    def _ask_to_load(self, command: Command, action: str) -> None:
+        """Run a reload or add the agent asked for: at once in Auto, after the user allows it in
+        Manual (the same permission card as a tool). The outcome goes back as the next message."""
+        if isinstance(command, ReloadModule) and command.module_id == self._agent_id:
+            self._spawn(self._send(CODE_LOADED.format(
+                action=action, outcome="refused: you can't reload yourself during a task. Tell the user it's needed.",
+            )))  # fmt: skip
+            return
+        if self._permission_mode is PermissionMode.AUTO:
+            self._spawn(self._load_code(command, action))
+            return
+        self._drop_permission()
+        request = {"app_command": command, "action": action}
+        self._permission = request
+        self._permission_timer = asyncio.create_task(self._permission_expiry(request))
+        self._activity(f"asks permission: {action}")
+        self._report(ReportKind.PERMISSION, action)
+
+    async def _load_code(self, command: Command, action: str) -> None:
+        task = self._task
+        self._activity(f"{action}…")
+        result = await self._ctx.send(command)
+        outcome = "done." if result.is_ok else f"failed: {result.error}"
+        self._activity(f"{action}: {outcome}")
+        if self._task is task and task is not None:
+            await self._send(CODE_LOADED.format(action=action, outcome=outcome))
 
     def _hand_off(self, note: str) -> None:
         """Continue the task in a fresh session that reads `note`, or ask the user after too many."""
@@ -367,6 +487,7 @@ class SessionTaskAgent(ITaskAgent):
             await self._session.start()  # its command reads the current mode
             self._used = False
             self._live_mode = self._permission_mode
+            self._remind_at = None  # a new session starts small: a held reminder no longer applies
         self._publish_usage()
 
     def _on_exit(self) -> None:
@@ -438,6 +559,29 @@ class SessionTaskAgent(ITaskAgent):
         if numbers != self._published_usage:
             self._published_usage = numbers
             self._ctx.publish(usage)
+        if self._context_watch.crossed(self._agent_id, usage.context_tokens):
+            self._remind_at = usage.context_tokens
+        if self._remind_at is not None and self._can_remind():
+            tokens, self._remind_at = self._remind_at, None
+            self._spawn(self._remind(tokens))
+
+    def _can_remind(self) -> bool:
+        """In a turn on the task, not waiting on the user's answer or permission."""
+        return self._task is not None and self._mode is _Mode.WORKING and self._permission is None
+
+    async def _remind(self, tokens: int) -> None:
+        """Ask the task to find a reset point and hand off. Held again if it's no longer working."""
+        if not self._can_remind():
+            if self._task is not None:
+                self._remind_at = tokens
+            return
+        task_id, size, limit = self._task.id, _k(tokens), _k(self._context_watch.limit)
+        self._ctx.log.info("context %s past %s: reminded task %s to find a reset point", size, limit, task_id)
+        self._activity(f"context reminder sent ({size})")
+        text = CONTEXT_REMINDER.format(tokens=size, limit=limit, task_id=task_id)
+        result = await self.message(task_id, text)
+        if not result.is_ok:
+            self._ctx.log.warning("Couldn't send the context reminder: %s", result.error)
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
         task = asyncio.create_task(coro)
@@ -457,6 +601,10 @@ def session_usage(agent_id: str, session: ClaudeSession) -> SessionUsage:
         output_tokens=used["output"],
         cost_usd=session.cost_usd,
     )
+
+
+def _k(tokens: int) -> str:
+    return f"{round(tokens / 1000)}k"
 
 
 def _task_text(template: str, task: Task, **fields: str) -> str:

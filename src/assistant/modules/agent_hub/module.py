@@ -77,6 +77,12 @@ class AgentHubModule(Module):
         ctx.handle(SetPermissionMode, self._set_permission_mode)
         ctx.subscribe(AgentActivity, self._on_activity)
 
+    def busy(self) -> str | None:
+        """A reload waits while tasks are open: their records would be lost (no handover yet)."""
+        done = (TaskState.DONE, TaskState.FAILED, TaskState.CANCELLED)
+        open_tasks = sum(1 for record in self._tasks.values() if record.state not in done)
+        return f"{open_tasks} task(s) open" if open_tasks else None
+
     async def _on_activity(self, event: AgentActivity) -> None:
         record = self._tasks.get(event.task_id) if event.task_id else None
         if record is not None:

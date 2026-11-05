@@ -3,11 +3,13 @@
 from assistant.infra.agent_tags import ShowTag, Tag, find_tags, last_line, parse_show
 from assistant.infra.claude_session import ClaudeSession, claude_command
 from assistant.infra.config import load_config
+from assistant.infra.context_watch import ContextWatch
 from assistant.infra.log import LogSession, LogSink, setup_logging, theme_slug
 from assistant.infra.session_agent import SessionTaskAgent, session_usage
 
 __all__ = [
     "ClaudeSession",
+    "ContextWatch",
     "LogSession",
     "LogSink",
     "SessionTaskAgent",

@@ -10,7 +10,10 @@ is the message itself, except:
   for the answer, and ends the turn with `allowed` or `denied: <message>`
 - a `New task:` containing `HANDOFFONCE`, or anything containing `HANDOFFALWAYS`: the result
   ends with `HANDOFF: docs/next-steps/part.md`
+- containing "asked to restart the app": the result is a reset note ending `RESTART_READY`
 - containing "asked to reset your session": the result ends with `HANDOFF: docs/next-steps/reset.md`
+- containing "[Context check]": the result ends with `HANDOFF: docs/next-steps/context.md`
+- a `New task:` containing `RELOADME <id>`: the result ends with `RELOAD: <id>`
 
 Each turn is one call (one message id, `msg_<n>`): its `usage` says 1000 input tokens per
 message this process has had, so a fresh process starts small again, plus 10 output
@@ -66,8 +69,12 @@ def main() -> None:
         emit({"type": "assistant", "message": {**call, "content": [{"type": "text", "text": f"working on: {text}"}]}})
         if "CRASH" in text:
             return
-        if "asked to reset your session" in text:
+        if "asked to restart the app" in text:
+            result("Was building the poems; part one done.\nRESTART_READY")
+        elif "asked to reset your session" in text:
             result("Saved where I was.\nHANDOFF: docs/next-steps/reset.md")
+        elif "[Context check]" in text:
+            result("At a reset point.\nHANDOFF: docs/next-steps/context.md")
         elif "HANDOFFALWAYS" in text or (text.startswith("New task:") and "HANDOFFONCE" in text):
             result("Part one is built.\nHANDOFF: `docs/next-steps/part.md`")
         elif "SLOW" in text:
@@ -86,6 +93,8 @@ def main() -> None:
             decision = answer["response"]
             assert answer["request_id"] == "perm-1"
             result("allowed" if decision["behavior"] == "allow" else f"denied: {decision['message']}")
+        elif text.startswith("New task:") and "RELOADME " in text:
+            result(f"Built it.\nRELOAD: {text.split('RELOADME ', 1)[1].split()[0]}")
         elif text.startswith("New task:") and "ASKME" in text:
             result("Let me check.\nNEED: Which style?")
         else:

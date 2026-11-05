@@ -6,8 +6,9 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import shutil
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
@@ -104,6 +105,9 @@ class ClaudeSession:
     file as JSON lines: `{"t": time, "dir": "in" | "out" | "stderr", "msg": ...}`.
     `transcript` may also be a `LogSink` (from `LogSession.sink`), which holds the
     lines until the session's log folder exists.
+
+    `env` adds variables to the process's environment (on top of this app's), e.g. so a
+    Claude Code hook can tell this process apart from your own sessions.
     """
 
     def __init__(
@@ -113,10 +117,12 @@ class ClaudeSession:
         log: logging.Logger | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
         transcript: str | Path | LogSink | None = None,
+        env: Mapping[str, str] | None = None,
     ):
         self._command_source = command if callable(command) else list(command)
         self.on_event = on_event
         self._cwd = cwd
+        self._env = dict(env) if env else None
         self._log = log or logging.getLogger(__name__)
         # A LogSink is written to as is; a path is opened on start and closed on close.
         self._transcript_path = Path(transcript) if isinstance(transcript, (str, Path)) and transcript else None
@@ -201,6 +207,7 @@ class ClaudeSession:
         self._proc = await asyncio.create_subprocess_exec(
             program, *command[1:],
             cwd=self._cwd,
+            env={**os.environ, **self._env} if self._env else None,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

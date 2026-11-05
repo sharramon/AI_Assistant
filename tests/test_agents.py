@@ -8,24 +8,29 @@ from pathlib import Path
 import pytest
 
 from assistant.contracts import (
+    AgentActivity,
     AnswerPermission,
     CancelTask,
     GetTaskStatus,
     InputReceived,
     ListAgents,
+    PermissionMode,
     ReportKind,
     ResetRequested,
     ResponseReady,
+    Result,
     SendToTask,
     SessionTheme,
     SessionUsage,
+    SetPermissionMode,
     StartTask,
     Status,
+    Task,
     TaskState,
     TaskUpdated,
 )
 from assistant.core import App
-from assistant.infra import ClaudeSession, claude_command
+from assistant.infra import ClaudeSession, ContextWatch, SessionTaskAgent, claude_command
 from assistant.infra.claude_session import path_rule
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
@@ -294,6 +299,36 @@ async def test_unanswered_permission_is_denied(tmp_path):
         await app.stop()
 
 
+# A `RELOAD:` last line sends ReloadModule; "ghost" isn't a module, so the core's answer proves it went.
+RELOAD_GHOST = "[App] Reload the ghost module with its new code: "
+
+
+async def test_reload_request_in_auto_runs_at_once_and_reports_back(hub):
+    app, updates = hub
+    assert (await app.router.send(SetPermissionMode(agent_id="main_assistant", mode=PermissionMode.AUTO))).is_ok
+    await app.router.send(StartTask(text="RELOADME ghost"))
+    done = await next_matching(updates, report(ReportKind.DONE))
+    assert done.text.startswith(RELOAD_GHOST + "failed: No module called 'ghost'") and "Continue the task" in done.text
+
+
+@pytest.mark.parametrize(("allow", "outcome"), [(True, "failed: No module called 'ghost'"), (False, "the user said no.")])
+async def test_reload_request_in_manual_asks_you_first(hub, allow, outcome):
+    app, updates = hub
+    task_id = (await app.router.send(StartTask(text="RELOADME ghost"))).value
+    asked = await next_matching(updates, report(ReportKind.PERMISSION))
+    assert asked.text == "Reload the ghost module with its new code"
+    assert (await app.router.send(AnswerPermission(task_id=task_id, allow=allow))).is_ok
+    done = await next_matching(updates, report(ReportKind.DONE))
+    assert done.text.startswith(RELOAD_GHOST + outcome)
+
+
+async def test_the_main_assistant_cannot_reload_itself(hub):
+    app, updates = hub
+    await app.router.send(StartTask(text="RELOADME main_assistant"))
+    done = await next_matching(updates, report(ReportKind.DONE))
+    assert "refused: you can't reload yourself" in done.text
+
+
 async def test_each_task_gets_a_fresh_session(hub):
     app, updates = hub
     sizes: asyncio.Queue[SessionUsage] = asyncio.Queue()
@@ -353,6 +388,123 @@ async def test_reset_when_idle_closes_the_session(hub):
     assert after.used_tokens == 1025  # usage isn't reset
     assert (await app.router.send(StartTask(text="after the reset"))).is_ok  # starts a new session
     await next_matching(updates, report(ReportKind.DONE))
+
+
+def test_context_watch_fires_once_per_crossing():
+    watch = ContextWatch(1000)
+    assert [watch.crossed("a", n) for n in (500, 1000, 1500)] == [False, True, False]
+    assert watch.crossed("b", 2000)  # each key on its own
+    assert not watch.crossed("a", 0) and watch.crossed("a", 1200)  # back under re-arms it
+    assert not ContextWatch(0).crossed("a", 10**9)  # 0 = off
+
+
+async def test_context_reminder_hands_off_once_per_session(tmp_path):
+    # The fake's first call is 1000 tokens: past the reminder at once. It answers the reminder
+    # with a HANDOFF; the fresh session starts small, so it re-arms and fires there once more.
+    app, updates = await start_hub(tmp_path, context_reminder=1000, max_handoffs=1)
+    activity: asyncio.Queue[AgentActivity] = asyncio.Queue()
+    app.bus.subscribe(AgentActivity, activity.put)
+    try:
+        task_id = (await app.router.send(StartTask(text="SLOW job"))).value
+        handed = await next_matching(updates, lambda e: e.text.startswith("Handed off"))
+        assert handed.text == "Handed off to a fresh session (1): docs/next-steps/context.md"
+        need = await next_matching(updates, report(ReportKind.NEED))  # the second session's handoff
+        assert need.task_id == task_id and need.text.startswith("I've handed this task off 1 times")
+        await asyncio.sleep(0.1)
+        sent = []
+        while not activity.empty():
+            if (line := activity.get_nowait().text).startswith("context reminder sent"):
+                sent.append(line)
+        assert sent == ["context reminder sent (1k)"] * 2  # one per session, not one per call
+    finally:
+        await app.stop()
+
+
+class _StubSession:
+    """Just enough of a `ClaudeSession` to drive a `SessionTaskAgent` by hand."""
+
+    def __init__(self):
+        self.on_event = None
+        self.running = self.working = True
+        self.context_tokens, self.cost_usd = 0, 0.0
+        self.used = {"input": 0, "cache_write": 0, "cache_read": 0, "output": 0}
+        self.sent: list[str] = []
+        self.interrupts = 0
+
+    async def start(self):
+        self.running = True
+
+    async def close(self):
+        self.running = False
+
+    async def send(self, text):
+        self.sent.append(text)
+
+    async def interrupt(self):
+        self.interrupts += 1
+
+    async def answer_permission(self, *args):
+        pass
+
+
+class _StubContext:
+    def __init__(self):
+        import logging
+        self.log = logging.getLogger("test")
+
+    def publish(self, event):
+        pass
+
+    async def send(self, command):
+        return Result.ok()
+
+
+async def test_context_reminder_waits_for_an_open_permission_request():
+    session = _StubSession()
+    agent = SessionTaskAgent(session, _StubContext(), "worker", "a worker", context_reminder=1000)
+    assert (await agent.assign(Task(id="t1", text="build it"))).is_ok
+    session.on_event({"type": "control_request", "request": {"subtype": "can_use_tool", "tool_name": "Write"}})
+    session.context_tokens = 1500
+    session.on_event({"type": "assistant", "message": {"content": []}})
+    await asyncio.sleep(0.05)
+    assert session.interrupts == 0  # held: interrupting would drop the request
+
+    assert (await agent.answer_permission("t1", True)).is_ok
+    session.on_event({"type": "assistant", "message": {"content": []}})  # working again
+    await asyncio.sleep(0.05)
+    assert session.interrupts == 1
+    session.on_event({"type": "assistant", "message": {"content": []}})  # still over: once per crossing
+    session.on_event({"type": "result", "is_error": True})  # the interrupt ends the turn
+    await asyncio.sleep(0.05)
+    assert session.interrupts == 1
+    assert session.sent[-1].startswith("[The user interrupted") and "[Context check]" in session.sent[-1]
+    assert "past 1k" in session.sent[-1]
+    await agent.close()
+
+
+async def test_edit_note_logs_the_second_edit_to_a_file_once_without_interrupting(tmp_path, caplog):
+    session, ctx, published = _StubSession(), _StubContext(), []
+    ctx.publish = published.append
+    task_file = tmp_path / "state" / "task.txt"
+    agent = SessionTaskAgent(session, ctx, "worker", "a worker", edit_note=True, task_file=task_file)
+    assert (await agent.assign(Task(id="t1", text="build it"))).is_ok
+    assert task_file.read_text() == "t1"
+
+    def edit(tool, **tool_input):
+        block = {"type": "tool_use", "name": tool, "input": tool_input}
+        session.on_event({"type": "assistant", "message": {"content": [block]}})
+
+    with caplog.at_level("INFO", logger="test"):
+        edit("Edit", file_path="C:\\r\\Docs\\a.md")
+        edit("Read", file_path="C:/r/docs/a.md")
+        edit("MultiEdit", file_path="c:/r/docs/a.md")  # the second edit, spelled differently
+        edit("Write", file_path="C:/r/docs/a.md")  # third: no more
+        edit("NotebookEdit", notebook_path="C:/r/n.ipynb")
+    notes = [e.text for e in published if isinstance(e, AgentActivity) and e.text.startswith("batching note")]
+    assert notes == ["batching note: a.md"]
+    assert sum("batching note" in r.getMessage() for r in caplog.records) == 1
+    assert session.interrupts == 0 and len(session.sent) == 1  # only the task itself
+    await agent.close()
 
 
 async def test_status_shows_recent_activity_without_interrupting(hub):
@@ -467,6 +619,7 @@ async def test_talker_sees_both_usages_and_warns_once():
         app.bus.publish(worker(152_000))
         warning = await next_matching(replies, lambda e: e.text.startswith("[Status]"))
         assert warning.text.startswith("[Status] The worker's context is at 152k tokens, past the 150k warning")
+        assert "It has been reminded to find a reset point" in warning.text
         app.bus.publish(worker(160_000))  # still over: no second warning
         app.bus.publish(InputReceived(text="SHOWUSAGE how full?", source="test"))
         line = (await next_matching(replies, lambda e: "how full?" in e.text)).text.splitlines()[0]
@@ -499,6 +652,24 @@ async def test_talker_reset_keeps_recent_exchanges():
         after = await next_matching(replies, lambda e: "still there?" in e.text)
         assert after.text.startswith("[Context] Your session was just reset")
         assert "User: hello there" in after.text
+    finally:
+        await app.stop()
+
+
+async def test_talker_marks_spoken_input():
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
+    app = App([TalkerModule], config)
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        # The fake Talker repeats what it's sent: voice input comes marked, typed input doesn't.
+        app.bus.publish(InputReceived(text="HELLO MIKE", source="voice"))
+        spoken = await next_matching(replies, lambda e: "HELLO MIKE" in e.text)
+        assert spoken.text == "[Spoken] HELLO MIKE"
+        app.bus.publish(InputReceived(text="typed hello", source="temp_ui"))
+        typed = await next_matching(replies, lambda e: "typed hello" in e.text)
+        assert typed.text == "typed hello"
     finally:
         await app.stop()
 

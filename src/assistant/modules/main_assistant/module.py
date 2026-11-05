@@ -37,6 +37,10 @@ docs/next-steps/handoff-<topic>.md if it has none), and end your turn with the l
 line `HANDOFF: <that note's path>`. A fresh session carries on from the note. Keep \
 small or tightly linked work in one session. Decisions go in the docs, never only in \
 the conversation.
+- Read each file once, plan all its changes, and make them in one pass (one Write, or \
+one Edit per separate spot in the same step); every further edit to a file you've \
+already changed in this task costs a full step. Grouping edits never means skipping \
+checks: the architecture-check after each big chunk, the tests and ruff still run.
 - Hand debugging loops (reproduce, fix, run again) and broad searches to the \
 `debugger` subagent: give it the files, the symptom, and how to reproduce it, and \
 take back only the fix and the proof. Don't run long trial-and-error loops yourself.
@@ -51,7 +55,14 @@ page's exact text and, optionally, the heading it's under: \
 highlights it. Never open an HTML file in the default browser (no \
 Start-Process, start, or os.startfile on it).
 - If a message starts with "[The user interrupted your task", answer it briefly and \
-stop; you'll be told when to continue."""
+stop; you'll be told when to continue.
+- After you change a module's code (a package under src/assistant/modules/) and its \
+tests pass, load it into the running app without a restart: end your turn with the last \
+line `RELOAD: <module id>` (add ` now` to cut in on a busy module), or \
+`ADD_MODULE: <package>` for a new module. In Manual mode the user is asked first. The \
+outcome comes back as the next message; if it failed, the old code is still running. \
+Changes to src/assistant/core, contracts, infra, app_kit or __main__.py (including a new \
+contract) need an app restart instead: say so in your summary."""
 
 MANUAL_ACCESS = """\
 - If a task needs more than this, just use the tool: the user is asked to allow or deny \
@@ -89,10 +100,13 @@ class MainAssistantModule(Module):
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         self._workspace = Path(ctx.config.get("workspace", "workspace")).resolve()
+        edit_note = bool(ctx.config.get("edit_note", True))
+        task_file = self._workspace / ".claude" / "state" / f"{self.manifest.id}-task.txt"
         # Read on every session start, so a new session gets the mode of that moment.
         self._session = ClaudeSession(
             lambda: build_command(ctx.config, self._workspace, self._agent.permission_mode),
             cwd=self._workspace, log=ctx.log, transcript=ctx.config.get("transcript"),
+            env=hook_env(self.manifest.id, task_file, edit_note),
         )
         self._agent = SessionTaskAgent(
             self._session,
@@ -104,6 +118,9 @@ class MainAssistantModule(Module):
             fresh_sessions=ctx.config.get("fresh_sessions", True),
             max_handoffs=ctx.config.get("max_handoffs", 3),
             manual_claude_mode=ctx.config.get("permission_mode", "acceptEdits"),
+            context_reminder=ctx.config.get("context_reminder", 150_000),
+            edit_note=edit_note,
+            task_file=task_file,
         )
         ctx.provide(ITaskAgent, self._agent)
         ctx.subscribe(ResetRequested, self._on_reset)
@@ -113,6 +130,10 @@ class MainAssistantModule(Module):
             result = await self._agent.reset()
             if not result.is_ok:
                 self._ctx.log.warning("Couldn't reset: %s", result.error)
+
+    def busy(self) -> str | None:
+        """A reload waits while a task runs (no handover of the task yet)."""
+        return "working on a task" if self._agent.info().busy else None
 
     async def start(self) -> None:
         self._workspace.mkdir(parents=True, exist_ok=True)
@@ -146,6 +167,16 @@ def build_command(config: dict[str, Any], workspace: Path, mode: PermissionMode)
         system_prompt=WORKER_PROMPT + _access(workspace, read_dirs, write_dirs, commands, mode),
         program=config.get("program", ["claude"]),
     )
+
+
+def hook_env(agent_id: str, task_file: Path, edit_note: bool) -> dict[str, str]:
+    """What the worker's process tells the edit hook (scripts/hooks/edit_tracker.py): that
+    it's this app's worker, where its current task id is, and whether the note is on."""
+    return {
+        "ASSISTANT_AGENT": agent_id,
+        "ASSISTANT_TASK_FILE": str(task_file),
+        "ASSISTANT_EDIT_NOTE": "1" if edit_note else "0",
+    }
 
 
 def command_rules(command: str) -> list[str]:
