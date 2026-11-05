@@ -5,8 +5,20 @@ notes go to their own output, docs/html-next-steps/, so they don't clutter the
 main docs; docs/html/ never links to them.
 
 Each page holds only its own content. What every page shares is written once per
-output: site.css (styling), site.js (diagrams and zoom) and nav.js (the sidebar),
-so adding a page or changing the style doesn't rewrite every page.
+output: site.css (styling), site.js (diagrams and zoom) and nav.js (the tab strip
+and the sidebar), so adding a page or changing the style doesn't rewrite every page.
+
+Navigation has two levels. The tabs across the top are the areas: Overview (the
+app-wide design), the module tabs (MODULE_TABS below; a tab holds one module or a
+group of them), then the project tabs (PROJECT_TABS: one docs folder each, like the
+job project). The sidebar lists only the active tab's pages; a page's tab is the
+one it belongs to. docs/html/ never links into next steps: it has no Next steps tab,
+and a link in a page's text into next steps becomes plain text (the Markdown outside
+next-steps/ shouldn't have any; tests/test_module_docs.py checks). Only the
+next-steps output adds a Next steps tab, after the same tabs back to the main docs.
+Its sidebar lists the active notes and one Archive link: next-steps/archive/ (finished
+notes) builds as a section of that output with its own index, and its notes aren't listed
+in the sidebar.
 
 The Markdown files are the source of truth; never edit the generated HTML by hand.
 Run after changing any doc:  python scripts/build_docs.py
@@ -28,11 +40,79 @@ DOCS = ROOT / "docs"
 OUT = DOCS / "html"
 NEXT_OUT = DOCS / "html-next-steps"
 NEXT_STEPS = "next-steps"
-SECTIONS = {
-    "architecture": "Architecture",
-    "agents": "Agents",
-    "api": "API Reference",
+ARCHIVE = f"{NEXT_STEPS}/archive"  # finished notes: done, nothing waiting on the user
+# The folders built into docs/html/.
+SECTIONS = ("architecture", "modules", "agents", "api", "job-project")
+# Top-level tabs that each hold one docs folder about a project outside the app (not a module,
+# not app-wide), after the module tabs: tab name -> folder. Its sidebar is that folder's pages.
+PROJECT_TABS: dict[str, str] = {"Job project": "job-project"}
+# The Overview tab's sidebar: these sections, minus pages a module tab claims, with the
+# module pages' index listed right after the module library.
+OVERVIEW = {"architecture": "Architecture", "agents": "Agents", "api": "API Reference"}
+LIBRARY = "architecture/module-library.md"
+MODULE_INDEX = "modules/README.md"
+
+# The module tabs, in this order, keyed by tab name. Every module is in exactly one tab.
+# Its sidebar: a group named after the tab with its modules' pages (docs/modules/<id>.md), then
+#   modules: the module ids it owns (default: just the tab's name)
+#   pages:   other docs pages about it; they belong to this tab (it lights up on them)
+#   related: name -> page#anchor elsewhere (API entries, Overview pages), links only
+# and always the App-wide links. A new module: add its page in docs/modules/ and one entry:
+# its id in an existing tab's `modules`, or a new tab ({} if it has nothing more).
+MODULE_TABS: dict[str, dict] = {
+    "Agents": {
+        "modules": ["talker", "main_assistant", "agent_hub"],
+        "related": {
+            "Agents (architecture)": "architecture/agents.md",
+            "Agents docs": "agents/README.md",
+            "Agent runtime": "agents/runtime.md",
+            "The Talker on its own": "agents/runtime.md#the-talker-on-its-own",
+            "The Main Assistant on its own": "agents/runtime.md#the-main-assistant-on-its-own",
+            "Messaging to and from the main app": "agents/runtime.md#messaging-to-and-from-the-main-app",
+            "Agents API": "api/agents.md",
+            "SessionTaskAgent (API)": "api/infra.md#sessiontaskagent",
+        },
+    },
+    "voice_in": {
+        "pages": ["architecture/voice.md"],
+        "related": {
+            "Voice messages (API)": "api/messaging.md#voice",
+            "Voice service protocol (API)": "api/messaging.md#the-voice-service-protocol",
+            "Voice service parts (API)": "api/messaging.md#the-voice-services-parts",
+        },
+    },
+    "voice_notes": {
+        "related": {
+            "Voice messages (API)": "api/messaging.md#voice",
+            "Chaining modules": "architecture/modules.md#chaining-modules",
+        },
+    },
+    "html_viewer": {
+        "pages": ["architecture/html-viewer.md"],
+        "related": {
+            "Viewer tools (API)": "api/tools.md#tools-offered-today",
+            "Viewer events (API)": "api/messaging.md#viewertabschanged",
+            "CompanionApp (API)": "api/app_kit.md#companionapp",
+            "The viewer in the runtime": "agents/runtime.md#html-viewer",
+        },
+    },
+    "Stand-ins and terminals": {
+        "modules": ["console_io", "temp_ui", "assistant_view", "echo_orchestrator"],
+        "related": {
+            "What runs": "agents/runtime.md#what-runs",
+            "The temp UI in the runtime": "agents/runtime.md#temp-ui",
+            "AgentActivity (API)": "api/agents.md#agentactivity",
+        },
+    },
 }
+
+
+TAB_KEYS = {"modules", "pages", "related"}
+
+
+def tab_modules(name: str, spec: dict) -> list[str]:
+    """The module ids a tab owns: its `modules`, or just the tab's name."""
+    return spec.get("modules", [name])
 MERMAID_JS = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
 
 MD_ANCHOR = re.compile(r'<a href="(?![a-z]+:)([^"#]*?\.md)(#[^"]*)?"([^>]*)>(.*?)</a>', re.S)
@@ -78,21 +158,73 @@ def section_pages(section: str) -> list[Path]:
     return ([readme] if readme.exists() else []) + pages
 
 
-def nav_data(root: Path, sections: dict[str, str]) -> list[dict]:
-    """The sidebar's sections and pages, with links relative to the output root `root`."""
-    data = []
-    if root == NEXT_OUT:
-        overview = Path(os.path.relpath(OUT / "architecture" / "index.html", root)).as_posix()
-        data.append({"label": "Main docs", "pages": [{"name": "Architecture overview", "href": overview}]})
-    for section, label in sections.items():
-        pages = section_pages(section)
-        items = []
-        for page in pages:
-            # A one-page section shows its own title instead of "Overview".
-            name = "Overview" if page.stem == "README" and len(pages) > 1 else title_of(page)
-            items.append({"name": name, "href": out_path(page).relative_to(root).as_posix()})
-        data.append({"label": label, "pages": items})
-    return data
+def link(root: Path, rel: str) -> str:
+    """A docs page (`architecture/voice.md#anchor`) as a link relative to the output root `root`."""
+    path, _, anchor = rel.partition("#")
+    href = Path(os.path.relpath(out_path(DOCS / path), root)).as_posix()
+    return href + (f"#{anchor}" if anchor else "")
+
+
+def item(root: Path, rel: str, name: str | None = None) -> dict:
+    return {"name": name or title_of(DOCS / rel.partition("#")[0]), "href": link(root, rel)}
+
+
+def check_module_tabs() -> None:
+    """Every module page is in exactly one tab, and every page a tab names exists."""
+    pages = {p.stem for p in (DOCS / "modules").glob("*.md") if p.stem != "README"}
+    owned = [m for name, spec in MODULE_TABS.items() for m in tab_modules(name, spec)]
+    problems = [f"docs/modules/{m}.md has no entry in MODULE_TABS" for m in sorted(pages - set(owned))]
+    problems += [f"MODULE_TABS: {m} is in more than one tab" for m in sorted({m for m in owned if owned.count(m) > 1})]
+    for name, spec in MODULE_TABS.items():
+        problems += [f"MODULE_TABS['{name}']: {m} has no docs/modules/{m}.md" for m in tab_modules(name, spec) if m not in pages]
+        problems += [f"MODULE_TABS['{name}']: unknown keys {sorted(extra)}" for extra in [set(spec) - TAB_KEYS] if extra]
+        refs = spec.get("pages", []) + list(spec.get("related", {}).values())
+        problems += [f"MODULE_TABS['{name}']: {r} not found" for r in refs if not (DOCS / r.partition("#")[0]).is_file()]
+    if problems:
+        raise SystemExit("\n".join(problems))
+
+
+def nav_data(root: Path) -> dict:
+    """The tabs and each tab's sidebar, with links relative to the output root `root`.
+
+    Each tab lists its `home` pages: on those pages it is the active tab.
+    """
+    claimed = {p for spec in MODULE_TABS.values() for p in spec.get("pages", [])}
+    groups = []
+    for section, label in OVERVIEW.items():
+        rels = [p.relative_to(DOCS).as_posix() for p in section_pages(section)]
+        rels = [r for r in rels if r not in claimed]
+        if LIBRARY in rels:
+            rels.insert(rels.index(LIBRARY) + 1, MODULE_INDEX)
+        names = {r: "Overview" for r in rels if r.endswith("/README.md") and r != MODULE_INDEX}
+        groups.append({"label": label, "pages": [item(root, r, names.get(r)) for r in rels]})
+    tabs = [_tab("Overview", groups)]
+    for i, (name, spec) in enumerate(MODULE_TABS.items()):
+        own = [f"modules/{m}.md" for m in tab_modules(name, spec)] + spec.get("pages", [])
+        mod_groups = [{"label": name, "pages": [item(root, r) for r in own]}]
+        if spec.get("related"):
+            mod_groups.append({"label": "Related", "pages": [item(root, r, n) for n, r in spec["related"].items()]})
+        app_wide = [item(root, "architecture/README.md", "Architecture overview"), item(root, LIBRARY)]
+        mod_groups.append({"label": "App-wide", "pages": app_wide})
+        tabs.append(_tab(name, mod_groups, home=[link(root, r) for r in own], sep=i == 0))
+    for i, (name, section) in enumerate(PROJECT_TABS.items()):
+        rels = [p.relative_to(DOCS).as_posix() for p in section_pages(section)]
+        pages = [item(root, r, "Overview" if r.endswith("/README.md") else None) for r in rels]
+        tabs.append(_tab(name, [{"label": name, "pages": pages}], sep=i == 0))
+    if root == NEXT_OUT:  # the main docs have no Next steps tab; only the next-steps output does
+        next_pages = [p.relative_to(DOCS).as_posix() for p in section_pages(NEXT_STEPS)]
+        next_items = [item(root, r, "Overview" if r.endswith("/README.md") else None) for r in next_pages]
+        next_items.append(item(root, f"{ARCHIVE}/README.md", "Archive"))  # its notes stay out of the sidebar
+        archived = [link(root, p.relative_to(DOCS).as_posix()) for p in section_pages(ARCHIVE)]
+        home = [p["href"] for p in next_items] + [h for h in archived if h not in {p["href"] for p in next_items}]
+        tabs.append(_tab("Next steps", [{"label": "Next steps", "pages": next_items}], home=home, sep=True))
+    return {"tabs": tabs}
+
+
+def _tab(name: str, groups: list[dict], home: list[str] | None = None, sep: bool = False) -> dict:
+    """A tab: it opens its first page; by default every sidebar page is home."""
+    pages = [p["href"] for g in groups for p in g["pages"]]
+    return {"name": name, "href": (home or pages)[0], "home": home or pages, "sep": sep, "groups": groups}
 
 
 def fix_links(body: str, md: Path) -> str:
@@ -164,24 +296,34 @@ def write_pages(sections) -> int:
     return count
 
 
-def write_shared(root: Path, sections: dict[str, str]) -> None:
-    """The files every page of one output shares: styling, scripts, and the sidebar."""
+def write_shared(root: Path) -> None:
+    """The files every page of one output shares: styling, scripts, the tabs and the sidebar."""
     (root / "site.css").write_text(SITE_CSS, encoding="utf-8")
     (root / "site.js").write_text(SITE_JS, encoding="utf-8")
-    nav = json.dumps(nav_data(root, sections), indent=2, ensure_ascii=False)
+    nav = json.dumps(nav_data(root), indent=2, ensure_ascii=False)
     (root / "nav.js").write_text(NAV_JS.replace("NAV_DATA", nav), encoding="utf-8")
 
 
+def copy_images(sections) -> None:
+    """Copy each section's img/ folder (diagrams drawn by hand, as SVG) next to its pages."""
+    for section in sections:
+        src = DOCS / section / "img"
+        if src.is_dir():
+            shutil.copytree(src, OUT / section / "img")
+
+
 def main() -> None:
+    check_module_tabs()
     for folder in (OUT, NEXT_OUT):
         if folder.exists():
             shutil.rmtree(folder)
     count = write_pages(SECTIONS)
-    write_shared(OUT, SECTIONS)
+    copy_images(SECTIONS)
+    write_shared(OUT)
     (OUT / "index.html").write_text(REDIRECT, encoding="utf-8")
     # The next-steps README becomes that output's index.html.
-    next_count = write_pages([NEXT_STEPS])
-    write_shared(NEXT_OUT, {NEXT_STEPS: "Next steps"})
+    next_count = write_pages([NEXT_STEPS, ARCHIVE])
+    write_shared(NEXT_OUT)
     print(f"Wrote {count} pages to {OUT.relative_to(ROOT).as_posix()}/ (open docs/html/index.html)")
     print(f"Wrote {next_count} pages to {NEXT_OUT.relative_to(ROOT).as_posix()}/ (open docs/html-next-steps/index.html)")
 
@@ -217,23 +359,58 @@ PAGE = """<!doctype html>
 </html>
 """
 
-NAV_JS = """// The sidebar for every page, generated by scripts/build_docs.py. Edit the Markdown, not this file.
+NAV_JS = """// The tab strip and the sidebar for every page, generated by scripts/build_docs.py. Edit the Markdown, not this file.
 (function () {
   var NAV = NAV_DATA;
   var nav = document.querySelector("nav[data-page]");
   if (!nav) return;
   var root = nav.getAttribute("data-root"), page = nav.getAttribute("data-page");
-  NAV.forEach(function (section) {
-    var h = document.createElement("h2");
-    h.textContent = section.label;
+  function link(p) {
+    var a = document.createElement("a");
+    a.href = root + p.href;
+    a.textContent = p.name;
+    if (p.href === page) a.setAttribute("aria-current", "page");
+    return a;
+  }
+  function headings() {
     var ul = document.createElement("ul");
-    section.pages.forEach(function (p) {
+    ul.className = "toc";
+    document.querySelectorAll("main h2[id]").forEach(function (h) {
       var a = document.createElement("a");
-      a.href = root + p.href;
-      a.textContent = p.name;
-      if (p.href === page) a.setAttribute("aria-current", "page");
+      a.href = "#" + h.id;
+      a.textContent = h.textContent;
       var li = document.createElement("li");
       li.appendChild(a);
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+  // The active tab is the one this page belongs to.
+  var tab = NAV.tabs.filter(function (t) { return t.home.indexOf(page) >= 0; })[0] || NAV.tabs[0];
+  // Tabs across the top, one per area; the strip scrolls sideways when it doesn't fit.
+  var bar = document.createElement("div"), current = null;
+  bar.className = "topbar";
+  NAV.tabs.forEach(function (t) {
+    if (t.sep) {
+      var s = document.createElement("span");
+      s.className = "sep";
+      bar.appendChild(s);
+    }
+    var a = link(t);
+    if (t === tab) { a.classList.add("active"); current = a; }
+    bar.appendChild(a);
+  });
+  document.body.insertBefore(bar, document.body.firstChild);
+  if (current) bar.scrollLeft = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
+  // The sidebar: only the active tab's pages; the page you're on also lists its headings.
+  tab.groups.forEach(function (g) {
+    var h = document.createElement("h2");
+    h.textContent = g.label;
+    var ul = document.createElement("ul");
+    g.pages.forEach(function (p) {
+      var li = document.createElement("li");
+      li.appendChild(link(p));
+      if (p.href === page) li.appendChild(headings());
       ul.appendChild(li);
     });
     nav.appendChild(h);
@@ -262,11 +439,26 @@ body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
+:root { --top: 42px; }
+.topbar {
+  position: sticky; top: 0; z-index: 5; height: var(--top); display: flex; flex-wrap: nowrap; align-items: flex-end;
+  gap: 2px; padding: 0 12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.topbar a {
+  flex: none; white-space: nowrap; padding: 6px 12px; border: 1px solid transparent; border-bottom: 0;
+  border-radius: 6px 6px 0 0; color: var(--muted); text-decoration: none; font-size: 14px;
+}
+.topbar a:hover { background: var(--border); color: var(--text); }
+.topbar a.active { background: var(--bg); border-color: var(--border); color: var(--text); font-weight: 600; margin-bottom: -1px; }
+.topbar .sep { flex: none; align-self: center; width: 1px; height: 20px; margin: 0 6px; background: var(--border); }
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: calc(100vh - var(--top)); }
 nav {
   background: var(--panel); border-right: 1px solid var(--border);
-  padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  padding: 24px 16px; position: sticky; top: var(--top); height: calc(100vh - var(--top)); overflow-y: auto;
 }
+nav ul.toc { margin: 2px 0 6px; }
+nav ul.toc a { padding: 3px 8px 3px 20px; font-size: 13px; color: var(--muted); }
 nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 8px 6px; }
 nav h2:first-child { margin-top: 0; }
 nav ul { list-style: none; margin: 0; padding: 0; }
@@ -284,17 +476,19 @@ pre code { background: none; padding: 0; }
 table { display: block; overflow-x: auto; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
 th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
 th { background: var(--panel); }
+main img { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; }
 .diagram {
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
   padding: 20px; margin: 16px 0 24px; overflow-x: auto; text-align: center;
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram.offline { text-align: left; white-space: pre; font: 13px ui-monospace, Consolas, monospace; }
-.diagram:not(.offline) { cursor: zoom-in; }
+.diagram:not(.offline), main img { cursor: zoom-in; }
 .zoom { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow: hidden; cursor: grab; touch-action: none; }
 .zoom.dragging { cursor: grabbing; }
 .zoom-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.zoom-stage svg { display: block; max-width: none !important; }
+.zoom-stage svg, .zoom-stage img { display: block; max-width: none !important; }
+.zoom-stage img { border: 0; user-select: none; -webkit-user-drag: none; }
 .zoom-close {
   position: absolute; top: 12px; left: 12px; z-index: 1; width: 40px; height: 40px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text);
@@ -328,7 +522,11 @@ SITE_JS = """// Diagrams for every page, generated by scripts/build_docs.py.
   mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", securityLevel: "strict" });
   mermaid.run({ querySelector: ".diagram" });
 
-  // Click a diagram to view it full screen: wheel zooms at the cursor, drag pans, X or Esc closes.
+})();
+
+// Click a diagram or an image to view it full screen: wheel zooms at the cursor, drag pans,
+// X or Esc closes; for an image, a click outside it closes too. Runs offline as well.
+(function () {
   var overlay = null, stage, scale, x, y;
   function place() { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + scale + ")"; }
   function close() {
@@ -337,13 +535,25 @@ SITE_JS = """// Diagrams for every page, generated by scripts/build_docs.py.
     overlay = null;
     document.body.style.overflow = "";
   }
-  function open(svg) {
-    var box = svg.viewBox.baseVal, w = box && box.width ? box.width : svg.getBBox().width;
-    var h = box && box.height ? box.height : svg.getBBox().height;
-    var clone = svg.cloneNode(true);
-    clone.removeAttribute("style");
-    clone.setAttribute("width", w);
-    clone.setAttribute("height", h);
+  function open(el) {
+    var w, h, clone = el.cloneNode(true), isImg = el.tagName === "IMG";
+    if (isImg) {
+      var r = el.getBoundingClientRect();
+      w = el.naturalWidth || r.width;
+      h = el.naturalHeight || r.height;
+      clone.removeAttribute("width");
+      clone.removeAttribute("height");
+      clone.style.width = w + "px";
+      clone.style.height = h + "px";
+      clone.draggable = false;
+    } else {
+      var box = el.viewBox.baseVal;
+      w = box && box.width ? box.width : el.getBBox().width;
+      h = box && box.height ? box.height : el.getBBox().height;
+      clone.removeAttribute("style");
+      clone.setAttribute("width", w);
+      clone.setAttribute("height", h);
+    }
     overlay = document.createElement("div");
     overlay.className = "zoom";
     var btn = document.createElement("button");
@@ -371,25 +581,44 @@ SITE_JS = """// Diagrams for every page, generated by scripts/build_docs.py.
       scale = s;
       place();
     }, { passive: false });
-    var drag = null;
+    var drag = null, outside = false;
     overlay.addEventListener("pointerdown", function (e) {
       if (e.target === btn) return;
-      drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+      drag = { px: e.clientX, py: e.clientY, x: x, y: y, inside: clone.contains(e.target), moved: false };
       overlay.setPointerCapture(e.pointerId);
       overlay.classList.add("dragging");
     });
     overlay.addEventListener("pointermove", function (e) {
       if (!drag) return;
+      if (Math.abs(e.clientX - drag.px) + Math.abs(e.clientY - drag.py) > 4) drag.moved = true;
       x = drag.x + e.clientX - drag.px;
       y = drag.y + e.clientY - drag.py;
       place();
     });
-    overlay.addEventListener("pointerup", function () { drag = null; overlay.classList.remove("dragging"); });
+    overlay.addEventListener("pointerup", function () {
+      // A click (no drag) outside an image closes it; diagrams keep closing only by X or Esc.
+      outside = isImg && drag !== null && !drag.inside && !drag.moved;
+      drag = null;
+      overlay.classList.remove("dragging");
+    });
+    overlay.addEventListener("click", function (e) {
+      if (!outside) return;
+      outside = false;
+      e.stopPropagation();
+      close();
+    });
   }
   document.addEventListener("click", function (e) {
-    var d = e.target.closest && e.target.closest(".diagram");
+    if (overlay || !e.target.closest) return;
+    var img = e.target.closest("main img");
+    if (img) {
+      e.preventDefault(); // the image's link would open the bare file, with no way back
+      open(img);
+      return;
+    }
+    var d = e.target.closest(".diagram");
     var svg = d && d.querySelector("svg");
-    if (svg && !overlay) open(svg);
+    if (svg) open(svg);
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
