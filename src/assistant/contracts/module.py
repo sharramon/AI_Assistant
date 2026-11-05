@@ -60,6 +60,8 @@ class Manifest:
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or not self.id.isidentifier():
             raise ValueError(f"manifest id must be a Python identifier, got {self.id!r}")
+        if self.id == "core":
+            raise ValueError("manifest id 'core' is reserved for the core's own menu")
         if not isinstance(self.description, str) or "\n" in self.description:
             raise ValueError(f"{self.id}: description must be one line of text")
         for field, base in (("handles", Command), ("sends", Command), ("publishes", Event), ("listens", Event)):

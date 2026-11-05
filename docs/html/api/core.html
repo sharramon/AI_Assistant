@@ -295,6 +295,10 @@
 <p><code>async dispatch_tool(container: Container, command: InvokeTool) -&gt; Result</code></p>
 <p>The <code>InvokeTool</code> handler. Looks up providers at call time; returns <code>not_available</code> for an unknown tool, <code>failed</code> for a name offered twice, else the provider's result.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code></p>
+<h2 id="coremenu"><code>CoreMenu</code></h2>
+<p><code>CoreMenu(send, permissions: ModulePermissions)</code></p>
+<p>The core's own <a href="control.html#the-cores-menu">menu</a> (<code>modules.*</code>), id <code>core</code> (<code>CORE_ID</code>; no module may use it). <code>App</code> builds one with the router's <code>send</code> and <code>AllowAllPermissions("core")</code> (as <code>app.core_menu</code>), and provides it through a <code>MenuTools</code> (<code>app.core_menu_tools</code>) in the name <code>core</code> from <code>start</code> to <code>stop</code>. <code>App</code> also handles <code>GetMenu</code>. Tests swap <code>app.core_menu.permissions</code> for one that refuses.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code></p>
 <footer>Generated from <code>docs/api/core.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

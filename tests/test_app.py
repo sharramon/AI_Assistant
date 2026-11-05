@@ -59,7 +59,9 @@ async def test_orchestrator_discovers_tools_without_knowing_them():
     app = App([EchoOrchestrator, Calculator], make_config("echo_orchestrator", "calculator"))
     await app.start()
     names = (await ask(app, "/tools")).text.removeprefix("Tools: ").split(", ")
-    assert sorted(names) == ["add", "echo.say"]  # its own menu, linked by the core, and the calculator's
+    # Its own menu, linked by the core, the calculator's, and the core's own (modules.*).
+    assert sorted(n for n in names if not n.startswith("modules.")) == ["add", "echo.say"]
+    assert "modules.list" in names
     await app.stop()
 
 
@@ -171,5 +173,5 @@ async def test_provide_requires_declaring_the_contract():
 
     app = App([Undeclared], make_config("undeclared"))
     await app.start()  # init fails, module is skipped
-    assert app.container.get_all(IToolProvider) == []
+    assert [p for p in app.container.get_all(IToolProvider) if p is not app.core_menu_tools] == []
     await app.stop()

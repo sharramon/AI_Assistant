@@ -60,14 +60,14 @@
 <h3 id="before-the-refactor-november-2026">Before the refactor (November 2026)</h3>
 <p><a href="img/module-directory-1-before.svg"><img alt="Before the refactor: the Talker hardcoded to the viewer, the Main Assistant unable to call tools" src="img/module-directory-1-before.svg" /></a></p>
 <p>One shortcut to one module. The Talker turns its SHOW tags into the viewer's <code>viewer.open</code> / <code>viewer.highlight</code>; the Main Assistant can't call module tools at all, so the viewer watches its SHOW tags instead. The core keeps a flat list of tools, with no directory and no one-line descriptions.</p>
-<h3 id="step-by-step-planned">Step by step (planned)</h3>
+<h3 id="step-by-step-the-asks-built-the-agents-using-them-planned">Step by step (the asks built; the agents using them planned)</h3>
 <p><a href="img/module-directory-2-steps.svg"><img alt="Step by step: list modules, open one menu, call one item" src="img/module-directory-2-steps.svg" /></a></p>
 <ol>
-<li><strong>List modules</strong> (planned): the directory, one line each, from each manifest's description.</li>
-<li><strong>Give me its menu</strong> (planned): that module's <code>ToolSpec</code>s only.</li>
-<li><strong>Call an item</strong> (built): <code>InvokeTool(name, args)</code>, routed to the module that offers it.</li>
+<li><strong>List modules</strong> (built): <code>ListModules</code>, the directory, one line each, from each manifest's description.</li>
+<li><strong>Give me its menu</strong> (built): <code>GetMenu(id)</code>, that module's <code>ToolSpec</code>s only, read from its class, so it works while the module is off.</li>
+<li><strong>Call an item</strong> (built): <code>InvokeTool(name, args)</code>, routed to the module that offers it (the module must be on).</li>
 </ol>
-<p>Asks 1 and 2 are new core asks: <code>ListModules</code> with a one-line description per module, and <code>GetMenu(id)</code>. The agents send all three asks through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
+<p>The core has a menu of its own under the id <code>core</code>: <code>modules.list</code>, <code>modules.menu</code>, <code>modules.on</code>, <code>modules.off</code>, <code>modules.reload</code>, <code>modules.add</code>. So anything that can call a menu item can also find modules and turn them on, off, or reload them. The risky items (turning off with dependents, adding new code) ask the permissions first. The agents will send all three asks through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05; planned).</p>
 <h3 id="what-changes">What changes</h3>
 <p><a href="img/module-directory-3-changes.svg"><img alt="What changes: a one-line description, two new asks, both assistants using them" src="img/module-directory-3-changes.svg" /></a></p>
 <p>Each manifest gets a one-line description, the core gets the two asks, and both assistants use them instead of hardcoded tags. All of it is planned and needs an app restart (it touches the core and contracts).</p>
@@ -246,7 +246,11 @@
 <td>Planned</td>
 </tr>
 <tr>
-<td>Directory and menu asks; both assistants using them through one MCP door</td>
+<td>Directory and menu asks (<code>ListModules</code> with descriptions, <code>GetMenu</code>, the core's <code>modules.*</code> menu)</td>
+<td>Built (2026-11-05)</td>
+</tr>
+<tr>
+<td>Both assistants using them through one MCP door</td>
 <td>Planned (door decided 2026-11-05)</td>
 </tr>
 <tr>

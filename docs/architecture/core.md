@@ -242,7 +242,8 @@ stateDiagram-v2
 - Links each module's [`Menu`](../api/modules.md#menu) right after its `init`: a [`MenuTools`](../api/core.md#menutools) adapter provided in the module's name, removed when its context closes, so a reloaded module's menu runs its new code.
 - Unknown name → `NotAvailable`; a name offered by more than one provider → `Failed`.
 - A future `ToolsChanged` event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.
-- **Planned:** the [directory, then menu](modules.md#find-a-module-then-open-its-menu) asks: one line per module, then one module's `ToolSpec`s. Calling stays `InvokeTool`.
+- The [directory, then menu](modules.md#find-a-module-then-open-its-menu): `ListModules` gives one line per module, `GetMenu(id)` one module's `ToolSpec`s (read from its class, on or off). Calling stays `InvokeTool`.
+- The core's own menu (`core/directory.py`, id `core`): `modules.list / menu / on / off / reload / add`, each sending the matching control command. Provided as an `IToolProvider` in the name `core` while the app runs. `modules.off` with dependents and `modules.add` ask `ctx.permissions`-style first (today the allow-all stand-in, which logs).
 
 ## Configuration
 

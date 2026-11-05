@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from assistant.contracts import Contract, Manifest, ModuleInfo, ModuleProtocol, ModuleState, Result
+from assistant.contracts import Contract, Manifest, Menu, ModuleInfo, ModuleProtocol, ModuleState, Result
 from assistant.core import loader
 from assistant.core.container import is_shared_contract
 from assistant.core.context import ScopedContext
@@ -85,11 +85,16 @@ class LifecycleManager:
             ModuleInfo(
                 id=module_id,
                 state=self._states[module_id],
+                description=cls.manifest.description,
                 provides=tuple(c.__name__ for c in cls.manifest.provides),
                 requires=tuple(c.__name__ for c in cls.manifest.requires),
             )
             for module_id, cls in self._classes.items()
         ]
+
+    def menu(self, module_id: str) -> Menu | None:
+        """The module's `Menu`, read from its current class (on or off). KeyError if unknown."""
+        return self._classes[module_id].menu
 
     async def activate(self, module_id: str) -> Result:
         """Activate a module at runtime, first activating the sole provider of each contract it requires."""

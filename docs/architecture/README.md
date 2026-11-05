@@ -69,14 +69,14 @@ flowchart LR
     classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
     classDef port fill:#ffffff,stroke:#6b4fa0,color:#1d1d1b
     classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
-    class Life,Cmds,Events,Contracts port
+    class Life,Cmds,Events,Contracts,Dir port
     class VoiceIn,Viewer,Notes module
-    class VoiceOut,Perms,Dir planned
+    class VoiceOut,Perms planned
     class You person
     class Window,Quest,Subs,Control,Features later
 ```
 
-**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a [temp UI](../agents/runtime.md#temp-ui) (a web page with both, a stand-in for the chat window until a UI handler is designed). **Voice in:** the [voice service](voice.md) and its thin `voice_in` module are built and on; the temp UI's mic button turns the mic on and off. **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Permissions:** every part asks one [permissions handler](permissions.md) before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. **Modules:** each is a wrapper (manifest, start / stop / reload, context) with a menu of tools inside (a `Menu` part); built, with the HTML viewer's and the echo stand-in's menus so far, and the [module library](module-library.md) generated from them. Voice notes v1 is built and on, without the voice contract ([voice_notes](../modules/voice_notes.md)). The directory both agents use to find modules and their menus, finding modules by folder, and the voice contract are planned ([modules](modules.md)). Each module has its own page; the [module library](module-library.md) lists them all with their interfaces. **White in the core:** its ports. **Blue:** a module. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
+**Built today:** a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a [temp UI](../agents/runtime.md#temp-ui) (a web page with both, a stand-in for the chat window until a UI handler is designed). **Voice in:** the [voice service](voice.md) and its thin `voice_in` module are built and on; the temp UI's mic button turns the mic on and off. **Terminals:** one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. **Permissions:** every part asks one [permissions handler](permissions.md) before using location, the mic, files, or accounts; it asks you when it has no answer. Today only the Main Assistant asks, through the Agent Hub. **Modules:** each is a wrapper (manifest, start / stop / reload, context) with a menu of tools inside (a `Menu` part); built, with the HTML viewer's and the echo stand-in's menus so far, and the [module library](module-library.md) generated from them. Voice notes v1 is built and on, without the voice contract ([voice_notes](../modules/voice_notes.md)). The directory is built in the core (one line per module, then its menu, plus the core's own `modules.*` menu); both agents using it, finding modules by folder, and the voice contract are planned ([modules](modules.md)). Each module has its own page; the [module library](module-library.md) lists them all with their interfaces. **White in the core:** its ports. **Blue:** a module. **Purple:** planned next. **Dashed:** later. The [Agent Hub](agents.md) is a module, not part of the core.
 
 ## Summary
 
@@ -106,7 +106,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 | Component | Responsibility | Location | Details |
 |-----------|----------------|----------|---------|
 | Module Registry | Selects enabled modules from their manifests; validates the dependency graph. Planned: finds the available modules by folder | `src/assistant/core/registry.py` | [core](core.md), [modules](modules.md#found-by-folder) |
-| Module directory | One line per module, then that module's menu, for the Talker and the Main Assistant (planned) | _TBD_ in `src/assistant/core/` | [modules](modules.md#find-a-module-then-open-its-menu) |
+| Module directory | One line per module (`ListModules`), then that module's menu (`GetMenu`), plus the core's own menu (`modules.*`: list, menu, on, off, reload, add). Built; the Talker and the Main Assistant using it are planned | `src/assistant/core/directory.py`, `app.py` | [modules](modules.md#find-a-module-then-open-its-menu) |
 | Lifecycle Manager | Initializes, starts, and stops modules in dependency order; turns modules on and off at runtime; reloads a module's code and adds new modules (with `core/loader.py`) | `src/assistant/core/lifecycle.py` | [core](core.md#lifecycle) |
 | DI Container | Resolves shared contracts to the implementations modules provide | `src/assistant/core/container.py` | [core](core.md#communication-internals) |
 | Command Router | Routes each command to its single handler and returns the result | `src/assistant/core/router.py` | [core](core.md#communication-internals) |

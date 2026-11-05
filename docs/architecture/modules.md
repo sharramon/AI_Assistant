@@ -31,15 +31,15 @@ Colors in the pictures: solid lines are built today, dashed orange is planned. B
 
 One shortcut to one module. The Talker turns its SHOW tags into the viewer's `viewer.open` / `viewer.highlight`; the Main Assistant can't call module tools at all, so the viewer watches its SHOW tags instead. The core keeps a flat list of tools, with no directory and no one-line descriptions.
 
-### Step by step (planned)
+### Step by step (the asks built; the agents using them planned)
 
 [![Step by step: list modules, open one menu, call one item](img/module-directory-2-steps.svg)](img/module-directory-2-steps.svg)
 
-1. **List modules** (planned): the directory, one line each, from each manifest's description.
-2. **Give me its menu** (planned): that module's `ToolSpec`s only.
-3. **Call an item** (built): `InvokeTool(name, args)`, routed to the module that offers it.
+1. **List modules** (built): `ListModules`, the directory, one line each, from each manifest's description.
+2. **Give me its menu** (built): `GetMenu(id)`, that module's `ToolSpec`s only, read from its class, so it works while the module is off.
+3. **Call an item** (built): `InvokeTool(name, args)`, routed to the module that offers it (the module must be on).
 
-Asks 1 and 2 are new core asks: `ListModules` with a one-line description per module, and `GetMenu(id)`. The agents send all three asks through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
+The core has a menu of its own under the id `core`: `modules.list`, `modules.menu`, `modules.on`, `modules.off`, `modules.reload`, `modules.add`. So anything that can call a menu item can also find modules and turn them on, off, or reload them. The risky items (turning off with dependents, adding new code) ask the permissions first. The agents will send all three asks through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05; planned).
 
 ### What changes
 
@@ -170,7 +170,8 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | `ModuleProtocol`: the one interface, `Module` renamed | Built (2026-11-05) |
 | Manifest description, commands (`handles`, `sends`) and events (`publishes`, `listens`) | Built (2026-11-05); the core warns on an unlisted handled command, refusing it is planned |
 | `ctx.logs` port | Planned |
-| Directory and menu asks; both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
+| Directory and menu asks (`ListModules` with descriptions, `GetMenu`, the core's `modules.*` menu) | Built (2026-11-05) |
+| Both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
 | Finding modules by folder | Planned |
 | Voice contract; voice sessions with a destination | Planned |
 | Voice-notes module | v1 built (2026-11-04), without the voice contract; the version that requires it is planned |

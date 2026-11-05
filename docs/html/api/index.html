@@ -223,7 +223,17 @@
 <tr>
 <td><a href="control.html#listmodules"><code>ListModules</code></a></td>
 <td>command</td>
-<td>Every available module and its state</td>
+<td>The directory: every module, one line each (id, description, state)</td>
+</tr>
+<tr>
+<td><a href="control.html#getmenu"><code>GetMenu</code></a></td>
+<td>command</td>
+<td>One module's menu (<code>ToolSpec</code>s), on or off; <code>core</code> for module control</td>
+</tr>
+<tr>
+<td><a href="control.html#the-cores-menu">The core's menu</a></td>
+<td>menu</td>
+<td><code>modules.list / menu / on / off / reload / add</code>; the risky ones ask first</td>
 </tr>
 <tr>
 <td><a href="control.html#activatemodule"><code>ActivateModule</code></a></td>
@@ -556,6 +566,11 @@
 <td><a href="core.html#dispatch_tool"><code>dispatch_tool</code></a></td>
 <td>function</td>
 <td>The <code>InvokeTool</code> handler</td>
+</tr>
+<tr>
+<td><a href="core.html#coremenu"><code>CoreMenu</code></a></td>
+<td>class</td>
+<td>The core's own menu (<code>modules.*</code>), id <code>core</code></td>
 </tr>
 </tbody>
 </table>

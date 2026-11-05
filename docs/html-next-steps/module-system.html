@@ -301,7 +301,13 @@ class HtmlViewerModule(ModuleProtocol):
 <td>yes (contracts, core)</td>
 </tr>
 <tr>
-<td>3 to 9</td>
+<td>3</td>
+<td>built: <code>ModuleInfo.description</code>, <code>GetMenu</code> (read from the class, on or off), the core's own menu <code>modules.list / menu / on / off / reload / add</code> (<code>core/directory.py</code>, id <code>core</code>), the risky items asking the permissions first</td>
+<td>see <code>git log</code> ("Module system, chunk 3")</td>
+<td>yes (contracts, core)</td>
+</tr>
+<tr>
+<td>4 to 9</td>
 <td>not started</td>
 <td></td>
 <td></td>
@@ -317,6 +323,8 @@ class HtmlViewerModule(ModuleProtocol):
 <li><strong>D5 (chunk 2): the menu's items are the module's own methods.</strong> The viewer's existing <code>show</code> / <code>highlight</code> / <code>tabs</code> are decorated directly; no wrapper methods. A plain return value becomes <code>Result.ok</code>.</li>
 <li><strong>D6 (chunk 2): <code>IToolProvider</code> stays public.</strong> Modules use <code>Menu</code>; <code>IToolProvider</code> stays for providers whose tools change at runtime (the gateway, later) and the core's <code>MenuTools</code>. The echo stand-in's <code>/tools</code> still lists every provider, so it now lists its own <code>echo.say</code> too.</li>
 <li><strong>D7 (chunk 2): the library's "On" column is the default config.</strong> Generated from <code>config/default.toml</code> <code>modules.enabled</code>, not your <code>.local</code> override, so the docs don't change with your machine. Its "Contracts" column is new (provides / requires / optional); the hand-written "Handles: <code>InvokeTool</code> (its tools)" became the "Menu" column.</li>
+<li><strong>D8 (chunk 3): the core's approval goes through a permissions object, today the allow-all stand-in.</strong> There's no handler that can ask you yet, so <code>modules.off</code> with dependents and <code>modules.add</code> call <code>permissions.request(...)</code> on <code>AllowAllPermissions("core")</code>, which allows and logs. When the permissions handler lands (or the MCP door in chunk 8 puts agent calls through the permission card), they ask you. <code>modules.reload</code> doesn't ask: reloads are routine (<code>RELOAD:</code> lines).</li>
+<li><strong>D9 (chunk 3): the core's menu has the id <code>core</code>, reserved.</strong> <code>Manifest(id="core")</code> now raises. <code>ListModules</code> stays modules only; <code>GetMenu("core")</code> and <code>modules.menu</code> give the core's items, and the door (chunk 8) will add a <code>core</code> line to its list.</li>
 <li><strong>Known flake 2:</strong> <code>tests/test_html_viewer.py::test_refuses_what_it_cant_do</code> once hit a socket abort in a full run and passed alone (the viewer app's server, untouched here).</li>
 </ul>
 <p><strong>Before the build (2026-11-05):</strong> this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in <code>docs/temp/</code> (not in the docs build): <code>tool-paths.html</code>, <code>tool-mcp-wrapper.html</code>, and <code>one-door-vs-many.html</code>.</p>
@@ -363,7 +371,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 </tbody>
 </table>
-<p><strong>Next:</strong> chunk 3 (the directory: <code>ModuleInfo.description</code>, <code>GetMenu</code>, the core's <code>modules.*</code> menu with approval for the risky ones). The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</p>
+<p><strong>Next:</strong> chunk 4 (find by folder: the core scans <code>src/assistant/modules/</code>, reusing <code>core/loader.py</code>; the <code>MODULES</code> list in <code>__main__.py</code> goes; folder name = manifest id; a bad folder is skipped and logged). The HTTP spike for chunk 8 is still to do; do it at the start of chunk 8 if not before. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</p>
 <h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
 <p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
 <ul>

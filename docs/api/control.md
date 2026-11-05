@@ -8,7 +8,7 @@ Every module listed in `src/assistant/__main__.py` is **available**; `modules.en
 
 `ListModules()` (command)
 
-Every available module and its current state.
+The module directory: every available module, one line each (its id, one-line description and current state).
 
 **Returns:** `Result.ok(list[ModuleInfo])`, in the order the modules are listed in `__main__.py`.
 
@@ -18,6 +18,42 @@ Every available module and its current state.
     active = [m.id for m in result.value if m.state is ModuleState.ACTIVE]
 
 **Defined in:** `src/assistant/contracts/control.py`
+
+## `GetMenu`
+
+`GetMenu(module_id: str)` (command)
+
+One module's menu: the second step of the directory. Read from the module's class, so it works while the module is off; its items are called with [`InvokeTool`](tools.md#invoketool), which needs the module on. `module_id="core"` gives the core's own menu (below).
+
+**Returns**
+| Status | When |
+|--------|------|
+| `ok` | Value: `list[ToolSpec]`, in the order declared; empty if the module has no menu |
+| `invalid_arguments` | No module has that id |
+
+**Example**
+
+    specs = (await ctx.send(GetMenu(module_id="html_viewer"))).value
+    result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/index.html"}))
+
+**Defined in:** `src/assistant/contracts/control.py`
+
+## The core's menu
+
+Module control as menu items, under the id `core` (`GetMenu(module_id="core")`), called with `InvokeTool` like any module's items. Each sends the matching command above, so results and errors are the same.
+
+| Item | Arguments | Sends | Asks first |
+|------|-----------|-------|------------|
+| `modules.list` | none | `ListModules` | no |
+| `modules.menu` | `module_id` | `GetMenu` | no |
+| `modules.on` | `module_id` | `ActivateModule` | no |
+| `modules.off` | `module_id`, `with_dependents` (false) | `DeactivateModule` | with `with_dependents` |
+| `modules.reload` | `module_id`, `now` (false) | `ReloadModule` | no |
+| `modules.add` | `package`, `activate` (true) | `AddModule` | yes |
+
+"Asks first" goes through the core's permissions (`modules.off_with_dependents`, `modules.add`); today that's the allow-all stand-in, which logs. Refused → `failed` ("Not allowed: …"). Through `InvokeTool` a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and `ModuleStateChanged` reports it.
+
+**Defined in:** `src/assistant/core/directory.py`
 
 ## `ActivateModule`
 
@@ -113,6 +149,7 @@ Load a module that wasn't there at launch, from its package, and activate it unl
 |------|------|-------------|
 | `id` | `str` | Manifest id |
 | `state` | `ModuleState` | Current state |
+| `description` | `str` | The manifest's one line on what it does |
 | `provides` | `tuple[str, ...]` | Contract class names it provides |
 | `requires` | `tuple[str, ...]` | Contract class names it requires |
 

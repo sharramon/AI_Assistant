@@ -15,7 +15,7 @@ Every reusable part, one line each. **Check here before writing a helper**; afte
 | Event Bus (`ctx.subscribe` / `ctx.publish`) | core | The stream for any event: voice text, agent activity, usage | `core/bus.py` | every module |
 | [`InputReceived`](messaging.md#inputreceived) | event | User input from any source | `contracts/messages.py` | `console_io`, `temp_ui`, `voice_in` (`source="voice"`) → `talker`, `echo_orchestrator` |
 | [`ResponseReady`](messaging.md#responseready) | event | A reply to present | `contracts/messages.py` | `talker`, `echo_orchestrator` → `console_io`, `temp_ui` |
-| [`Menu`](modules.md#menu) | part | A module's actions: items with a schema, checked arguments, read without starting the module, linked to the running copy by the core | `contracts/menu.py` | `html_viewer`, `echo_orchestrator`; the core (`MenuTools`), `scripts/build_docs.py` |
+| [`Menu`](modules.md#menu) | part | A module's actions: items with a schema, checked arguments, read without starting the module, linked to the running copy by the core | `contracts/menu.py` | `html_viewer`, `echo_orchestrator`; the core (`MenuTools`, its own `CoreMenu`), `scripts/build_docs.py` |
 | [`IToolProvider`](tools.md#itoolprovider) | contract | Something offering tools by name | `contracts/tools.py` | the core's `MenuTools` (every module menu); called via `InvokeTool` |
 | [`ITaskAgent`](agents.md#itaskagent) | contract | An agent that takes tasks, with an optional permission mode | `contracts/agents.py` | `main_assistant` → `agent_hub` |
 | [`AgentActivity`](agents.md#agentactivity) | event | An agent's raw activity | `contracts/agents.py` | `SessionTaskAgent` → `agent_hub`, `assistant_view`, `temp_ui`, `html_viewer` |

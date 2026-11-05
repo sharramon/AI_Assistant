@@ -71,7 +71,9 @@ Turning modules on and off while the app runs. Handled by the core. `from assist
 
 | Item | Kind | Summary |
 |------|------|---------|
-| [`ListModules`](control.md#listmodules) | command | Every available module and its state |
+| [`ListModules`](control.md#listmodules) | command | The directory: every module, one line each (id, description, state) |
+| [`GetMenu`](control.md#getmenu) | command | One module's menu (`ToolSpec`s), on or off; `core` for module control |
+| [The core's menu](control.md#the-cores-menu) | menu | `modules.list / menu / on / off / reload / add`; the risky ones ask first |
 | [`ActivateModule`](control.md#activatemodule) | command | Turn a module on, with the providers it requires |
 | [`DeactivateModule`](control.md#deactivatemodule) | command | Turn a module off, respecting dependents |
 | [`ReloadModule`](control.md#reloadmodule) | command | Swap a module's code while the app runs; old code back if the new fails |
@@ -152,3 +154,4 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`is_shared_contract`](core.md#is_shared_contract) | function | Whether a type is a contract from `assistant.contracts` |
 | [`MenuTools`](core.md#menutools) | class | The core's adapter from a module's `Menu` to `IToolProvider` |
 | [`dispatch_tool`](core.md#dispatch_tool) | function | The `InvokeTool` handler |
+| [`CoreMenu`](core.md#coremenu) | class | The core's own menu (`modules.*`), id `core` |

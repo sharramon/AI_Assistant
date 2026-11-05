@@ -276,7 +276,8 @@
 <li>Links each module's <a href="../api/modules.html#menu"><code>Menu</code></a> right after its <code>init</code>: a <a href="../api/core.html#menutools"><code>MenuTools</code></a> adapter provided in the module's name, removed when its context closes, so a reloaded module's menu runs its new code.</li>
 <li>Unknown name → <code>NotAvailable</code>; a name offered by more than one provider → <code>Failed</code>.</li>
 <li>A future <code>ToolsChanged</code> event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.</li>
-<li><strong>Planned:</strong> the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a> asks: one line per module, then one module's <code>ToolSpec</code>s. Calling stays <code>InvokeTool</code>.</li>
+<li>The <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a>: <code>ListModules</code> gives one line per module, <code>GetMenu(id)</code> one module's <code>ToolSpec</code>s (read from its class, on or off). Calling stays <code>InvokeTool</code>.</li>
+<li>The core's own menu (<code>core/directory.py</code>, id <code>core</code>): <code>modules.list / menu / on / off / reload / add</code>, each sending the matching control command. Provided as an <code>IToolProvider</code> in the name <code>core</code> while the app runs. <code>modules.off</code> with dependents and <code>modules.add</code> ask <code>ctx.permissions</code>-style first (today the allow-all stand-in, which logs).</li>
 </ul>
 <h2 id="configuration">Configuration</h2>
 <table>

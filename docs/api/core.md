@@ -167,3 +167,11 @@ The core's adapter from a module's [`Menu`](modules.md#menu) to `IToolProvider`,
 The `InvokeTool` handler. Looks up providers at call time; returns `not_available` for an unknown tool, `failed` for a name offered twice, else the provider's result.
 
 **Defined in:** `src/assistant/core/tools.py`
+
+## `CoreMenu`
+
+`CoreMenu(send, permissions: ModulePermissions)`
+
+The core's own [menu](../api/control.md#the-cores-menu) (`modules.*`), id `core` (`CORE_ID`; no module may use it). `App` builds one with the router's `send` and `AllowAllPermissions("core")` (as `app.core_menu`), and provides it through a `MenuTools` (`app.core_menu_tools`) in the name `core` from `start` to `stop`. `App` also handles `GetMenu`. Tests swap `app.core_menu.permissions` for one that refuses.
+
+**Defined in:** `src/assistant/core/directory.py`

@@ -12,7 +12,9 @@ from assistant.contracts import (
     ActivateModule,
     AddModule,
     DeactivateModule,
+    GetMenu,
     InvokeTool,
+    IToolProvider,
     ListModules,
     Manifest,
     ModuleProtocol,
@@ -25,10 +27,12 @@ from assistant.contracts import (
 from assistant.core.bus import EventBus
 from assistant.core.container import Container
 from assistant.core.context import ScopedContext
+from assistant.core.directory import CORE_ID, CoreMenu
 from assistant.core.lifecycle import LifecycleManager
+from assistant.core.permissions import AllowAllPermissions
 from assistant.core.registry import resolve_modules
 from assistant.core.router import CommandRouter
-from assistant.core.tools import dispatch_tool
+from assistant.core.tools import MenuTools, dispatch_tool
 
 log = logging.getLogger(__name__)
 
@@ -64,11 +68,15 @@ class App:
         self._handlers = {
             InvokeTool: partial(dispatch_tool, self.container),
             ListModules: self._list_modules,
+            GetMenu: self._get_menu,
             ActivateModule: self._activate_module,
             DeactivateModule: self._deactivate_module,
             ReloadModule: self._reload_module,
             AddModule: self._add_module,
         }
+        # The core's own menu (module control), offered through InvokeTool under the id "core".
+        self.core_menu = CoreMenu(self.router.send, AllowAllPermissions(CORE_ID))
+        self.core_menu_tools = MenuTools(CoreMenu.menu, self.core_menu)
         self._stopping = asyncio.Event()
         self.restart_requested = False  # a ShutdownRequested asked for a restart
 
@@ -83,6 +91,7 @@ class App:
     async def start(self) -> None:
         for command_type, handler in self._handlers.items():
             self.router.register(command_type, handler)
+        self.container.provide(IToolProvider, self.core_menu_tools, owner=CORE_ID)
         self.bus.subscribe(ShutdownRequested, self._on_shutdown_requested)
         await self._lifecycle.start()
 
@@ -94,6 +103,7 @@ class App:
         await self._lifecycle.stop()
         for command_type, handler in self._handlers.items():
             self.router.unregister(command_type, handler)
+        self.container.remove_owner(CORE_ID)
         await self.bus.close()
         log.info("Stopped")
 
@@ -107,6 +117,15 @@ class App:
 
     async def _list_modules(self, command: ListModules) -> Result:
         return Result.ok(self._lifecycle.modules())
+
+    async def _get_menu(self, command: GetMenu) -> Result:
+        if command.module_id == CORE_ID:
+            return Result.ok(CoreMenu.menu.specs())
+        try:
+            menu = self._lifecycle.menu(command.module_id)
+        except KeyError:
+            return Result.invalid_arguments(f"No module called {command.module_id!r}")
+        return Result.ok(menu.specs() if menu else [])
 
     # Shielded: if the command times out or is cancelled, the transition still
     # finishes cleanly instead of leaving a module half started or half stopped.

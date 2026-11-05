@@ -16,13 +16,92 @@
 <p>Every module listed in <code>src/assistant/__main__.py</code> is <strong>available</strong>; <code>modules.enabled</code> in config only sets which are active at startup.</p>
 <h2 id="listmodules"><code>ListModules</code></h2>
 <p><code>ListModules()</code> (command)</p>
-<p>Every available module and its current state.</p>
+<p>The module directory: every available module, one line each (its id, one-line description and current state).</p>
 <p><strong>Returns:</strong> <code>Result.ok(list[ModuleInfo])</code>, in the order the modules are listed in <code>__main__.py</code>.</p>
 <p><strong>Example</strong></p>
 <pre><code>result = await ctx.send(ListModules())
 active = [m.id for m in result.value if m.state is ModuleState.ACTIVE]
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="getmenu"><code>GetMenu</code></h2>
+<p><code>GetMenu(module_id: str)</code> (command)</p>
+<p>One module's menu: the second step of the directory. Read from the module's class, so it works while the module is off; its items are called with <a href="tools.html#invoketool"><code>InvokeTool</code></a>, which needs the module on. <code>module_id="core"</code> gives the core's own menu (below).</p>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>Value: <code>list[ToolSpec]</code>, in the order declared; empty if the module has no menu</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td>No module has that id</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>specs = (await ctx.send(GetMenu(module_id="html_viewer"))).value
+result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/index.html"}))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="the-cores-menu">The core's menu</h2>
+<p>Module control as menu items, under the id <code>core</code> (<code>GetMenu(module_id="core")</code>), called with <code>InvokeTool</code> like any module's items. Each sends the matching command above, so results and errors are the same.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Arguments</th>
+<th>Sends</th>
+<th>Asks first</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modules.list</code></td>
+<td>none</td>
+<td><code>ListModules</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>modules.menu</code></td>
+<td><code>module_id</code></td>
+<td><code>GetMenu</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>modules.on</code></td>
+<td><code>module_id</code></td>
+<td><code>ActivateModule</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>modules.off</code></td>
+<td><code>module_id</code>, <code>with_dependents</code> (false)</td>
+<td><code>DeactivateModule</code></td>
+<td>with <code>with_dependents</code></td>
+</tr>
+<tr>
+<td><code>modules.reload</code></td>
+<td><code>module_id</code>, <code>now</code> (false)</td>
+<td><code>ReloadModule</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>modules.add</code></td>
+<td><code>package</code>, <code>activate</code> (true)</td>
+<td><code>AddModule</code></td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p>"Asks first" goes through the core's permissions (<code>modules.off_with_dependents</code>, <code>modules.add</code>); today that's the allow-all stand-in, which logs. Refused → <code>failed</code> ("Not allowed: …"). Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code></p>
 <h2 id="activatemodule"><code>ActivateModule</code></h2>
 <p><code>ActivateModule(module_id: str)</code> (command)</p>
 <p>Turn a module on: a fresh instance, then <code>init</code> and <code>start</code>.</p>
@@ -210,6 +289,11 @@ if not result.is_ok:
 <td><code>state</code></td>
 <td><code>ModuleState</code></td>
 <td>Current state</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td><code>str</code></td>
+<td>The manifest's one line on what it does</td>
 </tr>
 <tr>
 <td><code>provides</code></td>

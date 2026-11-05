@@ -23,18 +23,30 @@ class ModuleState(StrEnum):
 
 
 class ModuleInfo(BaseModel):
-    """One available module and its current state. Contracts are given by class name."""
+    """One available module: its line in the module directory. Contracts are given by class name."""
 
     model_config = ConfigDict(frozen=True)
 
     id: str
     state: ModuleState
+    description: str = ""
     provides: tuple[str, ...] = ()
     requires: tuple[str, ...] = ()
 
 
 class ListModules(Command):
-    """Every available module and its state. Result value: `list[ModuleInfo]`."""
+    """The module directory: every available module, one line each. Result value: `list[ModuleInfo]`."""
+
+
+class GetMenu(Command):
+    """A module's menu, read from its class, so it works while the module is off.
+
+    Result value: `list[ToolSpec]` (empty if it has no menu). `module_id="core"` gives the
+    core's own menu (`modules.*`). Its items are called with `InvokeTool`, which needs the
+    module to be on.
+    """
+
+    module_id: str
 
 
 class ActivateModule(Command):
