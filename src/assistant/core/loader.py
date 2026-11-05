@@ -1,20 +1,29 @@
-"""Imports a module's package fresh, so new code runs without restarting the app.
+"""Finds the modules by folder, and imports a module's package fresh, so new code runs
+without restarting the app.
 
-Generic: knows nothing about which modules exist. A module's package is the package its class
-lives in (e.g. `assistant.modules.voice_in`); everything under it is dropped from `sys.modules`
-and imported again. The shared parts every module holds (core, contracts, infra, app_kit) are
-never reloaded: their classes must stay the same objects.
+Generic: knows nothing about which modules exist. A module is its folder under
+`assistant.modules`, named with its manifest id. A module's package is the package its class
+lives in (e.g. `assistant.modules.voice_in`); on a reload everything under it is dropped from
+`sys.modules` and imported again. The shared parts every module holds (core, contracts, infra,
+app_kit) are never reloaded: their classes must stay the same objects.
 """
 
 from __future__ import annotations
 
 import importlib
+import logging
+import pkgutil
 import shutil
 import sys
 from pathlib import Path
 from types import ModuleType
 
 from assistant.contracts import ModuleProtocol
+
+log = logging.getLogger(__name__)
+
+# Where the modules live: one sub-folder (package) per module, named with its manifest id.
+MODULES_PACKAGE = "assistant.modules"
 
 # Packages whose classes are shared by every module. Reloading them (or anything inside them)
 # would break isinstance checks and contract identity, so they still need a restart.
@@ -95,3 +104,34 @@ def find_module_class(package: ModuleType, module_id: str | None = None) -> type
         what = f"module {module_id!r}" if module_id else "a module"
         raise LoadError(f"{prefix!r} must export exactly one class for {what}; found {len(found)}")
     return found.pop()
+
+
+def check_folder(cls: type[ModuleProtocol], package: str, root: str = MODULES_PACKAGE) -> None:
+    """Raise LoadError if a module folder under `root` isn't named with its module's id."""
+    parent, _, folder = package.rpartition(".")
+    if parent == root and cls.manifest.id != folder:
+        raise LoadError(
+            f"{package!r} holds the module {cls.manifest.id!r}; a module's folder must be named with its id"
+        )
+
+
+def find_modules(root: str = MODULES_PACKAGE) -> list[type[ModuleProtocol]]:
+    """Every module under `root`, sorted by folder: one per sub-folder with an `__init__.py`
+    that exports exactly one `ModuleProtocol` class whose id is the folder's name.
+
+    A folder that fails to import, has no module class (or two), or a different id is skipped
+    and logged; the rest still load. Folders starting with `_` are ignored.
+    """
+    found = []
+    for info in sorted(pkgutil.iter_modules(importlib.import_module(root).__path__), key=lambda i: i.name):
+        if not info.ispkg or info.name.startswith("_"):
+            continue
+        package = f"{root}.{info.name}"
+        try:
+            cls = find_module_class(importlib.import_module(package))
+            check_folder(cls, package, root)
+        except Exception as exc:
+            log.warning("Skipping the module folder %s: %s", package, exc, exc_info=not isinstance(exc, LoadError))
+            continue
+        found.append(cls)
+    return found

@@ -145,7 +145,7 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`StartupError`](core.md#startuperror) | exception | The configured modules can't start together |
 | [`resolve_modules`](core.md#resolve_modules) | function | Select enabled modules, validate dependencies, return start order |
 | [`LifecycleManager`](core.md#lifecyclemanager) | class | Init, start, and stop modules in dependency order; activate, deactivate, reload, and add at runtime |
-| [`loader`](core.md#loader) | functions | Fresh import of a module's package; what may be reloaded |
+| [`loader`](core.md#loader) | functions | Find the modules by folder (`find_modules`); fresh import of a module's package; what may be reloaded |
 | [`ScopedContext`](core.md#scopedcontext) | class | The `ModuleContext` implementation; undoes registrations on close |
 | [`AllowAllPermissions`](core.md#allowallpermissions) | class | The `ctx.permissions` stand-in: allows, warns once per module and permission |
 | [`CommandRouter`](core.md#commandrouter) | class | One handler per command; timeouts, cancellation, `Result`s |

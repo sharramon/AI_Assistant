@@ -99,7 +99,7 @@ Everything below runs in one Python process, on one `asyncio` event loop (plus `
 flowchart TB
     Run(["python -m assistant"]) --> Launch["<b>__main__.launch()</b><br/>runs the app as a child process"]
     Launch --> Main["<b>__main__.run_app()</b><br/>load_config · LogSession · setup_logging"]
-    Main --> AppNew["<b>App(MODULES, config)</b><br/>builds CommandRouter, EventBus, Container<br/>resolve_modules → start order<br/>LifecycleManager"]
+    Main --> AppNew["<b>App(find_modules(), config)</b><br/>builds CommandRouter, EventBus, Container<br/>resolve_modules → start order<br/>LifecycleManager"]
     AppNew --> AppRun["<b>asyncio.run(app.run())</b>"]
     AppRun --> AppStart["<b>App.start()</b><br/>registers the core's own handlers<br/>(ListModules, ActivateModule, …)"]
     AppStart --> LStart["<b>LifecycleManager.start()</b>"]

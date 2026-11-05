@@ -83,8 +83,8 @@ class AddModule(Command):
     """Load a module that wasn't there at launch, from its package (e.g. `assistant.modules.weather`).
 
     Result value: the new module's id. Fails if its code needs a contract the running app
-    doesn't have: new contracts need a restart. To keep it on the next launch, it must also be
-    listed in `MODULES` (and in `modules.enabled` to start then).
+    doesn't have: new contracts need a restart. Under `assistant.modules`, its folder must be
+    named with its id. The next launch finds it by folder (`modules.enabled` to start it then).
     """
 
     package: str

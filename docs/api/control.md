@@ -127,7 +127,7 @@ Swap a module's code while the app runs: stop it, import its package fresh (with
 
 `AddModule(package: str, activate: bool = True)` (command)
 
-Load a module that wasn't there at launch, from its package, and activate it unless `activate` is false. Its package must export exactly one `ModuleProtocol` subclass. To keep it on the next launch, add it to `MODULES` in `__main__.py` (and to `modules.enabled`).
+Load a module that wasn't there at launch, from its package, and activate it unless `activate` is false. Its package must export exactly one `ModuleProtocol` subclass; under `assistant.modules`, its folder must be named with its id, else it fails. The next launch finds it by folder; add it to `modules.enabled` to start it then.
 
 **Returns**
 | Status | When |

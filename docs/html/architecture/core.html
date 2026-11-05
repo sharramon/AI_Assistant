@@ -169,7 +169,8 @@
 <p>Modules only ever see the <code>ModuleContext</code> interface (defined in <code>assistant.contracts</code>), never <code>App</code> or these classes.</p>
 <h2 id="lifecycle">Lifecycle</h2>
 <pre><code class="language-mermaid">flowchart TD
-    A[&quot;App(MODULES, config)&quot;] --&gt; B[&quot;resolve_modules&lt;br/&gt;select modules.enabled, validate graph&quot;]
+    S[&quot;find_modules()&lt;br/&gt;one module per folder in src/assistant/modules/&quot;] --&gt; A[&quot;App(modules, config)&quot;]
+    A --&gt; B[&quot;resolve_modules&lt;br/&gt;select modules.enabled, validate graph&quot;]
     B -- invalid --&gt; X[StartupError, nothing runs]
     B --&gt; C[&quot;start(): register InvokeTool handler,&lt;br/&gt;subscribe to ShutdownRequested&quot;]
     C --&gt; D[&quot;init(ctx) each module, in dependency order&quot;]
@@ -241,7 +242,7 @@
 <li><strong>Rollback:</strong> if the new code fails to import, <code>init</code>, or <code>start</code>, the old package and class are put back and started. The result says what failed and that the old code runs again.</li>
 <li><strong>Config:</strong> <code>App</code>'s <code>config_loader</code> (given by <code>__main__</code>) re-reads the config before each reload or add, so the module gets its current <code>modules.&lt;id&gt;</code> section.</li>
 <li><strong>During the swap:</strong> a command with no handler waits for one, up to its timeout (<code>CommandRouter.hold</code>), instead of failing. Events published meanwhile miss the module. Contracts are looked up at call time, so callers get the new instance; no module caches a provider (checked 2026-11-03).</li>
-<li><strong><code>AddModule(package)</code>:</strong> imports a package that wasn't loaded at launch, makes its module available, and activates it. To keep it on the next launch, add it to <code>MODULES</code> and <code>modules.enabled</code>. If its code needs a contract the running app doesn't have, it fails with "needs a restart".</li>
+<li><strong><code>AddModule(package)</code>:</strong> imports a package that wasn't loaded at launch, makes its module available, and activates it. Its folder must be named with its id. The next launch finds it by folder; to start it then, add it to <code>modules.enabled</code>. If its code needs a contract the running app doesn't have, it fails with "needs a restart".</li>
 <li><strong>Not reloadable:</strong> <code>assistant.core</code>, <code>assistant.contracts</code>, <code>assistant.infra</code>, <code>app_kit</code>, and a class that isn't in its own package. Every module holds their classes, so swapping them would break <code>isinstance</code> checks and contract identity.</li>
 <li><strong>Old code left running:</strong> a thread the old copy didn't stop keeps running old code, muted by its closed context. <code>stop</code> must release everything, as before.</li>
 <li><strong>Busy modules:</strong> before stopping, the core asks the module's <a href="../api/modules.html#moduleprotocolbusy"><code>busy()</code></a>. While it gives a reason, the reload waits (polling every 0.2 s, up to <code>core.reload_idle_timeout</code>, 300 s), then fails with that reason. <code>ReloadModule(now=True)</code> cuts in.</li>
@@ -292,7 +293,7 @@
 <tr>
 <td><code>modules.enabled</code></td>
 <td><code>[]</code></td>
-<td>Module ids to run, from the list in <code>__main__.py</code></td>
+<td>Module ids to run, from the modules found by folder</td>
 </tr>
 <tr>
 <td><code>modules.&lt;id&gt;</code></td>
@@ -379,11 +380,10 @@
 <p>Contracts grow as needed. Add a new capability interface when a real module needs it, not in anticipation. The interfaces named above are a starting point, not a fixed list.</p>
 <p>Before writing a helper for it, check the <a href="../api/reusable.html">reusable parts index</a> (<a href="principles.html">principle 13</a>); after building, add any new reusable part there and update the <strong>Used by</strong> lines of the parts it uses. Permissions it needs go in its manifest and are asked through <code>ctx.permissions</code> (<a href="permissions.html">permissions</a>). A module that launches its own app follows the <a href="reusable-parts.html#companion-app-checklist">companion app checklist</a>.</p>
 <ol>
-<li>Create <code>src/assistant/modules/&lt;name&gt;/</code> with a <code>ModuleProtocol</code> subclass. Import only from <code>assistant.contracts</code>, <code>assistant.infra</code>, and <code>app_kit</code>.</li>
-<li>Add the class to <code>MODULES</code> in <code>src/assistant/__main__.py</code>. (Planned: this step goes away once the core <a href="modules.html#found-by-folder">finds modules by folder</a>.)</li>
-<li>Add its id to <code>modules.enabled</code> in config.</li>
+<li>Create <code>src/assistant/modules/&lt;id&gt;/</code>, named with the manifest id, whose <code>__init__.py</code> exports one <code>ModuleProtocol</code> subclass. Import only from <code>assistant.contracts</code>, <code>assistant.infra</code>, and <code>app_kit</code>. The core <a href="modules.html#found-by-folder">finds it by folder</a>.</li>
+<li>Add its id to <code>modules.enabled</code> in config to start it at launch, or <code>AddModule</code> it while the app runs.</li>
 </ol>
-<p>To <strong>replace</strong> a module (e.g. the orchestrator), enable the new id instead of the old one. No core changes; <code>tests/test_app.py::test_orchestrator_is_replaceable_by_config_alone</code> checks this. To <strong>remove</strong> one, delete its folder, its <code>MODULES</code> entry, and its config.</p>
+<p>To <strong>replace</strong> a module (e.g. the orchestrator), enable the new id instead of the old one. No core changes; <code>tests/test_app.py::test_orchestrator_is_replaceable_by_config_alone</code> checks this. To <strong>remove</strong> one, delete its folder and its config.</p>
 <h2 id="running">Running</h2>
 <pre><code class="language-powershell">py -3.12 -m venv .venv
 .\.venv\Scripts\python -m pip install -e &quot;.[dev]&quot;

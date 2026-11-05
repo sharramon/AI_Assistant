@@ -14,7 +14,7 @@
 <h1 id="core-host-internal">Core host (internal)</h1>
 <p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
 <h2 id="app"><code>App</code></h2>
-<p><code>App(available: Sequence[type[Module]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)</code></p>
+<p><code>App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)</code></p>
 <p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> and the <a href="control.html">module control</a> commands, including <code>ReloadModule</code> and <code>AddModule</code>.</p>
 <p><strong>Parameters</strong></p>
 <table>
@@ -29,9 +29,9 @@
 <tbody>
 <tr>
 <td><code>available</code></td>
-<td><code>Sequence[type[Module]]</code></td>
+<td><code>Sequence[type[ModuleProtocol]]</code></td>
 <td>yes</td>
-<td>Every module the app can run (<code>MODULES</code> in <code>__main__.py</code>)</td>
+<td>Every module the app can run: <code>__main__</code> passes <a href="#loader"><code>find_modules()</code></a></td>
 </tr>
 <tr>
 <td><code>config</code></td>
@@ -81,12 +81,12 @@
 <p>The configured modules can't run together: raised by <a href="#resolve_modules"><code>resolve_modules</code></a> or by <a href="#lifecyclemanager"><code>LifecycleManager.start</code></a> when a required provider fails.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/registry.py</code></p>
 <h2 id="resolve_modules"><code>resolve_modules</code></h2>
-<p><code>resolve_modules(available: Sequence[type[Module]], enabled: Sequence[str]) -&gt; list[type[Module]]</code></p>
+<p><code>resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence[str]) -&gt; list[type[ModuleProtocol]]</code></p>
 <p>Select the <code>enabled</code> modules and return them in start order: providers before the modules that require or optionally use them, otherwise in <code>enabled</code> order.</p>
 <p><strong>Raises:</strong> <code>StartupError</code> for unknown or duplicate ids, non-shared contracts in a manifest, a missing required contract, more than one provider of a single-provider contract, or a circular dependency.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/registry.py</code></p>
 <h2 id="lifecyclemanager"><code>LifecycleManager</code></h2>
-<p><code>LifecycleManager(available: Sequence[type[Module]], start_order: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0, on_change: Callable[[str, ModuleState], None] | None = None)</code></p>
+<p><code>LifecycleManager(available: Sequence[type[ModuleProtocol]], start_order: list[type[ModuleProtocol]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0, on_change: Callable[[str, ModuleState], None] | None = None)</code></p>
 <p><code>available</code> is every module that may run; <code>start_order</code> is the validated list active at startup (from <code>resolve_modules</code>). <code>on_change</code> is called on every state transition; <code>App</code> publishes it as <code>ModuleStateChanged</code>. Transitions are serialized by a lock.</p>
 <table>
 <thead>
@@ -128,7 +128,7 @@
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/lifecycle.py</code></p>
 <h2 id="loader"><code>loader</code></h2>
-<p>Functions for loading a module's code fresh. Generic: they know no module by name.</p>
+<p>Functions for finding the modules by folder and loading a module's code fresh. Generic: they know no module by name.</p>
 <table>
 <thead>
 <tr>
@@ -137,6 +137,14 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>find_modules(root="assistant.modules") -&gt; list[type[ModuleProtocol]]</code></td>
+<td>Every module under <code>root</code>, sorted by folder: one per sub-package whose one <code>ModuleProtocol</code> class has the folder's name as its id. A bad folder is skipped with a warning; <code>_</code> folders are ignored. Also exported as <code>assistant.core.find_modules</code></td>
+</tr>
+<tr>
+<td><code>check_folder(cls, package, root="assistant.modules")</code></td>
+<td>Raises <code>LoadError</code> if a package directly under <code>root</code> holds a module with another id. <code>AddModule</code> uses it too</td>
+</tr>
 <tr>
 <td><code>package_of(cls) -&gt; str</code></td>
 <td>The package a module class lives in</td>

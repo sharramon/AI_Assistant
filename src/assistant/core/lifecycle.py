@@ -166,6 +166,7 @@ class LifecycleManager:
                     raise loader.LoadError(f"{package!r} is already loaded; use ReloadModule")
                 loader.drop(package)
                 cls = loader.find_module_class(loader.import_fresh(package))
+                loader.check_folder(cls, package)
             except Exception as exc:
                 log.error("Adding %s failed", package, exc_info=exc)
                 return Result.failed(f"Couldn't load {package!r}: {exc}")

@@ -1,4 +1,5 @@
-"""Composition root: the only place that names concrete modules. Run with `python -m assistant`.
+"""Composition root. Run with `python -m assistant`. It names no module: the core finds them
+by folder (`src/assistant/modules/<id>/`), and `modules.enabled` in config says which start.
 
 `python -m assistant` is a small launcher: it runs the app as a child process in the same
 console and starts it again whenever it exits with the restart code (`core.restart_exit_code`,
@@ -16,33 +17,8 @@ from collections.abc import Callable
 from typing import Any
 
 from assistant.contracts import SessionTheme
-from assistant.core import App, StartupError
+from assistant.core import App, StartupError, find_modules
 from assistant.infra import LogSession, load_config, setup_logging
-from assistant.modules.agent_hub import AgentHubModule
-from assistant.modules.assistant_view import AssistantViewModule
-from assistant.modules.console_io import ConsoleIO
-from assistant.modules.echo_orchestrator import EchoOrchestrator
-from assistant.modules.html_viewer import HtmlViewerModule
-from assistant.modules.main_assistant import MainAssistantModule
-from assistant.modules.talker import TalkerModule
-from assistant.modules.temp_ui import TempUIModule
-from assistant.modules.voice_in import VoiceInModule
-from assistant.modules.voice_notes import VoiceNotesModule
-
-# Every module the app can run. Which ones actually start is set by
-# `modules.enabled` in config.
-MODULES = [
-    ConsoleIO,
-    EchoOrchestrator,
-    AgentHubModule,
-    MainAssistantModule,
-    TalkerModule,
-    AssistantViewModule,
-    TempUIModule,
-    HtmlViewerModule,
-    VoiceInModule,
-    VoiceNotesModule,
-]
 
 log = logging.getLogger("assistant")
 
@@ -80,7 +56,7 @@ def run_app() -> int:
     setup_logging(config["logging"], [logs.handler])
     app = None
     try:
-        app = App(MODULES, config, lambda: wire_modules(load_config(), logs))
+        app = App(find_modules(), config,lambda: wire_modules(load_config(), logs))
         asyncio.run(_run(app, logs))
     except StartupError as exc:
         log.error("Startup failed: %s", exc)

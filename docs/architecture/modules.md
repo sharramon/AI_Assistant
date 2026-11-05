@@ -2,7 +2,7 @@
 
 How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in [core](core.md); the messages are in [communication](communication.md). Each module's own page, and every module's interface side by side: the [module library](module-library.md). Back to the [overview](README.md).
 
-> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), the `Menu` part (the HTML viewer's and the echo stand-in's), the generated module library, `requires` by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
+> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), the `Menu` part (the HTML viewer's and the echo stand-in's), the generated module library, `requires` by contract, reloading a module while the app runs, the directory (`ListModules`, `GetMenu`, the core's `modules.*` menu), and finding modules by folder. Planned: both assistants using the directory, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
 
 ## A module is a wrapper with a menu
 
@@ -152,11 +152,12 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 
 ## Found by folder
 
-> **Status: planned.** Today each module is imported by hand in `__main__.py` and listed in `MODULES`.
+> **Status: built (2026-11-05).** `find_modules()` in `core/loader.py`; `__main__.py` names no module.
 
-- **A module is its folder:** `src/assistant/modules/<id>/`, with the folder name equal to the manifest id.
-- **The core scans the folder** to know which modules are available; `modules.enabled` still says which start. It reuses the reload's loader (`core/loader.py`).
-- **Adding a module is adding a folder,** then `AddModule` while the app runs, or a restart.
+- **A module is its folder:** `src/assistant/modules/<id>/`, with the folder name equal to the manifest id. Its `__init__.py` exports exactly one `ModuleProtocol` class.
+- **The core scans the folder** at launch to know which modules are available; `modules.enabled` still says which start. It reuses the reload's loader (`core/loader.py`). Folders starting with `_` are ignored.
+- **A bad folder is skipped and logged** (it fails to import, exports no module class or two, or its id isn't the folder's name); the other modules still load. If it was in `modules.enabled`, startup then fails with "Enabled modules not found".
+- **Adding a module is adding a folder,** then `AddModule("assistant.modules.<id>")` while the app runs (which refuses a folder named differently from its id), or a restart.
 
 ## Built and planned
 
@@ -172,7 +173,7 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | `ctx.logs` port | Planned |
 | Directory and menu asks (`ListModules` with descriptions, `GetMenu`, the core's `modules.*` menu) | Built (2026-11-05) |
 | Both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
-| Finding modules by folder | Planned |
+| Finding modules by folder | Built (2026-11-05) |
 | Voice contract; voice sessions with a destination | Planned |
 | Voice-notes module | v1 built (2026-11-04), without the voice contract; the version that requires it is planned |
 | A page per module and the [module library](module-library.md) | Built; the library's table is generated from the manifests and menus (2026-11-05), the module pages are hand-written |

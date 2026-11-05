@@ -14,7 +14,7 @@
 <h1 id="modules">Modules</h1>
 <p>How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in <a href="core.html">core</a>; the messages are in <a href="communication.html">communication</a>. Each module's own page, and every module's interface side by side: the <a href="module-library.html">module library</a>. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), the <code>Menu</code> part (the HTML viewer's and the echo stand-in's), the generated module library, <code>requires</code> by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
+<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), the <code>Menu</code> part (the HTML viewer's and the echo stand-in's), the generated module library, <code>requires</code> by contract, reloading a module while the app runs, the directory (<code>ListModules</code>, <code>GetMenu</code>, the core's <code>modules.*</code> menu), and finding modules by folder. Planned: both assistants using the directory, a voice contract, and voice sessions. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
 </blockquote>
 <h2 id="a-module-is-a-wrapper-with-a-menu">A module is a wrapper with a menu</h2>
 <p>Every module has the same <strong>wrapper</strong>, owned by the core, and inside it a <strong>menu</strong> of what it can do.</p>
@@ -197,12 +197,13 @@
 <p>A module's code is swapped while the app runs: <code>ReloadModule</code> stops it, imports its package fresh, and starts a new instance; if the new code fails, the old code runs again. <code>AddModule</code> loads a brand-new module. Changes to the core, contracts, <code>infra</code>, <code>app_kit</code>, or <code>__main__</code>, and a new contract, still need a restart. Details: <a href="core.html#reloading-a-modules-code">reloading a module's code</a>.</p>
 <h2 id="found-by-folder">Found by folder</h2>
 <blockquote>
-<p><strong>Status: planned.</strong> Today each module is imported by hand in <code>__main__.py</code> and listed in <code>MODULES</code>.</p>
+<p><strong>Status: built (2026-11-05).</strong> <code>find_modules()</code> in <code>core/loader.py</code>; <code>__main__.py</code> names no module.</p>
 </blockquote>
 <ul>
-<li><strong>A module is its folder:</strong> <code>src/assistant/modules/&lt;id&gt;/</code>, with the folder name equal to the manifest id.</li>
-<li><strong>The core scans the folder</strong> to know which modules are available; <code>modules.enabled</code> still says which start. It reuses the reload's loader (<code>core/loader.py</code>).</li>
-<li><strong>Adding a module is adding a folder,</strong> then <code>AddModule</code> while the app runs, or a restart.</li>
+<li><strong>A module is its folder:</strong> <code>src/assistant/modules/&lt;id&gt;/</code>, with the folder name equal to the manifest id. Its <code>__init__.py</code> exports exactly one <code>ModuleProtocol</code> class.</li>
+<li><strong>The core scans the folder</strong> at launch to know which modules are available; <code>modules.enabled</code> still says which start. It reuses the reload's loader (<code>core/loader.py</code>). Folders starting with <code>_</code> are ignored.</li>
+<li><strong>A bad folder is skipped and logged</strong> (it fails to import, exports no module class or two, or its id isn't the folder's name); the other modules still load. If it was in <code>modules.enabled</code>, startup then fails with "Enabled modules not found".</li>
+<li><strong>Adding a module is adding a folder,</strong> then <code>AddModule("assistant.modules.&lt;id&gt;")</code> while the app runs (which refuses a folder named differently from its id), or a restart.</li>
 </ul>
 <h2 id="built-and-planned">Built and planned</h2>
 <table>
@@ -255,7 +256,7 @@
 </tr>
 <tr>
 <td>Finding modules by folder</td>
-<td>Planned</td>
+<td>Built (2026-11-05)</td>
 </tr>
 <tr>
 <td>Voice contract; voice sessions with a destination</td>

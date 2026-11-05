@@ -148,7 +148,7 @@
 <pre><code class="language-mermaid">flowchart TB
     Run([&quot;python -m assistant&quot;]) --&gt; Launch[&quot;&lt;b&gt;__main__.launch()&lt;/b&gt;&lt;br/&gt;runs the app as a child process&quot;]
     Launch --&gt; Main[&quot;&lt;b&gt;__main__.run_app()&lt;/b&gt;&lt;br/&gt;load_config · LogSession · setup_logging&quot;]
-    Main --&gt; AppNew[&quot;&lt;b&gt;App(MODULES, config)&lt;/b&gt;&lt;br/&gt;builds CommandRouter, EventBus, Container&lt;br/&gt;resolve_modules → start order&lt;br/&gt;LifecycleManager&quot;]
+    Main --&gt; AppNew[&quot;&lt;b&gt;App(find_modules(), config)&lt;/b&gt;&lt;br/&gt;builds CommandRouter, EventBus, Container&lt;br/&gt;resolve_modules → start order&lt;br/&gt;LifecycleManager&quot;]
     AppNew --&gt; AppRun[&quot;&lt;b&gt;asyncio.run(app.run())&lt;/b&gt;&quot;]
     AppRun --&gt; AppStart[&quot;&lt;b&gt;App.start()&lt;/b&gt;&lt;br/&gt;registers the core's own handlers&lt;br/&gt;(ListModules, ActivateModule, …)&quot;]
     AppStart --&gt; LStart[&quot;&lt;b&gt;LifecycleManager.start()&lt;/b&gt;&quot;]

@@ -29,4 +29,4 @@ The rules every design and implementation decision follows. If a change conflict
 16. **Chain, don't glue.** A module uses another only through what that one declares (its events, commands, or menu), and a shared service serves several users through sessions with a destination each, never through copies of itself ([modules](modules.md#chaining-modules)). Refines 3; it's 13's "build it once" for running services.
     - **Today:** events between modules are built; voice sessions are planned (the voice service takes one listener at a time).
 17. **Declared dependencies, found by folder.** A module is its folder: the core finds it there and first starts whatever provides the contracts its manifest `requires`; a module depends on contracts, never on another module's id, and never starts another module itself ([modules](modules.md#dependencies)). Extends 11's "dependencies are respected".
-    - **Today:** `requires` by contract is built; finding modules by folder is planned (modules are still listed in `__main__.py`).
+    - **Today:** both built (finding by folder 2026-11-05); the voice contract that voice notes will require is planned.

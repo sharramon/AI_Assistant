@@ -4,14 +4,14 @@ The stable host in `assistant.core`. Modules never use these directly; they go t
 
 ## `App`
 
-`App(available: Sequence[type[Module]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)`
+`App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None)`
 
 Wires the core together and runs the enabled modules. Construction validates the module selection. Handles `InvokeTool` and the [module control](control.md) commands, including `ReloadModule` and `AddModule`.
 
 **Parameters**
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `available` | `Sequence[type[Module]]` | yes | Every module the app can run (`MODULES` in `__main__.py`) |
+| `available` | `Sequence[type[ModuleProtocol]]` | yes | Every module the app can run: `__main__` passes [`find_modules()`](#loader) |
 | `config` | `dict` | yes | From [`load_config`](infra.md#load_config) |
 | `config_loader` | callable | no | Re-reads the config before a reload or add (`__main__` passes `load_config` plus its log wiring) |
 
@@ -38,7 +38,7 @@ The configured modules can't run together: raised by [`resolve_modules`](#resolv
 
 ## `resolve_modules`
 
-`resolve_modules(available: Sequence[type[Module]], enabled: Sequence[str]) -> list[type[Module]]`
+`resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence[str]) -> list[type[ModuleProtocol]]`
 
 Select the `enabled` modules and return them in start order: providers before the modules that require or optionally use them, otherwise in `enabled` order.
 
@@ -48,7 +48,7 @@ Select the `enabled` modules and return them in start order: providers before th
 
 ## `LifecycleManager`
 
-`LifecycleManager(available: Sequence[type[Module]], start_order: list[type[Module]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0, on_change: Callable[[str, ModuleState], None] | None = None)`
+`LifecycleManager(available: Sequence[type[ModuleProtocol]], start_order: list[type[ModuleProtocol]], make_context: Callable[[Manifest], ScopedContext], stop_timeout: float = 5.0, on_change: Callable[[str, ModuleState], None] | None = None)`
 
 `available` is every module that may run; `start_order` is the validated list active at startup (from `resolve_modules`). `on_change` is called on every state transition; `App` publishes it as `ModuleStateChanged`. Transitions are serialized by a lock.
 
@@ -66,10 +66,12 @@ Select the `enabled` modules and return them in start order: providers before th
 
 ## `loader`
 
-Functions for loading a module's code fresh. Generic: they know no module by name.
+Functions for finding the modules by folder and loading a module's code fresh. Generic: they know no module by name.
 
 | Function | Description |
 |----------|-------------|
+| `find_modules(root="assistant.modules") -> list[type[ModuleProtocol]]` | Every module under `root`, sorted by folder: one per sub-package whose one `ModuleProtocol` class has the folder's name as its id. A bad folder is skipped with a warning; `_` folders are ignored. Also exported as `assistant.core.find_modules` |
+| `check_folder(cls, package, root="assistant.modules")` | Raises `LoadError` if a package directly under `root` holds a module with another id. `AddModule` uses it too |
 | `package_of(cls) -> str` | The package a module class lives in |
 | `check_reloadable(package)` | Raises `LoadError` for shared code (`assistant.core`, `.contracts`, `.infra`, `app_kit`), `assistant` / `assistant.modules` themselves, or a top-level name |
 | `drop(package) -> dict` | Remove the package and its submodules from `sys.modules` (and their `__pycache__`); returns them |
