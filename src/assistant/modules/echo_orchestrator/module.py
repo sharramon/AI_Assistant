@@ -5,11 +5,17 @@ Exists to prove the plumbing; replace it by enabling a different orchestrator in
 
 from __future__ import annotations
 
-from assistant.contracts import InputReceived, IToolProvider, Manifest, Module, ModuleContext, ResponseReady
+from assistant.contracts import InputReceived, IToolProvider, Manifest, ModuleContext, ModuleProtocol, ResponseReady
 
 
-class EchoOrchestrator(Module):
-    manifest = Manifest(id="echo_orchestrator", optional=(IToolProvider,))
+class EchoOrchestrator(ModuleProtocol):
+    manifest = Manifest(
+        id="echo_orchestrator",
+        description="Stand-in orchestrator: echoes, /tools",
+        optional=(IToolProvider,),
+        publishes=(ResponseReady,),
+        listens=(InputReceived,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

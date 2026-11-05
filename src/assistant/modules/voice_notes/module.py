@@ -39,8 +39,8 @@ from app_kit.window import close_app_windows, open_app_window
 from assistant.contracts import (
     ListeningState,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     StartListening,
     Status,
     StopListening,
@@ -53,8 +53,13 @@ TAKEN_OVER = "taken_over"  # VoiceState reason: another part of the app took the
 ENDED = (ListeningState.IDLE, ListeningState.FAILED)
 
 
-class VoiceNotesModule(Module):
-    manifest = Manifest(id="voice_notes")
+class VoiceNotesModule(ModuleProtocol):
+    manifest = Manifest(
+        id="voice_notes",
+        description="Speak into a page of notes; the words never go to the Talker",
+        sends=(StartListening, StopListening,),
+        listens=(VoiceState, VoiceTranscript,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

@@ -32,8 +32,8 @@ from assistant.contracts import (
     InputReceived,
     InvokeTool,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     PermissionMode,
     PermissionModeChanged,
     ReportKind,
@@ -235,8 +235,14 @@ class _Item:
     restart_note: bool = False  # the last session's reset instructions: deleted once sent
 
 
-class TalkerModule(Module):
-    manifest = Manifest(id="talker")
+class TalkerModule(ModuleProtocol):
+    manifest = Manifest(
+        id="talker",
+        description="Talks with you; hands work to the Agent Hub",
+        sends=(StartTask, GetTaskStatus, SendToTask, CancelTask, AnswerPermission, SetPermissionMode, InvokeTool,),
+        publishes=(ResponseReady, SessionUsage, SessionTheme, ResetRequested, ShutdownRequested,),
+        listens=(InputReceived, TaskUpdated, SessionUsage, ResetRequested, PermissionModeChanged, ViewerTabsChanged, ViewerClip, ViewerClipDropped,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

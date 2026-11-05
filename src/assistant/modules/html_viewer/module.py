@@ -26,8 +26,8 @@ from assistant.contracts import (
     AgentActivity,
     IToolProvider,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     Result,
     ToolSpec,
     ViewerClip,
@@ -38,8 +38,14 @@ from assistant.infra.agent_tags import find_tags, parse_show
 DEFAULT_PROFILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / "html_viewer_window"
 
 
-class HtmlViewerModule(Module):
-    manifest = Manifest(id="html_viewer", provides=(IToolProvider,))
+class HtmlViewerModule(ModuleProtocol):
+    manifest = Manifest(
+        id="html_viewer",
+        description="View, edit, highlight and snip HTML; launches the viewer app",
+        provides=(IToolProvider,),
+        publishes=(ViewerTabsChanged, ViewerClip,),
+        listens=(AgentActivity,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

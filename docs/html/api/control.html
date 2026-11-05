@@ -136,7 +136,7 @@ if not result.is_ok:
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="reloadmodule"><code>ReloadModule</code></h2>
 <p><code>ReloadModule(module_id: str, now: bool = False)</code> (command)</p>
-<p>Swap a module's code while the app runs: stop it, import its package fresh (with every submodule), re-read its config section, start the new code. Active modules that require something only it provides are stopped and started around it. If the module says it's <a href="modules.html#modulebusy"><code>busy</code></a>, the reload waits until it isn't (up to <code>core.reload_idle_timeout</code>, 300 s), unless <code>now</code>, which cuts in. The old instance's <a href="modules.html#moduleexport_state"><code>export_state</code></a> reaches the new one as <code>ctx.handover</code>. How it works: <a href="../architecture/core.html#reloading-a-modules-code">reloading</a>.</p>
+<p>Swap a module's code while the app runs: stop it, import its package fresh (with every submodule), re-read its config section, start the new code. Active modules that require something only it provides are stopped and started around it. If the module says it's <a href="modules.html#moduleprotocolbusy"><code>busy</code></a>, the reload waits until it isn't (up to <code>core.reload_idle_timeout</code>, 300 s), unless <code>now</code>, which cuts in. The old instance's <a href="modules.html#moduleprotocolexport_state"><code>export_state</code></a> reaches the new one as <code>ctx.handover</code>. How it works: <a href="../architecture/core.html#reloading-a-modules-code">reloading</a>.</p>
 <p><strong>Returns</strong></p>
 <table>
 <thead>
@@ -166,7 +166,7 @@ if not result.is_ok:
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="addmodule"><code>AddModule</code></h2>
 <p><code>AddModule(package: str, activate: bool = True)</code> (command)</p>
-<p>Load a module that wasn't there at launch, from its package, and activate it unless <code>activate</code> is false. Its package must export exactly one <code>Module</code> subclass. To keep it on the next launch, add it to <code>MODULES</code> in <code>__main__.py</code> (and to <code>modules.enabled</code>).</p>
+<p>Load a module that wasn't there at launch, from its package, and activate it unless <code>activate</code> is false. Its package must export exactly one <code>ModuleProtocol</code> subclass. To keep it on the next launch, add it to <code>MODULES</code> in <code>__main__.py</code> (and to <code>modules.enabled</code>).</p>
 <p><strong>Returns</strong></p>
 <table>
 <thead>

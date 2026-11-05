@@ -2,11 +2,13 @@
 
 Writing a module. All items: `from assistant.contracts import ...`. Back to the [API index](README.md).
 
-## `Module`
+## `ModuleProtocol`
 
-`class Module(ABC)`
+**Reusable** · Used by: every module; the core's loader and lifecycle · built 2026-11-05 (`Module` renamed)
 
-Base class for every module. Set the `manifest` class attribute and implement `init`.
+`class ModuleProtocol(ABC)`
+
+The one interface every module implements. Set the `manifest` class attribute and implement `init`; subclass it to get the do-nothing defaults for the other hooks. It's a **protocol**, not a [`Contract`](#contract): a class is a module by having these members, and nobody looks a module up through the container, so it has no `I` prefix ([principle 12](../architecture/principles.md)). It carries no behaviour: a module gets its behaviour from the parts it owns (a `CompanionApp`, a `SessionTaskAgent`, later a `Menu`).
 
 The core calls `init` for every module in dependency order, then `start` for each, and on shutdown `stop` in reverse order. `stop` is called for every module whose `init` succeeded, even if `start` never ran. If `init` or `start` raises, the module is skipped (see [lifecycle](../architecture/core.md#lifecycle)).
 
@@ -17,19 +19,19 @@ The core calls `init` for every module in dependency order, then `start` for eac
 |------|------|-------------|
 | `manifest` | `ClassVar[Manifest]` | Required. Identifies the module and its dependencies |
 
-### `Module.init`
+### `ModuleProtocol.init`
 
 `async init(self, ctx: ModuleContext) -> None`
 
 Abstract. Subscribe to events, register command handlers, and provide contracts here. Keep `ctx` if the module needs it later. Don't start background work yet.
 
-### `Module.start`
+### `ModuleProtocol.start`
 
 `async start(self) -> None`
 
 Begin active work: listening for input, background loops. Default does nothing.
 
-### `Module.stop`
+### `ModuleProtocol.stop`
 
 `async stop(self) -> None`
 
@@ -37,8 +39,14 @@ Stop work and release resources. Default does nothing. Has `core.module_stop_tim
 
 **Example**
 
-    class EchoOrchestrator(Module):
-        manifest = Manifest(id="echo_orchestrator", optional=(IToolProvider,))
+    class EchoOrchestrator(ModuleProtocol):
+        manifest = Manifest(
+            id="echo_orchestrator",
+            description="Stand-in orchestrator: echoes, /tools",
+            optional=(IToolProvider,),
+            publishes=(ResponseReady,),
+            listens=(InputReceived,),
+        )
 
         async def init(self, ctx: ModuleContext) -> None:
             self._ctx = ctx
@@ -47,13 +55,13 @@ Stop work and release resources. Default does nothing. Has `core.module_stop_tim
         async def _on_input(self, event: InputReceived) -> None:
             self._ctx.publish(ResponseReady(text=f"Echo: {event.text}", correlation_id=event.id))
 
-### `Module.busy`
+### `ModuleProtocol.busy`
 
 `busy(self) -> str | None`
 
 Why this module's code shouldn't be swapped right now (for example `"replying to you"`), or `None`. A [`ReloadModule`](control.md#reloadmodule) waits until it's `None` (up to `core.reload_idle_timeout`), unless it says `now`. Default `None`. Today: the Talker (a turn is running), the Agent Hub (tasks open), the Main Assistant (working on a task).
 
-### `Module.export_state`
+### `ModuleProtocol.export_state`
 
 `export_state(self) -> Any`
 
@@ -66,9 +74,9 @@ Called before a reload stops this instance. What it returns reaches the new inst
 
 **Reusable** · Used by: every module
 
-`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = ())`
+`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())`
 
-Frozen dataclass describing a module. Dependencies are on contracts, never on other modules. `permissions` and `optional_permissions` are declarations only until the permissions handler runs; the [`ctx.permissions`](#modulecontextpermissions) stand-in allows everything.
+Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated [module library](../architecture/module-library.md)). Dependencies are on contracts, never on other modules. `permissions` and `optional_permissions` are declarations only until the permissions handler runs; the [`ctx.permissions`](#modulecontextpermissions) stand-in allows everything.
 
 **Fields**
 | Name | Type | Required | Description |
@@ -79,8 +87,15 @@ Frozen dataclass describing a module. Dependencies are on contracts, never on ot
 | `optional` | `tuple[type[Contract], ...]` | no | Contracts used if present; only affects start order |
 | `permissions` | `tuple[str, ...]` | no | [Permission names](../architecture/permissions.md#permission-names) the module can't run without |
 | `optional_permissions` | `tuple[str, ...]` | no | Permissions it asks for in the moment; without them a feature is off (`voice_in`: `("microphone",)`) |
+| `description` | `str` | no (every module in the app sets it) | One line saying what it does, for the directory and the module library |
+| `handles` | `tuple[type[Command], ...]` | no | Commands it handles with `ctx.handle` (commands in) |
+| `sends` | `tuple[type[Command], ...]` | no | Commands it sends (commands out) |
+| `publishes` | `tuple[type[Event], ...]` | no | Events it publishes (events out) |
+| `listens` | `tuple[type[Event], ...]` | no | Events it subscribes to (events in) |
 
-Every type listed must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails.
+Every type in `provides`, `requires` and `optional` must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails.
+
+**Raises** (when the manifest is made): `ValueError` if `id` isn't a Python identifier or `description` has a line break; `TypeError` if `handles` / `sends` hold anything but `Command` types, or `publishes` / `listens` anything but `Event` types.
 
 **Defined in:** `src/assistant/contracts/module.py`
 
@@ -99,7 +114,7 @@ A module's only access to the rest of the app, passed to `init`. Everything regi
 | `config` | `dict[str, Any]` | The `[modules.<id>]` config section, or `{}` |
 | `log` | `logging.Logger` | Logger named `assistant.modules.<id>` |
 | `permissions` | `ModulePermissions` | This module's permission checks; see below |
-| `handover` | `Any` | After a reload, what the old instance's [`export_state`](#moduleexport_state) returned; otherwise `None` |
+| `handover` | `Any` | After a reload, what the old instance's [`export_state`](#moduleprotocolexport_state) returned; otherwise `None` |
 
 ### `ModuleContext.permissions`
 
@@ -133,7 +148,7 @@ Publish an event. Returns immediately and never waits on subscribers. Events are
 
 `handle(command_type: type[K], handler: Callable[[K], Awaitable[Result]]) -> None`
 
-Become the single handler for `command_type`. The handler must return a [`Result`](messaging.md#result).
+Become the single handler for `command_type`. The handler must return a [`Result`](messaging.md#result). List the type in `manifest.handles`: today the core logs a warning when it isn't there; refusing it is planned (module system, chunk 9).
 
 **Raises:** `ValueError` if the command type already has a handler.
 

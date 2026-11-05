@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from assistant.contracts import Contract, Manifest, Module, ModuleInfo, ModuleState, Result
+from assistant.contracts import Contract, Manifest, ModuleInfo, ModuleProtocol, ModuleState, Result
 from assistant.core import loader
 from assistant.core.container import is_shared_contract
 from assistant.core.context import ScopedContext
@@ -19,8 +19,8 @@ log = logging.getLogger(__name__)
 class LifecycleManager:
     def __init__(
         self,
-        available: Sequence[type[Module]],
-        start_order: list[type[Module]],
+        available: Sequence[type[ModuleProtocol]],
+        start_order: list[type[ModuleProtocol]],
         make_context: Callable[..., ScopedContext],  # (manifest, handover=None)
         stop_timeout: float = 5.0,
         on_change: Callable[[str, ModuleState], None] | None = None,
@@ -33,7 +33,7 @@ class LifecycleManager:
         self._on_change = on_change
         self._states = {module_id: ModuleState.INACTIVE for module_id in self._classes}
         # Insertion order is activation order, so stopping in reverse stops dependents first.
-        self._active: dict[str, tuple[Module, ScopedContext]] = {}
+        self._active: dict[str, tuple[ModuleProtocol, ScopedContext]] = {}
         self._lock = asyncio.Lock()
 
     async def start(self) -> None:
@@ -44,7 +44,7 @@ class LifecycleManager:
         is raised.
         """
         async with self._lock:
-            initialized: list[tuple[Module, ScopedContext]] = []
+            initialized: list[tuple[ModuleProtocol, ScopedContext]] = []
             for cls in self._start_order:
                 self._set(cls.manifest.id, ModuleState.STARTING)
                 ctx = self._make_context(cls.manifest)
@@ -199,11 +199,11 @@ class LifecycleManager:
                 return reason
             await asyncio.sleep(0.2)
 
-    def _export(self, module: Module) -> Any:
+    def _export(self, module: ModuleProtocol) -> Any:
         return self._ask(module, "export_state")
 
     @staticmethod
-    def _ask(module: Module, hook: str) -> Any:
+    def _ask(module: ModuleProtocol, hook: str) -> Any:
         """Call a module's `busy` or `export_state`; a failing hook counts as None."""
         try:
             return getattr(module, hook)()
@@ -305,7 +305,7 @@ class LifecycleManager:
             )
         ]
 
-    async def _stop_one(self, module: Module, ctx: ScopedContext) -> None:
+    async def _stop_one(self, module: ModuleProtocol, ctx: ScopedContext) -> None:
         try:
             async with asyncio.timeout(self._stop_timeout):
                 await module.stop()

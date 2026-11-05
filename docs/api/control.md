@@ -72,7 +72,7 @@ Turn a module off: `stop`, then everything it registered is removed. Its tools, 
 
 `ReloadModule(module_id: str, now: bool = False)` (command)
 
-Swap a module's code while the app runs: stop it, import its package fresh (with every submodule), re-read its config section, start the new code. Active modules that require something only it provides are stopped and started around it. If the module says it's [`busy`](modules.md#modulebusy), the reload waits until it isn't (up to `core.reload_idle_timeout`, 300 s), unless `now`, which cuts in. The old instance's [`export_state`](modules.md#moduleexport_state) reaches the new one as `ctx.handover`. How it works: [reloading](../architecture/core.md#reloading-a-modules-code).
+Swap a module's code while the app runs: stop it, import its package fresh (with every submodule), re-read its config section, start the new code. Active modules that require something only it provides are stopped and started around it. If the module says it's [`busy`](modules.md#moduleprotocolbusy), the reload waits until it isn't (up to `core.reload_idle_timeout`, 300 s), unless `now`, which cuts in. The old instance's [`export_state`](modules.md#moduleprotocolexport_state) reaches the new one as `ctx.handover`. How it works: [reloading](../architecture/core.md#reloading-a-modules-code).
 
 **Returns**
 | Status | When |
@@ -91,7 +91,7 @@ Swap a module's code while the app runs: stop it, import its package fresh (with
 
 `AddModule(package: str, activate: bool = True)` (command)
 
-Load a module that wasn't there at launch, from its package, and activate it unless `activate` is false. Its package must export exactly one `Module` subclass. To keep it on the next launch, add it to `MODULES` in `__main__.py` (and to `modules.enabled`).
+Load a module that wasn't there at launch, from its package, and activate it unless `activate` is false. Its package must export exactly one `ModuleProtocol` subclass. To keep it on the next launch, add it to `MODULES` in `__main__.py` (and to `modules.enabled`).
 
 **Returns**
 | Status | When |

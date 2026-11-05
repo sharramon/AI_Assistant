@@ -77,7 +77,7 @@ Not abstract. Switch what the agent may do ([`PermissionMode`](#permissionmode))
 
 **Example**
 
-    class MainAssistantModule(Module):
+    class MainAssistantModule(ModuleProtocol):
         manifest = Manifest(id="main_assistant", provides=(ITaskAgent,))
 
         async def init(self, ctx):

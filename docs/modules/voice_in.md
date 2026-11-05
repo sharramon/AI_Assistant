@@ -72,4 +72,4 @@ A session: `StartListening` launches the service if needed and opens a socket; t
 
 ## Planned
 
-From the module-shape refactor: `voice_in` provides a **voice contract**, and the service takes **sessions with a destination**, so several modules share one mic and engine. Its manifest gains a description, `handles` and its announced events.
+From the module-shape refactor: `voice_in` provides a **voice contract**, and the service takes **sessions with a destination**, so several modules share one mic and engine.

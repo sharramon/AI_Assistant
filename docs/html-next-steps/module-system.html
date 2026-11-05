@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module system: one interface, a directory, menus everywhere</title>
+<!-- Generated from docs/next-steps/module-system.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-system.html"></nav>
+<main>
+<h1 id="module-system-one-interface-a-directory-menus-everywhere">Module system: one interface, a directory, menus everywhere</h1>
+<blockquote>
+<p><strong>Status: building (2026-11-05).</strong> Approved 2026-11-05: you sent the whole refactor to run unattended in Auto. Progress per chunk and the choices made on the way: <a href="#progress-and-decision-log">Progress and decision log</a>. <strong>Supersedes</strong> the <a href="module-shape-refactor.html">module shape note</a> (approved 2026-11-04, never built). Its design stays on the <a href="../html/architecture/modules.html">Modules</a> page, and its "Diagrams to update" table is still the full list of doc changes. This note adds the one interface, puts every module in the build order, and brings in the agents.</p>
+</blockquote>
+<p><strong>Asked:</strong> rework all tools, modules and the architecture around modules, so everything is hot-swappable. Every module is a wrapper with inputs and outputs (a menu), the main system knows which modules exist, and the Talker and Main Assistant can find modules and call them. One reusable module interface (<code>ModuleProtocol</code>) that every module implements, and every existing module recoded with it in mind.</p>
+<p><strong>Why:</strong> today the wrapper exists but the menu doesn't. Only <code>html_viewer</code> has a menu, written as a separate <code>IToolProvider</code> class. Manifests have no description. The Talker is hardcoded to the viewer's tools. The Main Assistant can't call any tool. Modules are listed by hand in <code>__main__.py</code>.</p>
+<h2 id="what-exists-and-whats-missing">What exists and what's missing</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Today</th>
+<th>Missing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interface</td>
+<td><code>Module</code> (<code>contracts/module.py</code>): an abstract class with no state. It has <code>manifest</code>, <code>init</code> (required), and <code>start</code> / <code>stop</code> / <code>busy</code> / <code>export_state</code>, which do nothing unless a module overrides them</td>
+<td>The name <code>ModuleProtocol</code>, and a <code>menu</code></td>
+</tr>
+<tr>
+<td>Manifest</td>
+<td>id, provides, requires, optional, permissions</td>
+<td><code>description</code>, <code>handles</code> (commands), <code>publishes</code> / <code>listens</code> (events)</td>
+</tr>
+<tr>
+<td>Menu</td>
+<td><code>IToolProvider</code> + <code>ToolSpec</code> + <code>InvokeTool</code> → <code>dispatch_tool</code>. Only the viewer has one, written as its own class</td>
+<td>A <code>Menu</code> part declared on the module, readable without starting it, with the arguments checked against each item's schema</td>
+</tr>
+<tr>
+<td>Hot swap</td>
+<td><code>ReloadModule</code>, <code>AddModule</code>, <code>ModuleStateChanged</code> (built 2026-11-03)</td>
+<td>Companion apps (voice, viewer) restart with the module. Today a reload keeps the old service code</td>
+</tr>
+<tr>
+<td>Directory</td>
+<td><code>ListModules</code> → <code>ModuleInfo</code> (id, state, contracts)</td>
+<td>One line per module (<code>ModuleInfo.description</code>), a <code>GetMenu(module_id)</code> command, and the core's own menu (module control as menu items)</td>
+</tr>
+<tr>
+<td>Found by folder</td>
+<td><code>MODULES</code> list hand-written in <code>__main__.py:21-43</code></td>
+<td>The core scans <code>src/assistant/modules/</code>, reusing <code>core/loader.py</code></td>
+</tr>
+<tr>
+<td>Boundaries</td>
+<td><code>ctx.handle</code> accepts any command class</td>
+<td>Only commands in <code>assistant.contracts</code> that are listed in <code>handles</code>. A <code>ctx.logs</code> port replaces the <code>LogSink</code>s in config</td>
+</tr>
+<tr>
+<td>Voice contract</td>
+<td><code>voice_in</code> handles <code>StartListening</code> / <code>StopListening</code>; one listener at a time</td>
+<td>An <code>IVoice</code> contract with sessions and a destination; <code>voice_notes</code> requires it</td>
+</tr>
+<tr>
+<td>Agents using it</td>
+<td>Talker: SHOW tags → <code>viewer.*</code>. Main Assistant: no tool path; the viewer watches its tags</td>
+<td>Both use list → menu → call (decision 2)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-target-shape">The target shape</h2>
+<p><strong><code>ModuleProtocol</code> is a thin protocol (decided 2026-11-05).</strong> A protocol is an interface a class satisfies by having the right members; it is not a <code>Contract</code> (a capability looked up through the container), so it has no <code>I</code> prefix. It's today's <code>Module</code> renamed, with one new optional attribute; modules subclass it to get the do-nothing defaults. It does no work itself, and everything with behaviour is a part the module owns (<a href="../html/architecture/principles.html">principle 12</a>).</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Required?</th>
+<th>What the module puts there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>manifest</code> (class attribute)</td>
+<td>yes</td>
+<td>Who it is (id, one-line <code>description</code>), what it needs (<code>requires</code>, <code>optional</code>, permissions) and its inputs and outputs (<code>handles</code>, <code>publishes</code>, <code>listens</code>, <code>provides</code>)</td>
+</tr>
+<tr>
+<td><code>menu</code> (class attribute)</td>
+<td>no, default none</td>
+<td>A <code>Menu</code>: the actions an assistant or another module may call</td>
+</tr>
+<tr>
+<td><code>init(ctx)</code></td>
+<td>yes</td>
+<td>Keep <code>ctx</code>, subscribe, handle commands, build its parts</td>
+</tr>
+<tr>
+<td><code>start()</code> / <code>stop()</code></td>
+<td>no</td>
+<td>Start and stop its work; <code>stop</code> frees everything</td>
+</tr>
+<tr>
+<td><code>busy()</code> / <code>export_state()</code></td>
+<td>no</td>
+<td>"Don't reload me now", and what to hand to its new copy</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What a module owns:</strong> its <code>manifest</code> and <code>menu</code> (plain data on the class, the same for every copy), its <code>ctx</code> (given to each copy at <code>init</code>), and its own parts (<code>CompanionApp</code>, a <code>Menu</code>, later <code>ctx.logs</code>).</p>
+<p><strong>What a <code>Menu</code> holds:</strong> one item per action, each with a name, a one-line description, a JSON Schema for its inputs (a <code>ToolSpec</code>), and the module method that runs it. The core reads it without starting the module, for the directory and the generated module library. When the module is on, the core links the items to that copy. It checks the arguments against the schema (<code>invalid_arguments</code> if they're wrong) before calling the method. The module never calls <code>ctx.provide(IToolProvider, ...)</code>; <code>IToolProvider</code> stays as the core's adapter for <code>InvokeTool</code>.</p>
+<p><strong>Before and after: <code>html_viewer</code>.</strong> Today it carries a 45-line <code>_ViewerTools(IToolProvider)</code> class with a hand-written argument check for each tool:</p>
+<pre><code class="language-python"># Before
+class HtmlViewerModule(Module):
+    manifest = Manifest(id=&quot;html_viewer&quot;, provides=(IToolProvider,))
+    async def init(self, ctx):
+        ...
+        ctx.provide(IToolProvider, _ViewerTools(self))     # + class _ViewerTools: tools() and invoke()
+
+# After
+menu = Menu()
+
+class HtmlViewerModule(ModuleProtocol):
+    manifest = Manifest(
+        id=&quot;html_viewer&quot;,
+        description=&quot;View, edit, highlight and snip HTML pages&quot;,
+        publishes=(ViewerTabsChanged, ViewerClip), listens=(AgentActivity,),
+    )
+    menu = menu
+
+    async def init(self, ctx): ...                          # no provide line
+
+    @menu.item(&quot;viewer.open&quot;, &quot;Open an HTML file in the viewer&quot;,
+               {&quot;path&quot;: {&quot;type&quot;: &quot;string&quot;}, &quot;front&quot;: {&quot;type&quot;: &quot;boolean&quot;}}, required=[&quot;path&quot;])
+    async def open(self, path: str, front: bool = False) -&gt; Result:
+        return await self.show(path, front)
+</code></pre>
+<ul>
+<li><strong>Inputs and outputs</strong> are the menu plus <code>handles</code> (commands in) and <code>publishes</code> / <code>listens</code> (events). The core checks <code>handles</code>. The <a href="../html/architecture/module-library.html">module library</a> table is generated from them.</li>
+<li><strong>The directory</strong> is the core's: <code>ListModules</code> (one line each) → <code>GetMenu(id)</code> → <code>InvokeTool</code>. The core's own menu offers <code>modules.list / on / off / reload / add</code>, and the risky ones ask you.</li>
+<li><strong>Hot swap</strong> stays as built. <code>ModuleProtocol</code>, <code>Menu</code> and the manifest live in <code>contracts</code> and are never reloaded. A module's methods are, so a reloaded module's menu runs its new code.</li>
+</ul>
+<h2 id="build-order-each-chunk-ships-on-its-own-riskiest-last">Build order (each chunk ships on its own; riskiest last)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chunk</th>
+<th>Modules recoded</th>
+<th>Restart?</th>
+<th>Tests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Rename <code>Module</code> → <code>ModuleProtocol</code>. New manifest fields (<code>description</code>, <code>handles</code>, <code>publishes</code>, <code>listens</code>). <code>ctx.handle</code> warns on an unlisted command, then refuses after chunk 9</td>
+<td>All 10 (rename and fields, no behaviour change)</td>
+<td>Yes</td>
+<td>Manifest validation; the handles check; <code>test_module_docs</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>Menu</code> part (items, schema check, read without starting, linked to the running copy by the core). Generate the module library table from the manifests and menus</td>
+<td><code>html_viewer</code> (its <code>_ViewerTools</code> goes), <code>echo_orchestrator</code></td>
+<td>Yes</td>
+<td>Item → <code>ToolSpec</code>; bad arguments → <code>invalid_arguments</code>; viewer tools unchanged; a reload runs the new method; generated library matches</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Directory: <code>ModuleInfo.description</code>, <code>GetMenu</code>, the core's menu (<code>modules.*</code>) with your approval for the risky ones</td>
+<td>none</td>
+<td>Yes</td>
+<td>List / menu / call; approval asked for off-with-dependents</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Find by folder; the <code>MODULES</code> list goes; folder name = manifest id</td>
+<td><code>assistant_view</code>, <code>console_io</code> (folder checks)</td>
+<td>Yes</td>
+<td>Scan a temp folder with a fake module; a bad folder is skipped and logged</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>ctx.logs</code> port</td>
+<td><code>temp_ui</code>, <code>html_viewer</code></td>
+<td>Yes</td>
+<td>Sinks reached through <code>ctx.logs</code>; nothing in config</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Voice contract <code>IVoice</code>: sessions, destination</td>
+<td><code>voice_in</code>, <code>voice_notes</code>, <code>temp_ui</code> (mic button)</td>
+<td>Yes for the contract, then <code>RELOAD</code></td>
+<td>Two sessions with the fake engine; each gets only its own text</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Companion apps follow the module: off quits, on starts, "reload with restart"</td>
+<td><code>voice_in</code>, <code>html_viewer</code></td>
+<td>Yes (<code>app_kit</code>)</td>
+<td><code>CompanionApp</code> quits an adopted app; reload brings up new service code</td>
+</tr>
+<tr>
+<td>8</td>
+<td>The MCP door (decision 2): a small MCP server in the app with three fixed tools (list modules, show a menu, use an item), passed to each <code>claude</code> session; its calls go through the permission card. The Main Assistant uses it; the viewer stops watching its SHOW tags</td>
+<td><code>main_assistant</code>, <code>html_viewer</code>, <code>agent_hub</code></td>
+<td>Yes (<code>infra</code>)</td>
+<td>Call the endpoint directly: a call reaches <code>InvokeTool</code> and returns its result; permission asked; one real-<code>claude</code> test</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Talker drops the hardcoded viewer mapping and uses list → menu → call. Commands become strict</td>
+<td><code>talker</code></td>
+<td>Yes</td>
+<td>Talker tests via the generic path; SHOW still opens pages</td>
+</tr>
+</tbody>
+</table>
+<p>Each chunk ends with the <code>architecture-check</code> skill, the docs rows it triggers (the old note's table: items 2/5 → chunk 1, 6 → 3, 4 → 4, 3 → 5, 8 → 6, 1 → 3 and 7, 7 → 8 and 9), and a docs rebuild. Chunks 8 and 9 come last because they change the agents that run this work. A slip there breaks the assistant itself, so each one is done in a Claude Code session, not from inside the app.</p>
+<p><strong>Restarts:</strong> every chunk touches the core or contracts, so the app is restarted once per chunk, which you do. After chunk 2, a change to a single module is just a <code>RELOAD</code>.</p>
+<h2 id="docs-and-diagrams">Docs and diagrams</h2>
+<ul>
+<li><strong>Everywhere:</strong> <code>Module</code> becomes <code>ModuleProtocol</code> in the docs (API, architecture, module pages). Principle 12's naming rule now explains protocols (done 2026-11-05).</li>
+<li><strong>Modules page:</strong> the status line points here. The menu row says "a <code>Menu</code> part on the module". "Built and planned" ticks off per chunk.</li>
+<li><strong>Module library:</strong> the table between its markers is generated (chunk 2), and its hand-written note goes.</li>
+<li><strong>API:</strong> <code>ModuleProtocol</code> and <code>Menu</code> (each with a reusable-index line, used by every module). <code>Manifest</code> gets its fields, Control gets <code>GetMenu</code> and the core's menu, Tools lists <code>modules.*</code>, Messaging gets <code>IVoice</code>.</li>
+<li><strong>Overview chart:</strong> already draws the target. Each piece drops its planned style as its chunk lands. Parts table rows as in the old note.</li>
+<li><strong>SVGs</strong> <code>module-directory-2-steps</code> / <code>-3-changes</code>: mark steps built (sources in <code>docs/architecture/img/</code>).</li>
+<li><strong>Principles 14 to 17:</strong> shorten each "Today:" line as its chunk lands.</li>
+</ul>
+<h2 id="connection-to-the-job-agent">Connection to the job agent</h2>
+<p>Not now (decision 4). Agents will use or live inside modules, so the <a href="job-agent.html">job agent</a> is built after this rework, as a new module on <code>ModuleProtocol</code>. Its gaps become module-shaped:</p>
+<table>
+<thead>
+<tr>
+<th>Job-agent gap</th>
+<th>As a module</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent registry</td>
+<td>The directory, filtered to modules that provide <code>ITaskAgent</code>. No separate list</td>
+</tr>
+<tr>
+<td>Naming an agent</td>
+<td>The agent's module id (<code>job_agent</code>, <code>main_assistant</code>) is its name. <code>StartTask.agent_id</code> takes it</td>
+</tr>
+<tr>
+<td>Talking to it directly</td>
+<td>Its menu: for example <code>job.status</code>, <code>job.ask</code>, <code>job.next</code>, wrapping <code>GetTaskStatus</code> / <code>SendToTask</code> for that agent</td>
+</tr>
+<tr>
+<td>Agent cap</td>
+<td>A limit on how many <code>ITaskAgent</code> modules are on or working at once, checked by the core when one is turned on (chunk 3's approval path)</td>
+</tr>
+<tr>
+<td>Folder and access code</td>
+<td>Moves to shared infra, with a config section per agent module (already in that note)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decisions">Decisions</h2>
+<ol>
+<li><strong>The interface: decided 2026-11-05.</strong> It's kept thin (no behaviour), and modules implement it. The menu is a <code>Menu</code> part the module owns, not protocol behaviour. Its name is decision 3.</li>
+<li><strong>How the agents reach the menus: decided 2026-11-05, A (one door).</strong> Why, in plain words, with the picture: <a href="../html/architecture/modules.html#why-one-door-and-not-an-mcp-server-per-module">modules</a>. The agents call tools through MCP, as one adapter at their edge only (the rule below). The options were:
+   - <strong>A. One door (recommended).</strong> One MCP server in front of the core with three fixed tools: list modules, show a menu, use an item. The agents' tool list never changes when a module is swapped, on, or off, and the server only reads the directory. If the HTTP link from <code>claude</code> to the app fails, a small stdio relay that <code>claude</code> starts passes the calls on.
+   - <strong>B. A door per module.</strong> Each module's menu items show up as their own MCP tools. The agent sees them directly, but its tool list changes with every swap. The experiment shows <code>list_changed</code> handles that, at the cost of a notice per change and a longer tool list.</li>
+</ol>
+<p>Both cost the same: a small server and port in the app, its calls through our permission card, and one real-<code>claude</code> test (the fake <code>claude</code> doesn't speak MCP). The untested piece, an HTTP server inside our app, is checked as a spike alongside chunk 1. The <code>TOOL:</code> reply line is kept only as the fallback if that spike fails.
+3. <strong>The name: decided 2026-11-05, <code>ModuleProtocol</code>.</strong> Principle 12's rule stays: the <code>I</code> prefix only for <code>Contract</code> subclasses. The rule now has a plain-words note on what a protocol is, with <code>ModuleProtocol</code> as the example.
+4. <strong>Order: decided 2026-11-05.</strong> The module rework comes first. No work on the job agent now: agents will use or live inside modules, so it waits until the rework is done.</p>
+<p><strong>The MCP rule (agreed in discussion):</strong> MCP is one adapter at the agents' edge, on top of the wrapper. Modules are never MCP servers and never import MCP. Traffic between modules, and from the UI to a module, stays commands, events and contracts. The wrapper gives what MCP doesn't: events and commands between modules (principle 16), contracts and <code>requires</code> (principles 2, 3, 17), hot swap in one process (principle 11), per-module permissions, the directory (principle 15), and callers that aren't agents, like UI buttons. MCP adds only standard mid-reply calls from Claude sessions.</p>
+<h2 id="progress-and-decision-log">Progress and decision log</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>State</th>
+<th>Commit</th>
+<th>Restart needed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>built: <code>ModuleProtocol</code>, the manifest fields, the <code>handles</code> warning, all 10 manifests filled</td>
+<td>see <code>git log</code> ("Module system, chunk 1")</td>
+<td>yes (contracts, core)</td>
+</tr>
+<tr>
+<td>2 to 9</td>
+<td>not started</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Decisions taken while building</strong> (the most conservative choice each time, for you to check):</p>
+<ul>
+<li><strong>D1 (chunk 1): a <code>sends</code> field too.</strong> The plan listed <code>handles</code>, <code>publishes</code>, <code>listens</code>. The module library also has a "Calls" column, so <code>Manifest.sends</code> (commands out) was added; with it the whole library table can be generated in chunk 2.</li>
+<li><strong>D2 (chunk 1): no <code>Module</code> alias.</strong> <code>Module</code> is renamed outright, with no old name kept. The app needs a restart for chunk 1 anyway, and a second name would hide unconverted code.</li>
+<li><strong>D3 (chunk 1): the manifest checks itself.</strong> The id must be a Python identifier (folder names are, and chunk 4 needs id = folder), the description one line, <code>handles</code> / <code>sends</code> only <code>Command</code> types and <code>publishes</code> / <code>listens</code> only <code>Event</code> types. Wrong ones raise when the module's file is imported.</li>
+</ul>
+<p><strong>Before the build (2026-11-05):</strong> this note, decisions 1 to 4, the MCP rule, chunk 8 as the MCP door, and three temporary picture pages in <code>docs/temp/</code> (not in the docs build): <code>tool-paths.html</code>, <code>tool-mcp-wrapper.html</code>, and <code>one-door-vs-many.html</code>.</p>
+<p><strong>Experiment (2026-11-05, Claude Code 2.1.318; a throwaway stdio server, deleted afterwards):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tool added or removed, with the <code>list_changed</code> notice</td>
+<td>The running session follows it on its next turn. Verified</td>
+</tr>
+<tr>
+<td>Tool added, no notice</td>
+<td>Never seen. Verified</td>
+</tr>
+<tr>
+<td>Tool removed, no notice</td>
+<td>Still listed; a call gets a clean error. Verified</td>
+</tr>
+<tr>
+<td>Server exits mid-session</td>
+<td>Still shown as connected; the next call restarts it by itself and works. Verified</td>
+</tr>
+<tr>
+<td><code>mcp_reconnect</code> control request</td>
+<td>A fresh server, the current tools. Verified</td>
+</tr>
+<tr>
+<td><code>mcp_set_servers</code> mid-session</td>
+<td>The new server's tools are listed. Verified (listed, not called)</td>
+</tr>
+<tr>
+<td>New session</td>
+<td>Sees the current set. Verified</td>
+</tr>
+<tr>
+<td>HTTP server inside our app; a new tool not on the allow list</td>
+<td>Not tested</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Next:</strong> chunk 2 (the <code>Menu</code> part, the generated module library), with the HTTP spike for chunk 8. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</p>
+<footer>Generated from <code>docs/next-steps/module-system.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

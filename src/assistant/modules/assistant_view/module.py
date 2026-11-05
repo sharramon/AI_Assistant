@@ -16,14 +16,18 @@ from assistant.contracts import (
     AgentActivity,
     AgentStateChanged,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     TaskUpdated,
 )
 
 
-class AssistantViewModule(Module):
-    manifest = Manifest(id="assistant_view")
+class AssistantViewModule(ModuleProtocol):
+    manifest = Manifest(
+        id="assistant_view",
+        description="Terminal 2: view-only agent activity",
+        listens=(AgentActivity, AgentStateChanged, TaskUpdated,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

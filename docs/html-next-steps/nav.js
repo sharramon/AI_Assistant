@@ -489,6 +489,7 @@
         "voice-layers-whisper.html",
         "voice-two-pass.html",
         "module-shape-refactor.html",
+        "module-system.html",
         "voice-notes.html",
         "job-agent.html",
         "archive/index.html",
@@ -567,6 +568,10 @@
             {
               "name": "Module shape: directory, menus, and clean boundaries",
               "href": "module-shape-refactor.html"
+            },
+            {
+              "name": "Module system: one interface, a directory, menus everywhere",
+              "href": "module-system.html"
             },
             {
               "name": "Voice notes: a quick record-to-page module",

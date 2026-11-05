@@ -479,7 +479,7 @@ file = ""                   # "" = stderr only
 **Manifest:**
 
 ```python
-class VoiceInModule(Module):
+class VoiceInModule(ModuleProtocol):
     manifest = Manifest(id="voice_in", optional_permissions=("microphone",))
     # provides, requires, optional: none
 ```

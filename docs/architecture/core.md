@@ -15,7 +15,7 @@ flowchart TB
     end
 
     subgraph Contracts["Contracts (stable)"]
-        IModule["Module, ModuleContext"]
+        Proto["ModuleProtocol, Manifest, ModuleContext"]
         Caps["Capability interfaces<br/>today: IToolProvider<br/>later as needed: input, output,<br/>view, background worker"]
         Msgs[Command & event types]
     end
@@ -213,8 +213,8 @@ stateDiagram-v2
 - **`AddModule(package)`:** imports a package that wasn't loaded at launch, makes its module available, and activates it. To keep it on the next launch, add it to `MODULES` and `modules.enabled`. If its code needs a contract the running app doesn't have, it fails with "needs a restart".
 - **Not reloadable:** `assistant.core`, `assistant.contracts`, `assistant.infra`, `app_kit`, and a class that isn't in its own package. Every module holds their classes, so swapping them would break `isinstance` checks and contract identity.
 - **Old code left running:** a thread the old copy didn't stop keeps running old code, muted by its closed context. `stop` must release everything, as before.
-- **Busy modules:** before stopping, the core asks the module's [`busy()`](../api/modules.md#modulebusy). While it gives a reason, the reload waits (polling every 0.2 s, up to `core.reload_idle_timeout`, 300 s), then fails with that reason. `ReloadModule(now=True)` cuts in.
-- **Handover:** just before stopping, the core calls [`export_state()`](../api/modules.md#moduleexport_state) and passes the result to the new instance as `ctx.handover`; on rollback it goes back to the old one. Only plain data and `infra` / `app_kit` objects, which are never reloaded. `voice_in` hands over its `CompanionApp`, so the voice app keeps running and the chat isn't touched; an open mic session still ends, and its words are dropped.
+- **Busy modules:** before stopping, the core asks the module's [`busy()`](../api/modules.md#moduleprotocolbusy). While it gives a reason, the reload waits (polling every 0.2 s, up to `core.reload_idle_timeout`, 300 s), then fails with that reason. `ReloadModule(now=True)` cuts in.
+- **Handover:** just before stopping, the core calls [`export_state()`](../api/modules.md#moduleprotocolexport_state) and passes the result to the new instance as `ctx.handover`; on rollback it goes back to the old one. Only plain data and `infra` / `app_kit` objects, which are never reloaded. `voice_in` hands over its `CompanionApp`, so the voice app keeps running and the chat isn't touched; an open mic session still ends, and its words are dropped.
 - **Who triggers it:** any module that sends the command. Built: the Main Assistant, with a last line `RELOAD: <id> [now]` or `ADD_MODULE: <package>` after its tests pass. In Auto it sends the command at once; in Manual it asks you first with an Allow / Deny card. The outcome comes back to its session, and it can't reload itself ([runtime](../agents/runtime.md#loading-new-code)). Later: the control panel and the Talker. No file watcher: it would load half-written code.
 
 ## Communication internals
@@ -291,14 +291,14 @@ Each module:
 
 - lives in its own folder and depends only on Contracts and Shared Infrastructure
 - has a manifest: id, the capabilities it provides, and what it requires (required vs optional)
-- implements `Module` for lifecycle, plus any number of small capability interfaces
+- implements `ModuleProtocol` for lifecycle, plus any number of small capability interfaces
 - owns its own state, config section, and storage
 
 Contracts grow as needed. Add a new capability interface when a real module needs it, not in anticipation. The interfaces named above are a starting point, not a fixed list.
 
 Before writing a helper for it, check the [reusable parts index](../api/reusable.md) ([principle 13](principles.md)); after building, add any new reusable part there and update the **Used by** lines of the parts it uses. Permissions it needs go in its manifest and are asked through `ctx.permissions` ([permissions](permissions.md)). A module that launches its own app follows the [companion app checklist](reusable-parts.md#companion-app-checklist).
 
-1. Create `src/assistant/modules/<name>/` with a `Module` subclass. Import only from `assistant.contracts`, `assistant.infra`, and `app_kit`.
+1. Create `src/assistant/modules/<name>/` with a `ModuleProtocol` subclass. Import only from `assistant.contracts`, `assistant.infra`, and `app_kit`.
 2. Add the class to `MODULES` in `src/assistant/__main__.py`. (Planned: this step goes away once the core [finds modules by folder](modules.md#found-by-folder).)
 3. Add its id to `modules.enabled` in config.
 

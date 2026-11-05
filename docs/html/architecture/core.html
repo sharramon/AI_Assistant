@@ -24,7 +24,7 @@
     end
 
     subgraph Contracts[&quot;Contracts (stable)&quot;]
-        IModule[&quot;Module, ModuleContext&quot;]
+        Proto[&quot;ModuleProtocol, Manifest, ModuleContext&quot;]
         Caps[&quot;Capability interfaces&lt;br/&gt;today: IToolProvider&lt;br/&gt;later as needed: input, output,&lt;br/&gt;view, background worker&quot;]
         Msgs[Command &amp; event types]
     end
@@ -244,8 +244,8 @@
 <li><strong><code>AddModule(package)</code>:</strong> imports a package that wasn't loaded at launch, makes its module available, and activates it. To keep it on the next launch, add it to <code>MODULES</code> and <code>modules.enabled</code>. If its code needs a contract the running app doesn't have, it fails with "needs a restart".</li>
 <li><strong>Not reloadable:</strong> <code>assistant.core</code>, <code>assistant.contracts</code>, <code>assistant.infra</code>, <code>app_kit</code>, and a class that isn't in its own package. Every module holds their classes, so swapping them would break <code>isinstance</code> checks and contract identity.</li>
 <li><strong>Old code left running:</strong> a thread the old copy didn't stop keeps running old code, muted by its closed context. <code>stop</code> must release everything, as before.</li>
-<li><strong>Busy modules:</strong> before stopping, the core asks the module's <a href="../api/modules.html#modulebusy"><code>busy()</code></a>. While it gives a reason, the reload waits (polling every 0.2 s, up to <code>core.reload_idle_timeout</code>, 300 s), then fails with that reason. <code>ReloadModule(now=True)</code> cuts in.</li>
-<li><strong>Handover:</strong> just before stopping, the core calls <a href="../api/modules.html#moduleexport_state"><code>export_state()</code></a> and passes the result to the new instance as <code>ctx.handover</code>; on rollback it goes back to the old one. Only plain data and <code>infra</code> / <code>app_kit</code> objects, which are never reloaded. <code>voice_in</code> hands over its <code>CompanionApp</code>, so the voice app keeps running and the chat isn't touched; an open mic session still ends, and its words are dropped.</li>
+<li><strong>Busy modules:</strong> before stopping, the core asks the module's <a href="../api/modules.html#moduleprotocolbusy"><code>busy()</code></a>. While it gives a reason, the reload waits (polling every 0.2 s, up to <code>core.reload_idle_timeout</code>, 300 s), then fails with that reason. <code>ReloadModule(now=True)</code> cuts in.</li>
+<li><strong>Handover:</strong> just before stopping, the core calls <a href="../api/modules.html#moduleprotocolexport_state"><code>export_state()</code></a> and passes the result to the new instance as <code>ctx.handover</code>; on rollback it goes back to the old one. Only plain data and <code>infra</code> / <code>app_kit</code> objects, which are never reloaded. <code>voice_in</code> hands over its <code>CompanionApp</code>, so the voice app keeps running and the chat isn't touched; an open mic session still ends, and its words are dropped.</li>
 <li><strong>Who triggers it:</strong> any module that sends the command. Built: the Main Assistant, with a last line <code>RELOAD: &lt;id&gt; [now]</code> or <code>ADD_MODULE: &lt;package&gt;</code> after its tests pass. In Auto it sends the command at once; in Manual it asks you first with an Allow / Deny card. The outcome comes back to its session, and it can't reload itself (<a href="../agents/runtime.html#loading-new-code">runtime</a>). Later: the control panel and the Talker. No file watcher: it would load half-written code.</li>
 </ul>
 <h2 id="communication-internals">Communication internals</h2>
@@ -371,13 +371,13 @@
 <ul>
 <li>lives in its own folder and depends only on Contracts and Shared Infrastructure</li>
 <li>has a manifest: id, the capabilities it provides, and what it requires (required vs optional)</li>
-<li>implements <code>Module</code> for lifecycle, plus any number of small capability interfaces</li>
+<li>implements <code>ModuleProtocol</code> for lifecycle, plus any number of small capability interfaces</li>
 <li>owns its own state, config section, and storage</li>
 </ul>
 <p>Contracts grow as needed. Add a new capability interface when a real module needs it, not in anticipation. The interfaces named above are a starting point, not a fixed list.</p>
 <p>Before writing a helper for it, check the <a href="../api/reusable.html">reusable parts index</a> (<a href="principles.html">principle 13</a>); after building, add any new reusable part there and update the <strong>Used by</strong> lines of the parts it uses. Permissions it needs go in its manifest and are asked through <code>ctx.permissions</code> (<a href="permissions.html">permissions</a>). A module that launches its own app follows the <a href="reusable-parts.html#companion-app-checklist">companion app checklist</a>.</p>
 <ol>
-<li>Create <code>src/assistant/modules/&lt;name&gt;/</code> with a <code>Module</code> subclass. Import only from <code>assistant.contracts</code>, <code>assistant.infra</code>, and <code>app_kit</code>.</li>
+<li>Create <code>src/assistant/modules/&lt;name&gt;/</code> with a <code>ModuleProtocol</code> subclass. Import only from <code>assistant.contracts</code>, <code>assistant.infra</code>, and <code>app_kit</code>.</li>
 <li>Add the class to <code>MODULES</code> in <code>src/assistant/__main__.py</code>. (Planned: this step goes away once the core <a href="modules.html#found-by-folder">finds modules by folder</a>.)</li>
 <li>Add its id to <code>modules.enabled</code> in config.</li>
 </ol>

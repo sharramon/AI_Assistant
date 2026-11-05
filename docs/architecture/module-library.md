@@ -2,7 +2,7 @@
 
 Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own page. The data types are listed below the table, with links to their API entries. Back to the [overview](README.md).
 
-> **Hand-written** from the code, checked 2026-11-04. The manifest doesn't yet carry the description, the handled commands or the events, so this page can fall behind the code. A test (`tests/test_module_docs.py`) checks that every module has a row here and a page. It becomes generated once the manifests carry the data ([generated later](#generated-later)).
+> **Hand-written** from the code, checked 2026-11-04. Since 2026-11-05 the manifest carries the description, the commands (`handles`, `sends`) and the events (`publishes`, `listens`); generating the table from them is next (module system, chunk 2). A test (`tests/test_module_docs.py`) checks that every module has a row here and a page. It becomes generated once the manifests carry the data ([generated later](#generated-later)).
 
 ## Modules
 

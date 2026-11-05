@@ -90,4 +90,4 @@ sequenceDiagram
 
 ## Planned
 
-From the module-shape refactor: requires the **voice contract** and starts a **voice session with a destination** instead of following command ids; the page server becomes a shared one. Its manifest gains a description and the events it listens to.
+From the module-shape refactor: requires the **voice contract** and starts a **voice session with a destination** instead of following command ids; the page server becomes a shared one.

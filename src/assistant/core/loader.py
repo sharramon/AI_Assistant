@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-from assistant.contracts import Module
+from assistant.contracts import ModuleProtocol
 
 # Packages whose classes are shared by every module. Reloading them (or anything inside them)
 # would break isinstance checks and contract identity, so they still need a restart.
@@ -79,14 +79,14 @@ def import_fresh(package: str) -> ModuleType:
         raise
 
 
-def find_module_class(package: ModuleType, module_id: str | None = None) -> type[Module]:
-    """The `Module` subclass defined in `package` (with manifest id `module_id`, if given)."""
+def find_module_class(package: ModuleType, module_id: str | None = None) -> type[ModuleProtocol]:
+    """The `ModuleProtocol` subclass defined in `package` (with manifest id `module_id`, if given)."""
     prefix = package.__name__
     found = {
         value
         for value in vars(package).values()
         if isinstance(value, type)
-        and issubclass(value, Module)
+        and issubclass(value, ModuleProtocol)
         and getattr(value, "manifest", None) is not None
         and (value.__module__ == prefix or value.__module__.startswith(f"{prefix}."))
         and (module_id is None or value.manifest.id == module_id)

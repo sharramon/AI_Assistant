@@ -11,8 +11,8 @@ from collections.abc import Callable
 from assistant.contracts import (
     InputReceived,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ResponseReady,
     ShutdownRequested,
 )
@@ -69,8 +69,13 @@ class _StdinReader:
 _stdin = _StdinReader()
 
 
-class ConsoleIO(Module):
-    manifest = Manifest(id="console_io")
+class ConsoleIO(ModuleProtocol):
+    manifest = Manifest(
+        id="console_io",
+        description="Terminal 1: type and read replies",
+        publishes=(InputReceived, ShutdownRequested,),
+        listens=(ResponseReady,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

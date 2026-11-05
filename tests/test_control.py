@@ -12,8 +12,8 @@ from assistant.contracts import (
     IToolProvider,
     ListModules,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
     Status,
@@ -24,7 +24,7 @@ from assistant.modules.console_io import module as console_module
 from tests.support import Calculator, Speaker, make_config, wait_until
 
 
-class Tracked(Module):
+class Tracked(ModuleProtocol):
     """Records every instance and lifecycle call, to check fresh instances and clean stops."""
 
     manifest = Manifest(id="tracked")
@@ -41,7 +41,7 @@ class Tracked(Module):
         self.calls.append("stop")
 
 
-class SpeakerImpl(Module, Speaker):
+class SpeakerImpl(ModuleProtocol, Speaker):
     manifest = Manifest(id="speaker", provides=(Speaker,))
 
     async def init(self, ctx):
@@ -52,14 +52,14 @@ class OtherSpeaker(SpeakerImpl):
     manifest = Manifest(id="other_speaker", provides=(Speaker,))
 
 
-class NeedsSpeaker(Module):
+class NeedsSpeaker(ModuleProtocol):
     manifest = Manifest(id="needs_speaker", requires=(Speaker,))
 
     async def init(self, ctx):
         pass
 
 
-class FailsToStart(Module):
+class FailsToStart(ModuleProtocol):
     manifest = Manifest(id="fails_to_start")
     should_fail = True
 
@@ -174,7 +174,7 @@ async def test_deactivate_allowed_when_another_provider_remains():
     class SharedTools(Calculator):
         manifest = Manifest(id="shared_tools", provides=(IToolProvider,))
 
-    class NeedsTools(Module):
+    class NeedsTools(ModuleProtocol):
         manifest = Manifest(id="needs_tools", requires=(IToolProvider,))
 
         async def init(self, ctx):
@@ -234,7 +234,7 @@ async def test_shutdown_stops_runtime_activated_modules():
 
 
 async def test_closed_context_stops_publishing():
-    class Leaky(Module):
+    class Leaky(ModuleProtocol):
         """Keeps its context after stop, like a leftover thread would."""
 
         manifest = Manifest(id="leaky")
@@ -289,7 +289,7 @@ async def test_console_io_restart_reuses_one_input_thread(monkeypatch):
 
 
 async def test_activation_finishes_even_if_the_command_times_out():
-    class SlowStart(Module):
+    class SlowStart(ModuleProtocol):
         manifest = Manifest(id="slow_start")
 
         async def init(self, ctx):

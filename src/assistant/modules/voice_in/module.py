@@ -28,8 +28,8 @@ from assistant.contracts import (
     InputReceived,
     ListeningState,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     Result,
     StartListening,
     Status,
@@ -89,8 +89,14 @@ class _Session:
     result: asyncio.Future = field(default_factory=lambda: asyncio.get_running_loop().create_future())
 
 
-class VoiceInModule(Module):
-    manifest = Manifest(id="voice_in", optional_permissions=("microphone",))
+class VoiceInModule(ModuleProtocol):
+    manifest = Manifest(
+        id="voice_in",
+        description="Speech to text; launches the voice service app",
+        optional_permissions=("microphone",),
+        handles=(StartListening, StopListening,),
+        publishes=(VoiceState, VoiceTranscript, InputReceived,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         try:

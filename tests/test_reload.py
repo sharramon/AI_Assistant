@@ -13,7 +13,7 @@ from assistant.contracts import (
     InvokeTool,
     ListModules,
     Manifest,
-    Module,
+    ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
     ReloadModule,
@@ -26,11 +26,11 @@ from assistant.core.router import CommandRouter
 from tests.support import Calculator, Speaker, make_config, wait_until
 
 MODULE = """
-from assistant.contracts import IToolProvider, Manifest, Module, Result, ToolSpec
+from assistant.contracts import IToolProvider, Manifest, ModuleProtocol, Result, ToolSpec
 from .version import VERSION
 
 
-class VersionTool(Module, IToolProvider):
+class VersionTool(ModuleProtocol, IToolProvider):
     manifest = Manifest(id="version_tool", provides=(IToolProvider,))
 
     async def init(self, ctx):
@@ -171,7 +171,7 @@ async def test_shared_code_and_loose_classes_are_not_reloadable():
     check_reloadable("assistant.modules.voice_in")
 
 
-class NeedsSpeaker(Module):
+class NeedsSpeaker(ModuleProtocol):
     manifest = Manifest(id="needs_speaker", requires=(Speaker,))
     starts = 0
 
@@ -182,11 +182,11 @@ class NeedsSpeaker(Module):
 async def test_reloading_a_provider_restarts_the_modules_that_require_it(pkg):
     package, write = pkg
     provider = """
-from assistant.contracts import Manifest, Module
+from assistant.contracts import Manifest, ModuleProtocol
 from tests.support import Speaker
 
 
-class SpeakerTool(Module, Speaker):
+class SpeakerTool(ModuleProtocol, Speaker):
     manifest = Manifest(id="speaker_tool", provides=(Speaker,))
 
     async def init(self, ctx):
@@ -205,11 +205,11 @@ class SpeakerTool(Module, Speaker):
 
 
 STATEFUL = """
-from assistant.contracts import IToolProvider, Manifest, Module, Result, ToolSpec
+from assistant.contracts import IToolProvider, Manifest, ModuleProtocol, Result, ToolSpec
 from .version import VERSION
 
 
-class VersionTool(Module, IToolProvider):
+class VersionTool(ModuleProtocol, IToolProvider):
     manifest = Manifest(id="version_tool", provides=(IToolProvider,))
     busy_reason = None
 

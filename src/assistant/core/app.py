@@ -15,7 +15,7 @@ from assistant.contracts import (
     InvokeTool,
     ListModules,
     Manifest,
-    Module,
+    ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
     ReloadModule,
@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 class App:
     def __init__(
         self,
-        available: Sequence[type[Module]],
+        available: Sequence[type[ModuleProtocol]],
         config: dict[str, Any],
         config_loader: Callable[[], dict[str, Any]] | None = None,
     ):

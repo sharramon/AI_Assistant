@@ -2,7 +2,7 @@
 
 import logging
 
-from assistant.contracts import Manifest, Module, ModuleContext
+from assistant.contracts import Manifest, ModuleContext, ModuleProtocol
 from assistant.core import App
 from assistant.core.permissions import AllowAllPermissions
 from tests.support import make_config
@@ -41,7 +41,7 @@ async def test_later_uses_of_the_same_permission_log_at_debug(caplog):
     assert len(records(caplog, logging.DEBUG)) == 2
 
 
-class Asker(Module):
+class Asker(ModuleProtocol):
     manifest = Manifest(id="asker", optional_permissions=("microphone",))
 
     async def init(self, ctx: ModuleContext) -> None:

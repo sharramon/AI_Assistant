@@ -53,7 +53,7 @@ flowchart LR
     Talker -. "1 list · 2 menu" .-> Dir
     Main -. "1 list · 2 menu" .-> Dir
     Talker -- "3 call (InvokeTool)" --> Cmds
-    Main -. "3 call" .-> Cmds
+    Main -. "3 call · one MCP door" .-> Cmds
     Cmds -- "open a page" --> Viewer
     VoiceIn -- VoiceTranscript --> Events
     Events -. listens .-> Notes
@@ -111,7 +111,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 | DI Container | Resolves shared contracts to the implementations modules provide | `src/assistant/core/container.py` | [core](core.md#communication-internals) |
 | Command Router | Routes each command to its single handler and returns the result | `src/assistant/core/router.py` | [core](core.md#communication-internals) |
 | Event Bus | In-process publish/subscribe for events | `src/assistant/core/bus.py` | [core](core.md#communication-internals) |
-| Contracts | `Module`, `ModuleContext`, capability interfaces, command and event types | `src/assistant/contracts/` | [API](../api/README.md) |
+| Contracts | `ModuleProtocol`, `Manifest`, `ModuleContext`, capability interfaces, command and event types | `src/assistant/contracts/` | [API](../api/README.md) |
 | Shared Infrastructure | Configuration and logging today; persistence and auth/secrets later | `src/assistant/infra/` | [API](../api/infra.md) |
 | Reusable parts | Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, and `app_kit` for what the independent apps share too | `src/assistant/contracts/`, `src/assistant/infra/`, `src/app_kit/` | [reusable parts](reusable-parts.md), [index](../api/reusable.md) |
 | Log handler | Owns where logs go: one folder per app launch, named by start time and the theme of your first question | `src/assistant/infra/log.py` | [core](core.md#logging) |

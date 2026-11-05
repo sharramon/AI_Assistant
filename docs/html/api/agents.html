@@ -117,7 +117,7 @@
 <p>Not abstract. Switch what the agent may do (<a href="#permissionmode"><code>PermissionMode</code></a>) and publish <a href="#permissionmodechanged"><code>PermissionModeChanged</code></a>. The default refuses with <code>not_available</code>, for agents without modes. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it: with no task the mode applies to the next one (<code>now</code>); mid-task, Manual switches the running session at once, and Auto applies from the next task or handoff session (<code>next_task</code>). Called by the Hub for <a href="#setpermissionmode"><code>SetPermissionMode</code></a>.</p>
 <p><strong>Returns:</strong> <code>ok</code>, or <code>not_available</code> (the default).</p>
 <p><strong>Example</strong></p>
-<pre><code>class MainAssistantModule(Module):
+<pre><code>class MainAssistantModule(ModuleProtocol):
     manifest = Manifest(id="main_assistant", provides=(ITaskAgent,))
 
     async def init(self, ctx):

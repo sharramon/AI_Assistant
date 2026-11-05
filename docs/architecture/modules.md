@@ -2,7 +2,7 @@
 
 How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in [core](core.md); the messages are in [communication](communication.md). Each module's own page, and every module's interface side by side: the [module library](module-library.md). Back to the [overview](README.md).
 
-> **Status: decided 2026-11-04, mostly planned.** Built: the wrapper (manifest, lifecycle, context), a menu through `IToolProvider` (the HTML viewer's), `requires` by contract, and reloading a module while the app runs. Planned: the one-line description, the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module-shape change note (`docs/next-steps/module-shape-refactor.md`).
+> **Status: decided 2026-11-04, being built.** Built: the wrapper (`ModuleProtocol`, the manifest with its one-line description and inputs and outputs, lifecycle, context), a menu through `IToolProvider` (the HTML viewer's), `requires` by contract, and reloading a module while the app runs. Planned: the directory, both assistants using it, finding modules by folder, a voice contract, and voice sessions. Each item: [Built and planned](#built-and-planned). The build plan is the module system change note (`docs/next-steps/module-system.md`), which supersedes the module-shape note. The agents reach the menus through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
 
 ## A module is a wrapper with a menu
 
@@ -10,13 +10,13 @@ Every module has the same **wrapper**, owned by the core, and inside it a **menu
 
 | Part | What it is | Built? |
 |------|------------|--------|
-| **Manifest** | Its id, a one-line description, the contracts it provides, requires, and optionally uses, the events it announces, the commands it handles, its permissions | Id, contracts, permissions: built. Description, events, `handles`: planned |
-| **Lifecycle** | `init`, `start`, `stop`, `busy`, `export_state`; the core starts, stops, and reloads it | Built |
+| **Manifest** | Its id, a one-line `description`, the contracts it `provides`, `requires`, and optionally uses, the commands it `handles` and `sends`, the events it `publishes` and `listens` to, its permissions | Built (description, commands and events 2026-11-05). The core warns when a module handles a command it didn't list |
+| **Lifecycle** | `ModuleProtocol`: `init`, `start`, `stop`, `busy`, `export_state`; the core starts, stops, and reloads it | Built |
 | **Context** | `ctx`, its only access to the app: commands, events, contracts, config, log, permissions | Built; `ctx.logs` planned |
 | **Menu** | Named tools, each with a one-line description and its inputs (`ToolSpec`), offered through `IToolProvider` and called with `InvokeTool` | Built; only the HTML viewer has one (`open`, `highlight`, `tabs`) |
 
 - **The wrapper is ours only.** Every module has the same one, so the core can start, stop, swap, and list any module without knowing what it does.
-- **The menu is MCP-like:** a list of tools a model can read and call, with a description and an argument schema each. It isn't MCP itself; an MCP bridge could expose menus later.
+- **The menu is MCP-like:** a list of tools a model can read and call, with a description and an argument schema each. It isn't MCP itself. The agents reach every menu through [one MCP door](#how-the-agents-reach-the-menus-one-door) in front of the core; modules never speak MCP.
 - **A menu can be empty.** `voice_in` offers commands (`StartListening`, `StopListening`) and events, not tools.
 
 ## Find a module, then open its menu
@@ -39,13 +39,68 @@ One shortcut to one module. The Talker turns its SHOW tags into the viewer's `vi
 2. **Give me its menu** (planned): that module's `ToolSpec`s only.
 3. **Call an item** (built): `InvokeTool(name, args)`, routed to the module that offers it.
 
-Asks 1 and 2 are new core asks: an extended `ListModules` or new commands, decided at build time. How the Main Assistant sends them (tags in its reply, or one generic tag) is [open](decisions.md#open-decisions).
+Asks 1 and 2 are new core asks: `ListModules` with a one-line description per module, and `GetMenu(id)`. The agents send all three asks through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05).
 
 ### What changes
 
 [![What changes: a one-line description, two new asks, both assistants using them](img/module-directory-3-changes.svg)](img/module-directory-3-changes.svg)
 
 Each manifest gets a one-line description, the core gets the two asks, and both assistants use them instead of hardcoded tags. All of it is planned and needs an app restart (it touches the core and contracts).
+
+### How the agents reach the menus: one door
+
+> **Status: decided 2026-11-05, planned** (chunk 8 of the module system change note, `docs/next-steps/module-system.md`).
+
+The agents are `claude` sessions, and MCP is how a `claude` session calls tools in the middle of a reply. So the app serves **one MCP server, the door**, in front of the core. It has three fixed tools that map onto the three steps above: **list modules**, **show a menu**, **use an item**. Everything behind it is our own wrapper: the core's directory, `InvokeTool`, and the permission check.
+
+```mermaid
+flowchart TB
+    Talker["<b>Talker</b>"]
+    Main["<b>Main Assistant</b>"]
+    Door["<b>One MCP door</b><br/>3 fixed tools: list modules · show a menu · use an item"]
+    subgraph App["Our app: commands, events, contracts"]
+        Core["<b>Core</b><br/>directory · InvokeTool · permission check"]
+        Viewer["<b>HTML viewer</b><br/>menu"]
+        Voice["<b>voice_in</b>"]
+        Notes["<b>Voice notes</b>"]
+        Unity["<b>Unity module</b><br/>menu · an MCP client inside"]
+        Btn["<b>Mic button</b><br/>UI"]
+    end
+    UnityMcp["Unity's own MCP server"]
+
+    Talker --> Door
+    Main --> Door
+    Door --> Core
+    Core --> Viewer
+    Core --> Voice
+    Core --> Unity
+    Notes -- "StartListening" --> Core
+    Btn -- "StartListening" --> Core
+    Unity -. "MCP" .-> UnityMcp
+
+    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    class Door planned
+    class Unity,UnityMcp later
+```
+
+Purple: planned. Dashed grey: an example for later. Agents, other modules and UI buttons all reach a module the same way, through the core.
+
+| | **One door** (chosen) | **A door per module** |
+|---|---|---|
+| Directory: one line per module, then one menu | Kept | The agent sees every tool at once |
+| Permissions: one check, your "Allow?" card | Kept, for every caller | Only the agent's own allow-list; buttons and modules unchecked |
+| Module to module (voice notes → voice) | Kept | No path between doors, or glue per pair |
+| Hot swap (hand over state, wait while busy) | Kept; the agent's three tools never change | Each door just stops and starts; the agent's tool list changes |
+| The agent calls mid-reply | Yes | Yes |
+
+### Why one door and not an MCP server per module
+
+- **Modules talk through the core.** To each other and to the UI, modules use commands, events and contracts. That's how voice notes uses `voice_in`, and how the mic button reaches it.
+- **Per-module servers would go around the core.** Each would face only the agent. It would skip the permission check, the module directory, the links between modules (`requires`, events), and hot swap in one process (handing over state, waiting while busy).
+- **Swapping would depend on every server behaving.** Our experiment (2026-11-05, Claude Code 2.1.318): a running session follows tool changes only when the server announces them (`list_changed`). A tool added without a notice is never seen, and a removed one stays listed until a call fails. A crashed server restarts on the next call. With one door, the three tools never change, so none of that matters.
+- **MCP stays a door at the agents' edge.** Modules are never MCP servers and never import MCP. The door only reads the directory and passes calls to the core.
+- **An outside tool that already speaks MCP, such as Unity, becomes a module.** The module is an MCP client of that tool and offers its own menu, so the agents reach it through the same door, with the same permissions. A dedicated agent can sit on top of it if it's worth one.
 
 ## Chaining modules
 
@@ -112,9 +167,10 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | `requires` / `optional` by contract, dependency order, refusal to stop a needed provider | Built |
 | Reload and add while running | Built (2026-11-03) |
 | Events from one module heard by another (`VoiceTranscript`, `VoiceState`) | Built |
-| Manifest description, announced events, `handles` (the core checks every command) | Planned |
+| `ModuleProtocol`: the one interface, `Module` renamed | Built (2026-11-05) |
+| Manifest description, commands (`handles`, `sends`) and events (`publishes`, `listens`) | Built (2026-11-05); the core warns on an unlisted handled command, refusing it is planned |
 | `ctx.logs` port | Planned |
-| Directory and menu asks; both assistants using them | Planned |
+| Directory and menu asks; both assistants using them through one MCP door | Planned (door decided 2026-11-05) |
 | Finding modules by folder | Planned |
 | Voice contract; voice sessions with a destination | Planned |
 | Voice-notes module | v1 built (2026-11-04), without the voice contract; the version that requires it is planned |

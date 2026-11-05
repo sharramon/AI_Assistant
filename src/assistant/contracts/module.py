@@ -29,7 +29,11 @@ K = TypeVar("K", bound=Command)
 
 @dataclass(frozen=True)
 class Manifest:
-    """What a module is and which contracts it provides and depends on."""
+    """Who a module is, what it needs, and its inputs and outputs.
+
+    Plain data on the class, readable without starting the module: the core uses it
+    for the dependency graph, the module directory and the generated module library.
+    """
 
     id: str
     provides: tuple[type[Contract], ...] = ()
@@ -39,6 +43,26 @@ class Manifest:
     permissions: tuple[str, ...] = ()
     #: Permissions asked for in the moment; without them a feature is off.
     optional_permissions: tuple[str, ...] = ()
+    #: One line saying what the module does, for the directory and the module library.
+    description: str = ""
+    #: Commands this module handles (`ctx.handle`). Commands in.
+    handles: tuple[type[Command], ...] = ()
+    #: Commands this module sends to other modules or the core. Commands out.
+    sends: tuple[type[Command], ...] = ()
+    #: Events this module publishes. Events out.
+    publishes: tuple[type[Event], ...] = ()
+    #: Events this module subscribes to. Events in.
+    listens: tuple[type[Event], ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.isidentifier():
+            raise ValueError(f"manifest id must be a Python identifier, got {self.id!r}")
+        if not isinstance(self.description, str) or "\n" in self.description:
+            raise ValueError(f"{self.id}: description must be one line of text")
+        for field, base in (("handles", Command), ("sends", Command), ("publishes", Event), ("listens", Event)):
+            for item in getattr(self, field):
+                if not (isinstance(item, type) and issubclass(item, base)):
+                    raise TypeError(f"{self.id}: manifest.{field} takes {base.__name__} types, got {item!r}")
 
 
 class ModulePermissions(ABC):
@@ -105,8 +129,13 @@ class ModuleContext(ABC):
         """The provider of a single-provider `contract`, or None."""
 
 
-class Module(ABC):
-    """Base class for every module.
+class ModuleProtocol(ABC):
+    """The one interface every module implements.
+
+    A protocol, not a `Contract`: a class is a module by having these members, and
+    nobody looks a module up through the container. It carries no behaviour; a
+    module gets its behaviour from the parts it owns (principle 12). Subclass it to
+    get the do-nothing defaults for the optional hooks.
 
     The core calls `init` (in dependency order), then `start`, and on shutdown
     `stop` in reverse order. `stop` is called for every module whose `init`

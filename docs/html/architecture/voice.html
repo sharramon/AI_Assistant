@@ -750,7 +750,7 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </table>
 <h3 id="the-voice_in-module">The voice_in module</h3>
 <p><strong>Manifest:</strong></p>
-<pre><code class="language-python">class VoiceInModule(Module):
+<pre><code class="language-python">class VoiceInModule(ModuleProtocol):
     manifest = Manifest(id=&quot;voice_in&quot;, optional_permissions=(&quot;microphone&quot;,))
     # provides, requires, optional: none
 </code></pre>

@@ -1,15 +1,15 @@
 import pytest
 
-from assistant.contracts import Contract, IToolProvider, Manifest, Module
+from assistant.contracts import Contract, IToolProvider, Manifest, ModuleProtocol
 from assistant.core.registry import StartupError, resolve_modules
 from tests.support import Speaker
 
 
-def module(id: str, **manifest) -> type[Module]:
+def module(id: str, **manifest) -> type[ModuleProtocol]:
     async def init(self, ctx):
         pass
 
-    return type(id, (Module,), {"manifest": Manifest(id=id, **manifest), "init": init})
+    return type(id, (ModuleProtocol,), {"manifest": Manifest(id=id, **manifest), "init": init})
 
 
 def ids(modules) -> list[str]:

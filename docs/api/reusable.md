@@ -8,9 +8,10 @@ Every reusable part, one line each. **Check here before writing a helper**; afte
 
 | Name | Kind | Purpose | Where | Used by |
 |------|------|---------|-------|---------|
+| [`ModuleProtocol`](modules.md#moduleprotocol) | protocol | The one interface every module implements (manifest, lifecycle hooks); no behaviour, modules compose their parts | `contracts/module.py` | every module; the core's loader and lifecycle |
 | [`ModuleContext`](modules.md#modulecontext) | interface | A module's access to the app: events, commands, contracts, config, log | `contracts/module.py` | every module |
 | [`ctx.permissions`](modules.md#modulecontextpermissions) (`ModulePermissions`) | interface | `has` / `request` a permission; the stand-in [`AllowAllPermissions`](core.md#allowallpermissions) allows, warns once per module and permission | `contracts/module.py`, `core/permissions.py`, `core/context.py` | every module's context (`ScopedContext`); callers: `voice_in` (`microphone`, on each start), every module that asks |
-| [`Manifest`](modules.md#manifest) | data | Id, contracts provided / required / optional, `permissions` / `optional_permissions` | `contracts/module.py` | every module |
+| [`Manifest`](modules.md#manifest) | data | Id, one-line `description`, contracts provided / required / optional, `handles` / `sends` (commands), `publishes` / `listens` (events), `permissions` / `optional_permissions` | `contracts/module.py` | every module |
 | Event Bus (`ctx.subscribe` / `ctx.publish`) | core | The stream for any event: voice text, agent activity, usage | `core/bus.py` | every module |
 | [`InputReceived`](messaging.md#inputreceived) | event | User input from any source | `contracts/messages.py` | `console_io`, `temp_ui`, `voice_in` (`source="voice"`) → `talker`, `echo_orchestrator` |
 | [`ResponseReady`](messaging.md#responseready) | event | A reply to present | `contracts/messages.py` | `talker`, `echo_orchestrator` → `console_io`, `temp_ui` |

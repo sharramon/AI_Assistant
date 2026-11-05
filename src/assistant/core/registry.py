@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from assistant.contracts import Contract, Module
+from assistant.contracts import Contract, ModuleProtocol
 from assistant.core.container import is_shared_contract
 
 
@@ -12,14 +12,14 @@ class StartupError(Exception):
     """The configured modules can't be started together."""
 
 
-def resolve_modules(available: Sequence[type[Module]], enabled: Sequence[str]) -> list[type[Module]]:
+def resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence[str]) -> list[type[ModuleProtocol]]:
     """Return the enabled modules in start order: providers before the modules that use them.
 
     Raises StartupError for unknown or duplicate ids, non-shared contracts,
     missing required contracts, too many providers of a single-provider
     contract, or circular dependencies.
     """
-    by_id: dict[str, type[Module]] = {}
+    by_id: dict[str, type[ModuleProtocol]] = {}
     for cls in available:
         if cls.manifest.id in by_id:
             raise StartupError(f"Two modules use the id {cls.manifest.id!r}")
@@ -30,7 +30,7 @@ def resolve_modules(available: Sequence[type[Module]], enabled: Sequence[str]) -
         raise StartupError(f"Enabled modules not found: {', '.join(unknown)}")
     selected = [by_id[module_id] for module_id in dict.fromkeys(enabled)]
 
-    providers: dict[type[Contract], list[type[Module]]] = {}
+    providers: dict[type[Contract], list[type[ModuleProtocol]]] = {}
     for cls in selected:
         m = cls.manifest
         for contract in (*m.provides, *m.requires, *m.optional):
@@ -58,7 +58,7 @@ def resolve_modules(available: Sequence[type[Module]], enabled: Sequence[str]) -
         }
         for cls in selected
     }
-    order: list[type[Module]] = []
+    order: list[type[ModuleProtocol]] = []
     remaining = list(selected)
     while remaining:
         ready = [cls for cls in remaining if deps[cls] <= set(order)]

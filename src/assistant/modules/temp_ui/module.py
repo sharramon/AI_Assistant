@@ -71,8 +71,8 @@ from assistant.contracts import (
     ListeningState,
     ListModules,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
     PermissionMode,
@@ -110,8 +110,14 @@ APP_DOWN = ("service_unavailable", "service_stopped")  # VoiceState reasons: the
 TAKEN_OVER = "taken_over"  # VoiceState reason: another part of the app took the mic (the second press wins)
 
 
-class TempUIModule(Module):
-    manifest = Manifest(id="temp_ui")
+class TempUIModule(ModuleProtocol):
+    manifest = Manifest(
+        id="temp_ui",
+        description="Temporary two-pane page: worker and Talker, mic, usage, permissions",
+        sends=(ListModules, StartListening, StopListening, AnswerPermission, SetPermissionMode, InvokeTool,),
+        publishes=(InputReceived, ResetRequested, ViewerClipDropped,),
+        listens=(InputReceived, ResponseReady, TaskUpdated, AgentActivity, AgentStateChanged, PermissionModeChanged, SessionUsage, ViewerClip, VoiceState, VoiceTranscript, ModuleStateChanged,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

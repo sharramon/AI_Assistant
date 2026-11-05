@@ -27,6 +27,13 @@
 </thead>
 <tbody>
 <tr>
+<td><a href="modules.html#moduleprotocol"><code>ModuleProtocol</code></a></td>
+<td>protocol</td>
+<td>The one interface every module implements (manifest, lifecycle hooks); no behaviour, modules compose their parts</td>
+<td><code>contracts/module.py</code></td>
+<td>every module; the core's loader and lifecycle</td>
+</tr>
+<tr>
 <td><a href="modules.html#modulecontext"><code>ModuleContext</code></a></td>
 <td>interface</td>
 <td>A module's access to the app: events, commands, contracts, config, log</td>
@@ -43,7 +50,7 @@
 <tr>
 <td><a href="modules.html#manifest"><code>Manifest</code></a></td>
 <td>data</td>
-<td>Id, contracts provided / required / optional, <code>permissions</code> / <code>optional_permissions</code></td>
+<td>Id, one-line <code>description</code>, contracts provided / required / optional, <code>handles</code> / <code>sends</code> (commands), <code>publishes</code> / <code>listens</code> (events), <code>permissions</code> / <code>optional_permissions</code></td>
 <td><code>contracts/module.py</code></td>
 <td>every module</td>
 </tr>

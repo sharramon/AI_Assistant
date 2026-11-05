@@ -14,7 +14,19 @@ import os
 from pathlib import Path
 from typing import Any
 
-from assistant.contracts import ITaskAgent, Manifest, Module, ModuleContext, PermissionMode, ResetRequested
+from assistant.contracts import (
+    AgentActivity,
+    AgentStateChanged,
+    ITaskAgent,
+    Manifest,
+    ModuleContext,
+    ModuleProtocol,
+    PermissionMode,
+    PermissionModeChanged,
+    ReportTask,
+    ResetRequested,
+    SessionUsage,
+)
 from assistant.infra import ClaudeSession, SessionTaskAgent, claude_command
 from assistant.infra.claude_session import path_rule
 
@@ -94,8 +106,15 @@ AUTO_BLOCKED = tuple(f"{tool}(git push{args})" for tool in ("PowerShell", "Bash"
 AUTO_CLAUDE_MODE = "bypassPermissions"
 
 
-class MainAssistantModule(Module):
-    manifest = Manifest(id="main_assistant", provides=(ITaskAgent,))
+class MainAssistantModule(ModuleProtocol):
+    manifest = Manifest(
+        id="main_assistant",
+        description="The worker: does the tasks the Talker hands over",
+        provides=(ITaskAgent,),
+        sends=(ReportTask,),
+        publishes=(AgentActivity, AgentStateChanged, SessionUsage, PermissionModeChanged,),
+        listens=(ResetRequested,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

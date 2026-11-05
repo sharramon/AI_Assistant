@@ -25,7 +25,7 @@
 <p>Abstract. Run tool <code>name</code>. Called by the core when an <a href="#invoketool"><code>InvokeTool</code></a> command arrives for one of this provider's tools, with the command's timeout and cancellation applying.</p>
 <p><strong>Returns:</strong> a <a href="messaging.html#result"><code>Result</code></a>. Use <code>Result.invalid_arguments</code> for bad <code>args</code>.</p>
 <p><strong>Example</strong></p>
-<pre><code>class Calculator(Module, IToolProvider):
+<pre><code>class Calculator(ModuleProtocol, IToolProvider):
     manifest = Manifest(id="calculator", provides=(IToolProvider,))
 
     async def init(self, ctx):

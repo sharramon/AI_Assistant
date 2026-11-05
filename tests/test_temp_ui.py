@@ -9,8 +9,8 @@ from assistant.contracts import (
     InputReceived,
     ListeningState,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
     ReportKind,
@@ -99,7 +99,7 @@ async def test_page_input_and_events():
         await app.stop()
 
 
-class FakeVoiceIn(Module):
+class FakeVoiceIn(ModuleProtocol):
     """Stands in for voice_in: answers the two commands with the events voice_in publishes."""
 
     manifest = Manifest(id="voice_in")

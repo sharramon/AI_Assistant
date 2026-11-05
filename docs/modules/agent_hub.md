@@ -56,4 +56,4 @@ None.
 
 ## Planned
 
-`SetPermissionMode` routing moves to the [permissions handler](../architecture/permissions.md) when it is built. Its manifest gains a description and `handles` (module-shape refactor).
+`SetPermissionMode` routing moves to the [permissions handler](../architecture/permissions.md) when it is built.

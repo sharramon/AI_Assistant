@@ -42,7 +42,8 @@ Changes you asked for, each with a note written before anything is built ([`app-
 | [Voice text cleanup (sentence case), then a hot-swap test](voice-text-cleanup.md) | built (waiting on you): `RELOAD: voice_in` worked; your mic checks left | 2026-11-03 |
 | [Voice: the layers in code, and whisper as a second engine](voice-layers-whisper.md) | built (waiting on you): loaded; your check: switch `[engine] name` to whisper | 2026-11-03 |
 | [Voice: two passes (live text while you talk, whisper cleans it piece by piece)](voice-two-pass.md) | built (waiting on you): real check passed, loaded; your check (step 3.5) | 2026-11-03 |
-| [Module shape: directory, menus, and clean boundaries](module-shape-refactor.md) | approved: design in the architecture docs (Modules page, principles 14 to 17); build pending, voice notes first, with a voice contract | 2026-11-04 |
+| [Module shape: directory, menus, and clean boundaries](module-shape-refactor.md) | superseded by the module system note below; kept for its docs table | 2026-11-04 |
+| [Module system: one interface, a directory, menus everywhere](module-system.md) | building: chunk 1 of 9 built (`ModuleProtocol`, manifest inputs and outputs); runs unattended in Auto | 2026-11-05 |
 | [Voice notes: a quick record-to-page module](voice-notes.md) | built (waiting on you): v1, own module, second press wins; your mic checks next | 2026-11-04 |
 | [Job agent: run the job project from the assistant](job-agent.md) | proposed: the module wrapper first; two questions for you | 2026-11-04 |
 

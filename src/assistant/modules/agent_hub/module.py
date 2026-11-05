@@ -22,8 +22,8 @@ from assistant.contracts import (
     ITaskAgent,
     ListAgents,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ReportKind,
     ReportTask,
     Result,
@@ -61,8 +61,15 @@ class _TaskRecord:
         )
 
 
-class AgentHubModule(Module):
-    manifest = Manifest(id="agent_hub", optional=(ITaskAgent,))
+class AgentHubModule(ModuleProtocol):
+    manifest = Manifest(
+        id="agent_hub",
+        description="Task state and routing between the agents",
+        optional=(ITaskAgent,),
+        handles=(ListAgents, StartTask, GetTaskStatus, SendToTask, CancelTask, ReportTask, AnswerPermission, SetPermissionMode,),
+        publishes=(TaskUpdated,),
+        listens=(AgentActivity,),
+    )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx

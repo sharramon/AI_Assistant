@@ -18,8 +18,8 @@ from assistant.contracts import (
     InvokeTool,
     IToolProvider,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ResponseReady,
     Result,
     ToolSpec,
@@ -622,7 +622,7 @@ async def test_open_tool_checks_its_path(tmp_path):
 
 # --- the chat's Open in viewer button ---
 
-class FakeViewer(Module, IToolProvider):
+class FakeViewer(ModuleProtocol, IToolProvider):
     manifest = Manifest(id="fake_viewer", provides=(IToolProvider,))
     opened: list[str] = []
     front: list[bool] = []

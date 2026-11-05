@@ -12,7 +12,7 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 
 **Check the [reusable parts index](reusable.md) before writing a helper.** One line per part (name, kind, purpose, where, used by), sorted by where it lives:
 
-- **Contracts** (`assistant.contracts`): `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
+- **Contracts** (`assistant.contracts`): `ModuleProtocol`, `ModuleContext`, `ctx.permissions`, `Manifest`, the Event Bus, `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `session_usage`, `ContextWatch`, `agent_tags`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window`, `load_layered`, `local_path`, `CompanionApp`
@@ -24,8 +24,8 @@ Writing a module: lifecycle, manifest, and its context. `from assistant.contract
 
 | Item | Kind | Summary |
 |------|------|---------|
-| [`Module`](modules.md#module) | base class | Base for every module: `init`, `start`, `stop` |
-| [`Manifest`](modules.md#manifest) | data | ♻ Module id, the contracts it provides, requires, and optionally uses, and its permissions |
+| [`ModuleProtocol`](modules.md#moduleprotocol) | protocol | ♻ The one interface every module implements: `manifest`, `init`, `start`, `stop`, `busy`, `export_state` |
+| [`Manifest`](modules.md#manifest) | data | ♻ Module id, one-line description, its contracts, the commands it handles and sends, the events it publishes and listens to, its permissions |
 | [`ModuleContext`](modules.md#modulecontext) | interface | ♻ A module's only access to the app: events, commands, contracts, config, logging |
 | [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission (`ModulePermissions`); a stand-in allows and logs until the handler runs |
 | [`Contract`](modules.md#contract) | base class | Base for capability interfaces resolvable through DI |

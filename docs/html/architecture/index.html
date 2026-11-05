@@ -61,7 +61,7 @@
     Talker -. &quot;1 list · 2 menu&quot; .-&gt; Dir
     Main -. &quot;1 list · 2 menu&quot; .-&gt; Dir
     Talker -- &quot;3 call (InvokeTool)&quot; --&gt; Cmds
-    Main -. &quot;3 call&quot; .-&gt; Cmds
+    Main -. &quot;3 call · one MCP door&quot; .-&gt; Cmds
     Cmds -- &quot;open a page&quot; --&gt; Viewer
     VoiceIn -- VoiceTranscript --&gt; Events
     Events -. listens .-&gt; Notes
@@ -152,7 +152,7 @@
 </tr>
 <tr>
 <td>Contracts</td>
-<td><code>Module</code>, <code>ModuleContext</code>, capability interfaces, command and event types</td>
+<td><code>ModuleProtocol</code>, <code>Manifest</code>, <code>ModuleContext</code>, capability interfaces, command and event types</td>
 <td><code>src/assistant/contracts/</code></td>
 <td><a href="../api/index.html">API</a></td>
 </tr>

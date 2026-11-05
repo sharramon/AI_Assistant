@@ -154,7 +154,7 @@ There's no `Agent` base class. Each class inherits one interface and is assemble
 
 | Class | Inherits | Composed from |
 |-------|----------|---------------|
-| `MainAssistantModule` | `Module` | `SessionTaskAgent`, `ClaudeSession` |
+| `MainAssistantModule` | `ModuleProtocol` | `SessionTaskAgent`, `ClaudeSession` |
 | `SessionTaskAgent` | `ITaskAgent` | `ClaudeSession`, `ModuleContext` |
 | `ClaudeSession` (`infra`) | nothing | one `claude -p` stream-json process |
 

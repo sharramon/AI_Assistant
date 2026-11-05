@@ -11,7 +11,7 @@ Every module page has these sections, in this order. Keep each short; link to th
 | Section | What goes in it |
 |---------|-----------------|
 | Purpose | One or two lines, and its status: on by default, off by default, or planned |
-| Wrapper | Its manifest: id, provides, requires, optional, permissions |
+| Wrapper | Its manifest: id, description, provides, requires, optional, permissions, handles, sends, publishes, listens |
 | Interface | Tools (its menu), commands it handles, commands it calls, events it publishes, events it listens to |
 | Owns and launches | Processes, windows, ports, files, and companion apps it starts and stops |
 | Inner workings | One diagram, plus a few lines |
@@ -19,7 +19,7 @@ Every module page has these sections, in this order. Keep each short; link to th
 | Code and tests | Paths only |
 | Planned | What the module-shape refactor changes for it |
 
-The Interface section is written by hand from the code (checked 2026-11-04). When the manifest carries the description, the handled commands and the events, it is generated like the [library](../architecture/module-library.md#generated-later).
+The Interface section is written by hand from the code (checked 2026-11-04). The manifest carries the description, the commands and the events since 2026-11-05; generating this section from it is planned, like the [library](../architecture/module-library.md#generated-later).
 
 ## Pages
 

@@ -26,7 +26,7 @@ Abstract. Run tool `name`. Called by the core when an [`InvokeTool`](#invoketool
 
 **Example**
 
-    class Calculator(Module, IToolProvider):
+    class Calculator(ModuleProtocol, IToolProvider):
         manifest = Manifest(id="calculator", provides=(IToolProvider,))
 
         async def init(self, ctx):

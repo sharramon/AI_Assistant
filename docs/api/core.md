@@ -75,7 +75,7 @@ Functions for loading a module's code fresh. Generic: they know no module by nam
 | `drop(package) -> dict` | Remove the package and its submodules from `sys.modules` (and their `__pycache__`); returns them |
 | `restore(package, removed)` | Put back what `drop` removed |
 | `import_fresh(package)` | Import from source; a missing contract becomes `LoadError` ("needs a restart") |
-| `find_module_class(package, module_id=None)` | The one `Module` subclass the package exports |
+| `find_module_class(package, module_id=None)` | The one `ModuleProtocol` subclass the package exports |
 
 **Defined in:** `src/assistant/core/loader.py`
 

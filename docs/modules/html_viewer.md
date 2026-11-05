@@ -72,4 +72,4 @@ The app is built as state, commands and a view ([architecture](../architecture/h
 
 ## Planned
 
-From the module-shape refactor: its menu is found through the **directory** by both assistants, so the Talker's hardcoded SHOW tags and the SHOW watcher go away. Its manifest gains a description, `handles` and its announced events.
+From the module-shape refactor: its menu is found through the **directory** by both assistants, so the Talker's hardcoded SHOW tags and the SHOW watcher go away.

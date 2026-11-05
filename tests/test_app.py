@@ -8,8 +8,8 @@ from assistant.contracts import (
     InvokeTool,
     IToolProvider,
     Manifest,
-    Module,
     ModuleContext,
+    ModuleProtocol,
     ResponseReady,
     Result,
     ShutdownRequested,
@@ -20,7 +20,7 @@ from assistant.modules.echo_orchestrator import EchoOrchestrator
 from tests.support import Calculator, Speaker, make_config
 
 
-class ShoutOrchestrator(Module):
+class ShoutOrchestrator(ModuleProtocol):
     """A second, unrelated orchestrator implementation."""
 
     manifest = Manifest(id="shout_orchestrator")
@@ -83,7 +83,7 @@ class Busy(Command):
     pass
 
 
-class Everything(Module, IToolProvider):
+class Everything(ModuleProtocol, IToolProvider):
     """Registers one of each kind of thing, to check that stop removes them all."""
 
     manifest = Manifest(id="everything", provides=(IToolProvider,))
@@ -127,14 +127,14 @@ async def test_shutdown_requested_event_ends_run():
     await asyncio.wait_for(run, 1)
 
 
-class Broken(Module):
+class Broken(ModuleProtocol):
     manifest = Manifest(id="broken", provides=(Speaker,))
 
     async def init(self, ctx):
         raise RuntimeError("cannot init")
 
 
-class NeedsSpeaker(Module):
+class NeedsSpeaker(ModuleProtocol):
     manifest = Manifest(id="needs_speaker", requires=(Speaker,))
 
     async def init(self, ctx):
@@ -156,7 +156,7 @@ async def test_failed_required_provider_aborts_startup():
 
 
 async def test_provide_requires_declaring_the_contract():
-    class Undeclared(Module, IToolProvider):
+    class Undeclared(ModuleProtocol, IToolProvider):
         manifest = Manifest(id="undeclared")
 
         async def init(self, ctx):

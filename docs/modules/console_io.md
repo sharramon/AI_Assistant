@@ -44,4 +44,4 @@ flowchart LR
 
 ## Planned
 
-Nothing specific; its manifest gains a description (module-shape refactor).
+Nothing specific.
