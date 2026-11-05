@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tools and MCP</title>
+<style>
+  body { margin: 0; background: #f7f6f2; font-family: "Segoe UI", Arial, sans-serif; color: #1d1d1b; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 18px 20px 40px; }
+  h1 { font-size: 26px; margin: 6px 0 10px; }
+  h2 { font-size: 22px; margin: 34px 0 8px; display: flex; align-items: center; gap: 12px; }
+  .num { display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: #2f6f9f; color: #fff;
+         align-items: center; justify-content: center; font-size: 18px; }
+  .legend { display: flex; gap: 22px; align-items: center; font-size: 15px; background: #fff;
+            border: 1px solid #ddd; border-radius: 10px; padding: 8px 14px; width: fit-content; }
+  .sw { display: inline-block; width: 34px; height: 18px; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
+  .sw.built { background: #dcebf6; border: 2px solid #2f6f9f; }
+  .sw.prop { background: #fff3e3; border: 2px dashed #d9822b; }
+  svg { width: 100%; height: auto; display: block; background: #fff; border-radius: 14px; border: 1px solid #e2e0da; }
+  .caption { text-align: center; font-size: 19px; font-weight: 600; margin: 10px 0 0; color: #2f4f6f; }
+  .proposal { margin: 10px auto 0; width: fit-content; background: #fff3e3; border: 2px dashed #d9822b;
+              border-radius: 10px; padding: 8px 14px; font-size: 15px; color: #7a4a12; }
+  .proposal b { color: #b8620f; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Tools: the menu every module hands in</h1>
+<div class="legend">
+  <span><span class="sw built"></span>Solid = built today</span>
+  <span><span class="sw prop"></span>Dashed = proposal or example</span>
+</div>
+
+<!-- ========== SECTION 1 ========== -->
+<h2><span class="num">1</span>The menu board</h2>
+<svg viewBox="0 0 1000 450" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker>
+    <marker id="arO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d9822b"/></marker>
+    <marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2e7d4f"/></marker>
+  </defs>
+
+  <text x="120" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="#6b4fa0">Modules</text>
+  <!-- card html_viewer (built) -->
+  <rect x="20" y="40" width="200" height="120" rx="10" fill="#efeaf7" stroke="#6b4fa0" stroke-width="2"/>
+  <text x="120" y="64" text-anchor="middle" font-size="16" font-weight="700">html_viewer</text>
+  <rect x="40" y="74" width="160" height="76" rx="6" fill="#fff" stroke="#6b4fa0"/>
+  <text x="56" y="96" font-size="14">• open</text>
+  <text x="56" y="118" font-size="14">• highlight</text>
+  <text x="56" y="140" font-size="14">• tabs</text>
+  <!-- card voice_in (example) -->
+  <rect x="20" y="180" width="200" height="100" rx="10" fill="#fff3e3" stroke="#d9822b" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="120" y="204" text-anchor="middle" font-size="16" font-weight="700">voice_in</text>
+  <rect x="40" y="214" width="160" height="56" rx="6" fill="#fff" stroke="#d9822b" stroke-dasharray="5 4"/>
+  <text x="56" y="236" font-size="14">• mute mic</text>
+  <text x="56" y="258" font-size="14">• start mic</text>
+  <!-- card new module (example) -->
+  <rect x="20" y="300" width="200" height="100" rx="10" fill="#fff3e3" stroke="#d9822b" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="120" y="324" text-anchor="middle" font-size="16" font-weight="700">new module</text>
+  <rect x="40" y="334" width="160" height="56" rx="6" fill="#fff" stroke="#d9822b" stroke-dasharray="5 4"/>
+  <text x="56" y="356" font-size="14">• anything</text>
+  <text x="56" y="378" font-size="14">• it can do</text>
+
+  <!-- hand-in arrows -->
+  <line x1="222" y1="100" x2="318" y2="130" stroke="#555" stroke-width="2.5" marker-end="url(#ar)"/>
+  <line x1="222" y1="230" x2="318" y2="190" stroke="#d9822b" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arO)"/>
+  <line x1="222" y1="350" x2="318" y2="250" stroke="#d9822b" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arO)"/>
+  <text x="250" y="160" font-size="13" fill="#555" transform="rotate(-8 250 160)">hand in menu</text>
+
+  <!-- Core -->
+  <rect x="290" y="20" width="420" height="410" rx="16" fill="#dcebf6" stroke="#2f6f9f" stroke-width="3"/>
+  <text x="500" y="48" text-anchor="middle" font-size="20" font-weight="700" fill="#2f6f9f">Core</text>
+  <!-- board -->
+  <rect x="320" y="60" width="360" height="226" rx="10" fill="#2d4a3e" stroke="#7a5a2e" stroke-width="8"/>
+  <text x="500" y="92" text-anchor="middle" font-size="20" font-weight="700" fill="#f5e9b8" letter-spacing="3">MENU</text>
+  <g font-size="16" fill="#ffffff">
+    <text x="350" y="124">open</text><text x="350" y="152">highlight</text><text x="350" y="180">tabs</text>
+  </g>
+  <g font-size="16" fill="#ffd9a8" font-style="italic">
+    <text x="520" y="124">mute mic</text><text x="520" y="152">start mic</text>
+    <text x="520" y="180">anything</text><text x="520" y="208">…</text>
+  </g>
+  <line x1="500" y1="108" x2="500" y2="270" stroke="#4f6e60" stroke-width="2"/>
+  <text x="350" y="268" font-size="13" fill="#bcd3c6">html_viewer</text>
+  <text x="520" y="268" font-size="13" fill="#ffd9a8">examples</text>
+  <!-- anatomy of one item -->
+  <text x="500" y="318" text-anchor="middle" font-size="15" font-weight="700" fill="#2f4f6f">One menu item = 3 parts</text>
+  <rect x="312" y="330" width="116" height="78" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="370" y="352" text-anchor="middle" font-size="13" fill="#2f6f9f" font-weight="700">Name</text>
+  <text x="370" y="384" text-anchor="middle" font-size="16">open</text>
+  <rect x="442" y="330" width="116" height="78" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="500" y="352" text-anchor="middle" font-size="13" fill="#2f6f9f" font-weight="700">What it does</text>
+  <text x="500" y="384" text-anchor="middle" font-size="15">Open a page</text>
+  <rect x="572" y="330" width="116" height="78" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="630" y="352" text-anchor="middle" font-size="13" fill="#2f6f9f" font-weight="700">Inputs</text>
+  <text x="630" y="384" text-anchor="middle" font-size="15">which file</text>
+
+  <!-- Readers -->
+  <text x="875" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="#2e7d4f">Readers</text>
+  <g font-size="16" font-weight="700" text-anchor="middle">
+    <rect x="780" y="50" width="190" height="64" rx="12" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/>
+    <text x="875" y="88">🗣 Talker</text>
+    <rect x="780" y="160" width="190" height="64" rx="12" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/>
+    <text x="875" y="198">🛠 Main Assistant</text>
+    <rect x="780" y="270" width="190" height="64" rx="12" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/>
+    <text x="875" y="308">🖥 temp_ui</text>
+  </g>
+  <line x1="778" y1="82" x2="684" y2="120" stroke="#2e7d4f" stroke-width="2.5" marker-end="url(#arG)"/>
+  <line x1="778" y1="192" x2="684" y2="170" stroke="#2e7d4f" stroke-width="2.5" marker-end="url(#arG)"/>
+  <line x1="778" y1="302" x2="684" y2="230" stroke="#2e7d4f" stroke-width="2.5" marker-end="url(#arG)"/>
+  <rect x="770" y="372" width="210" height="40" rx="20" fill="#2e7d4f"/>
+  <text x="875" y="398" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">“open, please” → by name</text>
+</svg>
+<p class="caption">The core never needs to know what a module does.</p>
+
+<!-- ========== SECTION 2 ========== -->
+<h2><span class="num">2</span>Drop in a module</h2>
+<svg viewBox="0 0 1000 400" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <!-- new module dropping -->
+  <rect x="50" y="20" width="180" height="56" rx="10" fill="#fff3e3" stroke="#d9822b" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <text x="140" y="54" text-anchor="middle" font-size="16" font-weight="700">🧩 new module</text>
+  <line x1="140" y1="80" x2="140" y2="142" stroke="#d9822b" stroke-width="3" stroke-dasharray="7 5" marker-end="url(#arO)"/>
+  <text x="152" y="118" font-size="14" fill="#b8620f" font-weight="700">drop in</text>
+  <!-- folder -->
+  <path d="M20,150 h90 l16,-16 h70 l16,16 h68 v220 h-260 z" fill="#f5e6b8" stroke="#b08a2e" stroke-width="2.5"/>
+  <text x="150" y="176" text-anchor="middle" font-size="15" font-weight="700" fill="#7a5a12">📁 modules</text>
+  <g font-size="14" text-anchor="middle">
+    <rect x="40" y="190" width="100" height="40" rx="8" fill="#efeaf7" stroke="#6b4fa0"/><text x="90" y="215">html_viewer</text>
+    <rect x="160" y="190" width="100" height="40" rx="8" fill="#efeaf7" stroke="#6b4fa0"/><text x="210" y="215">voice_in</text>
+    <rect x="40" y="245" width="100" height="40" rx="8" fill="#efeaf7" stroke="#6b4fa0"/><text x="90" y="270">talker</text>
+    <rect x="160" y="245" width="100" height="40" rx="8" fill="#efeaf7" stroke="#6b4fa0"/><text x="210" y="270">temp_ui</text>
+    <rect x="100" y="305" width="100" height="40" rx="8" fill="#fff3e3" stroke="#d9822b" stroke-width="2" stroke-dasharray="6 4"/><text x="150" y="330">new ✨</text>
+  </g>
+  <!-- arrow to core -->
+  <line x1="284" y1="260" x2="336" y2="260" stroke="#d9822b" stroke-width="3" stroke-dasharray="7 5" marker-end="url(#arO)"/>
+  <text x="310" y="248" text-anchor="middle" font-size="13" fill="#b8620f">menu card</text>
+  <!-- core -->
+  <rect x="340" y="140" width="210" height="230" rx="14" fill="#dcebf6" stroke="#2f6f9f" stroke-width="3"/>
+  <text x="445" y="166" text-anchor="middle" font-size="18" font-weight="700" fill="#2f6f9f">Core</text>
+  <rect x="362" y="178" width="166" height="130" rx="8" fill="#2d4a3e" stroke="#7a5a2e" stroke-width="6"/>
+  <g font-size="14" fill="#fff"><text x="378" y="204">open</text><text x="378" y="226">highlight</text><text x="378" y="248">tabs</text></g>
+  <rect x="372" y="260" width="146" height="28" rx="5" fill="none" stroke="#ffb35c" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="380" y="280" font-size="14" fill="#ffd9a8" font-weight="700">+ new item ✨</text>
+  <rect x="372" y="322" width="146" height="34" rx="17" fill="#2e7d4f"/>
+  <text x="445" y="344" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">✓ unchanged</text>
+
+  <!-- divider -->
+  <line x1="580" y1="20" x2="580" y2="380" stroke="#ddd" stroke-width="2"/>
+
+  <!-- ASK -->
+  <text x="790" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#2f6f9f">Ask</text>
+  <rect x="610" y="60" width="120" height="70" rx="12" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/>
+  <text x="670" y="101" text-anchor="middle" font-size="15" font-weight="700">Talker</text>
+  <rect x="850" y="60" width="120" height="70" rx="12" fill="#efeaf7" stroke="#6b4fa0" stroke-width="2"/>
+  <text x="910" y="101" text-anchor="middle" font-size="15" font-weight="700">Module</text>
+  <line x1="734" y1="78" x2="846" y2="78" stroke="#555" stroke-width="2.5" marker-end="url(#ar)"/>
+  <text x="790" y="72" text-anchor="middle" font-size="14">❓ question</text>
+  <line x1="846" y1="114" x2="734" y2="114" stroke="#555" stroke-width="2.5" marker-end="url(#ar)"/>
+  <text x="790" y="132" text-anchor="middle" font-size="14">💬 answer</text>
+  <rect x="725" y="146" width="130" height="30" rx="15" fill="#2f6f9f"/>
+  <text x="790" y="167" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">Menu item</text>
+
+  <!-- ANNOUNCE -->
+  <text x="790" y="210" text-anchor="middle" font-size="20" font-weight="700" fill="#2f6f9f">Announce</text>
+  <rect x="610" y="260" width="120" height="70" rx="12" fill="#efeaf7" stroke="#6b4fa0" stroke-width="2"/>
+  <text x="670" y="290" text-anchor="middle" font-size="15" font-weight="700">voice_in</text>
+  <text x="670" y="314" text-anchor="middle" font-size="20">📢</text>
+  <g font-size="14" font-weight="700" text-anchor="middle">
+    <rect x="860" y="226" width="110" height="38" rx="10" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/><text x="915" y="250">Talker</text>
+    <rect x="860" y="276" width="110" height="38" rx="10" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/><text x="915" y="300">temp_ui</text>
+    <rect x="860" y="326" width="110" height="38" rx="10" fill="#e3f2e8" stroke="#2e7d4f" stroke-width="2"/><text x="915" y="350">anyone</text>
+  </g>
+  <line x1="734" y1="285" x2="856" y2="245" stroke="#555" stroke-width="2.5" marker-end="url(#ar)"/>
+  <line x1="734" y1="295" x2="856" y2="295" stroke="#555" stroke-width="2.5" marker-end="url(#ar)"/>
+  <line x1="734" y1="305" x2="856" y2="345" stroke="#555" stroke-width="2.5" marker-end="url(#ar)"/>
+  <rect x="640" y="364" width="200" height="30" rx="15" fill="#2f6f9f"/>
+  <text x="740" y="385" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">Event, such as live voice text</text>
+</svg>
+<div class="proposal"><b>Proposal, not built:</b> folder drop-in. And modules also list their announcements in the manifest, so listeners can discover them.</div>
+<p class="caption">Menu items exist today. Folder drop-in and listed announcements are proposals.</p>
+
+<!-- ========== SECTION 3 ========== -->
+<h2><span class="num">3</span>Compared to MCP</h2>
+<svg viewBox="0 0 1000 440" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <!-- OURS -->
+  <text x="240" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#2f6f9f">Ours: inside one app</text>
+  <rect x="20" y="46" width="440" height="230" rx="18" fill="#f2f7fb" stroke="#2f6f9f" stroke-width="3"/>
+  <text x="40" y="70" font-size="13" fill="#2f6f9f" font-weight="700">ONE APP</text>
+  <rect x="160" y="90" width="160" height="110" rx="8" fill="#2d4a3e" stroke="#7a5a2e" stroke-width="6"/>
+  <text x="240" y="114" text-anchor="middle" font-size="14" font-weight="700" fill="#f5e9b8" letter-spacing="2">MENU</text>
+  <g font-size="13" fill="#fff"><text x="178" y="140">open</text><text x="178" y="160">highlight</text><text x="178" y="180">tabs</text></g>
+  <text x="240" y="225" text-anchor="middle" font-size="15" font-weight="700" fill="#2f6f9f">Core</text>
+  <g font-size="13" text-anchor="middle">
+    <rect x="40" y="96" width="96" height="36" rx="8" fill="#efeaf7" stroke="#6b4fa0"/><text x="88" y="119">module</text>
+    <rect x="40" y="156" width="96" height="36" rx="8" fill="#efeaf7" stroke="#6b4fa0"/><text x="88" y="179">module</text>
+    <rect x="344" y="126" width="96" height="36" rx="8" fill="#e3f2e8" stroke="#2e7d4f"/><text x="392" y="149">Talker</text>
+  </g>
+  <line x1="138" y1="114" x2="158" y2="130" stroke="#555" stroke-width="2"/>
+  <line x1="138" y1="174" x2="158" y2="160" stroke="#555" stroke-width="2"/>
+  <line x1="342" y1="144" x2="322" y2="144" stroke="#2e7d4f" stroke-width="2"/>
+  <text x="240" y="262" text-anchor="middle" font-size="14" fill="#2e7d4f" font-weight="700">⚡ no network hop</text>
+
+  <!-- MCP -->
+  <text x="760" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#555">MCP: between programs</text>
+  <rect x="540" y="66" width="190" height="190" rx="14" fill="#f2f1ee" stroke="#555" stroke-width="2.5"/>
+  <text x="635" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#555">PROGRAM A · server</text>
+  <rect x="560" y="100" width="150" height="110" rx="8" fill="#2d4a3e" stroke="#7a5a2e" stroke-width="6"/>
+  <text x="635" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#f5e9b8" letter-spacing="2">MENU</text>
+  <g font-size="13" fill="#fff"><text x="576" y="150">tool</text><text x="576" y="170">tool</text><text x="576" y="190">tool</text></g>
+  <rect x="800" y="96" width="180" height="130" rx="14" fill="#f2f1ee" stroke="#555" stroke-width="2.5"/>
+  <text x="890" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="#555">PROGRAM B · AI tool</text>
+  <text x="890" y="172" text-anchor="middle" font-size="30">🤖</text>
+  <line x1="732" y1="160" x2="798" y2="160" stroke="#555" stroke-width="4" stroke-dasharray="2 6" stroke-linecap="round"/>
+  <text x="765" y="150" text-anchor="middle" font-size="18">🔗</text>
+  <text x="760" y="262" text-anchor="middle" font-size="14" fill="#555" font-weight="700">🌐 link between programs</text>
+
+  <!-- ADAPTERS -->
+  <rect x="380" y="292" width="240" height="30" rx="15" fill="#d9822b"/>
+  <text x="500" y="313" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Later, optional</text>
+  <rect x="40" y="336" width="440" height="80" rx="14" fill="#fff3e3" stroke="#d9822b" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <text x="260" y="370" text-anchor="middle" font-size="16" font-weight="700">🔌 Our menu → outside tools</text>
+  <text x="260" y="396" text-anchor="middle" font-size="14" fill="#7a4a12">Show our menu as an MCP server</text>
+  <rect x="520" y="336" width="440" height="80" rx="14" fill="#fff3e3" stroke="#d9822b" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <text x="740" y="370" text-anchor="middle" font-size="16" font-weight="700">🔌 Outside MCP server → module</text>
+  <text x="740" y="396" text-anchor="middle" font-size="14" fill="#7a4a12">Plug it in as a module</text>
+</svg>
+<p class="caption">Same shape, different distance.</p>
+</div>
+</body>
+</html>

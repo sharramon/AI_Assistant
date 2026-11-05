@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voice service: proposed layers</title>
+<style>
+  body { font-family: "Segoe UI", system-ui, sans-serif; background: #faf9f6; color: #1d1d1b; margin: 0; padding: 32px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .caption { color: #5f5e58; margin: 0 0 24px; font-size: 15px; }
+  .layer { border: 2px solid; border-radius: 10px; padding: 12px 14px; background: #fff; }
+  .layer h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .box { flex: 1; min-width: 150px; border: 1px solid #c9c6bd; border-radius: 8px; padding: 8px 10px; background: #fdfcfa; font-size: 14px; }
+  .box b { display: block; margin-bottom: 2px; }
+  .box small { color: #5f5e58; }
+  code { font-family: Consolas, monospace; font-size: 13px; background: #f0eee8; padding: 0 3px; border-radius: 3px; }
+  .new { border-style: dashed; border-color: #6b4fa0; background: #f6f2fb; }
+  .tag { font-size: 11px; color: #6b4fa0; font-weight: 600; }
+  .iface { font-size: 13px; color: #5f5e58; margin-top: 8px; }
+  .arrow { text-align: center; color: #8a877c; font-size: 13px; margin: 4px 0; line-height: 1.2; }
+  .arrow span { font-size: 20px; display: block; }
+  .l4 { border-color: #2f6f9f; } .l4 h2 { color: #2f6f9f; }
+  .l3 { border-color: #3d8a5a; } .l3 h2 { color: #3d8a5a; }
+  .l2 { border-color: #b07a1f; } .l2 h2 { color: #b07a1f; }
+  .l1 { border-color: #8a877c; } .l1 h2 { color: #5f5e58; }
+  .pkg { border: 2px dashed #8a877c; border-radius: 14px; padding: 14px; margin-top: 4px; }
+  .pkg > .label { font-size: 12px; color: #5f5e58; margin: -4px 0 10px; }
+  .split { display: flex; gap: 10px; }
+  .split > div { flex: 1; }
+  .legend { margin-top: 20px; font-size: 13px; color: #5f5e58; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Voice service: proposed layers</h1>
+  <p class="caption">Still one package, but the engine does not depend on the mic.</p>
+
+  <!-- Layer 4: users -->
+  <div class="layer l4">
+    <h2>4 · Who uses it</h2>
+    <div class="split">
+      <div class="box"><b><code>voice_in</code> module</b><small>In the main assistant. Talks to the service over the <code>/ws/listen</code> connection; the live mic path, unchanged.</small></div>
+      <div class="box new"><span class="tag">NEW</span><b>A utility</b><small>Calls the engine directly with a file (a recording, another tool's audio). No server, no mic.</small></div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="arrow"><span>↓</span>over the connection</div>
+    <div class="arrow"><span>↓</span>skips the service, calls the engine directly (layer 2)</div>
+  </div>
+
+  <div class="pkg">
+    <div class="label">package <code>src/voice_service/</code></div>
+
+    <!-- Layer 3: service app -->
+    <div class="layer l3">
+      <h2>3 · The voice service app</h2>
+      <div class="row">
+        <div class="box"><b><code>/ws/listen</code></b><small>Built by <code>create_app</code> in <code>server.py</code>; messages in <code>protocol.py</code>.</small></div>
+        <div class="box"><b><code>ListenSession</code></b><small>In <code>session.py</code>: wires one audio source to one engine stream for each listen.</small></div>
+      </div>
+    </div>
+
+    <div class="arrow"><span>↓</span>uses</div>
+
+    <!-- Layer 2: engine -->
+    <div class="layer l2">
+      <h2>2 · The speech engine</h2>
+      <div class="row">
+        <div class="box new"><span class="tag">NEW</span><b>Whisper</b><small>One implementation, picked in config. Usable by itself: no mic, no server.</small></div>
+        <div class="box"><b><code>ZipformerEngine</code></b><small>Today's engine.</small></div>
+        <div class="box"><b><code>FakeEngine</code></b><small>For tests.</small></div>
+      </div>
+      <div class="iface">Behind <code>SttEngine</code> / <code>SttStream</code>; <code>load_engine(name, config)</code> picks one from <code>[engine]</code> in the config.</div>
+    </div>
+
+    <div class="arrow"><span>↑</span>audio (the engine only receives samples; it never opens the mic)</div>
+
+    <!-- Layer 1: sources -->
+    <div class="layer l1">
+      <h2>1 · Audio sources</h2>
+      <div class="row">
+        <div class="box"><b><code>MicSource</code></b><small>The live mic.</small></div>
+        <div class="box new"><span class="tag">NEW</span><b>File source</b><small>Reads a recording or a utility's audio file.</small></div>
+        <div class="box"><b><code>FakeSource</code></b><small>For tests.</small></div>
+      </div>
+      <div class="iface">All behind the <code>AudioSource</code> interface in <code>audio.py</code>.</div>
+    </div>
+  </div>
+
+  <p class="legend">Solid boxes exist today. Dashed purple boxes are new in this proposal.</p>
+</div>
+</body>
+</html>
