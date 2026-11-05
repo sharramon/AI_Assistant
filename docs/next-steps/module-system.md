@@ -151,3 +151,12 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | HTTP server inside our app; a new tool not on the allow list | Not tested |
 
 **Next:** chunk 2 (the `Menu` part, the generated module library), with the HTTP spike for chunk 8. Delete `docs/temp/tool-*.html` and `one-door-vs-many.html` when you're done with them.
+
+## Handoff: how the unattended run continues
+
+The user is away. Run every remaining chunk in Auto without asking for plan approval. **One chunk per session:** build it, run the tests and ruff, the `architecture-check` skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (`scripts\build_docs.py`), commit locally ("Module system, chunk N: …", like `git log`), update the progress table above, then end with `HANDOFF: docs/next-steps/module-system.md`.
+
+- **Rules:** never `git push`; never touch `C:\Chang\Jobs`; never restart or close the app (the Talker does). Code that needs a restart: finish code, tests and docs, and note it. A risky step or a design question the note doesn't answer: take the most conservative choice and log it as the next **D** entry above instead of stopping. Keep the README row's status current (the five words).
+- **Known flake:** `tests/test_voice_pieces.py::test_closing_the_socket_cancels_the_running_piece_and_frees_the_slot[True]` sometimes fails in a full run and passes alone (voice service timing, not this refactor).
+- **After chunk 9:** (1) check the module philosophy (principles, modules and communication pages) against every module, with a table saying whether each agrees, and fix any that don't; (2) check the module diagrams against the code; (3) check every module works with the new tests. Then prepare the live test for after a restart, without restarting: a short checklist and, where useful, a script. It covers hot swapping every module with `ReloadModule` and `Activate` / `DeactivateModule`, and modules using each other, especially `voice_notes` getting the recorder through the voice contract and events.
+- **Final report:** the commits (hash, message, files), the chunks done, the module-by-module philosophy table, the tests and ruff results, the D decisions, exactly what is ready for the restart test, and plainly anything not finished.

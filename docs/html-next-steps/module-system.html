@@ -353,6 +353,14 @@ class HtmlViewerModule(ModuleProtocol):
 </tbody>
 </table>
 <p><strong>Next:</strong> chunk 2 (the <code>Menu</code> part, the generated module library), with the HTTP spike for chunk 8. Delete <code>docs/temp/tool-*.html</code> and <code>one-door-vs-many.html</code> when you're done with them.</p>
+<h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
+<p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
+<ul>
+<li><strong>Rules:</strong> never <code>git push</code>; never touch <code>C:\Chang\Jobs</code>; never restart or close the app (the Talker does). Code that needs a restart: finish code, tests and docs, and note it. A risky step or a design question the note doesn't answer: take the most conservative choice and log it as the next <strong>D</strong> entry above instead of stopping. Keep the README row's status current (the five words).</li>
+<li><strong>Known flake:</strong> <code>tests/test_voice_pieces.py::test_closing_the_socket_cancels_the_running_piece_and_frees_the_slot[True]</code> sometimes fails in a full run and passes alone (voice service timing, not this refactor).</li>
+<li><strong>After chunk 9:</strong> (1) check the module philosophy (principles, modules and communication pages) against every module, with a table saying whether each agrees, and fix any that don't; (2) check the module diagrams against the code; (3) check every module works with the new tests. Then prepare the live test for after a restart, without restarting: a short checklist and, where useful, a script. It covers hot swapping every module with <code>ReloadModule</code> and <code>Activate</code> / <code>DeactivateModule</code>, and modules using each other, especially <code>voice_notes</code> getting the recorder through the voice contract and events.</li>
+<li><strong>Final report:</strong> the commits (hash, message, files), the chunks done, the module-by-module philosophy table, the tests and ruff results, the D decisions, exactly what is ready for the restart test, and plainly anything not finished.</li>
+</ul>
 <footer>Generated from <code>docs/next-steps/module-system.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
