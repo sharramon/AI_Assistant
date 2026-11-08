@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-agent: several task agents at once, each talking to you</title>
+<!-- Generated from docs/next-steps/multi-agent.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="multi-agent.html"></nav>
+<main>
+<h1 id="multi-agent-several-task-agents-at-once-each-talking-to-you">Multi-agent: several task agents at once, each talking to you</h1>
+<blockquote>
+<p><strong>Status: approved (2026-11-05); building.</strong> The design matches the <a href="../temp/multi-agent-code-graph.html">code graph</a>, with the fixes from its "Calls that look like bad design" list (see <a href="#design-fixes-from-the-code-graph">Design fixes</a>). <strong>Chunks 1–7 are built</strong> (2026-11-05), with the cap counting only the extra agents (<code>[modules.agent_hub] max_extra_agents = 3</code>); contracts and infra changed, so the app needs a restart. Chunk 6 is the temp UI's tabs; chunk 7 the job agent as the <code>job_search</code> module (a stub <code>job.search</code>). Open: the job agent's access list, the real search runner, whether <code>--chrome</code> loads under <code>--strict-mcp-config</code>, and helper usage in the temp UI header (<a href="handoff-99c9ff7c.html">handoffs</a>, <a href="handoff-d729a7ef.html">last</a>). Decided in chunk 4: the Talker keeps its tags as a shorthand, but each Hub tag runs a <code>hub.*</code> menu item through <code>InvokeTool</code> (one road); permission answers stay <code>AnswerPermission</code>, per task.</p>
+</blockquote>
+<p><strong>Asked:</strong> "a multi-agent setup where we have separate agents that can talk either directly to the Talker and then update the Main Assistant. I'm on the task continuously." Needed before the <a href="job-agent.html">job agent</a>. Added later: you can pick a helper agent and talk to it directly, either because the Main Assistant suggests it or because you choose it yourself. A side panel shows the big agents that are active, and you click one to talk to it. The Main Assistant window gets one tab per big agent so you can follow each one.
+<strong>Added (update):</strong> helper agents never push questions into the main chat. Their tab shows a <strong>!</strong>, and the question loads into the Talker only when you click that tab, which also sets the focus. You decide what to focus on. Permission cards work the same way. The Main Assistant's tab has its own color. Big milestones from the other agents reach the Main Assistant as one short line ("the job agent finished X") and never drown out your conversation with it. Helper agents know the two kinds of message apart.
+<strong>Approved:</strong> "The design docs is good … the concentration should be on making sure that they can work with each other."
+<strong>Why:</strong> today one agent (the Main Assistant) does all the work, and the Talker follows one task at a time. The job helper has to run alongside it, talk with you directly, and keep the Main Assistant in the picture, without crowding the main conversation.
+<strong>Touches:</strong> <code>contracts/agents.py</code>, <code>contracts/tools.py</code>, <code>contracts/menu.py</code>, <code>contracts/door.py</code>, <code>core/context.py</code>, <code>core/tools.py</code>, <code>agent_hub</code>, <code>talker</code>, <code>main_assistant</code>, <code>infra/session_agent.py</code>, <code>infra/agent_tags.py</code>, <code>infra/mcp_door.py</code>, new <code>infra/agent_profile.py</code> and <code>infra/milestone_feed.py</code>, <code>temp_ui</code>, <code>config/default.toml</code>; docs: <a href="../html/architecture/agents.html">agents</a>, <a href="../html/agents/runtime.html">runtime</a>, <a href="../html/api/agents.html">Agents API</a>, <a href="../html/api/tools.html">Tools API</a>, <a href="../html/api/reusable.html">reusable</a>.</p>
+<h2 id="where-we-are">Where we are</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Before</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hub</td>
+<td>Keeps a table of tasks; <code>StartTask</code> gives the work to the first free agent; one task per agent</td>
+<td>Only one agent exists; no way to name the agent; no parent task; no held questions</td>
+</tr>
+<tr>
+<td>Agents</td>
+<td><code>main_assistant</code> only, a <code>SessionTaskAgent</code> on a <code>ClaudeSession</code></td>
+<td>Folder and access code sits inside <code>main_assistant</code></td>
+</tr>
+<tr>
+<td>Talker</td>
+<td>Follows one <code>_current_task_id</code>; ignores updates from other tasks; <code>&lt;&lt;ALLOW&gt;&gt;</code> goes to that task</td>
+<td>Must follow several tasks, and know which one you're talking to</td>
+</tr>
+<tr>
+<td>Main Assistant</td>
+<td>Can't send Hub commands; hears nothing about other tasks</td>
+<td>Must be kept informed, and later delegate</td>
+</tr>
+<tr>
+<td>Door</td>
+<td>One token for every session; a menu item can't tell who calls it</td>
+<td>The Hub's menu needs to know who is calling (the Talker sets the focus, the Main Assistant only suggests)</td>
+</tr>
+<tr>
+<td>Temp UI</td>
+<td>One worker pane, one permission card</td>
+<td>A list of agents, a tab per agent with its <strong>!</strong>, the agent's name on cards and usage</td>
+</tr>
+</tbody>
+</table>
+<h2 id="approach">Approach</h2>
+<p><strong>1. Parallelism comes from several agents, not several tasks per agent.</strong> Each agent still runs one task at a time (its one <code>claude</code> session, fresh per task, as now). Running three things at once means three agents. The Hub needs more <code>ITaskAgent</code> providers and these changes:</p>
+<ul>
+<li><code>StartTask.agent_id</code> (optional; else the first free agent) and <code>StartTask.parent_task_id</code> (optional, for a task another agent starts).</li>
+<li><code>TaskUpdated</code> gets <code>agent_id</code>, <code>parent_task_id</code> and <code>held</code>; <code>TaskInfo</code> gets <code>parent_task_id</code> and <code>held</code>.</li>
+<li>A cap in <code>[modules.agent_hub]</code>: <code>max_extra_agents = 3</code> big agents <strong>besides the Main Assistant</strong> (the coordinator isn't counted) may have an open task at once; change it in your config. Every agent shares your subscription's limits, and the cap stops a runaway Main Assistant. (Changed 2026-11-05 at your request: chunk 1 first counted every open task, the coordinator included.)</li>
+<li>The folder-clash check: each agent says which folders it writes (<code>AgentInfo.write_folders</code>, from its profile), and the Hub refuses a task whose agent writes into a folder another open task's agent writes (the same folder, or one inside the other). Git worktrees come later.</li>
+</ul>
+<p><strong>2. Agents are profiles, built by one module.</strong> The agents differ only in config (prompt add-on, working folder, read and write folders, allowed commands, model, Chrome or not). So:</p>
+<ul>
+<li><strong><code>AgentProfile</code></strong> (<code>infra/agent_profile.py</code>): the folder and access code moved out of <code>main_assistant</code> (what the job-agent note asks for). It builds the <code>claude</code> command with <code>claude_command</code> and <code>path_rule</code>, the access section of the prompt, the shared two-kinds-of-message block (section 8), and the agent's <code>write_folders</code>.</li>
+<li><strong><code>task_agents</code> module</strong> (chunk 3, built): one agent per <code>[modules.task_agents.agents.&lt;id&gt;]</code> section, each provided as <code>ITaskAgent</code>. <code>instances = 2</code> gives peer agents of the same kind (<code>helper</code>, <code>helper_2</code>; sections are now kinds of helper, renamed by <a href="agent-names.html">agent-names</a>), each writing its own sub-folder of the workspace so the folder check lets them run together. The Main Assistant stays its own module. Every big agent is put together by one shared part, <strong><code>ProfileAgent</code></strong> (<code>infra/profile_agent.py</code>: profile + session + <code>SessionTaskAgent</code>, the door under its own name).</li>
+<li><strong>Decided (architecture-first, 2026-11-05): a big agent with code of its own ships bundled with its own module.</strong> The job agent comes with its <code>job_search</code> module: that module provides both its agent (<code>ITaskAgent</code>, a <code>ProfileAgent</code>) and its menu and workers. Why: the agent and its tools are reloaded, turned off and documented together; the module's callbacks (<code>AgentNotice</code>) go to its own agent; nothing has to pair a profile with a separate module by name. Plain helpers without code stay profiles in <code>task_agents</code>. A bundled module, like <code>task_agents</code>, waits for its agent to be idle before a reload.</li>
+<li><strong>Big agents only.</strong> The Hub tracks these top-level agents. Claude Code's own subagents inside a session (the <code>debugger</code>) stay that session's business and aren't listed.</li>
+</ul>
+<p><strong>3. One switchboard: the Hub, with a menu, reached by one road.</strong> The Hub's menu sits on the existing <a href="../html/api/tools.html#imoduledoor">module door</a>. Every item knows its caller (section 9):</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Who may use it</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hub.agents</code></td>
+<td>anyone</td>
+<td>The big agents: busy, working, focused, holding something (<strong>!</strong>)</td>
+</tr>
+<tr>
+<td><code>hub.status</code></td>
+<td>anyone</td>
+<td>Task status (<code>GetTaskStatus</code>), without disturbing the agent</td>
+</tr>
+<tr>
+<td><code>hub.start</code></td>
+<td>anyone</td>
+<td>Start a task (<code>StartTask</code>); the caller's open task becomes its parent</td>
+</tr>
+<tr>
+<td><code>hub.send</code></td>
+<td>the Talker; others only to their child tasks</td>
+<td>No <code>task_id</code>: your words to the <strong>focused</strong> agent (its task, or a new one if it's idle). With <code>task_id</code>: to that task</td>
+</tr>
+<tr>
+<td><code>hub.cancel</code></td>
+<td>the Talker; others only their child tasks</td>
+<td><code>CancelTask</code></td>
+</tr>
+<tr>
+<td><code>hub.focus</code></td>
+<td>the Talker only</td>
+<td>Move the focus (<code>SetFocus</code>), after you said so</td>
+</tr>
+<tr>
+<td><code>hub.suggest_focus</code></td>
+<td>the coordinator only</td>
+<td>Publish <code>FocusSuggested</code>; the Talker asks you, and the focus moves only through <code>hub.focus</code></td>
+</tr>
+</tbody>
+</table>
+<p>The Talker reaches the Hub only through these items: its <code>WORK</code>, <code>ASK</code>, <code>PAUSE</code> and <code>CANCEL</code> tags go in chunk 4, so there is one road, not two. Permission answers stay the <code>AnswerPermission</code> command, which no menu item offers, so no agent can answer another's card.</p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;You&quot;])
+    UI[&quot;Side panel · tabs (!)&quot;]
+    T[&quot;Talker&quot;]
+    H[&quot;Agent Hub&lt;br/&gt;tasks · agents · focus&lt;br/&gt;held flag · notes&quot;]
+    M[&quot;Main Assistant&lt;br/&gt;(the coordinator)&quot;]
+    A1[&quot;Agent: job&quot;]
+    A2[&quot;Agent: research&quot;]
+    You &lt;--&gt; T
+    You -- &quot;click tab: focus&quot; --&gt; UI
+    UI -- &quot;SetFocus&quot; --&gt; H
+    T -- &quot;door: hub.send · hub.focus&quot; --&gt; H
+    M -- &quot;door: hub.status · hub.start · hub.suggest_focus&quot; --&gt; H
+    H -- &quot;assign · message · cancel&quot; --&gt; A1 &amp; A2
+    A1 &amp; A2 -- &quot;question · card: held&quot; --&gt; H
+    A1 &amp; A2 -- &quot;STATUS: one line&quot; --&gt; H
+    H -. &quot;! on the tab&quot; .-&gt; UI
+    H -. &quot;FocusChanged + released questions&quot; .-&gt; T
+    H -. &quot;FocusSuggested&quot; .-&gt; T
+    H -. &quot;note(line): at its next turn&quot; .-&gt; M
+</code></pre>
+<p><strong>4. Talking to an agent directly: the focus.</strong></p>
+<ul>
+<li><strong>The focus</strong> is the agent you're talking to right now; the coordinator (the Main Assistant) by default. The Hub keeps only the focused agent's id (<code>SetFocus(agent_id)</code>, <code>FocusChanged</code>), so the Talker and every UI agree on it. If the focused agent is turned off, the focus falls back to the coordinator.</li>
+<li><strong>Three ways to set it:</strong> click the agent's tab or its side-panel entry (<code>SetFocus</code>); tell the Talker ("let me talk to the job agent", <code>hub.focus</code>); or accept the Main Assistant's suggestion. The Main Assistant suggests with <code>hub.suggest_focus(agent_id, reason)</code>, which publishes <code>FocusSuggested</code>. The Talker asks you, and the focus only moves when you say yes. "Back to the main assistant" moves it back. Two items, not one item that behaves differently by caller.</li>
+<li><strong>While an agent has the focus,</strong> the Talker passes your words on to it unchanged (<code>hub.send</code> with no task id), and says each reply with the agent's name. The Talker stays your voice in and out. It doesn't reword what you say and doesn't decide for the agent.</li>
+<li><strong>Other agents</strong> don't get your messages while they're out of focus, and they never push anything into the main chat (see 5).</li>
+</ul>
+<p><strong>5. Notifications instead of pushing.</strong></p>
+<ul>
+<li>When an agent out of focus asks a question (<code>NEED:</code>) or needs a permission, the Hub stores it <strong>once</strong>, on the task record (<code>TaskInfo.question</code>, as before), marks it <code>held</code>, and the task waits. <code>TaskUpdated(held=True)</code> lets the tab and side panel show a <strong>!</strong>. Nothing is said or shown in the main chat.</li>
+<li>When you focus that agent (any way), <code>FocusChanged.released</code> carries its tasks whose question was held (as <code>TaskInfo</code>s), and the flag clears. The Talker then says the question, named ("The job agent asks: …"), and the card appears, so you answer while already focused on that agent. Your answer goes only to it. The <strong>!</strong> clears once nothing is held.</li>
+<li><strong>You decide</strong> which <strong>!</strong> to take and when. A held question never times out on the Hub's side; the agent just waits (a permission card still ends after the agent's <code>permission_timeout</code>).</li>
+<li>The focused agent's questions and cards come straight through, as now. The coordinator's own questions follow the same rule when you're focused elsewhere.</li>
+</ul>
+<p><strong>6. The Main Assistant stays informed without being drowned out.</strong></p>
+<ul>
+<li><strong>Only milestones.</strong> A helper sends a milestone as a <code>STATUS: &lt;one line&gt;</code> line (<code>agent_tags.status_lines</code>, reported as the <code>milestone</code> kind of <code>ReportTask</code>), for example "finished the cover letter draft". Routine progress stays in the agent's tab only. The Hub also adds a line when another agent's task ends and when the focus moves.</li>
+<li><strong>The coordinator comes from config</strong> (<code>[modules.agent_hub] coordinator = "main_assistant"</code>); the Hub knows no agent by name in code.</li>
+<li><strong>Delivered at its next turn, any turn.</strong> The Hub hands each line to the coordinator at once with <code>ITaskAgent.note(text)</code>. <code>SessionTaskAgent</code> keeps them in a <code>MilestoneFeed</code> and adds them, as one compact block (at most 5 lines, the oldest merged as "+N earlier"), to the end of the next message it writes to its session: a new task, a message, or its own <code>Continue</code> turn. So the feed reaches it during a long task too. Never an interrupt, and the Hub never wakes an idle coordinator (that would start paid work nobody asked for); the lines wait for its next task. It can read more with <code>hub.status</code>.</li>
+<li><strong>Never in your conversation.</strong> The Talker doesn't say feed lines, and the main chat doesn't show them; at most a small grey line in the agent's tab (<code>TaskUpdated</code> of kind <code>milestone</code>). Questions never go into the feed.</li>
+</ul>
+<p><strong>7. Permissions per agent.</strong></p>
+<ul>
+<li>Each agent has its own access list (its profile) and its own <code>PermissionMode</code>, Manual at every launch. Only you switch an agent to Auto, one agent at a time.</li>
+<li>Requests outside an agent's list become a card <strong>naming the agent and the action</strong>, answered with <code>AnswerPermission(task_id)</code> (already per task). Out of focus, the card is held behind the tab's <strong>!</strong> (see 5), so only the focused agent's cards are ever on screen. A spoken "yes" goes to the focused agent's card; if it has more than one open, the Talker asks which.</li>
+<li>The Main Assistant can start and message its own child tasks and suggest the focus. It can't answer their permission requests, change their mode, or move the focus itself.</li>
+<li>The planned <a href="permissions-handler.html">permissions handler</a> takes over these rules later; nothing here blocks it. A <code>risky</code> flag on menu items, checked once in <code>MenuTools</code>, is left for that handler.</li>
+</ul>
+<p><strong>8. The agents' instructions.</strong> Every agent's prompt gets a shared block from <code>AgentProfile.prompt_block</code>, so no profile can miss it:</p>
+<ul>
+<li><strong>Helpers:</strong> two kinds of message that never mix. <em>Status for the Main Assistant:</em> a <code>STATUS: &lt;one line&gt;</code> line, only for a big milestone (a step finished, a result ready, a blocker); one line, no detail, the work itself stays in the tab. <em>Questions for you:</em> a <code>NEED: &lt;question&gt;</code> last line, and the permission request; these wait behind the tab's <strong>!</strong> until you focus the agent, so the question must make sense on its own, possibly much later. Never a question in a <code>STATUS:</code> line, never a status as <code>NEED:</code>.</li>
+<li><strong>The coordinator:</strong> the matching half: lines under "[Updates from the other agents]" are background to note, not requests to act on or repeat; its own <code>NEED:</code> questions may also wait behind its tab's <strong>!</strong>, so they stand on their own.</li>
+</ul>
+<p><strong>9. The module door knows its caller.</strong> One door, but each <code>claude</code> session gets its own door config:</p>
+<ul>
+<li><code>IModuleDoor.mcp_config(caller)</code>: the Main Assistant asks with its agent id, the Talker with <code>talker</code>, each <code>task_agents</code> agent with its own id. The config carries the caller's name and a token made from the door's secret and that name (an HMAC), so the session can't claim another name, and the tokens survive a Hub reload.</li>
+<li><code>DoorServer</code> checks the token and puts the caller on <code>InvokeTool.caller</code>.</li>
+<li><strong>Who may set the caller:</strong> <code>ScopedContext.send</code> fills in the sending module's own id on every <code>InvokeTool</code>. Only the module that provides <code>IModuleDoor</code> (the door's host, <code>agent_hub</code>) may pass another name, the one its token proved. A command sent straight to the router (tests, the core) has no caller.</li>
+<li>The core passes the caller on: <code>dispatch_tool</code> → <code>IToolProvider.invoke_as(name, args, caller)</code> (by default <code>invoke</code>, which ignores it) → <code>MenuTools</code> → <code>Menu.call(module, name, args, caller)</code>. A menu item may list its <code>callers</code>; anyone else gets <code>not_available</code>. A method with a <code>caller</code> parameter receives it.</li>
+<li><strong>Callbacks:</strong> a module whose menu item starts slow work (the job search) returns at once and, when the work ends, publishes <code>AgentNotice(agent_id = the caller, text)</code>. The Hub hands it to that agent with <code>note</code>, so it arrives at its next turn, the same road as the milestone feed. No module calls another module's menu by name.</li>
+</ul>
+<h2 id="new-and-changed-contract-types">New and changed contract types</h2>
+<p>All in <code>assistant.contracts</code>; each needs the app restart.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Kind</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StartTask</code></td>
+<td>command</td>
+<td><code>agent_id</code>, <code>parent_task_id</code></td>
+</tr>
+<tr>
+<td><code>TaskInfo</code></td>
+<td>data</td>
+<td><code>parent_task_id</code>, <code>held</code></td>
+</tr>
+<tr>
+<td><code>TaskUpdated</code></td>
+<td>event</td>
+<td><code>agent_id</code>, <code>parent_task_id</code>, <code>held</code></td>
+</tr>
+<tr>
+<td><code>AgentInfo</code></td>
+<td>data</td>
+<td><code>write_folders</code></td>
+</tr>
+<tr>
+<td><code>ReportKind.MILESTONE</code></td>
+<td>enum value</td>
+<td>A <code>STATUS:</code> line</td>
+</tr>
+<tr>
+<td><code>ITaskAgent.note</code></td>
+<td>method</td>
+<td>A line for the agent's next turn; the default drops it</td>
+</tr>
+<tr>
+<td><code>SetFocus</code></td>
+<td>command (new)</td>
+<td>Move the focus; handled by the Hub</td>
+</tr>
+<tr>
+<td><code>FocusChanged</code></td>
+<td>event (new)</td>
+<td>The focus moved: <code>agent_id</code>, <code>previous</code>, <code>released</code> (held tasks now released)</td>
+</tr>
+<tr>
+<td><code>FocusSuggested</code></td>
+<td>event (new)</td>
+<td>The coordinator suggests a focus: <code>agent_id</code>, <code>reason</code>, <code>by</code></td>
+</tr>
+<tr>
+<td><code>AgentNotice</code></td>
+<td>event (new)</td>
+<td>A module's callback for an agent (<code>agent_id</code>, <code>text</code>, <code>source</code>)</td>
+</tr>
+<tr>
+<td><code>InvokeTool.caller</code></td>
+<td>field</td>
+<td>Who uses the item; filled in by <code>ScopedContext</code></td>
+</tr>
+<tr>
+<td><code>IToolProvider.invoke_as</code></td>
+<td>method</td>
+<td><code>invoke</code> with the caller; the default ignores it</td>
+</tr>
+<tr>
+<td><code>Menu.item(callers=…)</code>, <code>Menu.call(…, caller)</code>, <code>Menu.allowed</code></td>
+<td>part</td>
+<td>Who may use an item; the caller for methods that take it</td>
+</tr>
+<tr>
+<td><code>IModuleDoor.mcp_config(caller)</code></td>
+<td>method</td>
+<td>One door config per caller</td>
+</tr>
+</tbody>
+</table>
+<h2 id="design-fixes-from-the-code-graph">Design fixes from the code graph</h2>
+<table>
+<thead>
+<tr>
+<th>Bad-design item</th>
+<th>Fixed by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. One <code>hub.focus</code> with two jobs</td>
+<td>Two items: <code>hub.focus</code> (Talker) and <code>hub.suggest_focus</code> (coordinator)</td>
+</tr>
+<tr>
+<td>2. The Talker has two roads to the Hub</td>
+<td>The door only; its <code>WORK</code>/<code>ASK</code>/<code>PAUSE</code>/<code>CANCEL</code> tags go in chunk 4</td>
+</tr>
+<tr>
+<td>3. The question held in two places</td>
+<td>Stored once on the record (<code>question</code>), with a <code>held</code> flag; the Hub keeps only the focused id</td>
+</tr>
+<tr>
+<td>4. The Hub knows a special agent; the wake costs money</td>
+<td><code>coordinator</code> from config; no wake: lines wait for its next task</td>
+</tr>
+<tr>
+<td>5. The feed misses the agent's own turns</td>
+<td>The feed lives in the agent (<code>note</code> → <code>MilestoneFeed</code>), added to every turn it writes, <code>Continue</code> included</td>
+</tr>
+<tr>
+<td>6. Hub ↔ agent loop</td>
+<td>Kept safe: reports still go through the agent's queue and the router</td>
+</tr>
+<tr>
+<td>7. The suggestion as a <code>TaskUpdated</code></td>
+<td>Its own event, <code>FocusSuggested</code></td>
+</tr>
+<tr>
+<td>8. More contract types than the note said</td>
+<td>Listed above</td>
+</tr>
+<tr>
+<td>9. Trusting the caller</td>
+<td><code>ScopedContext</code> fills it in; only the door's host may pass another, proved by its token</td>
+</tr>
+<tr>
+<td>10. The permission check is scattered</td>
+<td>Left for the permissions handler (a <code>risky</code> flag on items)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reused-as-is">Reused as is</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ITaskAgent</code>, <code>Task</code>, <code>TaskState</code>, <code>ListAgents</code></td>
+<td>Every agent and the side panel; no new agent contract</td>
+</tr>
+<tr>
+<td><code>SessionTaskAgent</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code></td>
+<td>Each agent's session, handoffs, mode, context reminder</td>
+</tr>
+<tr>
+<td><code>ReportTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code></td>
+<td>The whole message flow</td>
+</tr>
+<tr>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
+<td>Tabs and the panel; they already name the agent</td>
+</tr>
+<tr>
+<td><code>Menu</code>, <code>IModuleDoor</code>, <code>DoorServer</code></td>
+<td>The Hub's menu, used by the Talker and the Main Assistant</td>
+</tr>
+<tr>
+<td><code>agent_tags</code></td>
+<td><code>NEED:</code> / <code>HANDOFF:</code> lines, plus the new <code>STATUS:</code> line, the same for every agent</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-the-job-app-helper-needs-from-this">What the job app helper needs from this</h2>
+<p>A job agent, now <code>job_search_agent</code> (folder <code>C:\Chang\Jobs\CV</code>, its access list, Chrome tools, Manual mode), which you can focus and talk to directly while the Main Assistant keeps working. It also needs its own tab with its <strong>!</strong>, its held questions and cards, and its milestones reaching the Main Assistant through the feed. <code>instances</code> allows one agent per job later. The <a href="job-agent.html">job-agent note</a> then shrinks to the profile and its menu.</p>
+<h2 id="risks">Risks</h2>
+<ul>
+<li><strong>The Talker can misroute.</strong> Following many tasks in one prompt is where routing mistakes happen. The focus limits this: your words go only to the focused agent, and other agents' questions only reach the Talker when you focus them.</li>
+<li><strong>Held questions stall agents.</strong> An agent with a <strong>!</strong> waits until you click it. That's your choice by design, but a forgotten <strong>!</strong> means a stuck agent; the side panel's count of waiting agents keeps them visible.</li>
+<li><strong>Stale questions.</strong> A question read an hour later may be out of date; the agents' instructions ask for questions that stand on their own.</li>
+<li><strong>Helpers mislabel messages.</strong> A helper may send detail as <code>STATUS:</code> or a question as status. The prompt block and the one-line cap (longer lines are cut) limit the damage; it's checked in the tests with <code>fake_claude</code>.</li>
+<li><strong>The Main Assistant's view lags.</strong> It hears at its next turn, so it may briefly act on old plans. Focus changes in the feed make this smaller.</li>
+<li><strong>Cost.</strong> Every agent uses your subscription's limits; hence the cap.</li>
+<li><strong>The folder-clash rule is coarse.</strong> The Main Assistant and a coding helper can't both write this repo until worktrees exist. The job agent isn't affected, since it works in its own folder.</li>
+<li><strong>One module for all agents.</strong> Reloading it restarts every agent in it; it refuses while one is busy.</li>
+<li><strong>Until chunk 4,</strong> today's Talker still follows only its own task and speaks its updates; nothing is held in practice, since only the Main Assistant runs and it holds the focus.</li>
+</ul>
+<h2 id="decisions-the-open-questions-as-approved">Decisions (the open questions, as approved)</h2>
+<ol>
+<li>One <code>task_agents</code> module building agents from config; an agent with its own code (the job agent with <code>job_search</code>, a cloud agent) is bundled with its own module, on the shared <code>ProfileAgent</code>.</li>
+<li>The Main Assistant may start and message its own child tasks through <code>hub.start</code> / <code>hub.send</code>, and suggest the focus. It never handles permissions or mode.</li>
+<li>The Main Assistant hears milestone lines only, at its next turn, never as an interrupt.</li>
+<li>The focus survives a finished task; it stays until you move it back or the agent is turned off.</li>
+<li><code>max_extra_agents = 3</code>: at most three big agents besides the Main Assistant at once, overridable in config.</li>
+<li>Same-folder writes: the second writer is refused in v1; worktrees later.</li>
+<li>The Main Assistant's own questions while you're focused elsewhere: a <strong>!</strong> on its tab, like any agent.</li>
+<li>A spoken "show me what's waiting": the Talker may list which agents have a <strong>!</strong> (names only, never the questions) when you ask. Nothing unprompted.</li>
+</ol>
+<h2 id="build-plan-one-chunk-per-session-architecture-check-after-each">Build plan (one chunk per session, architecture check after each)</h2>
+<ol>
+<li><strong>Contracts, door and Hub</strong> (built): the new fields and types above; the caller on the door (<code>mcp_config(caller)</code>, <code>InvokeTool.caller</code>, <code>ScopedContext</code>, <code>invoke_as</code>, <code>Menu</code> callers); the Hub's focus, held flag, cap, folder-clash check, menu, milestone lines to the coordinator, <code>AgentNotice</code>. Tests with two fake agents, including a held question released on focus. <em>Restart.</em></li>
+<li><strong>Agent profile</strong> (built): <code>infra/agent_profile.py</code> with the folder and access code from <code>main_assistant</code> and the shared prompt block (section 8); <code>status_lines</code> in <code>agent_tags</code>; <code>SessionTaskAgent</code> reads <code>STATUS:</code> lines, keeps the notes (<code>MilestoneFeed</code>) and reports <code>write_folders</code>. No other change in behaviour.</li>
+<li><strong><code>task_agents</code> module</strong> (built): agents from <code>[modules.task_agents.agents.&lt;id&gt;]</code> through <code>ProfileAgent</code>; a small <code>helper</code> profile (off at launch, working in <code>../assistant-helper</code>, outside the repo the Main Assistant writes). Tests against <code>fake_claude</code>: two agents at once, <code>STATUS:</code> to the coordinator, <code>NEED:</code> held until focused, the cap refusing a fourth extra agent, the door under each agent's name.</li>
+<li><strong>Talker:</strong> the open-tasks table, the focus (your words pass through <code>hub.send</code> unchanged, replies named), held questions said only on <code>FocusChanged</code>, feed lines never said, <code>FocusSuggested</code> asked as a yes or no, the Hub's menu instead of the work tags (one road), permission answers by task.</li>
+<li><strong>Main Assistant:</strong> its use of <code>hub.start</code> to delegate and <code>hub.suggest_focus</code>, with the prompt lines for them (the feed and its prompt half are in from chunk 2).</li>
+<li><strong>Temp UI:</strong> the side panel (active big agents, <strong>!</strong>, click to focus), one tab per agent on the Main Assistant pane (<strong>!</strong>, click to focus, the Main Assistant's tab in its own color), held cards shown only for the focused agent, the agent's name on cards and usage. Kept minimal.</li>
+<li><strong>Then the job agent</strong> as a profile, per its own note, with its <code>job.search</code> callback through <code>AgentNotice</code>.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/multi-agent.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

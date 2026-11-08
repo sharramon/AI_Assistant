@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Auto button sets the agent of the tab you&#x27;re in</title>
+<!-- Generated from docs/next-steps/per-agent-auto-button.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="per-agent-auto-button.html"></nav>
+<main>
+<h1 id="the-auto-button-sets-the-agent-of-the-tab-youre-in">The Auto button sets the agent of the tab you're in</h1>
+<blockquote>
+<p><strong>Status: built, waiting on the restart (2026-11-06).</strong> Built as below, steps 1–5; not reloaded (you were working with sub-agents), so it takes effect at your next app restart (a reload of <code>temp_ui</code> and <code>talker</code> would also do). Tests: <code>test_permission_mode.py</code> (the button sends its tab's agent, none means the Main Assistant, an unknown agent is refused, a helper's mode is kept and noted in its own tab; <code>[Mode] main_assistant: auto</code>). One test-only fix: the replay check reads the Main Assistant's chat only.</p>
+</blockquote>
+<p><strong>Asked:</strong> "The auto button has to be fixed now as well. Put that onto the pile." After the job agent kept asking for permissions with Auto pressed in its tab.</p>
+<p><strong>Related:</strong> the idea <a href="per-agent-mode-toggle.html">Each agent's own Auto/Manual toggle</a>. This note is the bug fix under that idea: each tab's button sets and shows its own agent. An "all agents" switch stays with the idea, for the UI handler.</p>
+<h2 id="whats-wrong-today">What's wrong today</h2>
+<p>Found in the logs: <code>job_search_agent</code> never left Manual (every session started in <code>acceptEdits</code>). Every Auto press switched the <strong>Main Assistant</strong> instead, which has been in Auto since.</p>
+<ul>
+<li><code>temp_ui/module.py:631</code>: <code>POST /permission-mode</code> always sends <code>SetPermissionMode</code> to the Main Assistant (<code>self._agents["worker"]</code>), whichever tab you're in.</li>
+<li><code>temp_ui/page.html:371</code>: the page posts only <code>{mode}</code>, not the tab's agent.</li>
+<li><code>temp_ui/module.py:368</code> (<code>_on_mode</code>): ignores mode changes of any agent but the Main Assistant, and always names it "Main Assistant". So a helper's tab can never show its real mode.</li>
+<li><code>talker/module.py:365-369</code> (<code>_on_mode</code>): the <code>[Mode]</code> note says "worker". In a helper's tab that reads like its own partner.</li>
+</ul>
+<p>Past the UI it already works per agent: <code>SetPermissionMode</code> takes an <code>agent_id</code>, the Hub routes it, and <code>SessionTaskAgent</code> applies it.</p>
+<h2 id="the-fix">The fix</h2>
+<ol>
+<li><strong><code>page.html</code>:</strong> post <code>{mode, agent: &lt;the current tab's agent id&gt;}</code>; each tab's button shows the mode kept for its agent.</li>
+<li><strong><code>temp_ui</code> <code>/permission-mode</code>:</strong> send <code>SetPermissionMode</code> to that agent; the Main Assistant when none is given.</li>
+<li><strong><code>temp_ui</code> <code>_on_mode</code>:</strong> keep the mode per agent and push it with the agent's id; the note names the real agent.</li>
+<li><strong><code>talker</code> <code>_on_mode</code>:</strong> the <code>[Mode]</code> note names the real agent id, not "worker".</li>
+<li><strong>Tests</strong> for the route (agent given, none given) and the per-agent push; <code>pytest</code>, <code>ruff</code>; docs (temp UI page, <a href="../html/agents/runtime.html#temp-ui">runtime</a>) and rebuild.</li>
+</ol>
+<p>Then <code>RELOAD: temp_ui</code> and <code>RELOAD: talker</code>.</p>
+<h2 id="after-the-fix-by-design-unchanged">After the fix (by design, unchanged)</h2>
+<ul>
+<li>Auto pressed while the agent is mid-task applies from its next task or handoff session (Auto's prompt is fixed at session start). Pressed while idle, at once. Manual applies to the running process at once.</li>
+<li>A Reset or new task keeps the chosen mode.</li>
+</ul>
+<h2 id="your-check">Your check</h2>
+<p>In the job agent's tab, press Auto: its button shows Auto, the Main Assistant's tab is unchanged, and the job agent's next session stops asking. Separately: the Main Assistant is in Auto now; switch it back to Manual if you want.</p>
+<footer>Generated from <code>docs/next-steps/per-agent-auto-button.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

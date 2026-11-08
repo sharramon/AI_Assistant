@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent names: ids, launching named helpers, and the duplicate check</title>
+<!-- Generated from docs/next-steps/agent-names.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="agent-names.html"></nav>
+<main>
+<h1 id="agent-names-ids-launching-named-helpers-and-the-duplicate-check">Agent names: ids, launching named helpers, and the duplicate check</h1>
+<p><strong>Status:</strong> built · 2026-11-05 · all questions decided (below); a contract changed, so the app needs a <strong>restart</strong> (asked after the agent-permissions and usage-tallies notes are built too)</p>
+<p>Every agent that takes tasks has one id. The Hub, the tabs, the focus, messages, usage and the module door all find an agent by that id. This note fixes how ids are chosen, makes the Hub refuse a second agent with the same id, and lets a helper be launched by name, only with your yes.</p>
+<h2 id="three-kinds-of-agent-kept-apart">Three kinds of agent (kept apart)</h2>
+<ul>
+<li><strong>The coordinator and module agents:</strong> an agent that comes with its own module: the Main Assistant (<code>main_assistant</code>), and the job agent (<code>job_search_agent</code>, from the <code>job_search</code> module). They start with their module.</li>
+<li><strong>Helpers:</strong> separate, parallel agents from <code>task_agents</code>, launched by name for one main task (<code>flight_search</code>), from a <em>kind</em> of helper in config (prompt, access). Not tied to any module.</li>
+<li><strong>Sub-agents:</strong> what a <code>claude</code> session starts inside itself (its own Task tool, e.g. the <code>debugger</code>). They aren't task agents: no id, no tab, never in the Hub. Their usage is the usage-tallies note's business.</li>
+</ul>
+<h2 id="what-existed-before-checked-in-the-code">What existed before (checked in the code)</h2>
+<ul>
+<li>The Hub didn't register agents. It asked for all of them each time (<code>ctx.get_all(ITaskAgent)</code>) and took <strong>the first</strong> whose id matched.</li>
+<li><code>task_agents</code> made one agent per profile at start; <code>instances = N</code> added <code>name-2</code>, <code>name-3</code> (a hyphen). It refused its own duplicates and a short reserved list, and couldn't see other modules' ids.</li>
+<li><code>job_search</code>: id <code>job</code> by default, checked against nothing.</li>
+<li>Two agents with one id: both started, nothing warned, the tabs merged, everything for that id went to the first one, both used the door under one caller name, and their usage overwrote each other.</li>
+</ul>
+<h2 id="decided-by-you">Decided (by you)</h2>
+<ol>
+<li><strong>Module agent name:</strong> the module id plus <code>_agent</code>. The job agent becomes <code>job_search_agent</code>.</li>
+<li><strong>Conventions:</strong> short, lowercase, letters, digits and <code>_</code> only, starting with a letter, at most 32 characters (<code>flight_search</code>, <code>helper_2</code>). Unique across all running agents.</li>
+<li><strong>Reserved:</strong> <code>main_assistant</code>, <code>talker</code>, <code>core</code>, <code>hub</code>, and <strong>every module's id</strong> (the door's caller names are agent or module ids, so an agent named like a module could act as that module). A module's own agent may carry its module's id (<code>main_assistant</code>).</li>
+<li><strong>A taken name:</strong> the refusal names a free one (<code>flight_search_2</code>). For a name the Main Assistant made up, it takes that one and tells you; for a name you gave, it asks you again.</li>
+<li><strong>Config profiles become kinds of helper,</strong> launched when needed. A kind with <code>autostart = true</code> still starts an agent at launch (with <code>instances</code>).</li>
+<li><strong>Launching a helper is always your decision</strong> (changed 2026-11-05; replaces "both the Main Assistant and you may launch"). <code>agents.launch</code> only <em>proposes</em> a helper: you get a card with its name and task, and the helper starts only if you allow it. Deny, or no answer before the card times out, and no helper starts. A call from the Main Assistant without your yes does nothing. When you ask for a helper through the Talker, it goes through the same card. The cap (<code>max_extra_agents</code>) still applies.</li>
+<li><strong>Extra copies</strong> are named <code>helper_2</code>, not <code>helper-2</code>.</li>
+</ol>
+<h2 id="the-design">The design</h2>
+<p><strong>The duplicate check lives in the Hub</strong> (every agent goes through it, whichever module owns it):</p>
+<ul>
+<li>New contract <code>IAgentNames</code>, provided by <code>agent_hub</code>: <code>check(agent_id, owner)</code> (why it can't have the name, or None), <code>claim(agent_id, owner) -&gt; Result</code>, <code>release(agent_id, owner)</code>, <code>taken()</code>. A refusal is <code>invalid_arguments</code> with the reason and a free name ("<code>flight_search</code> is taken by task_agents; <code>flight_search_2</code> is free").</li>
+<li>The rules are one infra helper, <code>check_agent_id(agent_id, owner, module_ids)</code>, plus <code>free_agent_id(base, taken)</code>. <code>task_agents</code>' own <code>RESERVED</code> list is gone.</li>
+<li>The claims survive a Hub reload (in its handover).</li>
+<li><strong>Who claims:</strong> <code>ProfileAgent.start</code> claims the agent's id and <code>stop</code> releases it, so the Main Assistant, every helper and the job agent get it with no code of their own. A refused claim stops that agent with the reason (at launch: its module fails to start, and the log says why).</li>
+<li><strong>Safety net:</strong> an agent that skipped the claim and shares an id: the Hub uses the first one everywhere (<code>hub.agents</code>, <code>ListAgents</code>, routing) and logs the clash once.</li>
+</ul>
+<p><strong>Launching a helper, with your yes (reusing the permission card):</strong></p>
+<ul>
+<li><code>task_agents</code> menu: <code>agents.kinds</code> (the kinds and the helpers running), <code>agents.launch(name, task, kind)</code>, <code>agents.close(agent_id)</code> (a launched helper with no task; frees its name).</li>
+<li><code>agents.launch</code> checks the kind, the name (<code>IAgentNames.check</code>) and that the caller is an agent with an open task. Then it asks that agent to put the question to you: the new <code>ITaskAgent.request_approval(action, run)</code>. <code>SessionTaskAgent</code> already asked you this way for a <code>RELOAD:</code> or <code>ADD_MODULE:</code> line: a <code>permission</code> report on its task, so the <strong>same card</strong> (temp UI Allow / Deny, the Talker's ALLOW / DENY) and the same <code>AnswerPermission</code>. That code is now one path for both, with one difference: a launch always asks, even in Auto.</li>
+<li>Allow: <code>run</code> builds the helper (<code>ProfileAgent</code>, its own sub-folder <code>&lt;kind workspace&gt;/&lt;name&gt;</code>, its own transcript), provides it, claims its name, and starts its task as the caller's child (<code>StartTask</code>, so the cap and the folder-clash check apply). The outcome ("flight_search started on task 1a2b3c4d", or why not) reaches the caller as its next message. Deny or no answer: nothing is built.</li>
+<li>The caller ends its turn after <code>agents.launch</code>; the turn waits for your answer (it doesn't count as done). If you answer while it's still in the turn, the outcome is sent when the turn ends.</li>
+<li>The Talker has no task to hang a card on, so <code>agents.launch</code> from it is refused with "hand it to the Main Assistant": you say "start a helper for X", the Talker hands it over, the Main Assistant calls <code>agents.launch</code>, and you get the card.</li>
+<li>The core gains <code>ModuleContext.withdraw(contract, impl)</code>, so <code>agents.close</code> can take back one helper without stopping the module.</li>
+</ul>
+<p><strong>What changed for <code>job</code>:</strong> its default id is <code>job_search_agent</code> (<code>job_search/module.py</code>, the prompt, <code>config/default.toml</code>'s comment and <code>transcript = "job_search_agent.jsonl"</code>, the Talker's prompt examples, tests, <code>docs/modules/job_search.md</code>).</p>
+<p><strong>The Main Assistant's prompt</strong> (the coordinator's block): <code>agents.kinds</code> / <code>agents.launch</code> / <code>agents.close</code>, launch only when you asked for a helper, name it from the task, the taken-name rule, end the turn after asking.</p>
+<h2 id="reused-parts-index">Reused parts (<a href="../html/api/reusable.html">index</a>)</h2>
+<ul>
+<li><code>SessionTaskAgent</code>: its reload/add permission request became <code>request_approval</code>, used by both.</li>
+<li><code>ProfileAgent</code>: builds the launched helpers and claims every agent's id.</li>
+<li>The permission card (temp UI, Talker) and <code>AnswerPermission</code>: unchanged.</li>
+<li>New reusable parts: <code>IAgentNames</code>, <code>check_agent_id</code> / <code>free_agent_id</code>, <code>ITaskAgent.request_approval</code>, <code>ModuleContext.withdraw</code>.</li>
+</ul>
+<h2 id="what-has-to-be-built">What has to be built</h2>
+<ol>
+<li><code>IAgentNames</code>, <code>ITaskAgent.request_approval</code>, <code>ModuleContext.withdraw</code> (contracts: <strong>restart</strong>); <code>check_agent_id</code>, <code>free_agent_id</code> (infra).</li>
+<li>The Hub provides <code>IAgentNames</code>, keeps the claims (handed over on reload), dedups agents and logs a clash.</li>
+<li><code>ProfileAgent</code> claims on start, releases on stop. <code>SessionTaskAgent.request_approval</code>, one path with the reload/add request, the turn waiting for the answer.</li>
+<li><code>task_agents</code>: kinds, <code>autostart</code>, <code>_2</code> instances, <code>agents.kinds</code> / <code>launch</code> / <code>close</code>.</li>
+<li><code>job_search</code>: <code>job_search_agent</code>; config, Talker prompt examples, tests.</li>
+<li>The coordinator's prompt block.</li>
+<li>Tests (clash, reserved, bad form, release on stop, the safety net, launch allowed / denied / refused, approval in a turn), ruff, docs, rebuild.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/agent-names.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

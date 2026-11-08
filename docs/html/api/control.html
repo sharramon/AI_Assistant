@@ -75,6 +75,12 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 <td>no</td>
 </tr>
 <tr>
+<td><code>modules.docs</code></td>
+<td><code>module_id</code></td>
+<td>(the core reads the module's own <code>docs/</code> folder)</td>
+<td>no</td>
+</tr>
+<tr>
 <td><code>modules.on</code></td>
 <td><code>module_id</code></td>
 <td><code>ActivateModule</code></td>
@@ -98,10 +104,36 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 <td><code>AddModule</code></td>
 <td>yes</td>
 </tr>
+<tr>
+<td><code>permissions.grants</code></td>
+<td>none</td>
+<td>(the handler)</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>permissions.grant</code></td>
+<td><code>module_id</code>, <code>items</code> (keys), <code>subject</code></td>
+<td>(the handler)</td>
+<td>from an agent: your card</td>
+</tr>
+<tr>
+<td><code>permissions.request</code></td>
+<td><code>read</code>, <code>write</code>, <code>commands</code> (lists), <code>python</code>, <code>chrome</code>, <code>reason</code></td>
+<td>(the handler)</td>
+<td>always your card</td>
+</tr>
+<tr>
+<td><code>permissions.revoke</code></td>
+<td><code>module_id</code>, <code>subject</code>, <code>items</code> (keys; none: all)</td>
+<td>(the handler)</td>
+<td>from an agent: your card</td>
+</tr>
 </tbody>
 </table>
-<p>"Asks first" goes through the core's permissions (<code>modules.off_with_dependents</code>, <code>modules.add</code>); today that's the allow-all stand-in, which logs. Refused → <code>failed</code> ("Not allowed: …"). Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code></p>
+<p><code>modules.docs</code> returns the module's own docs, on or off: a list of <code>{"title", "path"}</code>, one per page in its folder's <code>docs/</code> (order and titles from <a href="app_kit.html#module_docs"><code>module_docs</code></a>), <code>[]</code> if it ships none, <code>invalid_arguments</code> for an unknown id. An agent learns what a module does from the module itself: its menu, then these pages. Added 2026-11-06.</p>
+<p>"Asks first" for <code>modules.*</code> goes through the core's <code>ctx.permissions</code> (<code>modules.off_with_dependents</code>, <code>modules.add</code>); single names aren't checked yet, so they're allowed and logged. Refused → <code>failed</code> ("Not allowed: …"). Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
+<p>The <code>permissions.*</code> items are the <a href="../architecture/permissions.html#managing-grants">permissions handler</a>'s grant calls (<a href="core.html#permissionsmenu"><code>PermissionsMenu</code></a>). <code>permissions.grants</code> lists the saved grants per module and subject (the kind of agent): what was granted, the date, and whether the current list still matches. <code>permissions.grant</code> widens a grant with asked-for items, and a module that's off is turned on; one that's on takes it live (from its agents' next session, at once when idle). <code>permissions.request</code> is an agent asking for more access for itself (its module and subject come from its id; folders resolved); on Allow the items join its grant as added items, and a running agent takes them live. <code>permissions.revoke</code> takes back all or some items; the module turns off right away and its running tasks are stopped. From you (a UI you click in, <code>temp_ui</code> by default) they apply at once; from an agent they show you a card, and the answer reaches the agent as a note.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code>, <code>src/assistant/core/permissions/menu.py</code></p>
 <h2 id="activatemodule"><code>ActivateModule</code></h2>
 <p><code>ActivateModule(module_id: str)</code> (command)</p>
 <p>Turn a module on: a fresh instance, then <code>init</code> and <code>start</code>.</p>

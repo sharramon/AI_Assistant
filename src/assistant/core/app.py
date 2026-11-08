@@ -8,6 +8,8 @@ from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any
 
+from app_kit import merge
+from app_kit.module_docs import DOCS_DIR, doc_pages, page_title
 from assistant.contracts import (
     ActivateModule,
     AddModule,
@@ -23,14 +25,17 @@ from assistant.contracts import (
     ReloadModule,
     Result,
     ShutdownRequested,
+    TaskUpdated,
 )
+from assistant.contracts.permissions import AnswerPermissionRequest
+from assistant.core import loader
 from assistant.core.bus import EventBus
 from assistant.core.container import Container
 from assistant.core.context import ScopedContext
 from assistant.core.directory import CORE_ID, CoreMenu
 from assistant.core.lifecycle import LifecycleManager
 from assistant.core.logs import SessionLogs
-from assistant.core.permissions import AllowAllPermissions
+from assistant.core.permissions import PermissionsHandler, PermissionsMenu, PermissionsPort
 from assistant.core.registry import resolve_modules
 from assistant.core.router import CommandRouter
 from assistant.core.tools import MenuTools, dispatch_tool
@@ -70,8 +75,13 @@ class App:
             core.get("module_stop_timeout", 5.0),
             self._on_module_state,
         )
+        # The permissions handler: part of the core, always on (no module or agent turns it off).
+        self.permissions = PermissionsHandler.from_config(
+            core.get("permissions", {}), self.router.send, self.bus.publish, self.container.get_one
+        )
         self._handlers = {
-            InvokeTool: partial(dispatch_tool, self.container),
+            AnswerPermissionRequest: self.permissions.answer,
+            InvokeTool: partial(dispatch_tool, self.container, start_on_use=self._start_for_tool),
             ListModules: self._list_modules,
             GetMenu: self._get_menu,
             ActivateModule: self._activate_module,
@@ -80,8 +90,10 @@ class App:
             AddModule: self._add_module,
         }
         # The core's own menu (module control), offered through InvokeTool under the id "core".
-        self.core_menu = CoreMenu(self.router.send, AllowAllPermissions(CORE_ID))
+        self.core_menu = CoreMenu(self.router.send, PermissionsPort(CORE_ID, self.permissions), self._module_docs)
         self.core_menu_tools = MenuTools(CoreMenu.menu, self.core_menu)
+        # The grant calls (permissions.*), on the same "core" menu.
+        self.permissions_menu_tools = MenuTools(PermissionsMenu.menu, PermissionsMenu(self.permissions))
         self._stopping = asyncio.Event()
         self.restart_requested = False  # a ShutdownRequested asked for a restart
 
@@ -97,7 +109,9 @@ class App:
         for command_type, handler in self._handlers.items():
             self.router.register(command_type, handler)
         self.container.provide(IToolProvider, self.core_menu_tools, owner=CORE_ID)
+        self.container.provide(IToolProvider, self.permissions_menu_tools, owner=CORE_ID)
         self.bus.subscribe(ShutdownRequested, self._on_shutdown_requested)
+        self.bus.subscribe(TaskUpdated, self.permissions.on_task_updated, owner=CORE_ID)
         await self._lifecycle.start()
 
     async def stop(self) -> None:
@@ -105,6 +119,7 @@ class App:
         cancelled = self.router.cancel_all()
         if cancelled:
             log.info("Cancelled %d in-flight command(s)", cancelled)
+        await self.permissions.close()
         await self._lifecycle.stop()
         for command_type, handler in self._handlers.items():
             self.router.unregister(command_type, handler)
@@ -125,7 +140,7 @@ class App:
 
     async def _get_menu(self, command: GetMenu) -> Result:
         if command.module_id == CORE_ID:
-            return Result.ok(CoreMenu.menu.specs())
+            return Result.ok(CoreMenu.menu.specs() + PermissionsMenu.menu.specs())
         try:
             menu = self._lifecycle.menu(command.module_id)
         except KeyError:
@@ -137,6 +152,24 @@ class App:
     # Its outcome is still announced by ModuleStateChanged.
     async def _activate_module(self, command: ActivateModule) -> Result:
         return await asyncio.shield(self._lifecycle.activate(command.module_id))
+
+    async def _start_for_tool(self, name: str) -> Result | None:
+        """Start on use: turn on the module that is off, has tool `name` on its menu, and has
+        `start_on_use = true` in its `[modules.<id>]` config, the same way as `ActivateModule`.
+        None when no module qualifies. Several calls at once start it once (the lifecycle's
+        lock queues them; the later ones find it on). A module you turned off starts too."""
+        for info in self._lifecycle.modules():
+            if info.state is ModuleState.ACTIVE or not self._config_of(info.id).get("start_on_use"):
+                continue
+            menu = self._lifecycle.menu(info.id)
+            if menu is None or not any(spec.name == name for spec in menu.specs()):
+                continue
+            log.info("Starting %s on use (%s)", info.id, name)
+            result = await asyncio.shield(self._lifecycle.activate(info.id))
+            if not result.is_ok:
+                return Result.failed(f"The {info.id} module couldn't start: {result.error}", retryable=True)
+            return result
+        return None
 
     async def _deactivate_module(self, command: DeactivateModule) -> Result:
         return await asyncio.shield(self._lifecycle.deactivate(command.module_id, command.with_dependents))
@@ -162,14 +195,35 @@ class App:
     def _on_module_state(self, module_id: str, state: ModuleState) -> None:
         self.bus.publish(ModuleStateChanged(module_id=module_id, state=state))
 
+    def _config_of(self, module_id: str) -> dict[str, Any]:
+        """A module's config: its own defaults (`module.toml` in its folder) with its `[modules.<id>]`
+        section from the app's config merged over them."""
+        section = self._module_config.get(module_id, {})
+        try:
+            cls = self._lifecycle.module_class(module_id)
+        except KeyError:
+            return section
+        return merge(loader.module_defaults(cls), section)
+
+    async def _module_docs(self, module_id: str) -> Result:
+        """`modules.docs`: the module's own docs pages (title and path), read from its folder."""
+        try:
+            cls = self._lifecycle.module_class(module_id)
+        except KeyError:
+            return Result.invalid_arguments(f"No module called {module_id!r}")
+        folder = loader.module_folder(cls)
+        pages = doc_pages(folder / DOCS_DIR) if folder else []
+        return Result.ok([{"title": page_title(p), "path": str(p)} for p in pages])
+
     def _make_context(self, manifest: Manifest, handover: Any = None) -> ScopedContext:
         return ScopedContext(
             manifest,
             self.router,
             self.bus,
             self.container,
-            self._module_config.get(manifest.id, {}),
+            self._config_of(manifest.id),
             logging.getLogger(f"assistant.modules.{manifest.id}"),
             handover,
             self.logs,
+            PermissionsPort(manifest.id, self.permissions),
         )

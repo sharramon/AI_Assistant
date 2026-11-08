@@ -12,6 +12,7 @@ from array import array
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.voice_client import LocalClient
 from voice_service.audio import FakeSource, FileSource
 from voice_service.config import ServiceConfig, final_engine_name, models_dir, whisper_folder
 from voice_service.engines import EngineError, SttEngine, SttStream
@@ -186,7 +187,7 @@ def make_config(**engine) -> ServiceConfig:
 def make_client(final=None, *, live=None, source=None, config=None) -> TestClient:
     factory = source if callable(source) else (lambda: FakeSource(TALK if source is None else source))
     app = create_app(config or make_config(), live or LiveEngine(), factory, final_engine=final)
-    return TestClient(app)
+    return LocalClient(app)
 
 
 def recv(ws):

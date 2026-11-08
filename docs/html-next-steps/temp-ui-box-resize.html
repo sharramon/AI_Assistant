@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temp UI: drag the typing box taller or shorter</title>
+<!-- Generated from docs/next-steps/temp-ui-box-resize.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="temp-ui-box-resize.html"></nav>
+<main>
+<h1 id="temp-ui-drag-the-typing-box-taller-or-shorter">Temp UI: drag the typing box taller or shorter</h1>
+<blockquote>
+<p><strong>Status: built, waiting on the batched restart or a <code>RELOAD: temp_ui</code> (2026-11-08).</strong> Task 4 of the queue; nothing was reloaded or restarted. Then refresh the window and do the hand checks below.</p>
+</blockquote>
+<p><strong>Asked:</strong> let the user change the height of the Talker pane's typing box by click and drag.</p>
+<p><strong>Decided (the user):</strong> one size for every tab (not per tab), and it stays where you dragged it (sending a message doesn't reset it).</p>
+<p><strong>Touches:</strong> <code>src/assistant/modules/temp_ui/page.html</code> only (CSS, one element, page JS); <code>docs/modules/temp_ui.md</code> (one line). No server, contract or config change. The temp UI is a throwaway stand-in (<a href="../html/architecture/decisions.html#open-decisions">decisions</a>), so no new design.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>A thin <strong>drag handle</strong> (<code>#grip</code>, a bar with a small grip mark, <code>ns-resize</code> cursor) on the top edge of the input area, above the mic's live line, the snips and the box. It also draws the line the input area had on top.</li>
+<li>Dragging it up makes the box taller, down shorter (pointer events with capture, so it works when the pointer leaves the bar).</li>
+<li><strong>Limits:</strong> at least 40 px (the old height); at most 60 % of the window, and never so tall that the Talker's chat goes under 120 px. The chat area keeps filling the rest (it was already <code>flex: 1</code>). The limit is re-applied when the window is resized.</li>
+<li><strong>One size, kept:</strong> stored in the page's <code>localStorage</code> (<code>temp_ui.boxHeight</code>), so it holds across tabs, sends and a window refresh. Nothing resets it. Double-click the handle to go back to 40 px.</li>
+<li>The Send, mic and clear buttons stay 40 px tall at the box's bottom edge instead of stretching with it.</li>
+<li>No helper reused or added: nothing in <code>docs/api/reusable.md</code> covers page layout, and this is temp-UI code.</li>
+</ul>
+<p><strong>Built (2026-11-08):</strong> in <code>page.html</code>: the <code>#grip</code> element and its CSS, the textarea's <code>max-height: 160px</code> replaced by the drag limits, <code>form</code> aligned to the bottom with 40 px buttons, and the drag code next to the form's code (<code>boxLimit</code>, <code>setBox</code>).</p>
+<p><strong>Your checks (after the restart or <code>RELOAD: temp_ui</code>; refresh the window first):</strong></p>
+<ol>
+<li>Drag the bar above the typing box up: the box grows, the chat above shrinks and still scrolls. Drag down: it shrinks back, never below one line.</li>
+<li>Drag it as high as it goes: it stops with some chat still showing (at most about 60 % of the window).</li>
+<li>Type and send a message: the box keeps its dragged height.</li>
+<li>Switch to another agent's tab and back: the same height in every tab.</li>
+<li>Refresh the window: the height is still the one you dragged to. Double-click the bar: back to one line.</li>
+<li>With the mic on and a snip waiting, the live line and the thumbnail still sit between the bar and the box; Send, mic and ✕ stay normal-sized at the bottom.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/temp-ui-box-resize.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

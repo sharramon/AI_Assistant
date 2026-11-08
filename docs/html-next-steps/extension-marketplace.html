@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extensions like a marketplace: what&#x27;s built, what&#x27;s missing</title>
+<!-- Generated from docs/next-steps/extension-marketplace.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="extension-marketplace.html"></nav>
+<main>
+<h1 id="extensions-like-a-marketplace-whats-built-whats-missing">Extensions like a marketplace: what's built, what's missing</h1>
+<blockquote>
+<p><strong>Status: proposed, all answers in (2026-11-07).</strong> Research and a proposal only; no code changed, nothing reloaded. Your answers are in <a href="#decisions-2026-11-07">Decisions</a>; the design below follows them. Waiting on your check before anything is built.</p>
+</blockquote>
+<p><strong>Design principle: design for future potential markets, not for the markets themselves today.</strong> Keep the hooks a market would need: manifest fields, declared permissions, process isolation, hot load and unload, version compatibility. Build no store features, no signing and no sandbox now.</p>
+<p><strong>Asked:</strong> the project should have the same architecture as an extension marketplace. Extensions can be completely unloaded and brand-new ones loaded, written by other people, so the core can't know what exists. Extensions, and the new interfaces they bring, must be hot swappable. No store now: development is done with a store in mind.</p>
+<p><strong>Short answer:</strong> half of it is built. The <strong>module half</strong> is built: a manifest, a menu, contracts, a directory, add, turn off and reload while running, access cards, one door, finding modules by folder. That makes it a plug-in system <em>for code in this repo</em>. The <strong>marketplace half</strong> isn't built: installing from outside the repo, a manifest you can read before running any code, strangers' code kept out of the app's process, new contracts while running, versions, and an uninstall that leaves nothing behind. <code>job_search</code> and <code>cv</code> follow the module pattern, but <code>cv</code>'s own Python reaches the network, your folders and LibreOffice from inside the app, with nothing declared or asked.</p>
+<p>Related: <a href="module-self-contained.html">self-contained modules</a> (layout, umbrellas), <a href="../html/architecture/permissions.html">permissions</a>, <a href="../html/architecture/modules.html">modules</a>, <a href="../html/architecture/core.html#runtime-module-control">core</a>.</p>
+<h2 id="decisions-2026-11-07">Decisions (2026-11-07)</h2>
+<ol>
+<li><strong>Strangers' code never runs in the app's process.</strong> How it's enforced: <a href="#trust-how-strangers-code-is-kept-out-of-the-apps-process">Trust</a>.</li>
+<li><strong>A separate process now, an operating-system sandbox later:</strong> yes. Until the sandbox, install only from people you trust.</li>
+<li><strong>Where extensions live:</strong> <code>%LOCALAPPDATA%\assistant\extensions\&lt;id&gt;\</code>, their data in <code>%LOCALAPPDATA%\assistant\data\&lt;id&gt;\</code>, outside the repo: yes.</li>
+<li><strong>Python packages: one environment per extension that runs in its own process.</strong> In plain words: each such extension gets its own private folder of the Python packages it needs, so two extensions that need different versions of a package can't break each other or the app. Modules inside the app keep the app's environment.</li>
+<li><strong>Uninstall</strong> always deletes its grants, code and data folder, and asks on the card about files it wrote elsewhere (your CVs stay unless you say): yes.</li>
+<li><strong><code>cv</code> is the pilot extension:</strong> the first one used to prove the setup works, end to end, before any other module is moved to it. Nothing in <code>cv</code> changes until the extension host is built.</li>
+<li><strong>Changed: new interfaces (contracts) load and swap while the app runs, with no restart.</strong> Extensions are hot swappable, contracts included. This <strong>overrides</strong> the current rule that "a new module that needs a new contract needs a restart" (<a href="../html/architecture/core.html#runtime-module-control">core</a>, <a href="../html/architecture/modules.html#hot-swap">modules</a>) for contracts brought by extensions. Design: <a href="#contracts-at-runtime-no-restart">Contracts at runtime</a>. The architecture pages change when this is built, not before.</li>
+<li><strong>No store and no signing now; built with a store in mind.</strong> The manifest carries <code>id</code>, <code>version</code>, <code>author</code>, <code>core_api</code> and a <code>checksum</code> slot from the start, so a store can be added later without a redesign.</li>
+<li><strong>Names can't clash by accident.</strong> Every extension command, event and contract name starts with the publisher and the extension id, then the interface name (<code>acme.cv.tailor.start</code>). A clash is refused at install and the second extension isn't loaded. Deliberate overlaps (several modules filling the same role, such as two voice modules) go through <a href="module-self-contained.html#umbrellas-modules-that-do-the-same-job-the-users-design-not-built-yet">umbrellas and their defaults</a>, never through shared names.</li>
+<li><strong>A repo module may use an interface only an extension provides as optional, never required.</strong> The core starts with no extensions at all. Example: the mic button asks for the <code>voice</code> role as optional and shows as unavailable when nothing fills it; the repo's own <code>voice_in</code> stays the default provider.</li>
+</ol>
+<h2 id="1-whats-built-against-marketplace-needs">1. What's built, against marketplace needs</h2>
+<table>
+<thead>
+<tr>
+<th>Marketplace need</th>
+<th>Today</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core doesn't know what exists</td>
+<td><strong>Mostly.</strong> Modules are found by folder; <code>__main__</code> names none. The core still names a few (reviewer <code>main_assistant</code>, "you" = <code>temp_ui</code>, reserved agent ids, the SHOW tag → <code>viewer.open</code>, <code>TALKER = "talker"</code>); umbrellas would fix that, designed only</td>
+<td><code>core/loader.py:152</code>, <code>core/permissions/handler.py:55,119</code>, <a href="module-self-contained.html#step-1-the-audit-what-lives-outside-each-modules-folder">self-contained note</a></td>
+</tr>
+<tr>
+<td>Load a brand-new extension while running</td>
+<td><strong>Built, but only from inside the source tree.</strong> <code>AddModule</code> imports <code>assistant.modules.&lt;id&gt;</code>; the folder must sit in <code>src/assistant/modules/</code> (<code>MODULES_PACKAGE</code>, <code>check_folder</code>)</td>
+<td><code>core/loader.py:28,143</code>, <code>core/lifecycle.py:174</code></td>
+</tr>
+<tr>
+<td>Unload it completely</td>
+<td><strong>Turned off, not removed.</strong> <code>DeactivateModule</code> stops it and <code>ctx.close()</code> removes its subscriptions, command handlers and contracts. There's no remove: the class stays in the lifecycle's list and <code>sys.modules</code>, it stays in the directory as "inactive", and its folder, config section, grants and files stay. Deleting the folder takes a restart</td>
+<td><code>core/context.py:111</code>, no <code>RemoveModule</code> in the core (searched)</td>
+</tr>
+<tr>
+<td>What an unload leaves behind</td>
+<td><strong>Depends on the module behaving.</strong> Its own asyncio tasks and threads aren't tracked by the core ("old code left running", muted by the closed context). Companion apps quit only if the module launched them. <code>claude</code> sessions stop through <code>ProfileAgent.stop</code>, which releases the agent id. Grants stay in <code>data/permissions.toml</code> (removed only by a revoke). Tokens, output files and logs stay</td>
+<td><a href="../html/architecture/core.html#reloading-a-modules-code">core: reloading</a>, <code>core/permissions/handler.py:486</code></td>
+</tr>
+<tr>
+<td>A manifest that declares everything</td>
+<td><strong>Partly.</strong> It declares contracts, commands, events, and permission names. No version, author, core version, Python dependencies, network hosts, folders or accounts. Folders, commands and Chrome come from the <strong>config</strong> access list, and only for an agent worker</td>
+<td><code>contracts/module.py:36-60</code></td>
+</tr>
+<tr>
+<td>Read the manifest before running code</td>
+<td><strong>No.</strong> The manifest is a Python class attribute, so reading it imports (runs) the module's code. <code>build_docs.py</code> does the same</td>
+<td><code>core/loader.py:165</code></td>
+</tr>
+<tr>
+<td>Permissions checked</td>
+<td><strong>For agent workers, yes; for module code, no.</strong> Access lists go on one card, saved per kind of agent, and <code>claude</code> enforces them in its own process. Single names (<code>microphone</code>, <code>network</code>) are allowed and logged. A module's Python runs in the app's process as you and can do anything: <a href="../html/architecture/permissions.html#the-limit">the limit</a></td>
+<td><a href="../html/architecture/permissions.html">permissions</a></td>
+</tr>
+<tr>
+<td>One door for agents, with a proven caller</td>
+<td><strong>Built.</strong> Three fixed tools; the caller is proved by its token; works for any module's menu</td>
+<td><code>infra/mcp_door.py</code>, <a href="../html/architecture/modules.html#how-the-agents-reach-the-menus-one-door">modules</a></td>
+</tr>
+<tr>
+<td>Same menu and tools page for every extension</td>
+<td><strong>Built for moved modules.</strong> <code>Menu</code> with checked arguments; the tools page is generated from the menu; three standard pages required. The eight central modules are exempt; four modules haven't moved yet</td>
+<td><code>app_kit/module_docs.py</code>, <a href="module-self-contained.html#the-standard-docs-layout-decided-2026-11-06">standard layout</a></td>
+</tr>
+<tr>
+<td>An extension brings its own interfaces</td>
+<td><strong>No.</strong> Contracts are Python classes in <code>assistant.contracts</code>; a module needing a new one fails with "needs a restart". Whether a module may handle a command type of its own is <em>not confirmed</em></td>
+<td><a href="../html/architecture/core.html#reloading-a-modules-code">core</a></td>
+</tr>
+<tr>
+<td>Dependencies between extensions</td>
+<td><strong>Built, by contract,</strong> with the core starting the provider first and refusing to stop a needed one</td>
+<td><a href="../html/architecture/modules.html#dependencies">modules</a></td>
+</tr>
+<tr>
+<td>Package, download, install, update, signing, registry, version checks</td>
+<td><strong>None.</strong> One Python distribution holds everything; Python dependencies are extras in <code>pyproject.toml</code> (e.g. <code>voice</code>)</td>
+<td><a href="module-self-contained.html">self-contained note</a>, decision 6</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Where it runs:</strong> every module runs in the app's one Python process (a modular monolith, <a href="../html/architecture/decisions.html#decided">decisions</a>). Separate processes today are the <code>claude</code> sessions (each agent), the companion apps (<code>html_viewer</code>, <code>voice_service</code>), and whatever a module starts itself (LibreOffice, a browser).</p>
+<h2 id="2-job_search-and-cv-against-this">2. <code>job_search</code> and <code>cv</code> against this</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>job_search</code></th>
+<th><code>cv</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Follows the pattern</strong></td>
+<td>Yes: manifest (provides <code>ITaskAgent</code>, <code>permissions=("agent.access",)</code>), menu <code>job.search</code> (a stub), imports only <code>contracts</code> and <code>infra</code>. Not moved yet: page in <code>docs/modules/</code>, config in <code>default.toml:97-111</code>, test in <code>tests/</code></td>
+<td>Yes, and moved: <code>module.toml</code>, the three docs pages, own <code>tests/</code>. Imports <code>contracts</code>, <code>infra</code> and its own files (absolutely, as <code>assistant.modules.cv.*</code>, which ties it to that place in the tree)</td>
+</tr>
+<tr>
+<td><strong>Inside the app's process</strong></td>
+<td>The module, its menu, the <code>job.search</code> stub task</td>
+<td>The module and its whole menu: <code>rezi.*</code> (an MCP <strong>client</strong> to <code>https://api.rezi.ai/mcp</code>, a browser sign-in with a callback server on <code>127.0.0.1:33418</code>, a 30-day token in <code>%LOCALAPPDATA%\assistant\cv\</code>), <code>cv.read</code> / <code>cv.build</code> / <code>cv.compare</code> / <code>cv.report</code> (reads your CVs, writes the output folder), the ODT writer</td>
+</tr>
+<tr>
+<td><strong>Separate processes</strong></td>
+<td>The <code>job_search_agent</code> <code>claude</code> session (with Claude in Chrome), stopped in <code>stop()</code></td>
+<td>The <code>cv_agent</code> <code>claude</code> session (Chrome, "only app.rezi.ai" by prompt, not enforced); LibreOffice <code>soffice</code> through a blocking <code>subprocess.run</code> (120 s timeout) that <code>stop()</code> doesn't track; the system browser for the sign-in</td>
+</tr>
+<tr>
+<td><strong>Reaches outside its folder</strong></td>
+<td><code>C:\Chang\Jobs\CV</code> (workspace), <code>C:\Chang\Jobs</code>, <code>C:\Chang\Git_projects\Resume</code>, JobRadar's Python, Chrome, the job project's <code>CLAUDE.md</code> and skills. All on its access card</td>
+<td>On the worker's card: workspace <code>C:\Chang\Jobs\rezi\cv_agent</code>, read folders, Chrome. <strong>Not declared or asked anywhere:</strong> the module's own network calls to Rezi and the callback port, the token file, reading the CV folder, writing <code>C:\Chang\Jobs\rezi\rezi\out</code>, running <code>soffice.exe</code>, a LibreOffice profile in <code>%TEMP%\assistant-cv-soffice</code>, writing resumes into your Rezi account</td>
+</tr>
+<tr>
+<td><strong>Names from the core / other modules</strong></td>
+<td>The Hub through <code>ProfileAgent</code> (<code>IAgentNames</code>, <code>IModuleDoor</code>); <code>AgentNotice</code> to its caller. Named by <code>talker/prompt.py:145</code> and <code>temp_ui/agent_tabs.py:8</code></td>
+<td><code>hub.start</code> and <code>cv_agent</code> in <code>cv.task</code>'s answer; <code>viewer.open</code> in the worker's prompt; <code>REPO = parents[4]</code> (<code>module.py:69</code>) assumes it sits in the repo; <code>tests/test_worker.py:22</code> imports <code>assistant.modules.agent_hub</code></td>
+</tr>
+<tr>
+<td><strong>Left behind on unload</strong></td>
+<td>Grant <code>job_search → job_search_agent</code>; the handler's <code>_agents</code> entry; the transcript in <code>logs/</code>; <code>.claude/state/&lt;id&gt;-task.txt</code>; the job project's files</td>
+<td>The same, plus the Rezi token, the LibreOffice profile, output CVs and reports, and the Rezi resumes it made (tracked only until a restart)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Both:</strong> stopping kills the <code>claude</code> process (<code>claude_session.py:299-312</code>) but not its process tree; whether its children (the Chrome bridge, MCP clients) die with it is <em>not confirmed</em>. The permissions handler's <code>_agents[agent_id]</code> entry is added by <code>own_agent</code> and never removed (<code>core/permissions/handler.py:181</code>). <strong><code>cv</code> on import</strong> changes the global <code>sys.path</code> and adds DLL folders (<code>mcp.py:58</code>), which affects the whole app: exactly what a stranger's in-process code could do unseen.</p>
+<p>So both are well-behaved modules. As extensions they'd fall short in one way each: <code>job_search</code> isn't self-contained yet, and <code>cv</code> does real work in the app's process that nothing declares or checks.</p>
+<h2 id="3-the-gaps-for-a-marketplace">3. The gaps for a marketplace</h2>
+<ol>
+<li><strong>Package format.</strong> Nothing yet. Needed: one zip holding the folder, the static manifest, docs, tests and a dependency list.</li>
+<li><strong>A manifest that declares everything, readable without running code</strong> (<a href="#the-manifest-extensiontoml">below</a>).</li>
+<li><strong>Trust and isolation.</strong> Today all module code runs in the app's process as you. Strangers' code must not (<a href="#decisions-2026-11-07">decision 1</a>).</li>
+<li><strong>Contracts at runtime.</strong> Today a new contract needs a restart; extensions must bring their own while the app runs (<a href="#decisions-2026-11-07">decision 7</a>).</li>
+<li><strong>Version compatibility.</strong> No core API version, no check at load.</li>
+<li><strong>Install, update, uninstall.</strong> Install means copying into <code>src/</code> and <code>AddModule</code>. No uninstall; no per-extension data folder, so the core can't know where an extension wrote.</li>
+<li><strong>Tracked work.</strong> The core can't end a module's tasks, threads or child processes; it relies on <code>stop()</code>. A process per extension fixes this for extensions (kill the process tree).</li>
+<li><strong>Same standard for everyone.</strong> The menu, the generated tools page and the three pages are built; needed is to make them a load-time rule for extensions, and links to the app's docs only through <code>[related]</code>.</li>
+<li><strong>Umbrellas and defaults.</strong> Designed in the <a href="module-self-contained.html#umbrellas-modules-that-do-the-same-job-the-users-design-not-built-yet">self-contained note</a>, not built. A marketplace needs them so the core's own needs (SHOW, the reviewer, "you") go to a default instead of a named module.</li>
+<li><strong>Shared parts across the process line.</strong> <code>ProfileAgent</code>, <code>request_access</code> and <code>CompanionApp</code> are imported Python today. An extension in its own process needs them through the host.</li>
+<li><strong>Store and signing:</strong> later (<a href="#decisions-2026-11-07">decision 8</a>); only the manifest fields now.</li>
+</ol>
+<p><strong>Not confirmed:</strong> whether a module may define and handle its own command or event types without a restart today; whether the Rezi client closes cleanly on stop; whether <code>claude</code>'s child processes die with it; which Windows sandbox would work on Windows 11 Home.</p>
+<h2 id="the-design">The design</h2>
+<h3 id="two-kinds-of-module">Two kinds of module</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Built-in module</strong></th>
+<th><strong>Extension</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Where</td>
+<td><code>src/assistant/modules/&lt;id&gt;/</code> (the repo)</td>
+<td><code>%LOCALAPPDATA%\assistant\extensions\&lt;id&gt;\</code></td>
+</tr>
+<tr>
+<td>Runs</td>
+<td>In the app's process, as today</td>
+<td>Always in its own process, the <strong>extension host</strong></td>
+</tr>
+<tr>
+<td>Python packages</td>
+<td>The app's environment</td>
+<td>Its own environment (<a href="#decisions-2026-11-07">decision 4</a>)</td>
+</tr>
+<tr>
+<td>Reached through</td>
+<td>Commands, events, contracts, its menu</td>
+<td>The same, relayed by the host; agents reach its menu through the module door</td>
+</tr>
+<tr>
+<td>Unload</td>
+<td><code>stop()</code>, then <code>ctx.close()</code></td>
+<td><code>stop()</code>, then the core kills the host's process tree</td>
+</tr>
+</tbody>
+</table>
+<h3 id="trust-how-strangers-code-is-kept-out-of-the-apps-process">Trust: how strangers' code is kept out of the app's process</h3>
+<ul>
+<li><strong>The loader imports only from the repo's own module folder.</strong> <code>find_modules</code> and <code>AddModule</code> already look only under <code>assistant.modules</code> (<code>MODULES_PACKAGE</code>). That stays a hard rule: no configurable root, no extra path.</li>
+<li><strong>The extensions folder is never imported.</strong> It's never on <code>sys.path</code>. Anything found there is always launched as a separate process (<code>python -I</code> in the extension's own environment, running the host), and the app reaches it only through the host's socket and the module door.</li>
+<li><strong>An extension can't mark itself trusted.</strong> A <code>trusted</code> key (or anything like it) in <code>extension.toml</code> is refused at install. The trust flag is set only by the core, kept in its own state in the protected zone (<code>data/extensions.toml</code>, beside <code>data/permissions.toml</code>), and changed only by your answer on a card. Moving an extension into the repo's module folder is a code change you review, not a flag.</li>
+<li><strong>The host has no core objects.</strong> It gets a token, like an agent at the door, so every call it makes carries a proven caller, and the permission card names the extension.</li>
+<li><strong>What a process alone doesn't stop:</strong> the extension's code can still read your files and use the network as you. That needs the OS sandbox (<a href="#decisions-2026-11-07">decision 2</a>); until then, install only from people you trust.</li>
+</ul>
+<h3 id="contracts-at-runtime-no-restart">Contracts at runtime (no restart)</h3>
+<p><strong>Why a new contract needs a restart today:</strong> a contract is a Python class in <code>assistant.contracts</code>, and every module holds that class. Swapping it would break <code>isinstance</code> checks and contract identity, so contracts can't be reloaded.</p>
+<p><strong>The change:</strong> contracts brought by extensions become <strong>data the core holds</strong>, not Python classes every module imports.</p>
+<ul>
+<li><strong>A contract is a declaration</strong>, shipped in the extension's folder (<code>contracts/&lt;name&gt;.toml</code>): its name, a version (<code>cv.tailor@1</code>), and its operations, commands and events, each with a JSON Schema, the same shape as a menu item. The core's built-in contracts (<code>IVoice</code>, <code>ITaskAgent</code>, the core's commands) stay Python classes in <code>assistant.contracts</code>; changing those is still a core change.</li>
+<li><strong>The core keeps a contract registry</strong>, added to and removed from while running: <code>register(declaration, owner)</code> when the extension loads, <code>remove(owner)</code> when it unloads. A second declaration of the same name and major version must match the first, or it's refused.</li>
+<li><strong>Calls go by name, checked by schema.</strong> The router and the bus key extension commands and events by name (<code>cv.tailor.start</code>), not by Python type, and check arguments against the schema, as menus already do. A built-in module that uses an extension's contract gets a caller object (<code>ctx.contract("cv.tailor@1")</code>) that sends by name, so no Python class crosses over.</li>
+<li><strong>Names:</strong> <code>&lt;publisher&gt;.&lt;extension id&gt;.&lt;interface&gt;</code> for contracts, and the same prefix for their commands and events (<a href="#decisions-2026-11-07">decision 9</a>). The install checks every name against the registry; a clash refuses the install and nothing of the second extension loads.</li>
+<li><strong><code>requires</code> by name and major version.</strong> An extension's manifest lists <code>requires = ["acme.cv.tailor@1"]</code>; the core resolves it at activation, as today, from the registry. A repo module may list an extension's contract only under <code>optional</code> (<a href="#decisions-2026-11-07">decision 10</a>), so the app starts and runs with no extensions installed; the load check refuses a repo module that requires one.</li>
+<li><strong>When the provider unloads:</strong> modules that require it are stopped first (the card names them, like <code>with_dependents</code> today) and go to a new state, <strong>waiting</strong>, with the reason ("waiting for cv.tailor@1"). They aren't failed or forgotten. When any provider of that contract is back, they start again on their own.</li>
+<li><strong>When the provider reloads (a hot swap):</strong> calls to it are held, as <code>CommandRouter.hold</code> does today, and its dependents keep running. If the new copy changes the contract within the same major version (new optional fields), dependents carry on. If it changes the major version, dependents that require the old one go to waiting.</li>
+<li><strong>When the declaration is removed:</strong> only when no provider declares it any more; a held call then fails with <code>not_available</code>.</li>
+</ul>
+<p>So the rule becomes: <strong>changes to the core and its built-in contracts need a restart; an extension and the contracts it brings don't.</strong></p>
+<h3 id="the-manifest-extensiontoml">The manifest: <code>extension.toml</code></h3>
+<p>Read before any code runs; shown on the install card; the core holds the extension to it.</p>
+<pre><code class="language-toml">id = &quot;cv&quot;
+version = &quot;1.0.0&quot;
+author = &quot;...&quot;
+core_api = &quot;&gt;=1,&lt;2&quot;        # the core's API versions it works with
+checksum = &quot;&quot;              # empty now; a store fills it (sha256 of the package) and the core checks it
+description = &quot;...&quot;
+umbrella = &quot;&quot;              # later
+provides = [&quot;cv.tailor@1&quot;] # contracts, declared in contracts/
+requires = []
+python = &quot;requirements.txt&quot;
+
+[needs]
+read = [&quot;C:/Chang/Jobs/CV&quot;]
+write = [&quot;C:/Chang/Jobs/rezi/rezi/out&quot;]
+network = [&quot;api.rezi.ai&quot;]
+listen = [&quot;127.0.0.1:33418&quot;]
+accounts = [&quot;rezi&quot;]
+commands = [&quot;C:/Program Files/LibreOffice/program/soffice.exe&quot;]
+chrome = true
+agent = &quot;cv_agent&quot;         # its worker, with its access list as today
+</code></pre>
+<p>No <code>trusted</code> key: <a href="#trust-how-strangers-code-is-kept-out-of-the-apps-process">trust</a> is the core's.</p>
+<h2 id="4-recommended-path-in-small-steps">4. Recommended path, in small steps</h2>
+<p>Tests and ruff after each. "Restart" = a core, contracts, infra or <code>app_kit</code> change; these are one-time costs of building the setup. Once it's built, extensions and their contracts load, swap and unload without a restart.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>Restart?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong><code>extension.toml</code></strong> read without importing; checked against the menu at load. Written for <code>cv</code> first (no <code>cv</code> code changes)</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Core API version</strong> (<code>CORE_API</code> in contracts) and the <code>core_api</code> check; <code>checksum</code> kept and checked when filled</td>
+<td>Restart (with 1)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong><code>ctx.data_dir</code></strong> (<code>%LOCALAPPDATA%\assistant\data\&lt;id&gt;\</code>) and <strong>remove</strong>: <code>modules.remove</code> on the core's menu (a card): turn off, drop it, remove its grants and the handler's <code>_agents</code> entry, delete its data folder, ask about other files</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Contract registry</strong> for declared contracts, calls by name with schema checks, <code>requires</code> by name and major version, the <strong>waiting</strong> state and the restart of waiting modules</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Extension host</strong>: <code>python -I -m assistant.ext_host &lt;folder&gt;</code> in the extension's own environment, over a local socket (menu calls, events, commands, declared contracts), with its own door token; unload kills the process tree. The trust flag in <code>data/extensions.toml</code></td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Pilot <code>cv</code></strong> as the first extension: a copy installed from the extensions folder, run in the host, proven end to end (sign-in, build, the worker, unload, reload, remove). The repo copy stays until the pilot passes</td>
+<td>No restart (that's the point)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Install and update from a zip</strong>: <code>extensions.install / update</code> on the core's menu, the card showing <code>[needs]</code></td>
+<td>Restart (with 5)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Umbrellas</strong> as designed, so the core names no module</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Later:</strong> the OS sandbox; a store and signing</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Steps 1 to 5 and 7 could share one restart if built together. <code>job_search</code> moving into its own folder (self-contained step 3) needs only a reload; it becomes an extension after the <code>cv</code> pilot passes.</p>
+<h2 id="open-questions">Open questions</h2>
+<p>None left: all ten are answered (<a href="#decisions-2026-11-07">Decisions</a>). Where the publisher name comes from (the manifest's <code>author</code> for now, a store account later) is settled when step 1 is built.</p>
+<footer>Generated from <code>docs/next-steps/extension-marketplace.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

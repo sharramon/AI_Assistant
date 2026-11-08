@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helpers&#x27; context reminder and reset</title>
+<!-- Generated from docs/next-steps/helper-context-reset.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="helper-context-reset.html"></nav>
+<main>
+<h1 id="helpers-context-reminder-and-reset">Helpers' context reminder and reset</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-07).</strong> Approved: build the Reset fix; keep both reminders as reminders (no automatic reset), and make sure the reminder fires on every pair. <code>RELOAD: temp_ui</code> (or the batched restart), then the checks below.</p>
+</blockquote>
+<p><strong>Built (2026-11-07):</strong></p>
+<ul>
+<li><code>reset_target(button, tab, coordinator)</code> in <code>temp_ui/module.py</code> picks the session; <code>POST /reset</code> uses it; <code>page.html</code> sends <code>tab: focused()</code>.</li>
+<li><strong>Every pair has the reminder (checked, nothing missing):</strong> every worker (<code>main_assistant</code>, <code>job_search</code>, <code>cv</code>, every <code>task_agents</code> helper, including a tab opened with +) is built by <code>ProfileAgent</code>, which always passes <code>context_reminder</code> (150k unless a config sets it); every tab's Talker checks its own context and its worker's on each usage update (<code>TalkerSession.publish_usage</code> → <code>check_size</code>). No code change was needed there.</li>
+<li><strong>Tests:</strong> <code>test_reset_buttons_reset_the_pair_of_the_tab_you_are_in</code>, <code>test_reset_post_publishes_for_the_helper_tab</code> (<code>tests/test_temp_ui.py</code>), and <code>test_a_helper_tabs_talker_is_warned_about_its_own_pair</code> (<code>tests/test_agents.py</code>: a helper tab's Talker is warned about its own context and its worker's, in its own tab). 638 tests pass, ruff clean.</li>
+</ul>
+<p><strong>Asked:</strong> check that every helper pair (its worker and its own Talker, e.g. <code>cv_agent</code>, <code>job_search_agent</code>) gets the context-size reminder and the reset handoff that the Main Assistant and the main Talker get; fix any pair that doesn't. Evidence: <code>cv_agent</code>'s worker at 175k, <code>job_search_agent</code>'s Talker at 159k.</p>
+<h2 id="what-i-found">What I found</h2>
+<p><strong>The reminder is wired for every agent, and it reaches them.</strong></p>
+<ul>
+<li><strong>Workers:</strong> every helper is a <code>ProfileAgent</code>, which gives its <code>SessionTaskAgent</code> its own <code>ContextWatch</code> at <code>context_reminder</code> (150k by default). This launch's log shows it working for all of them: <code>cv</code> reminded its task 6 times, <code>job_search</code> 10, <code>task_agents</code> (rezi, helpers) 6, <code>main_assistant</code> 3. Each re-arm means the agent handed off to a fresh session and came back under 150k.</li>
+<li><strong>Talkers:</strong> every tab's Talker session checks its own context and its partner's through the Talker module's <code>ContextWatch</code>, keyed by its own id (<code>talker:&lt;agent&gt;</code>). <code>job_search_agent</code>'s Talker got its own warning at 151k ("Your own (the Talker's) context is at 151k…") and 9 warnings about its worker.</li>
+</ul>
+<p><strong>Why the numbers still went past 150k.</strong> That's how the reminder is built today, not a wiring gap:</p>
+<ul>
+<li><strong>Worker: a reminder only.</strong> At 150k the task is interrupted with "find a safe point, write a handoff note, end with <code>HANDOFF:</code>". The agent picks the point, so it keeps working until then. <code>cv_agent</code> was reminded at 165k (one big turn jumped past the line) and was still finishing its step at 175k. Nothing resets it automatically.</li>
+<li><strong>Talker: a warning only.</strong> The Talker tells you once and offers a reset; nothing happens until you say yes (it then writes <code>RESET: talker</code>). <code>job_search_agent</code>'s Talker was warned at 151k and kept going to 159k because no reset was asked for.</li>
+</ul>
+<p><strong>The real gap: the Reset buttons in a helper's tab reset the wrong pair.</strong> The temp UI's two Reset buttons send only <code>"worker"</code> or <code>"talker"</code>, and the server maps those to the Main Assistant and the main Talker, whatever tab you're in. So pressing Reset in <code>cv_agent</code>'s tab resets the Main Assistant (mid-task, it hands off) or the main Talker, and <code>cv_agent</code>'s pair is untouched. A reset through the Talker (<code>RESET:</code> in that tab) works for helpers; only the buttons are wrong.</p>
+<h2 id="the-fix">The fix</h2>
+<ul>
+<li><strong><code>page.html</code>:</strong> the Reset buttons send the selected tab too: <code>post("/reset", { agent: "worker" | "talker", tab: focused() })</code>.</li>
+<li><strong><code>temp_ui/module.py</code>, <code>POST /reset</code>:</strong> <code>worker</code> → the tab's agent (<code>cv_agent</code>); <code>talker</code> → <code>talker</code> for the main tab, <code>talker:&lt;agent&gt;</code> for a helper's tab. With no <code>tab</code>, the main pair as today.</li>
+<li><strong>Tests:</strong> one for each mapping (main tab, helper tab, no tab).</li>
+<li><strong>Docs:</strong> <code>docs/modules/temp_ui.md</code> (the <code>/reset</code> line), the docstring at the top of the module.</li>
+<li>No new helper; nothing in <code>docs/api/reusable.md</code> covers this.</li>
+</ul>
+<p><strong>Not changed:</strong> the reminder stays a reminder (the agent picks its safe point) and the Talker's warning stays an offer. Making either reset automatically is your call; say if you want it.</p>
+<p><strong>Restart or reload:</strong> <code>temp_ui</code> only, so <code>RELOAD: temp_ui</code> is enough; the batched restart loads it too.</p>
+<h2 id="your-checks-after-the-reload-refresh-the-window">Your checks (after the reload; refresh the window)</h2>
+<ol>
+<li>In <code>cv_agent</code>'s tab, press the worker's Reset: the header's Worker number for <code>cv_agent</code> drops (mid-task, it writes a handoff first); the Main Assistant's doesn't.</li>
+<li>In the same tab, press the Talker's Reset: that tab's Talker number drops; the main tab's doesn't.</li>
+<li>In the Main Assistant's tab, both buttons reset the main pair as before.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/helper-context-reset.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -3,12 +3,13 @@
 - `<<NAME: argument>>` tags (the Talker's WORK, ASK, SHOW..., anyone's SHOW): `find_tags`
 - a SHOW tag's argument, `path | "quote" | heading`: `parse_show`
 - a last line like `NEED: <question>` or `HANDOFF: <note>`: `last_line`
+- `STATUS: <one line>` milestone lines anywhere in a text: `status_lines`
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from functools import lru_cache
 from typing import NamedTuple
 
@@ -81,6 +82,52 @@ def last_line(text: str, prefix: str) -> str | None:
     if lines and lines[-1].upper().startswith(prefix.upper()):
         return lines[-1][len(prefix):].strip().strip("`").strip()
     return None
+
+
+def status_lines(text: str, max_len: int = 160) -> list[str]:
+    """What follows `STATUS:` on every line that starts with it, in order: an agent's milestones.
+
+    Matched case-insensitively, with markdown emphasis or backticks around the line ignored,
+    like `last_line`. Longer than `max_len`, a line is cut and ends with `…`.
+    """
+    found = []
+    for line in text.splitlines():
+        line = line.strip().strip("*`").strip()
+        if line.upper().startswith(STATUS_PREFIX):
+            status = " ".join(line[len(STATUS_PREFIX):].strip("*` ").split())
+            if status:
+                found.append(status if len(status) <= max_len else status[: max_len - 1].rstrip() + "…")
+    return found
+
+
+STATUS_PREFIX = "STATUS:"
+
+
+class LastLineTags:
+    """A table of last-line tags (`NEED:`, `HANDOFF:`, ...), each with its handler, tried in the
+    order added. Adding a tag is adding an entry (principle 20), not editing a chain.
+
+    A handler gets what follows the prefix (`last_line`) and returns True when it took the
+    text; False passes it on to the next entry.
+    """
+
+    def __init__(self) -> None:
+        self._entries: list[tuple[str, Callable[[str], bool]]] = []
+
+    def add(self, prefix: str, handler: Callable[[str], bool]) -> LastLineTags:
+        self._entries.append((prefix, handler))
+        return self
+
+    @property
+    def prefixes(self) -> tuple[str, ...]:
+        return tuple(prefix for prefix, _ in self._entries)
+
+    def dispatch(self, text: str) -> bool:
+        """Run the first entry whose prefix starts the last line and that takes it; False if none did."""
+        for prefix, handler in self._entries:
+            if (argument := last_line(text, prefix)) is not None and handler(argument):
+                return True
+        return False
 
 
 def _unquote(part: str) -> str | None:

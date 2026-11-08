@@ -21,7 +21,7 @@ from array import array
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .audio import AudioSource
+from .audio import SAMPLE_RATE, AudioSource
 from .config import ServiceConfig
 from .engines import EngineError, SttEngine, SttStream
 from .pieces import PieceCutter
@@ -81,7 +81,7 @@ class Piece:
 
     @property
     def seconds(self) -> float:
-        return len(self.audio) / 32000
+        return len(self.audio) / (2 * SAMPLE_RATE)  # PCM16: two bytes a sample
 
 
 class _Cleaner:

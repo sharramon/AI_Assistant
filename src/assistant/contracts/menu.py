@@ -15,10 +15,15 @@ file, so a reloaded module's menu runs its new methods.
         @menu.item("viewer.open", "Open an HTML file in the viewer",
                    {"path": {"type": "string"}}, required=["path"])
         async def open(self, path: str) -> Result: ...
+
+Every call knows its caller (`InvokeTool.caller`: the sending module, or the agent the module
+door proved). An item may list the `callers` allowed to use it; a method with a `caller`
+parameter receives it (it is never one of the item's properties).
 """
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -40,10 +45,13 @@ _TYPES: dict[str, tuple[type, ...]] = {
 
 @dataclass(frozen=True)
 class MenuItem:
-    """One action: its `ToolSpec` and the name of the module method that runs it."""
+    """One action: its `ToolSpec`, the name of the module method that runs it, who may use it
+    (`callers`, empty for anyone), and whether the method takes the `caller`."""
 
     spec: ToolSpec
     method: str
+    callers: tuple[str, ...] = ()
+    takes_caller: bool = False
 
 
 class Menu:
@@ -58,15 +66,20 @@ class Menu:
         description: str,
         properties: Mapping[str, dict[str, Any]] | None = None,
         required: Iterable[str] = (),
+        callers: Iterable[str] = (),
     ) -> Callable[[Callable], Callable]:
         """Decorate an async module method that returns a `Result`; its keyword arguments are
-        the item's `properties` (JSON Schema per argument), `required` the ones it must get."""
+        the item's `properties` (JSON Schema per argument), `required` the ones it must get.
+        `callers`: the only callers allowed (module or agent ids); empty means anyone."""
         properties = dict(properties or {})
         required = list(required)
+        callers = tuple(callers)
         if name in self._items:
             raise ValueError(f"menu item {name!r} is declared twice")
         if "\n" in description or not description.strip():
             raise ValueError(f"menu item {name!r}: description must be one line of text")
+        if "caller" in properties:
+            raise ValueError(f"menu item {name!r}: 'caller' is passed by the core, not a property")
         missing = [r for r in required if r not in properties]
         if missing:
             raise ValueError(f"menu item {name!r}: required {missing} not in its properties")
@@ -75,8 +88,9 @@ class Menu:
             schema["required"] = required
 
         def mark(method: Callable) -> Callable:
-            self._items[name] = MenuItem(ToolSpec(name=name, description=description, input_schema=schema),
-                                         method.__name__)
+            takes_caller = "caller" in inspect.signature(method).parameters
+            spec = ToolSpec(name=name, description=description, input_schema=schema)
+            self._items[name] = MenuItem(spec, method.__name__, callers, takes_caller)
             return method
 
         return mark
@@ -90,6 +104,11 @@ class Menu:
 
     def names(self) -> list[str]:
         return list(self._items)
+
+    def allowed(self, name: str, caller: str) -> bool:
+        """Whether `caller` may use item `name` (any caller when the item lists none)."""
+        item = self._items.get(name)
+        return item is not None and (not item.callers or caller in item.callers)
 
     def check(self, name: str, args: Mapping[str, Any]) -> str | None:
         """What's wrong with `args` for item `name`, or None when they fit its schema."""
@@ -112,13 +131,16 @@ class Menu:
                 return f"{name}: {arg!r} {problem}"
         return None
 
-    async def call(self, module: Any, name: str, args: Mapping[str, Any]) -> Result:
-        """Check `args`, then run item `name` on `module` (a running copy of the module)."""
+    async def call(self, module: Any, name: str, args: Mapping[str, Any], caller: str = "") -> Result:
+        """Check the caller and `args`, then run item `name` on `module` (a running copy)."""
+        item = self._items.get(name)
+        if item is not None and not self.allowed(name, caller):
+            return Result.not_available(f"{name} is only for: {', '.join(item.callers)}")
         problem = self.check(name, args)
         if problem:
             return Result.invalid_arguments(problem)
-        method = getattr(module, self._items[name].method)
-        result = await method(**args)
+        method = getattr(module, item.method)
+        result = await (method(**args, caller=caller) if item.takes_caller else method(**args))
         return result if isinstance(result, Result) else Result.ok(result)
 
 

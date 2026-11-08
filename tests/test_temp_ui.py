@@ -6,8 +6,11 @@ import time
 
 from assistant.contracts import (
     AgentActivity,
+    AgentInfo,
+    FocusChanged,
     InputReceived,
     IVoice,
+    ListAgents,
     ListeningState,
     Manifest,
     ModuleContext,
@@ -17,9 +20,11 @@ from assistant.contracts import (
     ReportKind,
     ResponseReady,
     Result,
+    SetFocus,
     StartListening,
     Status,
     StopListening,
+    TaskInfo,
     TaskState,
     TaskUpdated,
     VoiceDestination,
@@ -28,6 +33,36 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.modules.temp_ui import TempUIModule
+from assistant.modules.temp_ui.module import CHAT_HISTORY, reset_target
+
+
+def test_reset_buttons_reset_the_pair_of_the_tab_you_are_in():
+    assert reset_target("worker", "cv_agent", "main_assistant") == "cv_agent"
+    assert reset_target("talker", "cv_agent", "main_assistant") == "talker:cv_agent"
+    assert reset_target("worker", "main_assistant", "main_assistant") == "main_assistant"
+    assert reset_target("talker", "main_assistant", "main_assistant") == "talker"
+    assert reset_target("worker", "", "main_assistant") == "main_assistant"  # no tab: the main pair
+    assert reset_target("talker", "", "main_assistant") == "talker"
+    assert reset_target("other", "cv_agent", "main_assistant") is None
+
+
+async def test_reset_post_publishes_for_the_helper_tab():
+    from assistant.contracts import ResetRequested
+
+    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule], config)
+    await app.start()
+    resets: asyncio.Queue = asyncio.Queue()
+    app.bus.subscribe(ResetRequested, resets.put)
+    try:
+        body = json.dumps({"agent": "talker", "tab": "cv_agent"}).encode()
+        reader, writer = await request(ui_port(app), b"POST /reset HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
+        await reader.read()
+        writer.close()
+        async with asyncio.timeout(2):
+            assert (await resets.get()).agent_id == "talker:cv_agent"
+    finally:
+        await app.stop()
 
 
 async def request(port: int, raw: bytes) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
@@ -96,7 +131,8 @@ async def test_page_input_and_events():
         app.bus.publish(ResponseReady(text="hi there"))
         app.bus.publish(AgentActivity(agent_id="main_assistant", text="→ Write poems.txt"))
         items = (await read_events(port, 3))[1:]
-        assert [(i["pane"], i["kind"]) for i in items] == [("talker", "you"), ("talker", "talker"), ("worker", "tool")]
+        # Replay sends the worker history first, then each tab's chat.
+        assert [(i["pane"], i["kind"]) for i in items] == [("worker", "tool"), ("talker", "you"), ("talker", "talker")]
     finally:
         await app.stop()
 
@@ -202,7 +238,10 @@ async def test_mic_button_round_trip():
         await next_item(events, voice("listening"))
 
         # Stop: the spoken message lands in the chat as yours, marked spoken; the line clears.
-        assert (await post(port, "/mic", {"on": False}))["ok"]
+        # The stop names the tab it was pressed in, so the final goes there.
+        assert (await post(port, "/mic", {"on": False, "agent": "helper"}))["ok"]
+        stop = app._lifecycle._active["voice_in"][0].commands[-1]
+        assert isinstance(stop, StopListening) and stop.agent_id == "helper"
         said = await next_item(events, lambda i: i.get("kind") == "you")
         assert said["text"] == "hello there" and said["voice"] is True
         assert (await next_item(events, voice("idle")))["text"] == ""
@@ -339,14 +378,101 @@ async def test_permission_card_on_talker_side():
         app.bus.publish(TaskUpdated(task_id="t1", state=TaskState.RUNNING, text="permission allowed"))
         items = (await read_events(port, 4))[1:]
         # The Allow / Deny card and its answer go to the Talker pane; the worker pane only logs them.
+        # (Replay: the worker history first, then the chat.)
         assert [(i["pane"], i["kind"]) for i in items] == [
+            ("worker", "task"),
+            ("worker", "task"),
             ("talker", "permission"),
-            ("worker", "task"),
             ("talker", "answered"),
-            ("worker", "task"),
         ]
-        assert items[0]["task_id"] == "t1" and items[0]["text"] == "Bash rm x"
-        assert "asks permission: Bash rm x" in items[1]["text"]
-        assert "permission allowed" in items[3]["text"]
+        assert items[2]["task_id"] == "t1" and items[2]["text"] == "Bash rm x"
+        assert "asks permission: Bash rm x" in items[0]["text"]
+        assert "permission allowed" in items[1]["text"]
+    finally:
+        await app.stop()
+
+
+class FakeHub(ModuleProtocol):
+    """Stands in for agent_hub: two big agents; SetFocus releases the helper's held card."""
+
+    manifest = Manifest(id="agent_hub", handles=(ListAgents, SetFocus), publishes=(FocusChanged,))
+
+    async def init(self, ctx: ModuleContext) -> None:
+        self.ctx, self.focused = ctx, []
+        ctx.handle(ListAgents, self.list_agents)
+        ctx.handle(SetFocus, self.set_focus)
+
+    async def list_agents(self, command: ListAgents) -> Result:
+        return Result.ok([AgentInfo(agent_id="main_assistant", description="m"), AgentInfo(agent_id="helper", description="h", busy=True)])
+
+    async def set_focus(self, command: SetFocus) -> Result:
+        self.focused.append(command.agent_id)
+        held = TaskInfo(id="t2", agent_id="helper", text="x", state=TaskState.WAITING_FOR_INPUT, question="Bash rm y", question_kind="permission", held=True)
+        self.ctx.publish(FocusChanged(agent_id=command.agent_id, previous="main_assistant", released=(held,)))
+        return Result.ok(command.agent_id)
+
+
+async def test_agent_tabs_hold_cards_until_the_focus_moves():
+    config = {"modules": {"enabled": ["agent_hub", "temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([FakeHub, TempUIModule], config)
+    await app.start()
+    port, ui = ui_port(app), app._lifecycle._active["temp_ui"][0]
+    reader, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
+    try:
+        tabs = await next_item(reader, lambda i: i.get("kind") == "agents")
+        assert [a["id"] for a in tabs["agents"]] == ["main_assistant", "helper"] and tabs["focus"] == "main_assistant"
+
+        # Out of focus: the card is held behind the helper's !, only the worker pane logs it.
+        app.bus.publish(TaskUpdated(task_id="t2", state=TaskState.WAITING_FOR_INPUT, kind=ReportKind.PERMISSION,
+                                    text="Bash rm y", agent_id="helper", held=True))  # fmt: skip
+        app.bus.publish(AgentActivity(agent_id="helper", text="→ Bash"))
+        bang = await next_item(reader, lambda i: i.get("kind") == "agents")
+        assert {a["id"]: a["held"] for a in bang["agents"]} == {"main_assistant": 0, "helper": 1}
+        log = await next_item(reader, lambda i: i.get("pane") == "worker" and i["kind"] == "task")
+        assert log["agent"] == "helper"
+        assert (await next_item(reader, lambda i: i.get("kind") == "tool"))["agent"] == "helper"
+        assert not [i for c in ui._chats.values() for i in c if i["kind"] == "permission"]
+
+        # A tab click: SetFocus; the released card shows, named, and the ! clears.
+        assert (await post(port, "/focus", {"agent": "helper"}))["ok"]
+        card = await next_item(reader, lambda i: i.get("kind") == "permission")
+        assert (card["pane"], card["agent"], card["task_id"], card["text"]) == ("talker", "helper", "t2", "Bash rm y")
+        moved = await next_item(reader, lambda i: i.get("kind") == "agents")
+        assert moved["focus"] == "helper" and all(a["held"] == 0 for a in moved["agents"])
+        assert app._lifecycle._active["agent_hub"][0].focused == ["helper"]
+    finally:
+        writer.close()
+        await app.stop()
+
+
+async def _say(port: int, body: dict) -> None:
+    data = json.dumps(body).encode()
+    reader, writer = await request(port, b"POST /say HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(data), data))
+    await reader.read()
+    writer.close()
+
+
+async def test_chats_are_kept_per_tab_and_say_names_its_tab():
+    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule], config)
+    inputs: asyncio.Queue[InputReceived] = asyncio.Queue()
+    app.bus.subscribe(InputReceived, inputs.put)
+    await app.start()
+    port = ui_port(app)
+    try:
+        ui = app._lifecycle._active["temp_ui"][0]
+        ui._push("talker", "talker", "first", agent="helper")
+        for n in range(CHAT_HISTORY + 20):  # one tab's flood
+            ui._push("talker", "talker", f"line {n}", agent="main_assistant")
+        assert len(ui._chats["main_assistant"]) == CHAT_HISTORY
+        assert ui._chats["main_assistant"][0]["text"] == "line 20"
+        assert [i["text"] for i in ui._chats["helper"]] == ["first"]  # not pushed out
+        assert all(i["agent"] == "helper" for i in ui._chats["helper"])
+
+        await _say(port, {"text": "to the helper", "agent": "helper"})
+        said = await asyncio.wait_for(inputs.get(), 2)
+        assert said.text == "to the helper" and said.agent_id == "helper"
+        await _say(port, {"text": "no tab"})
+        assert (await asyncio.wait_for(inputs.get(), 2)).agent_id == ui._focus  # the focus's
     finally:
         await app.stop()

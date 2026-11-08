@@ -1,4 +1,7 @@
-"""The voice service's FastAPI app: `GET /health`, `POST /quit`, and `WS /ws/listen`.
+"""The voice service's FastAPI app: `GET /health`, `POST /quit` (JSON only), and `WS /ws/listen`.
+
+Every request must be addressed to this machine and, from a browser, come from its own origin
+(`LocalOnly`, using app_kit.local_guard).
 
 One listener at a time (the slot). With `config_path`, it watches that config file (and its
 `.local` override): when the `[engine]` section changes, it waits until nothing is listening and
@@ -17,9 +20,11 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, PlainTextResponse
+from starlette.websockets import WebSocketClose
 
-from app_kit import local_path
+from app_kit import local_path, local_request
 
 from .audio import AudioSource
 from .config import ServiceConfig, load_service_config
@@ -34,6 +39,28 @@ APP_NAME = "voice_service"  # what /health answers as "app": CompanionApp's ping
 
 class _Slot:
     session: ListenSession | None = None
+
+
+class LocalOnly:
+    """ASGI guard: refuses requests and WebSockets addressed to another host or opened by a page
+    from another origin (app_kit.local_guard), so a web page you visit can't open the mic or quit
+    the service."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] in ("http", "websocket"):
+            headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+            if not local_request(headers.get("host"), headers.get("origin")):
+                log.warning("refused a %s request from host %r, origin %r",
+                            scope["type"], headers.get("host"), headers.get("origin"))  # fmt: skip
+                if scope["type"] == "websocket":
+                    await WebSocketClose(code=1008)(scope, receive, send)
+                else:
+                    await PlainTextResponse("Forbidden", status_code=403)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 def _stamp(files: tuple[Path, ...]) -> tuple[int | None, ...]:
@@ -117,6 +144,7 @@ def create_app(
         await abort_current()
 
     app = FastAPI(title="voice_service", lifespan=lifespan)
+    app.add_middleware(LocalOnly)
     app.state.on_quit = lambda: None
     app.state.loader = loader
     app.state.final_loader = final_loader
@@ -134,7 +162,10 @@ def create_app(
         }
 
     @app.post("/quit")
-    async def quit_service() -> dict:
+    async def quit_service(request: Request):
+        # JSON only: a web page can't send it here without the browser asking first (CORS).
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            return JSONResponse({"ok": False, "error": "JSON only"}, status_code=415)
         log.info("quit requested")
         await abort_current()
         app.state.on_quit()

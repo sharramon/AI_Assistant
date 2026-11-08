@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: multi-agent build, docs and final checks (task d729a7ef)</title>
+<!-- Generated from docs/next-steps/handoff-d729a7ef.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-d729a7ef.html"></nav>
+<main>
+<h1 id="handoff-multi-agent-build-docs-and-final-checks-task-d729a7ef">Handoff: multi-agent build, docs and final checks (task d729a7ef)</h1>
+<p>The design is <a href="multi-agent.html">multi-agent.md</a>; the earlier handoff is <a href="handoff-99c9ff7c.html">handoff-99c9ff7c.md</a> (its "End" list and "After a restart, check" list still apply). The task rules: tests and ruff after each chunk, don't restart the app, don't git push, and a final report saying what to check after a restart. The user authorized editing <code>config/default.toml</code> for this build.</p>
+<h2 id="done-and-checked-this-session">Done and checked (this session)</h2>
+<ul>
+<li><strong>Chunk 6, the temp UI</strong> (<code>modules/temp_ui/module.py</code>, <code>page.html</code>):</li>
+<li>every worker-pane item carries <code>agent</code>;</li>
+<li>an <code>agents</code> SSE state item (<code>focus</code>, <code>coordinator</code>, per agent <code>busy</code> / <code>working</code> / <code>held</code> count), rebuilt from <code>ListAgents</code> at start, at each SSE connect, and on <code>ModuleStateChanged</code> / <code>AgentStateChanged</code>, <code>TaskUpdated.held</code> and <code>FocusChanged</code>;</li>
+<li>a held permission or risky card isn't pushed until <code>FocusChanged.released</code> brings it, and cards carry <code>agent</code>;</li>
+<li><code>POST /focus</code> <code>{"agent"}</code> sends <code>SetFocus</code>;</li>
+<li>the manifest sends <code>ListAgents</code> and <code>SetFocus</code>, and listens to <code>FocusChanged</code>;</li>
+<li>the page shows one tab per big agent when there are 2 or more: state dot, <strong>!</strong>, the focused tab filled, the Main Assistant's tab in the accent colour. A click posts <code>/focus</code>, the feed shows only the focused agent's lines, the pill shows its state, and cards say "{agent} asks permission". Helper usage isn't shown (only the worker and the Talker).</li>
+<li>Test: <code>tests/test_temp_ui.py::test_agent_tabs_hold_cards_until_the_focus_moves</code>.</li>
+<li><strong>Chunk 7, the job agent:</strong></li>
+<li><strong>New module <code>modules/job_search/</code></strong> (<code>JobSearchModule</code>, off at launch). It bundles a <code>ProfileAgent</code> with id <code>job</code> (<code>agent_id</code> in config) and its menu item <code>job.search(days)</code>, a <strong>stub</strong>: it answers at once and publishes <code>AgentNotice(agent_id=caller, source="job.search")</code>, saying the runner isn't built yet. <code>JOB_PROMPT</code> says: one job per session, <code>HANDOFF:</code> instead of <code>handoff.ps1</code>, never submit or send, confirm before any search.</li>
+<li><strong>Shared infra:</strong> a <code>chrome</code> option in <code>claude_command</code> (<code>--chrome</code>) and <code>AgentProfile</code> (config key <code>chrome</code>).</li>
+<li><strong>Config:</strong> <code>[modules.job_search]</code> in <code>config/default.toml</code>, with workspace <code>C:/Chang/Jobs/CV</code>, read <code>C:/Chang/Jobs</code> and JobRadar, <code>tools = "default"</code>, <code>chrome = true</code>, Manual.</li>
+<li>Test: <code>tests/test_job_search.py</code> (2 tests).</li>
+<li><strong>Suite:</strong> 444 passed, ruff clean. The only 4 failures are in <code>test_module_docs.py</code>, which needs the job_search docs below.</li>
+</ul>
+<h2 id="next">Next</h2>
+<ol>
+<li><strong>Docs for job_search</strong> (these fix the 4 failing tests):
+   - add <code>"job_search"</code> to the agents tab list in <code>scripts/build_docs.py</code> (line 64, beside <code>task_agents</code>);
+   - write <code>docs/modules/job_search.md</code>, shaped like <code>task_agents.md</code>;
+   - add its line to <code>docs/modules/README.md</code>.</li>
+<li><strong>Other docs:</strong>
+   - <code>docs/modules/talker.md</code>: the new tags, the one road through <code>hub.*</code> via <code>InvokeTool</code>, the manifest (sends <code>InvokeTool</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>; listens <code>FocusChanged</code>, <code>FocusSuggested</code>), and its Inner workings diagram.
+   - <code>docs/modules/temp_ui.md</code>: the tabs, <code>/focus</code>, the <code>agents</code> item, held cards, and the new sends and listens.
+   - <code>docs/architecture/agents.md</code>, "Working together" (around line 241): the Talker's part, the temp UI tabs, and the job agent (<code>job_search</code>). Also drop the "How does the Main Assistant delegate" open question, which the Hub's menu now answers.
+   - <code>docs/api/reusable.md</code>:<ul>
+<li>the Used by lines: the Hub's menu adds <code>temp_ui</code> (via <code>SetFocus</code>); <code>FocusChanged</code> adds <code>talker</code>, <code>temp_ui</code>; <code>FocusSuggested</code> adds <code>talker</code>; <code>AgentNotice</code> adds <code>job_search</code>;</li>
+<li><code>ProfileAgent</code> / <code>AgentProfile</code> add <code>job_search</code>.</li>
+<li><code>docs/api/infra.md</code>: the <code>chrome</code> option on <code>claude_command</code> and <code>AgentProfile</code>.</li>
+<li>The overview's Parts "Modules" row (<code>docs/architecture/README.md</code>): add <code>job_search</code>, off by default.</li>
+<li><code>docs/next-steps/multi-agent.md</code>: the status line (chunks 1–7 built; restart needed).</li>
+<li><code>docs/next-steps/job-agent.md</code>: the status (built as <code>job_search</code>, a stub search; open: question 1, the access list, and the real search runner).</li>
+<li><code>docs/next-steps/README.md</code>: rows 48 and 50.</li>
+</ul>
+</li>
+<li>Run the architecture check (skill), then <code>.\.venv\Scripts\python scripts\build_docs.py</code>, pytest and ruff. Then write the final report.</li>
+<li><strong>Open questions for the final report:</strong>
+   - the job agent's access list (job-agent question 1, still unconfirmed; the proposal is shipped);
+   - the real <code>job.search</code> runner (<code>sweep.py</code> with JobRadar's Python, 10 to 15 minutes);
+   - whether <code>--chrome</code> loads under <code>--strict-mcp-config</code> (check after the restart);
+   - helper usage in the temp UI header.</li>
+<li><strong>After a restart, also check:</strong>
+   - the tabs appear once <code>task_agents</code> or <code>job_search</code> is on;
+   - clicking the helper's tab moves the focus and shows its held card;
+   - <code>modules.on job_search</code> lists <code>job</code>, and the job agent's session has the Chrome tools.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/handoff-d729a7ef.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

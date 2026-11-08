@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Usage tallies for all agents</title>
+<!-- Generated from docs/next-steps/usage-tallies.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="usage-tallies.html"></nav>
+<main>
+<h1 id="usage-tallies-for-all-agents">Usage tallies for all agents</h1>
+<p><strong>Status:</strong> built, 2026-11-05: the <code>SessionUsage</code> fields <code>parent</code> and <code>kind</code>, sub-agent tallies in <code>ClaudeSession</code>, <code>UsageLedger</code>, the <code>usage</code> module (<code>usage.total / agents / mine</code>), the Talker's <code>[Usage]</code> line, and the temp UI's total and dropdown. Needs an app restart (the contract changed). Docs: <a href="../html/modules/usage.html">usage module</a>.</p>
+<h2 id="what-you-asked-for">What you asked for</h2>
+<ol>
+<li>Every agent (the Main Assistant, each helper, the job agent, the Talker) keeps its own running tally of tokens and ~$, <strong>including the sub-agents it starts</strong>, so it can say how much it has burned.</li>
+<li>The main window shows the <strong>total across all agents</strong> since the app launched.</li>
+<li>A <strong>dropdown</strong> shows each agent's share: one row per agent, its sub-agents nested under it.</li>
+<li>It works for <strong>any module that wraps a tool</strong>, not only <code>claude</code> sessions or the job agent.</li>
+</ol>
+<p>Only totals since launch. No history over time, no spend alerts, nothing kept after the app closes.</p>
+<h2 id="what-exists-today">What exists today</h2>
+<ul>
+<li><strong><code>SessionUsage</code></strong> (event, <code>contracts/agents.py</code>): one agent's numbers. Context now, tokens by kind (input, cache write, cache read, output), and <code>cost_usd</code> (<code>claude</code>'s own estimate at API prices). The numbers are <strong>running totals since launch</strong>, not per call. Agents are never added together.</li>
+<li><strong><code>ClaudeSession</code></strong> (<code>infra/claude_session.py</code>) counts them: each assistant line's <code>usage</code> once per message id, the output from each turn's <code>result</code>, and the cost from the result's <code>total_cost_usd</code>. Totals carry over process restarts.</li>
+<li><strong><code>session_usage</code></strong> turns a session's numbers into a <code>SessionUsage</code>. <code>SessionTaskAgent</code> publishes it on every change (so the Main Assistant, helpers and the job agent all do); the Talker publishes its own after each turn.</li>
+<li><strong><code>ContextWatch</code></strong> warns once when a context passes a size. It is about context, not spend, and stays as it is.</li>
+<li><strong>The Talker</strong> puts a <code>[Usage]</code> line before each of your messages, but only for "the worker" and itself.</li>
+<li><strong>The temp UI header</strong> has two meters, Worker and Talker. It only shows usage for agents shown in a pane, so a helper or the job agent in its own tab is dropped.</li>
+</ul>
+<p><strong>Missing:</strong> a total, a per-agent list, sub-agent usage (see below), and a way for a non-<code>claude</code> tool to report usage.</p>
+<h2 id="verified-2026-11-05">Verified (2026-11-05)</h2>
+<p>One real run: <code>claude -p</code> with the app's own <code>claude_command</code> flags (<code>--input-format stream-json --output-format stream-json --verbose</code>, <code>--tools Agent,Task</code>). The main session called the Agent tool once (<code>general-purpose</code>, "reply with pong").</p>
+<p><strong>The sub-agent's own lines don't stream.</strong> Only its prompt shows, as a <code>user</code> line with <code>parent_tool_use_id</code> (the Agent call's <code>tool_use</code> id), <code>agent_id</code>, <code>subagent_type</code> and <code>task_description</code>. No sub-agent <code>assistant</code> line, so no per-call <code>usage</code> for it. (The sub-agent made no tool calls; one that does wasn't checked.)</p>
+<p><strong>Its usage comes back on the Agent call's result</strong>, in the <code>user</code> line with the <code>tool_result</code>:</p>
+<ul>
+<li><code>tool_use_result.usage</code>: the sub-agent's tokens by kind (<code>input_tokens</code> 2, <code>cache_creation_input_tokens</code> 2874, <code>cache_read_input_tokens</code> 0, <code>output_tokens</code> 4).</li>
+<li><code>tool_use_result.agentId</code>, <code>agentType</code>, <code>resolvedModel</code>, <code>totalTokens</code> (2880), <code>totalToolUseCount</code>, <code>totalDurationMs</code>.</li>
+<li>Also a <code>system</code> line, subtype <code>task_notification</code>, with <code>task_id</code>, <code>tool_use_id</code> and <code>usage.total_tokens</code> (total only). <code>task_started</code> comes first, with <code>spawn_depth</code>.</li>
+<li>No cost per sub-agent anywhere.</li>
+</ul>
+<p><strong>The turn's <code>result</code>:</strong></p>
+<ul>
+<li><code>usage</code> is the <strong>parent's own</strong> calls only (input 4, cache write 5405, cache read 5065, output 157).</li>
+<li><code>modelUsage</code> (per model) and <code>total_cost_usd</code> <strong>include the sub-agent</strong>: <code>inputTokens</code> 6 = 4 + 2, <code>cacheCreationInputTokens</code> 8279 = 5405 + 2874, <code>outputTokens</code> 161 = 157 + 4, <code>costUSD</code> = <code>total_cost_usd</code> = 0.061867.</li>
+<li><code>subagent_stats</code> counts sub-agents (<code>spawned</code>, <code>completed</code>, <code>by_type</code>, <code>max_depth</code>), with no usage.</li>
+</ul>
+<p><strong>What it means:</strong></p>
+<ul>
+<li>Today <code>ClaudeSession</code>'s <strong>~$ already includes sub-agents, but its tokens don't.</strong> The design fixes the tokens, not the cost.</li>
+<li><code>context_tokens</code> isn't thrown off: no sub-agent line carries <code>usage</code>. Lines with a <code>parent_tool_use_id</code> still never change the parent's context, in case a sub-agent with tools streams more.</li>
+<li>A sub-agent <strong>can have its own row for tokens</strong>, keyed by <code>agentId</code>, named by <code>agentType</code>, nested under its parent. Its ~$ is only part of the parent's; the row shows tokens, and the parent's ~$ covers both.</li>
+</ul>
+<h2 id="where-the-totals-live">Where the totals live</h2>
+<p>One reusable part, in its own module.</p>
+<ul>
+<li><strong><code>UsageLedger</code></strong> (new, <code>infra/usage_ledger.py</code>, plain Python, no app imports): takes <code>SessionUsage</code> events and keeps, per agent, its latest totals since launch. Gives <code>total()</code>, <code>by_agent()</code> (sub-agents under their parent), and <code>mine(agent)</code> (the agent plus its sub-agents). Nothing in <code>reusable.md</code> does this today; <code>ContextWatch</code> and <code>session_usage</code> are reused as they are.</li>
+<li><strong><code>usage</code> module</strong> (new, on by default): listens to <code>SessionUsage</code>, feeds the ledger, and offers a menu on the door: <code>usage.total</code>, <code>usage.agents</code>, <code>usage.mine</code> (the door knows the caller, so an agent asks for its own tally with no arguments). This is how each agent "knows" its burn: it asks, and nothing extra goes into every turn. It keeps nothing on disk; the tally ends with the app.</li>
+</ul>
+<p><strong>Why running totals, not per-call amounts:</strong> a lost or late event can't throw the sum off; the ledger keeps the latest.</p>
+<h2 id="tools-that-arent-claude-sessions">Tools that aren't <code>claude</code> sessions</h2>
+<p>Any module publishes the same <code>SessionUsage</code> for what it wraps (an API call, a script that reports tokens) under its own id. Two new fields on the event make this and sub-agents fit:</p>
+<ul>
+<li><code>parent: str = ""</code>: who started it (a sub-agent's parent agent; a tool's calling agent). The ledger rolls it up into the parent's tally and still lists it apart.</li>
+<li><code>kind: str = "claude"</code>: <code>claude</code>, <code>subagent</code>, or <code>tool</code>, for the dropdown.</li>
+</ul>
+<p>A tool that only knows cost, or only tokens, leaves the rest at 0. A sub-agent's cost is 0, since its parent's cost already holds it. A tool with no usage at all publishes nothing.</p>
+<h2 id="what-the-temp-ui-shows-throwaway">What the temp UI shows (throwaway)</h2>
+<p>Kept small; it's a stand-in until the UI handler is designed.</p>
+<ul>
+<li>The header's two meters become <strong>one total</strong>: <code>Total 3.4M · ~$4.10</code>.</li>
+<li>Clicking it opens a <strong>dropdown</strong>: one row per agent (tokens, ~$), the Talker as its own row, and sub-agents nested under their parent (tokens only).</li>
+<li>Context stays where it is today (per pane), since it's about one session, not spend.</li>
+</ul>
+<h2 id="what-has-to-be-built">What has to be built</h2>
+<ol>
+<li><strong>Contract:</strong> <code>parent</code> and <code>kind</code> on <code>SessionUsage</code> (defaults keep every current sender working). <strong>Needs an app restart.</strong></li>
+<li><strong><code>ClaudeSession</code>:</strong> read each Agent call's <code>tool_use_result.usage</code> into a per-sub-agent tally (by <code>agentId</code>), skip <code>parent_tool_use_id</code> lines for context; <code>session_usage</code> publishes each sub-agent's tally with <code>parent</code> set and cost 0.</li>
+<li><strong><code>UsageLedger</code></strong> with tests (roll-up, a lost event, a restarted session).</li>
+<li><strong><code>usage</code> module:</strong> the ledger and the menu; manifest and module page.</li>
+<li><strong>Talker:</strong> its <code>[Usage]</code> line uses <code>usage.total</code> and your focused agent, instead of only "the worker".</li>
+<li><strong>Temp UI:</strong> the total and the dropdown.</li>
+<li><strong>Docs:</strong> API pages, the reusable index (<code>UsageLedger</code>, Used by <code>usage</code>), module library; tests, ruff, docs build.</li>
+</ol>
+<h2 id="decided-2026-11-05">Decided (2026-11-05)</h2>
+<ol>
+<li><strong>History after the app closes:</strong> none. The tally is since launch and ends with the app.</li>
+<li><strong>Time buckets and history over time:</strong> dropped. Only the totals per agent since launch.</li>
+<li><strong>The dropdown:</strong> by agent, with sub-agents nested under their parent agent.</li>
+<li><strong>The Talker:</strong> counts in the total, as its own row.</li>
+<li><strong>Spend alerts:</strong> none.</li>
+<li><strong>Where the ledger lives:</strong> its own <code>usage</code> module, not inside <code>agent_hub</code>. Usage comes from tools too, not only agents, and the Hub stays about coordination.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/usage-tallies.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

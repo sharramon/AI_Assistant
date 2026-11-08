@@ -1,55 +1,46 @@
-"""The Main Assistant: the worker. A `claude` session with file tools, working in its own folder.
+"""The Main Assistant: the worker and the coordinator. A `claude` session with file tools,
+working in its own folder.
 
 Provides `ITaskAgent` through a composed `SessionTaskAgent`; only the Agent Hub
 calls it. Its process starts with the module and stops with it; each task gets
-a fresh one (`fresh_sessions`). A `ResetRequested` for it resets the session.
+a fresh one (`fresh_sessions`). A `ResetRequested` for it resets the session (`AgentKit`).
 Each session's command line and prompt are built for the agent's permission
-mode at that moment (`build_command`): Manual at every launch, Auto only from
-the UI button.
+mode at that moment (`build_command`, through its `AgentProfile`): Manual at every
+launch, Auto only from the UI button. It is the Hub's coordinator by default
+(`[modules.agent_hub] coordinator`), so its prompt carries the coordinator's half
+of the shared block, and the other agents' STATUS milestones reach it as a feed.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from assistant.contracts import (
-    AgentActivity,
-    AgentStateChanged,
-    IModuleDoor,
     ITaskAgent,
     Manifest,
     ModuleContext,
     ModuleProtocol,
     PermissionMode,
-    PermissionModeChanged,
-    ReportTask,
-    ResetRequested,
-    SessionUsage,
 )
-from assistant.infra import ClaudeSession, SessionTaskAgent, claude_command
-from assistant.infra.claude_session import path_rule
-from assistant.infra.mcp_door import READ_ONLY as DOOR_READ_TOOLS
+from assistant.infra import (
+    AGENT_LISTENS,
+    AGENT_PUBLISHES,
+    AGENT_SENDS,
+    AGENT_USES,
+    AgentKit,
+    AgentProfile,
+    ProfileAgent,
+)
 
-DOOR_PROMPT = """
-
-The app's modules: your `modules` tools reach every module's menu through the app's core. \
-Call `list_modules` (one line each), then `show_menu` for the module you need, then \
-`use_item` with an item's name and inputs (for example `viewer.open` with a path). \
-Module control (on, off, reload, add) is the `core` menu. The SHOW, RELOAD and ADD_MODULE \
-lines still work as before."""
-
+# Its own rules; the basics every agent is told come from the shared block (`prompt_block`).
 WORKER_PROMPT = """\
 You are the Main Assistant of a personal AI assistant. Tasks are handed to you \
 by another agent that talks with the user; you never talk with the user directly. \
 To the user, you and that agent are one assistant.
 
-- Your access is listed at the end of this prompt.
-- Before each major step, write one short line saying what you're about to do.
 - If you need a decision from the user, stop and end your turn with a last line \
 `NEED: <question>`. You'll get the answer as the next message.
-- When you're finished, end with a short summary of what you did.
 - Every step resends your whole conversation, so keep it small. Batch independent \
 reads and edits into one step. At the start of a task, judge whether it holds \
 separate, big parts (several features, say). If so, do one part per session: when a \
@@ -86,34 +77,38 @@ outcome comes back as the next message; if it failed, the old code is still runn
 Changes to src/assistant/core, contracts, infra, app_kit or __main__.py (including a new \
 contract) need an app restart instead: say so in your summary."""
 
-MANUAL_ACCESS = """\
-- If a task needs more than this, just use the tool: the user is asked to allow or deny \
-that one use. If it's denied, don't try another way around it; say what was denied and \
-continue without it, or end with NEED.
-- Anything else, including other shell commands: the user is asked each time."""
+# The coordinator's half of the shared block (`AgentProfile.role_block`). It names the Hub's
+# and task_agents' menus, so it lives here, with the coordinator, not in shared code (principle 21).
+COORDINATOR_BLOCK = """
 
-AUTO_ACCESS = """\
-- Auto mode: you have full permissions for every tool, and nothing asks the user, \
-except `git push`, which is blocked.
+Other agents may work alongside you. Lines under "[Updates from the other agents" at the end \
+of a message are background: note them, but don't act on them or repeat them unless they \
+change your task. Your own `NEED:` questions may wait while the user talks to another agent, \
+so make each one make sense on its own.
 
-Before a very risky step, stop and ask first: end your turn with \
-`NEED: Risky: <what you want to do and why>`. Continue once the user answers. Very risky means:
-- deleting data or files beyond what the task needs
-- rewriting git history (`reset --hard`, `rebase`, force anything, deleting branches)
-- changing secrets, credentials, or settings (`config/`, `.env`, `.claude/settings*`, \
-system or account settings)
-- installing, upgrading, or removing packages or programs
-- spending money, or calling a paid service
-- sending anything outside this machine (email, posts, uploads)
-- anything else that's hard to undo
+You coordinate them through the Agent Hub's menu on your `modules` tools (`use_item`):
+- `hub.agents` lists the agents (busy, which one the user is talking to, which hold a question).
+- `hub.start` with `text` and `agent_id` hands a separate, self-contained piece of work to a \
+free helper; it becomes your child task. Give it everything it needs; it works in its own \
+folder and can't see your conversation. At most a few helpers run at once; if it's refused, \
+do the work yourself or wait.
+- `hub.status` (optionally a `task_id`) reads a task's state without disturbing it; \
+`hub.send` with `task_id` and `text` messages your child task, `hub.cancel` stops it. You \
+can't steer other tasks, answer their permission requests or change their mode.
+- `hub.suggest_focus` with `agent_id` and a short `reason`, when the user would do better \
+talking to that agent directly (it needs their answers, say). The Talker asks the user; \
+only the user moves the focus. Suggest, never insist, and not twice for the same reason.
 
-If you're unsure whether a step counts, ask. `git push` is blocked: if the task needs \
-one, say so in your summary and the user pushes."""
-
-# Auto's one hard block. Refused even under bypassPermissions, with no prompt (checked
-# against the real claude, 2026-11-02). Both shells: claude may offer either.
-AUTO_BLOCKED = tuple(f"{tool}(git push{args})" for tool in ("PowerShell", "Bash") for args in ("", " *"))
-AUTO_CLAUDE_MODE = "bypassPermissions"
+New helpers come from the `task_agents` menu (turn the module on with `modules.on` first if \
+it's off). Launch one only when the user asked for a helper:
+- `agents.kinds` lists the kinds of helper and the helpers running.
+- `agents.launch` with `name`, `task` and `kind` proposes a helper for one task: the user gets \
+a card, and it starts (as your child task) only if they allow it. Name it from its task: \
+short, lowercase, words joined by `_` (`flight_search`), or the name the user gave. If the \
+name is taken, the refusal names a free one: take it and tell the user if you made the name \
+up; ask them again if they gave it. After `agents.launch`, end your turn with no NEED: the \
+outcome arrives as your next message.
+- `agents.close` with `agent_id` closes a launched helper that has no task, and frees its name."""
 
 
 class MainAssistantModule(ModuleProtocol):
@@ -121,126 +116,47 @@ class MainAssistantModule(ModuleProtocol):
         id="main_assistant",
         description="The worker: does the tasks the Talker hands over",
         provides=(ITaskAgent,),
-        sends=(ReportTask,),
-        publishes=(AgentActivity, AgentStateChanged, SessionUsage, PermissionModeChanged,),
-        listens=(ResetRequested,),
+        uses=AGENT_USES,
+        sends=AGENT_SENDS,
+        publishes=AGENT_PUBLISHES,
+        listens=AGENT_LISTENS,
     )
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
-        self._workspace = Path(ctx.config.get("workspace", "workspace")).resolve()
-        edit_note = bool(ctx.config.get("edit_note", True))
-        task_file = self._workspace / ".claude" / "state" / f"{self.manifest.id}-task.txt"
-        # Read on every session start, so a new session gets the mode of that moment.
-        self._session = ClaudeSession(
-            lambda: build_command(ctx.config, self._workspace, self._agent.permission_mode, self._door()),
-            cwd=self._workspace, log=ctx.log, transcript=ctx.logs.sink(ctx.config["transcript"]) if ctx.config.get("transcript") else None,
-            env=hook_env(self.manifest.id, task_file, edit_note),
+        # Its session, agent and door (IModuleDoor read at each session start, under its own
+        # name; in `uses`, not `optional`: the hub lists ITaskAgent there, and the two would be
+        # circular) come from the shared ProfileAgent, like every big agent; the kit provides
+        # it and resets it.
+        config = {"description": "The main assistant: reasons, plans, and does the work",
+                  "capabilities": ("general", "files"), **ctx.config}  # fmt: skip
+        self._kit = AgentKit(ctx)
+        self._worker = self._kit.add(
+            ProfileAgent(ctx, self.manifest.id, config, WORKER_PROMPT, role_block=COORDINATOR_BLOCK,
+                         start_session=True)  # fmt: skip
         )
-        self._agent = SessionTaskAgent(
-            self._session,
-            ctx,
-            agent_id=self.manifest.id,
-            description="The main assistant: reasons, plans, and does the work",
-            capabilities=("general", "files"),
-            permission_timeout=ctx.config.get("permission_timeout", 600.0),
-            fresh_sessions=ctx.config.get("fresh_sessions", True),
-            max_handoffs=ctx.config.get("max_handoffs", 3),
-            manual_claude_mode=ctx.config.get("permission_mode", "acceptEdits"),
-            context_reminder=ctx.config.get("context_reminder", 150_000),
-            edit_note=edit_note,
-            task_file=task_file,
-        )
-        ctx.provide(ITaskAgent, self._agent)
-        ctx.subscribe(ResetRequested, self._on_reset)
-
-    async def _on_reset(self, event: ResetRequested) -> None:
-        if event.agent_id == self.manifest.id:
-            result = await self._agent.reset()
-            if not result.is_ok:
-                self._ctx.log.warning("Couldn't reset: %s", result.error)
-
-    def _door(self) -> dict:
-        """The module door's MCP config for the next session, read at each session start (the
-        hub may have been reloaded), or {} if it's off or not there yet. Not in the manifest's
-        `optional`: the hub already lists `ITaskAgent` there, and the two would be circular."""
-        if not self._ctx.config.get("door", True):
-            return {}
-        door = self._ctx.get_one(IModuleDoor)
-        return door.mcp_config() if door is not None else {}
+        self._session, self._agent = self._worker.session, self._worker.agent
 
     def busy(self) -> str | None:
         """A reload waits while a task runs (no handover of the task yet)."""
         return "working on a task" if self._agent.info().busy else None
 
     async def start(self) -> None:
-        self._workspace.mkdir(parents=True, exist_ok=True)
-        await self._session.start()
+        await self._worker.start()
 
     async def stop(self) -> None:
-        await self._agent.close()
-        await self._session.close()
+        await self._kit.stop()
+
+
+def _profile(config: dict[str, Any], workspace: Path) -> AgentProfile:
+    # The coordinator by default; the Hub's `coordinator` setting names who coordinates.
+    return AgentProfile.from_config(
+        MainAssistantModule.manifest.id, {**config, "workspace": str(workspace)}, COORDINATOR_BLOCK
+    )
 
 
 def build_command(
     config: dict[str, Any], workspace: Path, mode: PermissionMode, door: dict | None = None
 ) -> list[str]:
-    """The worker's command line and prompt for `mode`.
-
-    Both modes keep the standing rules and the permission prompts, so a switch to Manual
-    mid-task (a live `set_permission_mode`) asks through the cards again. Auto adds
-    `bypassPermissions`, the `git push` block, and the risky-step rule in the prompt.
-    With the module `door` (an `IModuleDoor.mcp_config()`), its two read-only tools are
-    allowed; `use_item` asks with a card in Manual, like any tool outside the rules.
-    """
-    read_dirs = config.get("read_dirs", [])
-    write_dirs = config.get("write_dirs", [])
-    commands = config.get("allowed_commands", [])
-    allowed = [path_rule("Read", d) for d in read_dirs] + [path_rule("Edit", d) for d in write_dirs]
-    allowed += [rule for c in commands for rule in command_rules(c)]
-    if door:
-        allowed += list(DOOR_READ_TOOLS)
-    auto = mode is PermissionMode.AUTO
-    return claude_command(
-        model=config.get("model"),
-        tools=config.get("tools", "Read,Write,Edit,Glob,Grep"),
-        permission_mode=AUTO_CLAUDE_MODE if auto else config.get("permission_mode", "acceptEdits"),
-        allowed=allowed,
-        disallowed=AUTO_BLOCKED if auto else (),
-        permission_prompts=config.get("permission_prompts", True),
-        system_prompt=WORKER_PROMPT + _access(workspace, read_dirs, write_dirs, commands, mode)
-        + (DOOR_PROMPT if door else ""),
-        program=config.get("program", ["claude"]),
-        mcp_config=door or None,
-    )
-
-
-def hook_env(agent_id: str, task_file: Path, edit_note: bool) -> dict[str, str]:
-    """What the worker's process tells the edit hook (scripts/hooks/edit_tracker.py): that
-    it's this app's worker, where its current task id is, and whether the note is on."""
-    return {
-        "ASSISTANT_AGENT": agent_id,
-        "ASSISTANT_TASK_FILE": str(task_file),
-        "ASSISTANT_EDIT_NOTE": "1" if edit_note else "0",
-    }
-
-
-def command_rules(command: str) -> list[str]:
-    """Permission rules allowing a shell command with any arguments, e.g.
-    `PowerShell(ruff check)` and `PowerShell(ruff check *)`."""
-    tool = "PowerShell" if os.name == "nt" else "Bash"
-    return [f"{tool}({command})", f"{tool}({command} *)"]
-
-
-def _access(
-    workspace: Path, read_dirs: list[str], write_dirs: list[str], commands: list[str], mode: PermissionMode
-) -> str:
-    """The access section of the prompt, so it knows its permissions without probing."""
-    lines = [f"\n\nYour access:\n- Read and write: {workspace} (your working folder)"]
-    lines += [f"- Read: {Path(d).resolve()}" for d in read_dirs]
-    lines += [f"- Write: {Path(d).resolve()}" for d in write_dirs]
-    if commands:
-        lines.append("- These shell commands, with any arguments, written exactly so and run one per call: "
-                     + "; ".join(f"`{c}`" for c in commands))
-    lines.append(AUTO_ACCESS if mode is PermissionMode.AUTO else MANUAL_ACCESS)
-    return "\n".join(lines)
+    """The worker's command line and prompt for `mode` (see `AgentProfile.command`)."""
+    return _profile(config, workspace).command(WORKER_PROMPT, mode, door)

@@ -70,9 +70,14 @@ class StopListening(Command):
     With `discard=True` (a clear button) the session is thrown away instead: nothing goes to
     the Talker, an empty final `VoiceTranscript` clears the live line, and the state is
     `idle` with reason `"cleared"`. A UI that wants to carry on sends `StartListening` next.
+
+    `agent_id`: the agent tab the stop was pressed in. The final text goes to that tab's Talker
+    (`InputReceived.agent_id`), even if you switch tabs while it is still being cleaned. None:
+    the tab in focus when the text arrives (also a stop by a long silence).
     """
 
     discard: bool = False
+    agent_id: str | None = None
 
 
 class VoiceState(Event):

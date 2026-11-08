@@ -142,14 +142,15 @@
 </tr>
 </tbody>
 </table>
-<h3 id="why-one-door-and-not-an-mcp-server-per-module">Why one door and not an MCP server per module</h3>
+<h3 id="why-not-plain-mcp">Why not plain MCP?</h3>
+<p>Plain MCP here means an MCP server per module, each offering its tools to the agents directly. We chose one door for control. It wasn't because MCP can't change its tools: our test on Claude Code 2.1.318 showed that a running session follows tools added or removed when the server sends <code>list_changed</code>.</p>
 <ul>
-<li><strong>Modules talk through the core.</strong> To each other and to the UI, modules use commands, events and contracts. That's how voice notes uses <code>voice_in</code>, and how the mic button reaches it.</li>
 <li><strong>Per-module servers would go around the core.</strong> Each would face only the agent. It would skip the permission check, the module directory, the links between modules (<code>requires</code>, events), and hot swap in one process (handing over state, waiting while busy).</li>
-<li><strong>Swapping would depend on every server behaving.</strong> Our experiment (2026-11-05, Claude Code 2.1.318): a running session follows tool changes only when the server announces them (<code>list_changed</code>). A tool added without a notice is never seen, and a removed one stays listed until a call fails. A crashed server restarts on the next call. With one door, the three tools never change, so none of that matters.</li>
-<li><strong>MCP stays a door at the agents' edge.</strong> Modules are never MCP servers and never import MCP. The door only reads the directory and passes calls to the core.</li>
-<li><strong>An outside tool that already speaks MCP, such as Unity, becomes a module.</strong> The module is an MCP client of that tool and offers its own menu, so the agents reach it through the same door, with the same permissions. A dedicated agent can sit on top of it if it's worth one.</li>
+<li><strong>Callers that aren't agents need the same checks.</strong> The mic button, the viewer and other modules reach a module through commands, events and contracts. That's how voice notes uses <code>voice_in</code>. An MCP server would serve only the agents, so these callers would need a second path.</li>
+<li><strong>The agent's context stays small.</strong> The door has three fixed tools (list modules, show a menu, use an item), so it doesn't grow with every module that's on. They never change on a swap, so no <code>list_changed</code> notice is needed. In the test, a tool added without a notice was never seen, and a removed one stayed listed until a call failed.</li>
+<li><strong>MCP is still used.</strong> The door is an MCP server (<code>assistant.infra.mcp_door</code>). An outside tool that already speaks MCP, such as Resi or Unity, gets a thin module that is an MCP client of it. That module offers the tool's list as its own menu and refreshes the menu when the tool sends <code>list_changed</code>. Modules are never MCP servers themselves and never import MCP.</li>
 </ul>
+<p><strong>What plain MCP would replace:</strong> only the list, menu and call steps; the agent would see each tool directly. <strong>What it wouldn't:</strong> events, commands and contracts between modules; callers that aren't agents; hot swap inside the app; one permission check for every caller; the module directory; and the Agent Hub (focus, held questions, milestones).</p>
 <h2 id="chaining-modules">Chaining modules</h2>
 <blockquote>
 <p><strong>Status:</strong> events between modules are built (<code>voice_in</code> publishes <code>VoiceTranscript</code> and <code>VoiceState</code>; voice notes listens to them), and so is the voice contract <code>IVoice</code> (2026-11-05): <code>voice_in</code> provides it, voice notes requires it, and each caller opens and ends only its own session. One mic, so one session at a time; the second press wins.</p>

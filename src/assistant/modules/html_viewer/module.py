@@ -8,22 +8,19 @@ leaves running. It:
 - has a menu: `viewer.open` (open an HTML file in a tab), `viewer.highlight` (open it and
   highlight a quoted part), and `viewer.tabs`; the core offers it through `InvokeTool`
 - relays the viewer's open tabs and highlights as `ViewerTabsChanged`, for the Talker
-- opens the files the Main Assistant names with `<<SHOW: path>>`, or highlights with
-  `<<SHOW: path | "quoted text" | heading>>` (it can't call app tools)
 - relays your snips as `ViewerClip`, with the image copied into the launch's log folder
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
 import shutil
 from pathlib import Path
 from typing import Any
 
-from app_kit import CompanionApp
+from app_kit import CompanionHandover
+from app_kit.window import window_profile
 from assistant.contracts import (
-    AgentActivity,
     Manifest,
     Menu,
     ModuleContext,
@@ -32,9 +29,8 @@ from assistant.contracts import (
     ViewerClip,
     ViewerTabsChanged,
 )
-from assistant.infra.agent_tags import find_tags, parse_show
 
-DEFAULT_PROFILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / "html_viewer_window"
+DEFAULT_PROFILE = window_profile("html_viewer")
 
 menu = Menu()
 _PATH = {"type": "string", "minLength": 1}
@@ -45,35 +41,26 @@ class HtmlViewerModule(ModuleProtocol):
         id="html_viewer",
         description="View, edit, highlight and snip HTML; launches the viewer app",
         publishes=(ViewerTabsChanged, ViewerClip,),
-        listens=(AgentActivity,),
     )
     menu = menu
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         host = ctx.config.get("host", "127.0.0.1")
-        port = ctx.config.get("port", 8766)
+        port = int(ctx.config.get("port", 8766))
         profile = Path(ctx.config.get("window_profile", DEFAULT_PROFILE)).resolve()
         args = ["--host", host, "--port", str(port), "--window", ctx.config.get("window", "app"),
                 "--profile", str(profile)]
         for folder in ctx.config.get("generated", []):
             args += ["--generated", str(Path(folder).resolve())]
         # A reload hands over the running viewer (its tabs stay), if it would be launched the same way.
-        handover = ctx.handover if isinstance(ctx.handover, dict) else {}
-        self._app_key = ("html_viewer", host, port, tuple(args))
-        self._handed_over = False
-        self._restart_app = False  # a reload found the viewer's code changed: quit it at stop
-        if handover.get("app_key") == self._app_key and handover.get("app") is not None:
-            self._app = handover["app"]
-            ctx.log.info("Kept the running viewer from before the reload")
-        else:
-            self._app = CompanionApp(  # starts the viewer when needed; stops it only if it started it
-                "html_viewer", host, port, ping="/api/ping", args=args,
-                start_timeout=ctx.config.get("start_timeout", 10.0), log=ctx.log,
-            )
+        # The app starts the viewer when needed and stops it only if it started it.
+        self._companion = CompanionHandover(
+            ctx.handover, "html_viewer", host, port, args=args, label="viewer", log=ctx.log,
+            ping="/api/ping", start_timeout=ctx.config.get("start_timeout", 10.0),
+        )  # fmt: skip
+        self._app = self._companion.app
         self._relay_task: asyncio.Task | None = None
-        self._shows: set[asyncio.Task] = set()
-        ctx.subscribe(AgentActivity, self._on_activity)
 
     async def start(self) -> None:
         # Nothing to launch yet. A viewer you started yourself: follow its tabs from now on.
@@ -81,23 +68,16 @@ class HtmlViewerModule(ModuleProtocol):
             self._follow()
 
     async def stop(self) -> None:
-        for task in [*self._shows, self._relay_task]:
-            if task:
-                task.cancel()
-        await asyncio.gather(*self._shows, *[t for t in [self._relay_task] if t], return_exceptions=True)
-        if not self._handed_over:
-            await self._app.stop(adopted=self._restart_app)
+        if self._relay_task:
+            self._relay_task.cancel()
+            await asyncio.gather(self._relay_task, return_exceptions=True)
+        await self._companion.stop()
 
     def export_state(self) -> dict | None:
         """For a reload: the viewer app (an `app_kit` object) goes to the new copy, so its window
         and tabs stay, unless the viewer's own code changed: then `stop` quits it and the new copy
-        launches the new code when it next shows a page."""
-        if self._app.code_changed():
-            self._ctx.log.info("The viewer's code changed; it restarts with the new code")
-            self._restart_app = True
-            return None
-        self._handed_over = True
-        return {"app": self._app, "app_key": self._app_key}
+        launches the new code when it next shows a page (`CompanionHandover`)."""
+        return self._companion.export()
 
     @menu.item("viewer.open", "Open an HTML file in the HTML viewer (switches to its tab if it's open); "
                               "front: also bring the viewer window to the front (for the user's clicks)",
@@ -144,33 +124,16 @@ class HtmlViewerModule(ModuleProtocol):
     async def tabs(self) -> Result:
         if not await self._ping():
             return Result.ok([])
-        answer = await self._call("GET", "/api/tabs")
+        try:
+            answer = await self._call("GET", "/api/tabs")
+        except (OSError, TimeoutError) as exc:  # it went away since the ping
+            return Result.failed(f"The HTML viewer isn't available: {exc}", retryable=True)
         return Result.ok([
             {"path": t["path"], "active": t["active"], "unsaved": t["dirty"],
              "highlights": [h["text"] for h in t.get("highlights", [])]}
             for t in answer["tabs"]
         ])
 
-    async def show_tag(self, argument: str) -> Result:
-        """Run a SHOW tag's argument: open the file, or open it and highlight."""
-        show = parse_show(argument)
-        return await (self.highlight(*show) if show.quote else self.show(show.path))
-
-    async def _on_activity(self, event: AgentActivity) -> None:
-        # Starting the viewer can take seconds; don't hold up the event handler.
-        for tag in find_tags(event.text, ("SHOW",)):
-            if not tag.argument:
-                continue
-            task = asyncio.create_task(self._show_for_agent(tag.argument))
-            self._shows.add(task)
-            task.add_done_callback(self._shows.discard)
-
-    async def _show_for_agent(self, argument: str) -> None:
-        result = await self.show_tag(argument)
-        if not result.is_ok:
-            self._ctx.log.warning("Couldn't show %s: %s", argument, result.error)
-        elif isinstance(result.value, dict) and result.value.get("found") is False:
-            self._ctx.log.warning("Opened %s, but the text to highlight isn't on the page", argument)
 
     # --- the viewer process ---
 

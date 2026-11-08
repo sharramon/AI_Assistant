@@ -5,9 +5,12 @@
 # Which of the modules listed in src/assistant/__main__.py are active at startup.
 # The others can be turned on at runtime (ActivateModule). Swap the orchestrator
 # by changing this list.
-enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "html_viewer", "voice_in", "voice_notes"]
+# html_viewer and voice_notes are off at launch; turn them on with the core's modules.on.
+# html_viewer also turns itself on when a page is opened (start_on_use in its section).
+enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "voice_in", "usage"]
 
-# Per-module settings go in [modules.<module id>].
+# Per-module settings go in [modules.<module id>]. A module that ships its own defaults
+# (module.toml in its folder; none so far) needs a section here only to override them.
 [modules.console_io]
 prompt = "> "
 
@@ -55,6 +58,58 @@ permission_timeout = 600.0  # seconds; an unanswered request is denied
 transcript = "main_assistant.jsonl"  # in the session's log folder
 # model = "opus"          # default: your claude default
 
+[modules.agent_hub]
+coordinator = "main_assistant"  # the agent that hears the others' STATUS milestones, and holds the focus by default
+max_extra_agents = 3      # big agents besides the coordinator that may work at once (the coordinator isn't counted)
+# door = true             # the agents' MCP door to the module menus (door_host, door_port = 0: any free port)
+
+[modules.task_agents]
+# Kinds of helper agent, one [modules.task_agents.agents.<kind>] section each; off at launch
+# (turn on with modules.on). A helper is launched by name for one task (agents.launch, only with
+# your yes on a card) and works in <kind workspace>/<name>. Keys here are defaults for every kind;
+# a kind takes the same keys as [modules.main_assistant], plus `description`, `prompt` (its role,
+# one or two sentences), and `autostart = true` to start one at launch (`instances` = N starts
+# <kind>, <kind>_2, ..., each writing its own sub-folder of the workspace).
+# An agent writing inside this repo can't run while the Main Assistant has a task (it writes the
+# whole repo: the Hub's folder-clash check), so a helper's workspace lives outside it.
+permission_mode = "acceptEdits"
+permission_timeout = 600.0
+chrome = true             # every kind gets the Claude in Chrome tools (on its access card); a kind may set false
+
+[modules.task_agents.agents.helper]
+description = "A small helper: reads and writes notes in its own folder"
+prompt = "You do small, self-contained jobs in your own folder and report what you made."
+workspace = "../assistant-helper"
+tools = "Read,Write,Edit,Glob,Grep"
+transcript = "helper.jsonl"
+
+[modules.task_agents.agents.rezi]
+# The Rezi helper (docs/next-steps/rezi-module.md): tailors resumes in Rezi for postings the job
+# agent hands it. Works outside C:/Chang/Jobs/CV (the job agent writes all of it, so a folder
+# inside would clash with it); reads the job project and this repo's docs.
+description = "Rezi helper: tailors a resume in Rezi for one job posting, through the rezi module's menu"
+prompt = "You tailor resumes in Rezi, one job posting per task. You reach Rezi only through the rezi.* items on the module door's rezi menu, never any other way; until that module exists, read docs/next-steps/rezi-module.md and research. Never change the base resume: each job gets a new resume. Report the new resume's name."
+workspace = "C:/Chang/Jobs/rezi"
+read_dirs = ["C:/Chang/Jobs/CV", "C:/Chang/Git_projects/AI_Assistant/docs"]
+tools = "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,PowerShell"
+transcript = "rezi.jsonl"
+
+[modules.job_search]
+# The job agent (id "job_search_agent": the module id plus _agent), bundled with its module and its job.* menu; off at launch (modules.on job_search).
+# Takes the same keys as a task_agents profile. These keys are its access list, asked for in one
+# card when it's turned on (saved in data/permissions.toml; it asks again when the list changes):
+# read and write the job project, read the rest of C:\Chang\Jobs and JobRadar, run JobRadar's
+# Python, Chrome. Sessions always start in Manual. Anything else asks you with a card. It never
+# submits or sends anything.
+workspace = "C:/Chang/Jobs/CV"
+read_dirs = ["C:/Chang/Jobs", "C:/Chang/Git_projects/Resume"]
+python = "C:/Chang/Git_projects/Resume/.venv/Scripts/python.exe"  # JobRadar's Python (sweep.py), any arguments
+tools = "default"
+chrome = true             # the Claude in Chrome tools: forms, LinkedIn, the Sheet
+permission_mode = "acceptEdits"
+permission_timeout = 600.0
+transcript = "job_search_agent.jsonl"
+
 [modules.temp_ui]
 # TEMPORARY two-pane UI (Main Assistant | Talker) at http://127.0.0.1:8765/,
 # until the UI handler and its configurations are designed.
@@ -71,6 +126,7 @@ window = "app"            # "app" (own window, via Edge), "browser" (a tab), or 
 # page's Markdown source too, and warns about any edit that can't be (a rebuild would overwrite it).
 generated = ["docs/html", "docs/html-next-steps"]
 start_timeout = 10.0      # seconds to wait for the viewer to answer after starting it
+start_on_use = true       # opening a page (SHOW, Open in viewer, viewer.*) turns this module on if it's off
 
 [modules.voice_in]
 # Voice input (on: the temp UI's mic button sends it StartListening / StopListening): launches the voice service
@@ -101,6 +157,14 @@ module_stop_timeout = 5.0     # seconds each module gets to stop
 event_queue_size = 100        # per subscriber; events beyond this are dropped
 event_handler_timeout = 10.0  # seconds before a stuck event handler is cancelled
 reload_idle_timeout = 300.0   # seconds a ReloadModule waits for a busy module (replying, mid-task)
+
+[core.permissions]
+# The permissions handler (part of the core, always on). Every key is optional:
+# grants_file = "data/permissions.toml"  # the saved grants, in the protected zone (relative to the repo)
+reviewer = "main_assistant"              # reviews an access list before its card shows ("" for none)
+# review_timeout = 90.0                  # seconds; past it, or when the reviewer is busy, the card says "not reviewed"
+# answer_timeout = 600.0                 # seconds a card waits for your answer; then it counts as Deny
+you = ["temp_ui"]                        # callers that are you clicking; an agent's grant or revoke shows you a card
 
 [core.command_timeouts]
 # Per command type, by class name, e.g.

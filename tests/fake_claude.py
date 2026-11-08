@@ -7,18 +7,23 @@ is the message itself, except:
   with `error_during_execution`, as the real one does
 - containing `CRASH`: the process exits
 - containing `PERMIT`: asks permission with a `can_use_tool` control request, waits
-  for the answer, and ends the turn with `allowed` or `denied: <message>`
+  for the answer, and ends the turn with `allowed` or `denied: <message>` (a Write;
+  with `PUSHPERMIT`, a PowerShell `git push origin main`)
 - a `New task:` containing `HANDOFFONCE`, or anything containing `HANDOFFALWAYS`: the result
   ends with `HANDOFF: docs/next-steps/part.md`
 - containing "asked to restart the app": the result is a reset note ending `RESTART_READY`
 - containing "asked to reset your session": the result ends with `HANDOFF: docs/next-steps/reset.md`
 - containing "[Context check]": the result ends with `HANDOFF: docs/next-steps/context.md`
 - a `New task:` containing `RELOADME <id>`: the result ends with `RELOAD: <id>`
+- containing `SUBAGENT`: one Agent call to a `general-purpose` sub-agent (`agentId` `a1b2`),
+  its last call's tokens on the tool result's `tool_use_result.usage`, and the turn's every
+  call (its own and the sub-agent's) on the result's `model_usage_since_last_result`
+  (see `subagent_turn`)
 
 Each turn is one call (one message id, `msg_<n>`): its `usage` says 1000 input tokens per
 message this process has had, so a fresh process starts small again, plus 10 output
 tokens; its result says 25 output tokens for the turn (the streamed count is low, as for
-real) and `total_cost_usd` 0.01 per message, counted per process like the real one. A `[Usage] ...` line is left out of the echo (the model wouldn't repeat it)
+real). A `[Usage] ...` line is left out of the echo (the model wouldn't repeat it)
 unless the message contains `SHOWUSAGE`.
 """
 
@@ -36,15 +41,48 @@ def emit(obj: dict) -> None:
 messages = 0  # in this process
 
 
-def result(text: str, error: bool = False) -> None:
+def result(text: str, error: bool = False, **extra) -> None:
     emit({
         "type": "result",
         "subtype": "error_during_execution" if error else "success",
         "is_error": error,
         "result": "" if error else text,
-        "total_cost_usd": round(messages * 0.01, 2),
         "usage": {"output_tokens": 25},  # the turn's real output; the streamed lines say less, as for real
+        **extra,
     })
+
+
+SUB_USAGE = {"input_tokens": 2, "cache_creation_input_tokens": 2874, "cache_read_input_tokens": 0, "output_tokens": 4}
+# The sub-agent's every call (more than its last one, as for real: 2026-11-07).
+SUB_ALL = {"inputTokens": 6, "cacheCreationInputTokens": 2874, "cacheReadInputTokens": 5000, "outputTokens": 40}
+
+
+def subagent_turn() -> None:
+    """One Agent call, shaped like the real runs (2026-11-05, 2026-11-07): the sub-agent's prompt as a
+    `user` line with `parent_tool_use_id`, a sub-agent `assistant` line with usage (the real one streams
+    none; it must never count as the parent's), then its LAST call's usage on the tool_result's
+    `tool_use_result`. The result's `usage` is the parent's own; its `model_usage_since_last_result`
+    holds every call of the turn: the parent's two (input 2+2, cache read 1000n-2 and 100, output 25)
+    and the sub-agent's (`SUB_ALL`)."""
+    tool_id = f"toolu_{messages}"
+    emit({"type": "assistant", "message": {"id": f"msg_{messages}_agent", "usage": {
+        "input_tokens": 2, "cache_read_input_tokens": 100, "output_tokens": 5,
+    }, "content": [{"type": "tool_use", "id": tool_id, "name": "Agent", "input": {"prompt": "reply with pong"}}]}})
+    emit({"type": "system", "subtype": "task_started", "task_id": "t1", "tool_use_id": tool_id, "spawn_depth": 1})
+    emit({"type": "user", "parent_tool_use_id": tool_id, "agent_id": "a1b2", "subagent_type": "general-purpose",
+          "message": {"role": "user", "content": [{"type": "text", "text": "reply with pong"}]}})
+    emit({"type": "assistant", "parent_tool_use_id": tool_id, "message": {"id": "msg_sub", "usage": {
+        "input_tokens": 999, "cache_read_input_tokens": 99999, "output_tokens": 999,
+    }, "content": [{"type": "text", "text": "pong"}]}})
+    emit({"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": tool_id, "content": [{"type": "text", "text": "pong"}]},
+    ]}, "tool_use_result": {"agentId": "a1b2", "agentType": "general-purpose", "usage": SUB_USAGE,
+                            "totalTokens": 2880, "totalToolUseCount": 0}})
+    emit({"type": "system", "subtype": "task_notification", "task_id": "t1", "tool_use_id": tool_id,
+          "usage": {"total_tokens": 2880}})
+    own = {"inputTokens": 4, "cacheCreationInputTokens": 0, "cacheReadInputTokens": messages * TOKENS_PER_MESSAGE - 2 + 100,
+           "outputTokens": 25}  # fmt: skip
+    result("pong", model_usage_since_last_result={"claude-opus-5-5": {key: own[key] + SUB_ALL[key] for key in own}})
 
 
 def main() -> None:
@@ -85,14 +123,15 @@ def main() -> None:
             emit({"type": "control_response", "response": {"subtype": "success"}})
             result("", error=True)
         elif "PERMIT" in text:
-            emit({"type": "control_request", "request_id": "perm-1", "request": {
-                "subtype": "can_use_tool", "tool_name": "Write",
-                "input": {"file_path": ".claude/skills/x/SKILL.md", "content": "x"},
-            }})
+            tool = ({"tool_name": "PowerShell", "input": {"command": "git push origin main"}} if "PUSHPERMIT" in text
+                    else {"tool_name": "Write", "input": {"file_path": ".claude/skills/x/SKILL.md", "content": "x"}})
+            emit({"type": "control_request", "request_id": "perm-1", "request": {"subtype": "can_use_tool", **tool}})
             answer = json.loads(sys.stdin.readline())["response"]
             decision = answer["response"]
             assert answer["request_id"] == "perm-1"
             result("allowed" if decision["behavior"] == "allow" else f"denied: {decision['message']}")
+        elif "SUBAGENT" in text:
+            subagent_turn()
         elif text.startswith("New task:") and "RELOADME " in text:
             result(f"Built it.\nRELOAD: {text.split('RELOADME ', 1)[1].split()[0]}")
         elif text.startswith("New task:") and "ASKME" in text:

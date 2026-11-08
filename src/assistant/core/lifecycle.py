@@ -7,9 +7,19 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from assistant.contracts import Contract, Manifest, Menu, ModuleInfo, ModuleProtocol, ModuleState, Result
+from assistant.contracts import (
+    AccessDenied,
+    AccessPending,
+    Contract,
+    Manifest,
+    Menu,
+    ModuleInfo,
+    ModuleProtocol,
+    ModuleState,
+    Result,
+)
 from assistant.core import loader
-from assistant.core.container import is_shared_contract
+from assistant.core.container import allows_another, is_shared_contract
 from assistant.core.context import ScopedContext
 from assistant.core.registry import StartupError
 
@@ -47,13 +57,9 @@ class LifecycleManager:
             initialized: list[tuple[ModuleProtocol, ScopedContext]] = []
             for cls in self._start_order:
                 self._set(cls.manifest.id, ModuleState.STARTING)
-                ctx = self._make_context(cls.manifest)
-                module = cls()
                 try:
-                    await module.init(ctx)
-                    ctx.link_menu(module)
+                    module, ctx = await self._init_one(cls)
                 except Exception as exc:
-                    ctx.close()
                     self._skip(cls.manifest, "initialize", exc)
                     continue
                 initialized.append((module, ctx))
@@ -91,6 +97,10 @@ class LifecycleManager:
             )
             for module_id, cls in self._classes.items()
         ]
+
+    def module_class(self, module_id: str) -> type:
+        """The module's current class (on or off; the new one after a reload). KeyError if unknown."""
+        return self._classes[module_id]
 
     def menu(self, module_id: str) -> Menu | None:
         """The module's `Menu`, read from its current class (on or off). KeyError if unknown."""
@@ -234,12 +244,12 @@ class LifecycleManager:
             return Result.failed(f"Circular dependency: {' -> '.join((*chain, module_id))}")
 
         manifest = cls.manifest
-        for contract in (*manifest.provides, *manifest.requires, *manifest.optional):
+        for contract in (*manifest.provides, *manifest.requires, *manifest.optional, *manifest.uses):
             if not is_shared_contract(contract):
                 return Result.failed(f"{module_id!r} lists {contract!r}, which is not a contract from assistant.contracts")
         for contract in manifest.provides:
             other = self._active_provider(contract)
-            if not contract.multiple and other:
+            if not allows_another(contract, other):
                 return Result.failed(f"{other!r} already provides {contract.__name__}; deactivate it first")
 
         for contract in manifest.requires:
@@ -257,13 +267,9 @@ class LifecycleManager:
                 return Result.failed(f"{module_id!r} requires {contract.__name__}: {result.error}")
 
         self._set(module_id, ModuleState.STARTING)
-        ctx = self._make_context(manifest, handover)
-        module = cls()
         try:
-            await module.init(ctx)
-            ctx.link_menu(module)
+            module, ctx = await self._init_one(cls, handover)
         except Exception as exc:
-            ctx.close()
             return self._fail(module_id, "initialize", exc)
         try:
             await module.start()
@@ -274,6 +280,20 @@ class LifecycleManager:
         self._set(module_id, ModuleState.ACTIVE)
         log.info("Activated %s", module_id)
         return Result.ok()
+
+    async def _init_one(self, cls: type[ModuleProtocol], handover: Any = None) -> tuple[ModuleProtocol, ScopedContext]:
+        """The one init path, at startup and at runtime: a context (with what the old copy
+        exported, on a reload), a new instance, `init`, its menu linked. On failure the context
+        is closed and the error raised for the caller to report."""
+        ctx = self._make_context(cls.manifest, handover)
+        module = cls()
+        try:
+            await module.init(ctx)
+            ctx.link_menu(module)
+        except Exception:
+            ctx.close()
+            raise
+        return module, ctx
 
     async def _deactivate(self, module_id: str, with_dependents: bool) -> Result:
         if module_id not in self._classes:
@@ -326,7 +346,7 @@ class LifecycleManager:
 
     def _fail(self, module_id: str, phase: str, exc: Exception) -> Result:
         self._set(module_id, ModuleState.FAILED)
-        log.error("%s failed to %s", module_id, phase, exc_info=exc)
+        _log_failure(f"{module_id} failed to {phase}", exc)
         return Result.failed(f"{module_id!r} failed to {phase}: {exc}")
 
     def _skip(self, manifest: Manifest, phase: str, exc: Exception) -> None:
@@ -339,9 +359,17 @@ class LifecycleManager:
                 raise StartupError(
                     f"{manifest.id!r} failed to {phase}, and other modules require its {contract.__name__}"
                 ) from exc
-        log.error("%s failed to %s; skipping it", manifest.id, phase, exc_info=exc)
+        _log_failure(f"{manifest.id} failed to {phase}; skipping it", exc)
 
     def _set(self, module_id: str, state: ModuleState) -> None:
         self._states[module_id] = state
         if self._on_change:
             self._on_change(module_id, state)
+
+
+def _log_failure(what: str, exc: Exception) -> None:
+    """A module that waits for (or was denied) its access card isn't broken: one info line."""
+    if isinstance(exc, (AccessPending, AccessDenied)):
+        log.info("%s: %s", what, exc)
+    else:
+        log.error("%s", what, exc_info=exc)

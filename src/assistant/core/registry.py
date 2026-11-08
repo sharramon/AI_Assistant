@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from assistant.contracts import Contract, ModuleProtocol
-from assistant.core.container import is_shared_contract
+from assistant.core.container import allows_another, is_shared_contract
 
 
 class StartupError(Exception):
@@ -33,14 +33,14 @@ def resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence
     providers: dict[type[Contract], list[type[ModuleProtocol]]] = {}
     for cls in selected:
         m = cls.manifest
-        for contract in (*m.provides, *m.requires, *m.optional):
+        for contract in (*m.provides, *m.requires, *m.optional, *m.uses):
             if not is_shared_contract(contract):
                 raise StartupError(f"{m.id!r} lists {contract!r}, which is not a contract from assistant.contracts")
         for contract in m.provides:
             providers.setdefault(contract, []).append(cls)
 
     for contract, owners in providers.items():
-        if len(owners) > 1 and not contract.multiple:
+        if not allows_another(contract, owners[1:]):
             ids = ", ".join(cls.manifest.id for cls in owners)
             raise StartupError(f"{contract.__name__} allows one provider but is provided by: {ids}")
 

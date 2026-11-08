@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A new grant reaches a running agent without turning it off and on</title>
+<!-- Generated from docs/next-steps/live-agent-grants.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="live-agent-grants.html"></nav>
+<main>
+<h1 id="a-new-grant-reaches-a-running-agent-without-turning-it-off-and-on">A new grant reaches a running agent without turning it off and on</h1>
+<blockquote>
+<p><strong>Status: built, waiting on the restart (2026-11-06).</strong> The third session finished <code>task_agents</code> (<code>launched_config</code>, <code>_on_grant</code> per kind, <code>subject=kind</code>), the tests (the full suite passes) and the docs. The user approved plan B as written below, in one batch with <a href="per-agent-auto-button.html">the Auto button</a> and <a href="voice-to-stop-tab.html">voice to the stop tab</a> (both built, waiting on the restart). The open questions take the recommended answers: (1) an idle open session restarts at once; (2) a revoke still turns the module off; (3) "Allow always" later; (4) <code>permissions.request</code> from the Main Assistant is refused with a reason. It needs one app restart; after that, grants apply live.</p>
+</blockquote>
+<h2 id="handoff-2026-11-06-build-this-in-a-fresh-session">Handoff (2026-11-06): build this in a fresh session</h2>
+<p><strong>Hard rules from the user:</strong> they're working with sub-agents. Don't restart the app, don't reload any module, don't turn modules on or off. Write the code and run only the tests that run on their own (in-test <code>App</code>s, fake programs); list any test that needs the running app or a restart for later.</p>
+<p><strong>Done in the first session:</strong> the Auto button per tab (<code>temp_ui</code>, <code>talker</code>) and <code>StopListening.agent_id</code> (<code>contracts/voice.py</code>, <code>voice_in</code>, <code>temp_ui</code>); 67 tests in the touched files pass, ruff clean, docs updated. The Talker-window item from <code>agent-talkers.md</code> ("every question and statement reaches the Talker window in full") was <strong>skipped</strong>: that note has no spec for it.</p>
+<p><strong>Done in the second session (code written, NOT yet tested, ruff not run):</strong></p>
+<ul>
+<li><code>contracts/module.py</code>: <code>ModulePermissions.own_agent(agent_id, subject)</code> (non-abstract, no-op default); <code>core/permissions/port.py</code> forwards it to <code>handler.own_agent</code>.</li>
+<li><code>core/permissions/store.py</code>: <code>Grant.added</code> (items the agent asked for itself, beyond the config list), <code>with_added</code>, <code>with_granted</code> covering asked + added; saved/loaded as <code>added = [...]</code> (only when non-empty).</li>
+<li><code>core/permissions/handler.py</code>: <code>_agents</code> registry + <code>own_agent</code>; <code>request(caller, items, reason)</code> (checks the registry and the <code>IAgentNames</code> owner, refuses workspace items, drops already-granted and refused ones, opens a <code>grant</code> card with <code>adds=True</code>); <code>_apply</code> adds the items via <code>with_added</code> on Allow; an access card keeps the earlier added items; <code>grant()</code> accepts added keys; <code>grants()</code> rows have <code>added</code>; the active-module message now says "applies from its next session (at once when idle), with no need to turn it off".</li>
+<li><code>core/permissions/menu.py</code>: <code>permissions.request</code> (<code>read</code>, <code>write</code>, <code>commands</code>, <code>python</code>, <code>chrome</code>, <code>reason</code>; folders resolved).</li>
+<li><code>infra/agent_access.py</code>: <code>granted_config</code> adds granted items beyond the config's list; <code>watch_grant(ctx, on_grant(subject, granted), subject=None)</code> (exported from <code>assistant.infra</code>).</li>
+<li><code>infra/agent_profile.py</code>: <code>REQUEST_PROMPT</code> (shown when <code>requests</code> and the door); <code>requests</code> field from config <code>permission_requests</code>; <code>command(..., snips=)</code> adds a <code>Read</code> rule and an access line for the snips folder.</li>
+<li><code>infra/session_agent.py</code>: <code>write_folders</code> property and setter.</li>
+<li><code>infra/profile_agent.py</code>: <code>subject=</code> param (calls <code>ctx.permissions.own_agent</code> at start, sets <code>permission_requests</code>), <code>snips()</code> (<code>ctx.logs.folder()/snips</code>, read at each session start), <code>set_access(config)</code> (sync rebuild, then an idle open session restarts in a background task <code>_regrant</code>, which <code>stop</code> cancels).</li>
+<li><code>modules/job_search/module.py</code>: <code>PermissionChanged</code> in <code>listens</code>, <code>watch_grant(..., subject=agent_id)</code> in <code>init</code>, <code>_on_grant</code> → <code>set_access(granted_config(...))</code>, <code>subject=</code> passed to <code>ProfileAgent</code>.</li>
+</ul>
+<p><strong>Done in the third session:</strong> everything below. Not done: a starting-Auto config key (<code>start_mode</code>) the user asked about mid-build; a config can't start an agent in Auto today (decision 8), so it waits on their answer.</p>
+<p><strong>Was still to do (third session, done):</strong></p>
+<ol>
+<li><code>modules/task_agents/module.py</code>: add <code>PermissionChanged</code> to <code>listens</code>; <code>watch_grant(ctx, self._on_grant)</code> in <code>init</code>; keep <code>self._kind_of[agent_id] = kind</code> for autostart agents; move the launched helper's config (lines in <code>_launch</code>: <code>workspace/name</code>, kind folder read-only, <code>write_dirs=[]</code>, <code>transcript</code>) into one function <code>launched_config(name, base)</code>; <code>_on_grant(kind, granted)</code>: <code>base = granted_config(self._kinds[kind], granted)</code>, then autostart agents of that kind get <code>instances(kind, base)[id]</code>, launched ones get <code>launched_config(name, base)</code>, each via <code>set_access</code> (catch <code>AccessDenied</code>); <code>_build</code> passes <code>subject=kind</code> to <code>ProfileAgent</code>.</li>
+<li>Tests (in-test Apps and the fake claude only): update <code>test_permissions_handler.py::test_grant_and_revoke_from_you</code> ("applies the next time" → "applies from its next session"); update <code>test_directory.py:92</code>'s list to include <code>permissions.request</code>; add: a grant reaches job_search's next session command (<code>job.profile.command(...)</code> has the new read rule, and <code>agent.info().write_folders</code> changes); an idle open session restarts; a busy one doesn't; a task_agents kind updates all its helpers; <code>permissions.request</code> from a registered agent opens a card and Allow saves <code>added</code>, and <code>granted_config</code> keeps them; from <code>main_assistant</code> (not registered) it's refused; store round trip with <code>added</code>; the snips rule is in <code>command(..., snips=...)</code>. Then the whole <code>pytest</code>, <code>ruff check</code>.</li>
+<li>architecture-check; docs: <code>architecture/permissions.md</code>, <code>api/infra.md</code> (<code>set_access</code>, <code>watch_grant</code>, <code>snips</code>, <code>subject</code>), <code>api/modules.md</code> (<code>own_agent</code>), <code>api/control.md</code> (<code>permissions.request</code> on the core menu), <code>api/reusable.md</code> (<code>set_access</code>, <code>watch_grant</code>), <code>modules/job_search.md</code>, <code>modules/task_agents.md</code>; rebuild with <code>scripts\build_docs.py</code>; this note's status and its Pending row → built, waiting on the restart.</li>
+<li>Final report for the whole batch (see step 6 below).</li>
+</ol>
+<p><strong>Original plan, in this order</strong> (follow <code>batching</code>, <code>architecture-first</code>, check <code>docs/api/reusable.md</code>):</p>
+<ol>
+<li>Read <code>infra/profile_agent.py</code>, <code>infra/session_agent.py</code>, <code>infra/agent_access.py</code>, <code>infra/agent_profile.py</code>, <code>core/permissions/handler.py</code>, <code>menu.py</code>, <code>store.py</code>, <code>modules/job_search/module.py</code>, <code>modules/task_agents/module.py</code>, and their tests, once each.</li>
+<li>Live grants: <code>ProfileAgent.set_access(config)</code>, a <code>write_folders</code> setter on <code>SessionTaskAgent</code>, <code>watch_grant(ctx, module_id, subject, on_grant)</code> in <code>agent_access</code>; <code>job_search</code> and <code>task_agents</code> (one function for a launched helper's config) use them; the handler's message for an active module.</li>
+<li>Snips: <code>AgentProfile.command</code> adds a read rule for <code>ctx.logs.folder()/snips</code> at each session start.</li>
+<li><code>permissions.request</code> on the core menu (caller → module and subject through the name claim), added items in the saved grant, <code>request_access</code> / <code>granted_config</code> taking them, the prompt line.</li>
+<li>Tests as listed under Touches; <code>pytest</code>, <code>ruff</code>; architecture-check; docs (<code>permissions.md</code>, <code>api/infra.md</code>, <code>api/core.md</code> or <code>control.md</code> for the menu item, <code>reusable.md</code>, <code>job_search.md</code>, <code>task_agents.md</code>); rebuild; this note's status and the Pending row → built, waiting on the restart.</li>
+<li>Final report to the Talker for the whole batch: what was built, tests passed, tests skipped, hand checks after the restart (Auto in the job agent's tab; stop the mic then switch tabs; a grant reaching an idle agent with no off and on; an agent asking with <code>permissions.request</code>; an agent reading a snip with no card).</li>
+</ol>
+<p><strong>Asked:</strong> "If I give it a new permission, it has to turn itself off and on. This is not how it should work. Once I give it permission, it should just have permission." (about <code>job_search_agent</code>). Then: build the real fix for every agent, so that after the next app restart grants apply on the fly, with no further restarts.</p>
+<p><strong>Why:</strong> today a grant is saved at once, but the running agent never hears of it.</p>
+<h2 id="why-it-needs-off-and-on-today">Why it needs off and on today</h2>
+<ol>
+<li><code>job_search</code> and <code>task_agents</code> ask for access <strong>once, when the module starts</strong> (<code>request_access</code>). They cut the config to the grant (<code>granted_config</code>) and build each <code>ProfileAgent</code> from that.</li>
+<li><code>ProfileAgent</code> builds its <code>AgentProfile</code> <strong>once</strong> (folders, commands, Python, Chrome) and hands <code>write_folders</code> to <code>SessionTaskAgent</code> <strong>once</strong>.</li>
+<li>The <code>claude</code> command line <em>is</em> rebuilt at every session start (<code>ClaudeSession</code> calls <code>profile.command(...)</code> each time, and each task starts a fresh session). But it reads that fixed profile, so the rules and the "Your access" part of the prompt stay as they were.</li>
+<li><code>permissions.grant</code> saves the wider grant and publishes <code>PermissionChanged</code>, but no agent module listens to it. The handler even says <em>"the change applies the next time it's turned on"</em> (<code>core/permissions/handler.py</code>, <code>_do_grant</code>).</li>
+<li>The config file is reread only on <code>modules.reload</code> / <code>modules.add</code> (<code>App._swap</code>), not on off and on.</li>
+</ol>
+<h2 id="what-you-do-until-its-built">What you do until it's built</h2>
+<ul>
+<li><strong>An item already on its list</strong> (<code>permissions.grant</code>): <code>modules.off</code> then <code>modules.on</code> for the agent's module (this waits until it has no task).</li>
+<li><strong>A new item not in its config yet:</strong> edit the config, <code>modules.reload &lt;module&gt;</code>, then Allow on the card.</li>
+<li>No full app restart is needed in either case.</li>
+</ul>
+<h2 id="the-plan-b-every-agent">The plan (B, every agent)</h2>
+<pre><code>permissions.grant ──► PermissionChanged(module_id, subject, granted)
+                           │
+        agent module (job_search, task_agents) listens: is it my grant?
+                           │  granted_config(its config, granted)
+                           ▼
+        ProfileAgent.set_access(config) ── new AgentProfile, new write_folders
+                           │
+        idle open session: restarted once (as for the door) · busy: its next session
+</code></pre>
+<ul>
+<li><strong><code>ProfileAgent.set_access(config)</code></strong> (infra, reusable): rebuilds <code>profile</code> from the new granted config and hands <code>SessionTaskAgent</code> its new <code>write_folders</code> (a small setter there). An idle open session restarts once (<code>restart_session</code>, the way the door is picked up today). A running turn is never cut: it picks up the change at its next session (the next task or a handoff).</li>
+<li><strong><code>watch_grant(ctx, module_id, subject, on_grant)</code></strong> (infra, <code>agent_access</code>, reusable): subscribes to <code>PermissionChanged</code> and calls <code>on_grant(granted)</code> for a non-empty grant of that module and subject. One helper for both modules, so the matching rule lives once.</li>
+<li><strong><code>job_search</code></strong> uses <code>watch_grant</code> with subject <code>job_search_agent</code>, and calls <code>set_access(granted_config(...))</code>.</li>
+<li><strong><code>task_agents</code></strong>: grants are per kind (subject = kind), so a change applies to every agent of that kind, autostarted and launched. The launched helper's own changes (its sub-folder, the kind folder as read-only, its transcript) move from <code>_launch</code> into one function, so a launch and a grant change build the same config.</li>
+<li><strong>The handler's message</strong> for an active module becomes "applies from its next session; no need to turn it off".</li>
+<li><strong>Revoke stays as it is:</strong> it turns the module off at once, the safe way to take access back.</li>
+<li><strong>Not changed:</strong> the Main Assistant (no access list), and a brand-new item that isn't in the config yet (that still needs a config edit, a module reload, and the card).</li>
+</ul>
+<h2 id="added-an-agent-asks-for-a-permission-itself">Added: an agent asks for a permission itself</h2>
+<p>You asked that any task agent, or a subagent, can ask for a permission by itself. You get a card, click Allow, and it's granted on the spot with no restart.</p>
+<p><strong>What exists today</strong></p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What it does</th>
+<th>The gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A tool prompt (<code>can_use_tool</code> → <code>ReportTask</code> permission → card → <code>AnswerPermission</code>)</td>
+<td>An agent's tool call outside its rules asks you on a card</td>
+<td><strong>Allow is once only.</strong> The next identical call asks again; nothing is saved</td>
+</tr>
+<tr>
+<td><code>ITaskAgent.request_approval(action, run)</code></td>
+<td>A module asks you, on the agent's card, before running something for it (e.g. <code>agents.launch</code>)</td>
+<td>One action, not a grant</td>
+</tr>
+<tr>
+<td><code>permissions.grant</code> on the door (<code>core</code> menu)</td>
+<td>An agent may call it; a card opens; Allow saves the grant</td>
+<td><strong>Only items already on its config list</strong> (<code>only asked items can be granted</code>). The caller must name the module and subject, which an agent doesn't know. The grant applies only after off and on</td>
+</tr>
+<tr>
+<td><code>ctx.permissions.request_set</code></td>
+<td>A module asks for its whole access list when it starts</td>
+<td>Module-side only; an agent can't call it</td>
+</tr>
+<tr>
+<td>Subagents</td>
+<td>Run inside their parent's <code>claude</code> process, under the same rules; their tool prompts come up as the parent's card (to confirm in a test)</td>
+<td>Same as the first row: Allow once</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What's missing, and the plan</strong></p>
+<ol>
+<li><strong><code>permissions.request</code> on the door</strong> (core menu): an agent asks for new items (a folder to read or write, a command, Python, Chrome) with a reason. The handler finds the caller's module and subject from its id (the module that claimed the name, through <code>IAgentNames</code>, and the subject the agent module gave for it), so an agent can only ask for itself. You get a card listing the items; Allow, untick some, or Deny. The answer reaches the agent as a note.</li>
+<li><strong>Saved grants may hold items beyond the config.</strong> On Allow, the new items join the saved grant (both <code>asked</code> and <code>granted</code>). <code>request_access</code> builds the list from the config <strong>plus</strong> the grant's added items, so the next start doesn't ask again for what you already allowed. <code>granted_config</code> takes those added items too.</li>
+<li><strong>Live from then on:</strong> the same <code>PermissionChanged</code> → <code>set_access</code> path above. An idle agent has the access at once; a busy one gets it at its next session (or once the card is answered and its current turn ends).</li>
+<li><strong>Prompts:</strong> the agent's "Your access" section tells it to use <code>permissions.request</code> when it needs more access, instead of saying it must be restarted.</li>
+<li><strong>A subagent</strong> asks through its parent, so the grant goes to the parent agent and every later subagent of that agent has it too.</li>
+<li><strong>Your snips, readable by every agent with no card</strong> (asked 2026-11-06 from the rezi tab). Snips and pasted images are saved in this launch's log folder (<code>logs/&lt;launch&gt;/snips/</code>), whose name changes every launch, so a fixed config path can't cover it. Instead, <code>AgentProfile.command</code> adds a read rule for <code>ctx.logs.folder()/snips</code> at every session start, built in like the workspace. It holds only what you snipped, so it needs no card and isn't on the access list. Until then, Allow the one-off card when an agent opens a snip.</li>
+</ol>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><strong>Code:</strong> <code>infra/profile_agent.py</code>, <code>infra/session_agent.py</code>, <code>infra/agent_access.py</code>, <code>infra/agent_profile.py</code> (the prompt line), <code>modules/job_search/module.py</code>, <code>modules/task_agents/module.py</code> (both list <code>PermissionChanged</code> and tell the handler their agents' subjects), <code>core/permissions/handler.py</code>, <code>menu.py</code>, <code>store.py</code> (the message, <code>permissions.request</code>, added items), and <code>contracts/agents.py</code> if the subject has to ride on the <code>IAgentNames</code> claim.</li>
+<li><strong>Tests:</strong> a grant reaches the next session's command line, an idle session restarts, a busy one waits, a <code>task_agents</code> kind updates all of its helpers.</li>
+<li><strong>Docs:</strong> <code>architecture/permissions.md</code>, <code>api/infra.md</code>, <code>api/reusable.md</code> (<code>set_access</code>, <code>watch_grant</code>), <code>modules/job_search.md</code>, <code>modules/task_agents.md</code>.</li>
+</ul>
+<p><strong>Reload or restart:</strong> infra and core change, so this needs <strong>one app restart</strong>. After it, grants apply live, with no more restarts or off and on.</p>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li>Should an idle agent's open session restart at once on a grant, or only at its next task? <strong>Recommended: at once</strong>, so a question you answer right after granting already has the access. (With fresh sessions per task, the difference is small.)</li>
+<li>Should a revoke also go live (narrow the agent without turning it off)? <strong>Recommended: no</strong>, keep turning it off. Taking access back should be immediate and certain, and a running turn can't be narrowed.</li>
+<li>Should a tool prompt's card also get an <strong>"Allow always"</strong> button that turns that one call into a saved grant (a <code>Read</code> of a folder becomes a read item, a shell command becomes a command item)? <strong>Recommended: later, as a second step.</strong> <code>permissions.request</code> covers "the agent asks"; "Allow always" also needs the UI and <code>AnswerPermission</code> (a contract) to change.</li>
+<li>The Main Assistant has no access list, so <code>permissions.request</code> from it is refused with a reason. <strong>Recommended: keep it so for now.</strong> Its access is the repo, set in the config.</li>
+</ol>
+<p><strong>Restart with the addition:</strong> still <strong>one app restart</strong>, the same one (core, infra and maybe a contract change). After it, asking, granting and applying all happen live.</p>
+<h2 id="stopgap-done-2026-11-06-chrome-for-every-task-agent">Stopgap done 2026-11-06: Chrome for every task agent</h2>
+<ul>
+<li>The job agent already had Chrome (in its config and its saved grant; its sessions connect to Chrome).</li>
+<li><code>chrome = true</code> was added to <code>[modules.task_agents]</code>'s defaults, so every kind (<code>helper</code>, <code>rezi</code>) asks for Chrome. Each kind's list changed, so its next launch shows a card.</li>
+<li>In Manual, each Chrome action still asks you with a card. Auto (the toggle in the agent's tab) stops that.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/live-agent-grants.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

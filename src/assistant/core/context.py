@@ -9,16 +9,19 @@ from assistant.contracts import (
     Command,
     Contract,
     Event,
+    IModuleDoor,
+    InvokeTool,
     IToolProvider,
     Manifest,
     ModuleContext,
     ModuleLogs,
+    ModulePermissions,
     Result,
 )
 from assistant.core.bus import EventBus, Subscription
 from assistant.core.container import Container
 from assistant.core.logs import SessionLogs
-from assistant.core.permissions import AllowAllPermissions
+from assistant.core.permissions import PermissionsPort
 from assistant.core.router import CommandHandler, CommandRouter
 
 
@@ -33,12 +36,13 @@ class ScopedContext(ModuleContext):
         log: Logger,
         handover: Any = None,
         logs: ModuleLogs | None = None,
+        permissions: ModulePermissions | None = None,
     ):
         self.module_id = manifest.id
         self.config = config
         self.log = log
         self.handover = handover
-        self.permissions = AllowAllPermissions(manifest.id)
+        self.permissions = permissions or PermissionsPort(manifest.id)
         self.logs = logs or SessionLogs()
         self._manifest = manifest
         self._router = router
@@ -47,9 +51,13 @@ class ScopedContext(ModuleContext):
         self._subscriptions: list[Subscription] = []
         self._handlers: list[tuple[type[Command], CommandHandler]] = []
         self._closed = False
+        m = manifest
+        self._contracts = frozenset((*m.provides, *m.requires, *m.optional, *m.uses))
+        self._undeclared: set[type] = set()  # logged once each
 
     def subscribe(self, event_type, handler) -> None:
         self._check_open()
+        self._check_declared(event_type, self._manifest.listens, "listens")
         self._subscriptions.append(self._bus.subscribe(event_type, handler, owner=self.module_id))
 
     def publish(self, event: Event) -> None:
@@ -71,6 +79,9 @@ class ScopedContext(ModuleContext):
     async def send(self, command: Command, timeout: float | None = None) -> Result:
         if self._closed:
             return Result.not_available(f"{self.module_id!r} is not active")
+        if isinstance(command, InvokeTool) and not (command.caller and IModuleDoor in self._manifest.provides):
+            # The caller is the sender; only the door's host passes on the one its token proved.
+            command = command.model_copy(update={"caller": self.module_id})
         return await self._router.send(command, timeout)
 
     def cancel(self, correlation_id: str) -> int:
@@ -82,6 +93,10 @@ class ScopedContext(ModuleContext):
             raise ValueError(f"{self.module_id!r} must declare {contract.__name__} in manifest.provides")
         self._container.provide(contract, impl, owner=self.module_id)
 
+    def withdraw(self, contract: type[Contract], impl: Contract) -> None:
+        if not self._closed:
+            self._container.remove(contract, impl, owner=self.module_id)
+
     def link_menu(self, module: Any) -> None:
         """Core only: offer `module`'s menu through `InvokeTool`, in its name, until close."""
         self._check_open()
@@ -92,10 +107,20 @@ class ScopedContext(ModuleContext):
             self._container.provide(IToolProvider, MenuTools(menu, module), owner=self.module_id)
 
     def get_all(self, contract):
+        self._check_declared(contract, self._contracts, "requires / optional / uses")
         return self._container.get_all(contract)
 
     def get_one(self, contract):
+        self._check_declared(contract, self._contracts, "requires / optional / uses")
         return self._container.get_one(contract)
+
+    def _check_declared(self, kind: type, declared, field: str) -> None:
+        """Principle 17: a module's manifest declares everything it uses. An undeclared
+        subscription or lookup still works; it's logged once, so the manifest gets fixed."""
+        if kind in declared or kind in self._undeclared:
+            return
+        self._undeclared.add(kind)
+        self.log.warning("%s uses %s without declaring it in its manifest (%s)", self.module_id, kind.__name__, field)
 
     def close(self) -> None:
         """Remove everything this module registered. Afterwards publish is dropped and send is refused."""

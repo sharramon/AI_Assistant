@@ -9,6 +9,7 @@ from assistant.core import App
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.talker import TalkerModule
+from assistant.modules.talker.module import AFTER_RESTART, APP_STATE_HEAD
 from tests.test_agents import FAKE, TIMEOUT, next_matching
 
 
@@ -44,8 +45,26 @@ async def test_restart_with_an_idle_worker_saves_its_note_and_keeps_it(tmp_path)
         assert event.restart and app.restart_requested
     finally:
         await app.stop()
-    # A restart keeps the note, without its RESTART_READY line.
-    assert (tmp_path / "state" / "reset.md").read_text(encoding="utf-8") == "Was building the poems; part one done.\n"
+    # A restart keeps the note, without its RESTART_READY line, and the app's state section under it.
+    note = (tmp_path / "state" / "reset.md").read_text(encoding="utf-8")
+    assert note.startswith("Was building the poems; part one done.\n\n" + APP_STATE_HEAD)
+    assert "RESTART_READY" not in note
+    assert "- The user was in the Main Assistant's tab (main_assistant)." in note
+    assert "\n- main_assistant" in note and ": manual" in note  # every agent with its mode
+    assert note.rstrip().endswith(AFTER_RESTART)
+
+
+async def test_restart_note_lists_a_task_waiting_on_the_user(tmp_path):
+    app = _app(tmp_path)
+    replies, shutdowns = _queues(app)
+    await app.start()
+    try:
+        app.bus.publish(InputReceived(text="<<WORK: poems ASKME>>", source="test"))
+        await next_matching(replies, lambda e: e.text.startswith("[Task update: need]"))
+        state = await app._lifecycle._active["talker"][0].restart.app_state()
+    finally:
+        await app.stop()
+    assert "  - task " in state and "poems ASKME" in state and "waiting on the user: Which style?" in state
 
 
 async def test_restart_asks_first_when_the_task_waits_on_the_user(tmp_path):

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>echo_orchestrator: architecture</title>
+<!-- Generated from src/assistant/modules/echo_orchestrator/docs/architecture.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/echo_orchestrator/architecture.html"></nav>
+<main>
+<h1 id="echo_orchestrator-architecture">echo_orchestrator: architecture</h1>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Menu</td>
+<td><code>echo.say(text)</code>: <code>ok("Echo: &lt;text&gt;")</code>, the smallest example of a menu (<a href="tools.html">Tools</a>)</td>
+</tr>
+<tr>
+<td>Handles · Calls</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td><a href="../../api/messaging.html#responseready"><code>ResponseReady</code></a></td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><a href="../../api/messaging.html#inputreceived"><code>InputReceived</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<p>Nothing.</p>
+<h2 id="inner-workings">Inner workings</h2>
+<pre><code class="language-mermaid">flowchart LR
+    In[&quot;InputReceived&quot;] --&gt; Echo[&quot;echo_orchestrator&lt;br/&gt;Echo: text · /tools&quot;] --&gt; Out[&quot;ResponseReady&quot;]
+</code></pre>
+<h2 id="planned">Planned</h2>
+<p>Nothing specific.</p>
+<footer>Generated from <code>src/assistant/modules/echo_orchestrator/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

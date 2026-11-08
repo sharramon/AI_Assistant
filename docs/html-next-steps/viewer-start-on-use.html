@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opening a page turns the viewer on</title>
+<!-- Generated from docs/next-steps/viewer-start-on-use.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="viewer-start-on-use.html"></nav>
+<main>
+<h1 id="opening-a-page-turns-the-viewer-on">Opening a page turns the viewer on</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-05).</strong> Approved with one change (your answer 1: opening a page turns the viewer on even if you turned it off). Tests pass; an <strong>app restart</strong> is left (core and infra changed), then try a SHOW link and the Open in viewer button with the viewer off.</p>
+</blockquote>
+<p><strong>Asked:</strong> "the opening viewer button actually launches the viewer": opening a page should turn the <code>html_viewer</code> module on first if it's off (it no longer starts with the app).</p>
+<p><strong>Why:</strong> with the viewer off, every way of opening a page failed:</p>
+<ul>
+<li>the Talker's <code>&lt;&lt;SHOW: …&gt;&gt;</code> and the temp UI's <strong>Open in viewer</strong> button got <code>No tool named 'viewer.open'</code> from the core's <code>dispatch_tool</code>;</li>
+<li>the Main Assistant's SHOW tags were worse: the <code>html_viewer</code> module itself read them from <code>AgentActivity</code>, so while it was off nobody read them and they were <strong>silently lost</strong>.</li>
+</ul>
+<p><strong>Touches:</strong> <code>core/tools.py</code> (<code>dispatch_tool</code>), <code>core/app.py</code> (<code>_start_for_tool</code>), <code>infra/session_agent.py</code> (<code>SessionTaskAgent</code>), <code>html_viewer</code> module (dropped its <code>AgentActivity</code> listener), <code>main_assistant</code> manifest (<code>sends</code> <code>InvokeTool</code>), <code>config/default.toml</code> (<code>start_on_use = true</code>), <code>tests/test_start_on_use.py</code>, <code>tests/test_html_viewer.py</code>; docs: <a href="../html/architecture/core.html">core</a>, <a href="../html/api/core.html#dispatch_tool">Core host API</a>, <a href="../html/api/infra.html#sessiontaskagent">infra API</a>, <a href="../html/architecture/html-viewer.html">HTML viewer</a>, <a href="../html/modules/html_viewer.html">html_viewer page</a>, <a href="../html/agents/runtime.html">runtime</a>, <a href="../html/api/reusable.html">reusable index</a>. <strong>Needs an app restart</strong> (core and infra change).</p>
+<h2 id="approach">Approach</h2>
+<p>Checked <a href="../html/api/reusable.html">reusable.md</a>: nothing started a module on demand. The one shared place is the core's <code>InvokeTool</code> handler, so every caller gets it without code of its own:</p>
+<ul>
+<li><strong>Start on use, in <code>dispatch_tool</code>.</strong> When no running module offers the tool, the core looks in the menus of the modules that are off (menus are readable without starting a module). If one has it and that module has <code>start_on_use = true</code> in its <code>[modules.&lt;id&gt;]</code> config, the core turns it on through the same path as <code>modules.on</code> / <code>ActivateModule</code> (<code>LifecycleManager.activate</code>, with what it requires), then calls the tool. Opt-in per module; <code>html_viewer</code> is the only one. The setting is your standing yes, so the core menu's "ask first" for <code>modules.on</code> doesn't apply.</li>
+<li><strong>Callers change nothing:</strong> the Talker's SHOW, the temp UI's button, and the agents' <code>use_item</code> through the door all send <code>InvokeTool</code> already.</li>
+<li><strong>The Main Assistant's SHOW moved out of the viewer</strong> into <code>SessionTaskAgent</code> (which already reads <code>NEED:</code> and <code>HANDOFF:</code> with <code>agent_tags</code>): it sends <code>viewer.open</code> / <code>viewer.highlight</code> as <code>InvokeTool</code>, so it starts the viewer too, and every future task agent gets SHOW for free.</li>
+<li><strong>Reusable index:</strong> added "Start on use" with its Used by line; <code>agent_tags</code>, <code>SessionTaskAgent</code> and <code>AgentActivity</code> rows updated.</li>
+</ul>
+<p><strong>Rejected:</strong> a helper each caller uses (<code>invoke_starting(ctx, …)</code>): the door and future callers could forget it, and it would need <code>ListModules</code> + <code>GetMenu</code> per call to find the owner, which the core already knows.</p>
+<h2 id="edge-cases">Edge cases</h2>
+<ul>
+<li><strong>The viewer fails to start:</strong> the answer is "The html_viewer module couldn't start: …" (retryable), not "No tool named". The Talker shows it as its status line; the Main Assistant's failure is logged and shown in its activity (<code>couldn't show …</code>). No retry loop: the next open tries again.</li>
+<li><strong>It's already starting</strong> (several SHOW tags at once, or a click during an agent's SHOW): activation is behind the lifecycle's lock, so later calls wait for the first and find it on; one start, every page opens.</li>
+<li><strong>You turned it off on purpose:</strong> opening a page turns it on again (your answer 1). To keep it off, take <code>start_on_use</code> out of its config.</li>
+</ul>
+<h2 id="decided">Decided</h2>
+<ol>
+<li>Opening a page (the button and SHOW links) turns the viewer on even after you turned it off (user, 2026-11-05).</li>
+<li>Voice notes doesn't get <code>start_on_use</code> for now (user, 2026-11-05).</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/viewer-start-on-use.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice text goes to the tab you pressed stop in</title>
+<!-- Generated from docs/next-steps/voice-to-stop-tab.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="voice-to-stop-tab.html"></nav>
+<main>
+<h1 id="voice-text-goes-to-the-tab-you-pressed-stop-in">Voice text goes to the tab you pressed stop in</h1>
+<blockquote>
+<p><strong>Status: built, waiting on the restart (2026-11-06).</strong> Built as (b), the exact version below, since a restart was coming anyway. Open question 1 taken as recommended: a silence stop goes to the tab in focus when the text arrives. Tests: <code>test_voice_in.py::test_the_final_goes_to_the_tab_the_stop_was_pressed_in</code> (and no id still gives <code>agent_id=None</code>), <code>test_temp_ui.py::test_mic_button_round_trip</code> (the stop carries <code>agent</code>). Docs: messaging API, voice, temp_ui, runtime, reusable index.</p>
+</blockquote>
+<p><strong>Two ways to build it, when picked up:</strong></p>
+<ul>
+<li><strong>(a) Hot swap, no restart:</strong> <code>voice_in</code> alone subscribes to <code>FocusChanged</code> (an existing event), keeps the last focused tab (handed over on a reload), and puts it on the session when the stop comes; the final goes out as <code>InputReceived(agent_id=...)</code>. Only <code>voice_in</code> changes (<code>RELOAD: voice_in</code>). Gap: after a launch or a reload, until the first tab switch it doesn't know the tab and behaves as today.</li>
+<li><strong>(b) As below:</strong> the stop carries its tab (<code>StopListening.agent_id</code>). Exact, but a contract change, so an app restart.</li>
+</ul>
+<p>Neither touches <code>agent_hub</code> or <code>talker</code>.</p>
+<p><strong>Asked:</strong> "when I stop the recording, it takes whisper a little bit to solve the sentence. And then it sends into whatever active talker it is. I wanted it sent to the talker that was active when I said stop recording."</p>
+<p><strong>Why:</strong> <code>voice_in</code> publishes the final text as <code>InputReceived(source="voice")</code> with no <code>agent_id</code>, and the Talker sends input with no <code>agent_id</code> to the tab in focus <em>when the event arrives</em> (<code>talker/module.py</code> <code>_on_input</code>). Whisper takes a moment after the stop, so if you switch tabs in that moment, the text lands in the wrong tab.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><code>contracts/voice.py</code>: <code>StopListening</code> gets <code>agent_id: str | None = None</code> (the tab the stop was pressed in). A contract change, so it <strong>needs an app restart</strong>.</li>
+<li><code>modules/voice_in/module.py</code>: <code>_finish_session</code> keeps that id on the session; <code>_finish</code> publishes <code>InputReceived(..., agent_id=session.agent_id)</code>.</li>
+<li><code>modules/temp_ui/</code>: <code>page.html</code> sends <code>agent: focused()</code> with <code>POST /mic {on: false}</code> (as it already does for <code>/say</code>), and <code>module.py</code> passes it to <code>StopListening(agent_id=...)</code>.</li>
+<li>Tests: <code>tests/test_voice_in.py</code> (the final carries the stop's <code>agent_id</code>; no id still means the focused tab), <code>temp_ui</code>'s <code>/mic</code> test (the id is passed on).</li>
+<li>Docs: <a href="../html/api/messaging.html">Messaging API</a> (<code>StopListening</code>, and <code>InputReceived</code>'s note "None (voice, terminal 1) means the tab in focus"), <a href="../html/architecture/voice.html">Voice</a> (the <code>voice_in</code> module: where the final goes), <a href="../html/modules/temp_ui.html">temp_ui</a> (<code>/mic</code>), <a href="../html/api/reusable.html">reusable parts</a> (<code>StopListening</code> line), the <a href="../html/architecture/module-library.html">module library</a> if it lists the fields. Then the docs rebuild.</li>
+</ul>
+<p><strong>Approach:</strong></p>
+<ul>
+<li><strong>At stop, not at start.</strong> You may start the mic, then move to the tab you mean to talk to, then speak; you press stop in the tab you were talking to. Stop is the last moment you chose a tab, and it's what you asked for.</li>
+<li><strong>The stop carries its tab.</strong> The UI you press stop in knows exactly which tab you're looking at, so it says so. Nothing is reused or tracked on the side: <code>InputReceived.agent_id</code> already exists and the Talker already routes by it (the same path typed text takes, <code>agent: focused()</code>).</li>
+<li>No <code>agent_id</code> on the stop (another UI, or an older one) behaves as today: the tab in focus when the text arrives.</li>
+<li><code>IVoice</code> is unchanged: its sessions send to the caller only (<code>voice_notes</code>), never to a Talker tab.</li>
+<li>Reusable parts checked: nothing new is needed; <code>InputReceived.agent_id</code> and the Talker's routing are reused.</li>
+</ul>
+<pre><code>press stop (tab A) ──StopListening(agent_id=A)──▶ voice_in ──(whisper finishes)──▶ InputReceived(agent_id=A) ──▶ Talker A
+                       you move to tab B meanwhile: no effect
+</code></pre>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li><strong>When the mic turns itself off after a long silence</strong> (no stop press), where should the text go? Recommended: the tab in focus when the text arrives, as today. You didn't choose a moment, and the text comes right after the silence ends it.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/voice-to-stop-tab.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

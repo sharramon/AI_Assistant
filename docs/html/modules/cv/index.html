@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv: tailor a CV for one job with Rezi, one clean page, your yes</title>
+<!-- Generated from src/assistant/modules/cv/docs/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/cv/index.html"></nav>
+<main>
+<h1 id="cv-tailor-a-cv-for-one-job-with-rezi-one-clean-page-your-yes">cv: tailor a CV for one job with Rezi, one clean page, your yes</h1>
+<h2 id="purpose">Purpose</h2>
+<p>Takes a CV (<code>CV_Test_*.odt</code>) and a job description (JD). Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through <code>cv.task</code>.</p>
+<p><strong>Status (2026-11-07):</strong> built and tested, chunks 1 to 8. That covers the menu (<code>rezi.*</code>, <code>cv.*</code>), the Rezi connection with its resume guard, the one-page build and checks, the worker <code>cv_agent</code>, and the in-and-out contract below. Everything is tested against a fake Rezi and a fake <code>claude</code>. Chunk 9, the real run, is under way: the real Rezi sign-in, live tool list and reads work, and the module now reads and writes Rezi's real resume format. Off by default; turning it on asks for the worker's access on one card.</p>
+<p>How it works inside: <a href="architecture.html">Architecture</a>. Its menu, and what a job sends in and gets back: <a href="tools.html">Tools</a>.</p>
+<h2 id="in-and-out">In and out</h2>
+<ul>
+<li><strong>In</strong> (<code>cv.task</code>): the job's company and role, the job description as text or as a <code>.txt</code>, <code>.md</code> or <code>.html</code> file, and the CV file (<code>CV_Test_*.odt</code> in <code>C:\Chang\Jobs\CV</code>). Optional: the posting's URL, Education first, a target score, notes.</li>
+<li><strong>Out</strong> (<code>cv.read_result</code> on the task's result): the new <code>.odt</code>, the PDF and <code>report.md</code>, and with them the Rezi Score after each round against the target, the keywords still missing and those left out because you don't have them, recommendations, the one-page check, and the compare of what Rezi read. Also the new Rezi resume and its check copy, and whether you approved it.</li>
+</ul>
+<p>The calls and every field: <a href="tools.html#the-hand-off-cvtask-and-cvread_result">Tools</a>.</p>
+<h2 id="the-8-steps">The 8 steps</h2>
+<ol>
+<li><strong>Receive</strong> the base CV and the JD from the caller, sent through the Hub (<code>cv.task</code>, then <code>hub.start</code> to <code>cv_agent</code>). Pick the section order.</li>
+<li><strong>Edit in Rezi:</strong> a new resume from the base CV, Keyword Targeting with the JD, keep only true edits, save.</li>
+<li><strong>You read</strong> the edited CV. Changes go back to step 2.</li>
+<li><strong>Rezi Score</strong> and missing keywords: 90 or more (aim 100), at most 5 rounds. Below target goes back to step 2, adding only terms you really have.</li>
+<li><strong>One clean page:</strong> the worker builds the <code>.odt</code> and the PDF.</li>
+<li><strong>Rezi checks the page:</strong> it imports the PDF, the worker compares what Rezi read with the edited resume, and Rezi scores it again. A layout problem goes back to step 5, a content problem to step 2.</li>
+<li><strong>Is this the one?</strong> Your yes, or the step to go back to.</li>
+<li><strong>Return</strong> the PDF, the <code>.odt</code> and the report to the caller: the task ends with a <code>CV_RESULT</code> line, which the caller reads with <code>cv.read_result</code>.</li>
+</ol>
+<p>The loops are drawn on the <a href="architecture.html#conceptual-flow-the-8-steps">Architecture</a> page.</p>
+<h2 id="who-does-what">Who does what</h2>
+<table>
+<thead>
+<tr>
+<th>Who</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Rezi</strong> (MCP + web app)</td>
+<td>Holds a new resume for each job (the base is never changed). Keyword Targeting with the JD gives the missing keywords; the Rezi Score rates the CV. Imports the one-page PDF, shows what it read, scores it again. Rezi's AI writer isn't used for now.</td>
+</tr>
+<tr>
+<td><strong>The worker</strong> (<code>cv_agent</code>)</td>
+<td>Drives Rezi: the <code>rezi.*</code> items for data, Chrome for Keyword Targeting, the Score and the PDF import. Is the truth gate: keeps only wording backed by facts already on your CVs, adds no skill, title, tool or number you don't have, no keyword stuffing. Formats the one page itself (<code>cv.build</code>). Reads what Rezi says is wrong and loops back. Asks you at steps 3 and 7, giving the PDF's path (the viewer shows HTML only), and returns the result. Never uploads or submits anything outside Rezi.</td>
+</tr>
+<tr>
+<td><strong>You</strong></td>
+<td>Check the content after the edit (step 3). Give the final yes on the PDF (step 7).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="wrapper">Wrapper</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td><code>cv</code></td>
+</tr>
+<tr>
+<td>provides</td>
+<td><code>ITaskAgent</code>: its worker <code>cv_agent</code>, so the Hub lists it and starts its tasks</td>
+</tr>
+<tr>
+<td>requires / optional</td>
+<td>nothing; its worker claims its agent id <code>cv_agent</code> from the Hub, the way <code>job_search</code>'s agent does (<code>ProfileAgent</code>)</td>
+</tr>
+<tr>
+<td>permissions</td>
+<td><code>agent.access</code>: the worker's access list on one card when cv turns on (its workspace, read <code>C:\Chang\Jobs\CV</code> and the output folder, Chrome only for app.rezi.ai). cv turns on when you allow. A later grant reaches the worker live</td>
+</tr>
+</tbody>
+</table>
+<h2 id="config">Config</h2>
+<p>Defaults in <code>module.toml</code> in this module's folder; <code>[modules.cv]</code> in the app's config only overrides them.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>section_order</code></td>
+<td>Contact, Summary, Skills, Experience, Projects, Education, Awards, Publications</td>
+<td>The usual order</td>
+</tr>
+<tr>
+<td><code>degree_first_order</code></td>
+<td>Education right under Skills</td>
+<td>Used when the JD requires or prefers a master's</td>
+</tr>
+<tr>
+<td><code>drop_first</code></td>
+<td><code>publications</code>, <code>awards</code></td>
+<td>What goes first when the page is too long</td>
+</tr>
+<tr>
+<td><code>target_score</code></td>
+<td>90</td>
+<td>The Rezi Score to reach (aim 100)</td>
+</tr>
+<tr>
+<td><code>max_rounds</code></td>
+<td>5</td>
+<td>Score rounds before it stops and reports</td>
+</tr>
+<tr>
+<td><code>paper</code></td>
+<td><code>letter</code></td>
+<td>US Letter; <code>a4</code> later</td>
+</tr>
+<tr>
+<td><code>output_dir</code></td>
+<td><code>C:\Chang\Jobs\rezi\rezi\out</code></td>
+<td>Where each job's folder goes</td>
+</tr>
+<tr>
+<td><code>cv_dir</code></td>
+<td><code>C:\Chang\Jobs\CV</code></td>
+<td>Your CVs: <code>cv.read</code> reads <code>.odt</code> files only here and in <code>output_dir</code></td>
+</tr>
+<tr>
+<td><code>soffice</code></td>
+<td><code>C:\Program Files\LibreOffice\program\soffice.exe</code></td>
+<td>LibreOffice, for the PDF export</td>
+</tr>
+<tr>
+<td><code>rezi_url</code></td>
+<td><code>https://api.rezi.ai/mcp</code></td>
+<td>Rezi's MCP server (<code>https://</code> only; <code>http://</code> only on this machine)</td>
+</tr>
+<tr>
+<td><code>token_file</code></td>
+<td><code>""</code>: <code>%LOCALAPPDATA%\assistant\cv\rezi_token.json</code></td>
+<td>Where the 30-day Rezi token is kept; refused inside the repo</td>
+</tr>
+<tr>
+<td><code>callback_port</code></td>
+<td>33418</td>
+<td>The sign-in comes back to <code>http://127.0.0.1:&lt;port&gt;/callback</code></td>
+</tr>
+</tbody>
+</table>
+<p>The worker's table, <code>[agent]</code>, takes the same keys as <code>job_search</code>'s agent. They are its access list:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>true</code></td>
+<td><code>false</code>: the menu only, with no worker and no card</td>
+</tr>
+<tr>
+<td><code>agent_id</code></td>
+<td><code>cv_agent</code></td>
+<td>Its id in the Hub</td>
+</tr>
+<tr>
+<td><code>workspace</code></td>
+<td><code>C:\Chang\Jobs\rezi\cv_agent</code></td>
+<td>Its working folder (the only one it writes)</td>
+</tr>
+<tr>
+<td><code>read_dirs</code></td>
+<td><code>C:\Chang\Jobs\CV</code></td>
+<td>Folders it reads; the output folder is added</td>
+</tr>
+<tr>
+<td><code>tools</code>, <code>chrome</code></td>
+<td><code>default</code>, <code>true</code></td>
+<td>Its tools; Claude in Chrome, only for app.rezi.ai</td>
+</tr>
+<tr>
+<td><code>permission_mode</code></td>
+<td><code>acceptEdits</code></td>
+<td>Sessions start in Manual</td>
+</tr>
+<tr>
+<td><code>transcript</code></td>
+<td><code>cv_agent.jsonl</code></td>
+<td>Its session's log</td>
+</tr>
+</tbody>
+</table>
+<h2 id="code-and-tests">Code and tests</h2>
+<p>Everything is in this module's folder, <code>src/assistant/modules/cv/</code>:</p>
+<ul>
+<li>Built: <code>module.py</code> (the wrapper, its config check, the worker's wiring, the <code>rezi.*</code> items, <code>cv.task</code>, <code>cv.read_result</code>, <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code>, <code>cv.report</code>), <code>module.toml</code> (the defaults), <code>worker.py</code> (the worker's prompt and its <code>[agent]</code> check), <code>handoff.py</code> (the <code>CV_REQUEST</code> and <code>CV_RESULT</code> lines, <code>read_jd_file</code>, <code>result_view</code>), <code>content.py</code> (<code>CvContent</code>, the eight sections), <code>rezi.py</code> (<code>ReziTools</code>: the <code>rezi.*</code> items' work, <code>check_tools</code>, the error mapping), <code>guard.py</code> (<code>ResumeGuard</code>), <code>rezi_json.py</code> (<code>read_rezi</code>: Rezi's resume JSON as sections; <code>write_rezi</code>: sections into Rezi's real format), <code>order.py</code> (<code>SectionOrder</code>, <code>wants_masters</code>), <code>data.py</code> (<code>CvRequest</code>, <code>CvResult</code>, <code>Round</code>, <code>ResumeRef</code>), <code>odt.py</code> (<code>read_odt</code>, <code>OdtWriter</code>, <code>LAYOUTS</code>), <code>pdf.py</code> (<code>PdfExport</code>, <code>PageCheck</code>), <code>build.py</code> (<code>build_cv</code>: write, export, check, fit to one page), <code>compare.py</code> (<code>FieldCompare</code>, <code>Comparison</code>), <code>report.py</code> (<code>ReportWriter</code>), <code>mcp.py</code> (the Rezi connection: <code>McpClient</code>, <code>TokenStore</code>, <code>LoopbackCallback</code>)</li>
+<li>Planned: the real run end to end (chunk 9, with your yes); after it passes, as a separate step, retiring the separate Rezi helper. Other modules (the job agent) connect through <code>cv.task</code> later; cv doesn't change them</li>
+<li>Needs: LibreOffice (<code>soffice</code>) for the PDF, the <code>pypdf</code> package for the page check, and the <code>mcp</code> package for Rezi</li>
+<li><code>docs/</code>: this page, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> and <code>docs.toml</code>. These are the module's docs; the old plan page <code>cv_module_workflow.html</code> in <code>C:\Chang\Jobs\CV\Recruiters\docs</code> is left as it was</li>
+<li><code>tests/</code>: its own tests, run with <code>pytest src/assistant/modules/cv/tests</code>. <code>fake_rezi.py</code> is a fake Rezi: the <code>mcp</code> package's own server with an in-memory OAuth sign-in and Rezi's tools in its real format, reached without the network. <code>test_cv.py</code> covers the config, order and data; <code>test_build.py</code> the one page (one test uses real LibreOffice); <code>test_compare_report.py</code> the compare and the report; <code>test_rezi_mcp.py</code> the connection; <code>test_rezi_items.py</code> the <code>rezi.*</code> items and the guard; <code>test_worker.py</code> the worker and <code>cv.read</code>; <code>test_handoff.py</code> the contract, end to end through the Hub with a fake <code>claude</code></li>
+</ul>
+<footer>Generated from <code>src/assistant/modules/cv/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

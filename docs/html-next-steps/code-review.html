@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code review: the code against our principles, and a cleanup plan</title>
+<!-- Generated from docs/next-steps/code-review.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="code-review.html"></nav>
+<main>
+<h1 id="code-review-the-code-against-our-principles-and-a-cleanup-plan">Code review: the code against our principles, and a cleanup plan</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-08): chunks 1–4 built; waiting on the batched restart (see below) and your decision on chunks 5–8.</strong> Your decisions: <code>Menu</code> stays in contracts (no move); the code map becomes a permanent page. Chunks 5–8 wait for your decision after 1–4 land; 9–14 come one at a time later. Progress and what waits for the batched restart: <a href="#build-progress-chunks-14">Build progress</a>.</p>
+</blockquote>
+<h2 id="checks-before-the-review">Checks before the review</h2>
+<ul>
+<li><strong>Full test suite:</strong> 642 passed, 2 deselected, 0 failed (6 warnings, all leftover subprocess pipes at the end of three tests).</li>
+<li><strong>Ruff:</strong> clean.</li>
+</ul>
+<h2 id="the-code-as-it-is-now">The code as it is now</h2>
+<p>Every package and the main classes, with who calls whom. <strong>Red</strong> marks a hotspot from the findings below. Plain arrows are calls; dashed arrows are events or processes.</p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+
+    subgraph Apps[&quot;Independent apps: own process, never import assistant&quot;]
+        VS[&quot;&lt;b&gt;voice_service&lt;/b&gt;&lt;br/&gt;server → ListenSession&lt;br/&gt;SttEngine · AudioSource · PieceCutter&quot;]
+        HV[&quot;&lt;b&gt;html_viewer&lt;/b&gt;&lt;br/&gt;ViewerServer → Tab · HtmlDocument&lt;br/&gt;highlight · snip · MarkdownSource&quot;]
+    end
+
+    subgraph Kit[&quot;app_kit: standard library only&quot;]
+        CA[&quot;CompanionApp&quot;]
+        KitOther[&quot;window · load_layered · merge · module_docs&quot;]
+    end
+
+    subgraph Core[&quot;Core: the host&quot;]
+        App[&quot;&lt;b&gt;App&lt;/b&gt;&lt;br/&gt;wires everything&quot;]
+        Life[&quot;LifecycleManager&lt;br/&gt;+ loader · registry&quot;]
+        Router[&quot;CommandRouter&quot;]
+        Bus[&quot;EventBus&quot;]
+        DI[&quot;Container&quot;]
+        Dir[&quot;CoreMenu · directory&lt;br/&gt;MenuTools · dispatch_tool&quot;]
+        Perm[&quot;&lt;b&gt;PermissionsHandler&lt;/b&gt;&lt;br/&gt;GrantStore · rules · port · menu&quot;]
+        Logs[&quot;SessionLogs&quot;]
+        App --&gt; Life &amp; Router &amp; Bus &amp; DI &amp; Dir &amp; Perm &amp; Logs
+        Life -- &quot;ScopedContext per module&quot; --&gt; DI
+    end
+
+    subgraph Contracts[&quot;Contracts: interfaces · commands · events&quot;]
+        CMod[&quot;ModuleProtocol · ModuleContext · Manifest · Menu&quot;]
+        CAg[&quot;ITaskAgent · IAgentNames · IModuleDoor&quot;]
+        CVo[&quot;IVoice · voice events&quot;]
+        CMsg[&quot;messages · control · permissions · tools&quot;]
+    end
+
+    subgraph Infra[&quot;Infra: shared helpers for modules&quot;]
+        PA[&quot;ProfileAgent&lt;br/&gt;AgentProfile · agent_access&quot;]
+        STA[&quot;&lt;b&gt;SessionTaskAgent&lt;/b&gt; (757 lines)&quot;]
+        CS[&quot;&lt;b&gt;ClaudeSession&lt;/b&gt;&lt;br/&gt;process + usage counting&quot;]
+        Door[&quot;mcp_door · DoorServer&quot;]
+        InfraOther[&quot;MilestoneFeed · ContextWatch · agent_tags&lt;br/&gt;agent_names · UsageLedger · LogSession · config&quot;]
+        PA --&gt; STA --&gt; CS
+    end
+
+    subgraph Mods[&quot;Modules: each a wrapper with a menu&quot;]
+        Hub[&quot;&lt;b&gt;agent_hub&lt;/b&gt;&lt;br/&gt;tasks · focus · names · door host&quot;]
+        Talker[&quot;&lt;b&gt;talker&lt;/b&gt;&lt;br/&gt;module + session + prompt&quot;]
+        MA[&quot;main_assistant&quot;]
+        TA[&quot;task_agents&quot;]
+        Job[&quot;job_search&quot;]
+        CV[&quot;cv (rezi · build · compare)&quot;]
+        TUI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&lt;br/&gt;module + page.html&quot;]
+        VIn[&quot;voice_in&quot;]
+        VN[&quot;voice_notes&quot;]
+        HVm[&quot;html_viewer (thin)&quot;]
+        Use[&quot;usage&quot;]
+        Misc[&quot;console_io · assistant_view · echo&quot;]
+    end
+
+    Agents([&quot;claude -p processes&quot;])
+
+    You -- type · click --&gt; TUI
+    You -- speak --&gt; VS
+    TUI -- &quot;InputReceived&quot; --&gt; Talker
+    Talker -- &quot;hub.* · viewer.* · usage.*&quot; --&gt; Hub
+    Hub -- &quot;StartTask → ITaskAgent&quot; --&gt; MA &amp; TA &amp; Job &amp; CV
+    MA &amp; TA &amp; Job &amp; CV --&gt; PA
+    CS -. &quot;stream-json&quot; .-&gt; Agents
+    Talker --&gt; CS
+    Agents -. &quot;MCP: list · menu · use&quot; .-&gt; Door
+    Hub -- hosts --&gt; Door
+    Door -- &quot;ListModules · GetMenu · InvokeTool&quot; --&gt; Router
+    Router --&gt; Dir
+    VIn -- CompanionApp --&gt; VS
+    HVm -- CompanionApp --&gt; HV
+    VN -- &quot;requires IVoice&quot; --&gt; VIn
+    Perm -- &quot;StartTask (review) · cards&quot; --&gt; Hub
+    Perm -. &quot;PermissionRequested&quot; .-&gt; TUI
+    Mods -. &quot;events&quot; .-&gt; Bus
+    Use -. &quot;SessionUsage&quot; .-&gt; Bus
+
+    classDef hot fill:#fbe3e0,stroke:#b0413e,color:#1d1d1b
+    classDef port fill:#ffffff,stroke:#6b4fa0,color:#1d1d1b
+    classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    class STA,CS,TUI,Hub,Talker,Perm hot
+    class Life,Router,Bus,DI,Dir,Logs,App port
+    class MA,TA,Job,CV,VIn,VN,HVm,Use,Misc module
+    class You person
+</code></pre>
+<p><strong>The good news first, in one line each:</strong> no module imports another module's code; the core imports no module; <code>app_kit</code>, <code>html_viewer</code> and <code>voice_service</code> never import <code>assistant</code>; every <code>Contract</code> has the <code>I</code> prefix and nothing else does; the core really is small (each core file does one job, except the permissions handler).</p>
+<h2 id="findings-against-our-principles">Findings: against our principles</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Principle</th>
+<th>Gap</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td>4 Minimal core, 3 Loose coupling</td>
+<td>The core's permissions handler names modules: the reviewer defaults to <code>"main_assistant"</code> and "you" to <code>("temp_ui",)</code>; it also drives the Agent Hub's commands (<code>StartTask</code>, <code>GetTaskStatus</code>, <code>CancelTask</code>) for the review</td>
+<td><code>core/permissions/handler.py:55,117,119,150,429,507,511</code>; card text "your CV" in <code>core/permissions/rules.py:76</code></td>
+</tr>
+<tr>
+<td>P2</td>
+<td>4, 15 Directory then menu</td>
+<td>Shared helpers name module tools and ids: <code>viewer.open</code> / <code>viewer.highlight</code> hard-coded, <code>hub.*</code> / <code>agents.*</code> in the coordinator prompt, reserved ids, <code>docs/next-steps/</code> paths, "agent id = module id"</td>
+<td><code>infra/session_agent.py:53,61,474,476,575</code>; <code>infra/agent_profile.py:25,50-79</code>; <code>infra/agent_names.py:13</code></td>
+</tr>
+<tr>
+<td>P3</td>
+<td>13 Build it once</td>
+<td>The SHOW → viewer code is written twice</td>
+<td><code>infra/session_agent.py:463-482</code>, <code>modules/talker/session.py:299-315</code></td>
+</tr>
+<tr>
+<td>P4</td>
+<td>13</td>
+<td>The four agent modules copy the same pieces: the reset handler, the grant handler, the start sequence, and the prompt bullets ("Your access is listed…")</td>
+<td><code>main_assistant/module.py:43-47,107</code>; <code>job_search/module.py:63-65,94-104,140</code>; <code>task_agents/module.py:77-79,276,302</code>; <code>cv/module.py:178-216</code>, <code>cv/worker.py:79-81</code></td>
+</tr>
+<tr>
+<td>P5</td>
+<td>13</td>
+<td>Both thin companion modules copy the reload handover (<code>_handed_over</code>, <code>export_state</code>, <code>stop(adopted=…)</code>) line for line; the window-profile path is built four times</td>
+<td><code>html_viewer/module.py:56-92</code>, <code>voice_in/module.py:130-183</code>; <code>temp_ui/module.py:203</code>, <code>voice_notes/module.py:69</code>, <code>html_viewer/viewer.py:60</code></td>
+</tr>
+<tr>
+<td>P6</td>
+<td>13</td>
+<td>The in-app page server (HTTP, SSE, Edge window) is in <code>temp_ui</code> and copied into <code>voice_notes</code> (its docstring says so). The reusable-parts page says SSE writing has "only one user"; it now has two</td>
+<td><code>temp_ui/module.py:198-286,608-768</code>, <code>voice_notes/module.py:66-218</code></td>
+</tr>
+<tr>
+<td>P7</td>
+<td>3, 9 Plain data across boundaries</td>
+<td>Facts travel as text prefixes that other modules parse: <code>"Permission: …"</code>, <code>"permission allowed (Auto)"</code>, <code>NEED: Risky:</code>, the <code>"→"</code> activity prefix, the <code>talker:&lt;agent&gt;</code> session id</td>
+<td>written in <code>agent_hub/module.py:407</code>, <code>infra/session_agent.py:460</code>, <code>infra/agent_profile.py:92</code>; parsed in <code>talker/module.py:79,304,346</code>, <code>temp_ui/module.py:158,176-185,498,540,588</code>, <code>temp_ui/page.html:499-502</code></td>
+</tr>
+<tr>
+<td>P8</td>
+<td>3, 16 Chain, don't glue</td>
+<td>Modules know other modules' ids, tools and values: <code>temp_ui</code> names <code>voice_in</code>, <code>usage</code>, <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code>; the Talker formats the usage module's rows and checks <code>source == "voice"</code> and <code>"(pasted)"</code></td>
+<td><code>temp_ui/module.py:161,172,216,380</code>, <code>temp_ui/agent_tabs.py:29</code>; <code>talker/session.py:183,256-279</code>, <code>talker/module.py:112</code></td>
+</tr>
+<tr>
+<td>P9</td>
+<td>15 One road</td>
+<td>The Talker sends <code>SetPermissionMode</code> and <code>AnswerPermission</code> straight to the Hub as commands, so they skip the Hub menu's caller checks the manifest comment promises</td>
+<td><code>talker/session.py:321,364</code> vs <code>talker/module.py:122</code></td>
+</tr>
+<tr>
+<td>P10</td>
+<td>17 Declared dependencies</td>
+<td>Hidden dependencies: <code>task_agents</code> uses <code>IAgentNames</code> without declaring it; every ProfileAgent module listens to <code>ModuleStateChanged</code> and uses <code>IModuleDoor</code> without declaring it; <code>task_agents</code> publishes <code>AgentStateChanged(busy=False)</code> to mean "a helper appeared or closed"</td>
+<td><code>task_agents/module.py:160,177,211,253</code>; <code>infra/profile_agent.py:144</code>; <code>main_assistant/module.py:92-99</code></td>
+</tr>
+<tr>
+<td>P11</td>
+<td>12 No implementation in interfaces</td>
+<td>Contracts with code: <code>Menu</code> is a full implementation in <code>contracts</code>; <code>ITaskAgent</code> and <code>IToolProvider</code> have default method bodies; two abstract siblings are plain <code>raise NotImplementedError</code></td>
+<td><code>contracts/menu.py:57-159</code>, <code>contracts/agents.py:134-149</code>, <code>contracts/tools.py:50</code>, <code>contracts/module.py:90,165</code></td>
+</tr>
+<tr>
+<td>P12</td>
+<td>Companion checklist</td>
+<td>The viewer has no <code>load_layered</code> config (flags only); neither app refuses a non-local <code>--host</code>; <strong>the voice service checks no Origin on <code>/ws/listen</code> and takes any POST on <code>/quit</code>, so a web page you visit could open the mic or quit the service.</strong> The viewer already guards both</td>
+<td><code>html_viewer/viewer.py:555-564</code>; <code>voice_service/__main__.py:22</code>, <code>voice_service/server.py:136,143</code></td>
+</tr>
+<tr>
+<td>P13</td>
+<td>Docs drift</td>
+<td>The reusable-parts page still calls <code>ctx.permissions</code> "planned"; principle 14 says most modules have no menu items (most do now); the README diagram shows the permissions handler as planned and leaves out <code>usage</code>, <code>cv</code>, <code>job_search</code>, <code>task_agents</code> and the independent apps; <code>Manifest.permissions</code> is declared but nothing enforces it</td>
+<td><code>docs/architecture/reusable-parts.md:5</code>, <code>principles.md:26</code>, <code>README.md</code> diagram, <code>core/permissions/port.py:29-35</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="findings-good-practice">Findings: good practice</h2>
+<p><strong>Big files doing several jobs</strong> (the "small orchestrator, handlers for each job" test):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Size</th>
+<th>The jobs mixed in it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infra/session_agent.py</code> <code>SessionTaskAgent</code></td>
+<td>~680 lines, one class</td>
+<td>task state machine, permission cards and timers, the Auto policy and <code>git push</code> block, SHOW to the viewer, <code>RELOAD</code> / <code>ADD_MODULE</code>, handoffs, context reminders, edit counting, usage and state publishing; <code>_finish_turn</code> is a 7-branch chain of last-line tags</td>
+</tr>
+<tr>
+<td><code>modules/temp_ui/module.py</code> + <code>page.html</code></td>
+<td>706 + 797 lines</td>
+<td>HTTP routes (<code>_serve</code> is an 18-branch if-chain, ~108 lines), SSE, snips, usage polling, the mic, cards, tabs, grants, the window; the page's one script is ~575 lines, Allow/Deny button code copied 3 times</td>
+</tr>
+<tr>
+<td><code>modules/agent_hub/module.py</code></td>
+<td>~570 lines</td>
+<td>task state machine, focus and held questions, the door host, the name registry, the coordinator feed</td>
+</tr>
+<tr>
+<td><code>core/permissions/handler.py</code></td>
+<td>~475 lines</td>
+<td>card lifecycle, grant arithmetic, the review run as a Hub task, turning modules on and off, cancelling tasks, menu rows, user text; <code>_apply</code> branches on the string <code>card.action</code>; <code>PermissionChanged</code> built by hand 6 times</td>
+</tr>
+<tr>
+<td><code>modules/talker/module.py</code> + <code>session.py</code></td>
+<td>451 + 380 lines</td>
+<td>the restart flow (~110 lines) inside the module; <code>_run_tag</code> a 13-tag if-chain (~86 lines); <code>TalkerSession</code> holds and changes the whole module (two-way dependency)</td>
+</tr>
+<tr>
+<td><code>infra/claude_session.py</code></td>
+<td>~400 lines</td>
+<td>process I/O plus ~120 lines of token counting</td>
+</tr>
+<tr>
+<td><code>html_viewer/viewer.py</code></td>
+<td>~515 lines</td>
+<td>tab store, edit and undo, Markdown write-back, snip files, SSE, window, an if-chain router</td>
+</tr>
+<tr>
+<td><code>voice_service/session.py</code>, <code>server.py</code></td>
+<td>471, 189 lines</td>
+<td><code>Piece</code> and the cleaner live in the session file; <code>_listen</code> mixes five watchdogs in nested loops; the WebSocket handler and config watcher are closures that can't be tested alone</td>
+</tr>
+<tr>
+<td><code>modules/cv/module.py</code></td>
+<td>~480 lines</td>
+<td>~75 lines of schema constants, two menu families, its own config merge (re-doing the core's, its comment admits)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Repeated concepts that should be one named thing</strong> (a type or constant with one owner): the token-field maps (3 copies: <code>claude_session.py:22</code>, <code>usage_ledger.py:10</code>, <code>session_agent.py:779-809</code>), <code>TAKEN_OVER</code> (3: <code>voice_in:64</code>, <code>temp_ui:171</code>, <code>voice_notes:52</code>), <code>MAX_SNIPS</code> and <code>"(pasted)"</code> (talker and temp_ui), the "Main Assistant" display name (6 places), the access-card wording (talker and page), token formatting (3), path normalising (<code>rules.py:42</code>, <code>agent_hub:567</code>), folder resolving and <code>AccessItem</code> building (<code>permissions/menu.py</code>, <code>infra/agent_access.py</code>), single-provider checks (3 in the core), init-and-start in <code>lifecycle.py</code> twice, agent defaults (<code>"acceptEdits"</code>, tool lists, timeout 600) in 2–3 files each, the sample rate (<code>audio.py:19</code>, <code>zipformer.py:17</code>, <code>session.py:84</code> writes 32000).</p>
+<p><strong>Repeated actions as if-chains instead of a table</strong> (adding one means editing the chain): the agent's last-line tags, the Talker's tags, the temp UI's routes, the viewer's routes, the permission card actions, the door's three tools, <code>load_engine</code>, the voice frame reader in <code>voice_in</code>.</p>
+<p><strong>Seams:</strong> <code>ProfileAgent</code> builds its <code>ClaudeSession</code> and <code>SessionTaskAgent</code> inside itself, so neither can be swapped or faked without patching.</p>
+<p><strong>Smaller fixes:</strong> <code>main_assistant</code> imports three names it doesn't use and writes <code>"main_assistant"</code> instead of its manifest id; the viewer module doesn't cast <code>port</code> to int and <code>tabs()</code> doesn't catch <code>OSError</code>; <code>viewer.py:201</code> shadows <code>copy</code>; <code>voice_in</code> pings <code>/health</code> twice in a row; <code>getattr</code> shims on its own contract fields in <code>voice_in</code> and <code>temp_ui</code>.</p>
+<h2 id="proposed-additions-to-the-principles">Proposed additions to the principles</h2>
+<p><code>principles.md</code> covers loose coupling, composition, build-it-once and the minimal core, but not these. Proposed wording, as new principles 18 to 22:</p>
+<blockquote>
+<p><strong>18. One job per class; a small orchestrator with handlers.</strong> A module's main class (and any big class) wires parts together and decides; each separate job (a state machine, a server, a card flow, a protocol) is its own class in its own file, composed in. A file over about 400 lines or a function over about 40 is a signal to split, not a rule. Extends 12.</p>
+<p><strong>19. Name a concept once.</strong> A concept used in two places (a kind of question, a display name, an id scheme, a default, a limit) is one type, enum or constant with one owner, imported by the rest. Facts cross boundaries as typed fields, never as text prefixes another part has to parse. Refines 9 and 13.</p>
+<p><strong>20. Dispatch by table.</strong> Where code picks one of several handlers (tags, routes, card actions, engines, tools), it looks the handler up in a table it registers into, so adding a case is adding an entry, not editing a chain.</p>
+<p><strong>21. Shared code names no module.</strong> The core, the contracts and the shared helpers never name a module, its id or its tools; those come in as config or parameters. A module names only what it declares in its manifest, and its manifest declares everything it uses. Refines 4, 15 and 17.</p>
+<p><strong>22. Inject what you'd swap.</strong> A part that talks to a process, a network or another part takes it as a constructor argument instead of building it inside, so tests and replacements plug in without patching. Not a reason for new interfaces (principle 10): pass the concrete object.</p>
+</blockquote>
+<p>Also proposed:</p>
+<ul>
+<li><strong>Companion app checklist</strong> (<code>reusable-parts.md</code>), item 2 becomes: <em>"Listens on <code>127.0.0.1</code> only, refuses another host, and refuses browser requests from another origin (WebSocket <code>Origin</code>, JSON-only POSTs)."</em></li>
+<li><strong>Principle 12</strong> gets one line: <em>"Contracts hold interfaces and plain data; a contract's code is limited to trivial defaults. Working parts (like <code>Menu</code>) are listed as reusable parts, not contracts."</em> (Or we decide <code>Menu</code> stays where it is and say so; your call.)</li>
+<li>Fix the drift in P13: the reusable-parts status line and principle 14's "Today" line.</li>
+</ul>
+<h2 id="proposed-updates-to-the-architecture-diagrams">Proposed updates to the architecture diagrams</h2>
+<ol>
+<li><strong>Overview (<code>architecture/README.md</code>):</strong> keep it bird's-eye, but show the permissions handler as built and inside the core (it's purple "planned" today); add one <strong>Independent apps</strong> block (voice service, HTML viewer) reached through <code>CompanionApp</code>; add <code>usage</code>, <code>cv</code>, <code>job_search</code> and <code>task_agents</code> as one line in the Features box; show Talker → Hub as the menu (<code>hub.*</code>), not a direct arrow.</li>
+<li><strong>New permanent page <code>architecture/code-map.md</code>:</strong> the flowchart above (without the red hotspots), linked from the Pages list, updated by the architecture-check skill after each build.</li>
+<li><strong><code>architecture/agents-code.md</code>:</strong> redraw the worker layer after chunk 5 below (<code>SessionTaskAgent</code> and its parts).</li>
+</ol>
+<h2 id="cleanup-plan-ranked">Cleanup plan, ranked</h2>
+<p>Small chunks, each with its own tests, ruff, and the architecture check. Ranked by value for the risk. "Restart" means the app restart (core, contracts, infra or app_kit changed); "reload" means a module reload is enough. Nothing gets reloaded or restarted during the build; every chunk is recorded as waiting for the batched restart.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chunk</th>
+<th>What it changes</th>
+<th>Risk</th>
+<th>Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Voice service safety</strong></td>
+<td>Check <code>Origin</code> on <code>/ws/listen</code>, JSON-only <code>/quit</code>, refuse a non-local host (both apps)</td>
+<td>Low; fixes a real hole (P12)</td>
+<td>Restart of the voice service (a <code>voice_in</code> reload does it, or the batched restart)</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Principles and docs</strong></td>
+<td>Add principles 18–22, the checklist line, the drift fixes, the overview diagram, the new code-map page</td>
+<td>None to the code</td>
+<td>Nothing</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Small fixes</strong></td>
+<td>The list under "Smaller fixes"; <code>Piece.seconds</code> from <code>SAMPLE_RATE</code></td>
+<td>Very low</td>
+<td>Reload <code>main_assistant</code>, <code>html_viewer</code>, <code>voice_in</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>One SHOW helper</strong></td>
+<td>One <code>show_pages</code> part in infra used by the worker and the Talker; the viewer's tool names in one place (P3)</td>
+<td>Low</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Split <code>SessionTaskAgent</code></strong></td>
+<td><code>SessionTaskAgent</code> keeps the task state machine and orchestrates; new parts: <code>PermissionGate</code> (cards, Auto, <code>git push</code>), a last-line tag table (<code>NEED</code> / <code>RELOAD</code> / <code>ADD_MODULE</code> / <code>HANDOFF</code>), <code>HandoffKeeper</code>; <code>ProfileAgent</code> takes its session as an argument</td>
+<td>Medium (the busiest shared code; its 60+ tests stay)</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong><code>UsageMeter</code> out of <code>ClaudeSession</code></strong></td>
+<td>The token counting becomes its own class; one token-field map for it, <code>UsageLedger</code> and the worker</td>
+<td>Low</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Agent module kit</strong></td>
+<td>One composed part in infra for the four agent modules: reset handler, grant handler, start sequence; the shared prompt bullets move into <code>AgentProfile</code>'s prompt block (P4)</td>
+<td>Low–medium</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Companion handover in <code>app_kit</code></strong></td>
+<td><code>CompanionApp.export()</code> / <code>adopt()</code> replace the two copies; one window-profile path helper; the viewer gets a <code>load_layered</code> config (P5, P12)</td>
+<td>Low</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Module names out of shared code</strong></td>
+<td>The permissions reviewer and "you" come from <code>[permissions]</code> config (a <code>config/default.toml</code> edit, which I'll ask about); reserved ids and tool names passed in as parameters (P1, P2)</td>
+<td>Low–medium</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>Typed questions instead of prefixes</strong></td>
+<td><code>TaskUpdated</code> / <code>TaskInfo</code> get a <code>question_kind</code> field (permission, risky, need); the Hub fills it; the Talker, temp UI and page read it instead of parsing (P7)</td>
+<td>Medium (a contract change across 4 parts)</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong>Honest manifests</strong></td>
+<td>Declare the hidden dependencies; a <code>HelpersChanged</code> event instead of overloading <code>AgentStateChanged</code>; a check in <code>ScopedContext</code> that logs a subscription or <code>get_one</code> the manifest doesn't declare (P10)</td>
+<td>Medium</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>Core tidy</strong></td>
+<td>One init-and-start path and one single-provider check in the core; card actions as an enum with a handler table; one <code>PermissionChanged</code> builder</td>
+<td>Low–medium</td>
+<td>Restart</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>Agent Hub split</strong></td>
+<td><code>agent_hub/module.py</code> wires <code>tasks.py</code> (state machine), <code>focus.py</code> (focus, held questions), <code>names.py</code>; the Talker goes through the Hub's menu for mode and answers (P9)</td>
+<td>Medium</td>
+<td>Reload <code>agent_hub</code>, <code>talker</code> (batched restart)</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>Talker split</strong></td>
+<td>The restart flow becomes its own class; <code>_run_tag</code> becomes a table; the session stops reaching into the module</td>
+<td>Medium</td>
+<td>Reload <code>talker</code></td>
+</tr>
+<tr>
+<td>—</td>
+<td><strong>Deferred: temp UI and in-app pages</strong></td>
+<td>Splitting <code>temp_ui</code> and sharing a page server with <code>voice_notes</code> (P6). The temp UI is a stand-in until the UI handler is designed, so I'd only move its shared constants (<code>TAKEN_OVER</code>, <code>MAX_SNIPS</code>, <code>"(pasted)"</code>) into contracts now (part of chunk 10) and leave the rest for the UI handler design</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>My recommendation:</strong> approve chunks 1–4 now (safety, the principles, the small fixes, the SHOW helper), then 5–8 as the main cleanup. Chunks 9–14 change contracts or spread across several modules; they're worth doing, but one at a time after you've seen 1–8 land, and 10 and 13 should each get a short design talk first.</p>
+<h2 id="build-progress-chunks-14">Build progress (chunks 1–4)</h2>
+<p>Rules for the build: keep the code behaving the same apart from chunk 1; nothing is reloaded or restarted, and the user is not asked about a reload or restart until everything is finished.</p>
+<h3 id="done-the-code-of-chunks-1-3-and-4-session-1">Done: the code of chunks 1, 3 and 4 (session 1)</h3>
+<p>Full suite after these: <strong>647 passed</strong>, 2 deselected (642 before, plus 5 new tests); ruff clean.</p>
+<p><strong>Chunk 1, voice service safety (built).</strong></p>
+<ul>
+<li>New reusable part <code>app_kit/local_guard.py</code>: <code>LOOPBACK_HOSTS</code>, <code>require_loopback(host)</code> (a <code>ValueError</code> for any non-local host), <code>local_request(host, origin)</code> (the <code>Host</code> header must name this machine; a browser's <code>Origin</code> must be the same app's own host and port; <code>null</code> or another site refused; no <code>Origin</code> = a program, allowed). Exported from <code>app_kit</code>.</li>
+<li><code>voice_service/server.py</code>: a <code>LocalOnly</code> ASGI guard on every request and WebSocket (403, or WebSocket close 1008); <code>POST /quit</code> is JSON only (415 otherwise). <code>voice_service/__main__.py</code> refuses a non-local <code>--host</code> (exit 2, "bad config").</li>
+<li><code>html_viewer/viewer.py</code>: its own host set replaced by <code>local_request</code> (now also refuses another origin, the viewer's own page still works); <code>ViewerServer</code> refuses a non-local host through <code>require_loopback</code>.</li>
+<li>Tests: <code>tests/voice_client.py</code> (<code>LocalClient</code>, a TestClient that calls as <code>127.0.0.1</code>, since TestClient's <code>testserver</code> host is now refused), used by <code>test_voice_service.py</code> and <code>test_voice_pieces.py</code>; new tests in <code>test_app_kit.py</code>, <code>test_voice_service.py</code> (refusals, <code>main</code> refusing <code>0.0.0.0</code>), <code>test_html_viewer.py</code> (origin refusals, non-local host).</li>
+</ul>
+<p><strong>Chunk 3, small fixes (built).</strong></p>
+<ul>
+<li><code>main_assistant</code>: the three re-exported names (<code>AUTO_BLOCKED</code>, <code>command_rules</code>, <code>hook_env</code>) dropped; tests import them from <code>assistant.infra.agent_profile</code>; <code>_profile</code> uses <code>MainAssistantModule.manifest.id</code>.</li>
+<li><code>html_viewer</code> module: <code>port</code> cast to <code>int</code>; <code>viewer.tabs</code> catches <code>OSError</code> / <code>TimeoutError</code> (a failed result instead of an exception).</li>
+<li><code>html_viewer/viewer.py</code>: the local <code>copy</code> no longer shadows the <code>copy</code> module (<code>opened</code>).</li>
+<li><code>voice_in</code>: the <code>getattr</code> shims on <code>StopListening</code>, <code>Started</code> and <code>Final</code> fields removed. <code>temp_ui</code>: the <code>getattr</code> on <code>VoiceTranscript.settled_chars</code> removed.</li>
+<li><code>voice_service/session.py</code>: <code>Piece.seconds</code> uses <code>SAMPLE_RATE</code> from <code>audio.py</code> instead of 32000.</li>
+<li><strong>Not done, moved to chunk 8:</strong> <code>voice_in</code> pinging <code>/health</code> twice in a row. <code>CompanionApp.ensure_running</code> only returns a bool, so dropping the second call needs an <code>app_kit</code> change (<code>ensure_running</code> handing back the ping's answer); that belongs with the companion handover work in chunk 8.</li>
+</ul>
+<p><strong>Chunk 4, one SHOW helper (built).</strong></p>
+<ul>
+<li>New reusable part <code>assistant/infra/show_pages.py</code>: <code>show_page(ctx, argument) -&gt; ShowOutcome(show, result)</code> (with <code>quote_missing</code>), <code>show_command(show)</code>, and the viewer's tool names <code>VIEWER_OPEN</code> / <code>VIEWER_HIGHLIGHT</code> in this one place. Exported from <code>assistant.infra</code>.</li>
+<li><code>SessionTaskAgent._show</code> and the Talker's <code>SHOW</code> tag both use it and word their own messages as before. Test: <code>tests/test_show_pages.py</code>.</li>
+</ul>
+<h3 id="done-chunk-2-and-the-docs-for-1-3-4-session-2">Done: chunk 2 and the docs for 1, 3, 4 (session 2)</h3>
+<ul>
+<li><strong>Chunk 2, principles and docs (built).</strong> <code>principles.md</code>: principles 18–22 as worded above; principle 12 says <code>Menu</code> stays in contracts (decided 2026-11-08); principle 14's "Today" line fixed; principle 15 points to <code>show_page</code>. <code>reusable-parts.md</code>: <code>ctx.permissions</code> no longer "planned"; <code>local_guard</code> in the <code>app_kit</code> row; the SSE line now names <code>voice_notes</code>'s copy and why it waits; checklist item 2 as worded above. The overview diagram: the permissions handler inside the core as built, an Independent apps block (green) reached through <code>CompanionApp</code>, the Features box as built (<code>usage</code>, <code>cv</code>, <code>job_search</code>, <code>task_agents</code>), Talker → Main labelled as the <code>hub.*</code> menu; <code>code-map</code> in the Pages list. New permanent page <code>architecture/code-map.md</code> (the flowchart, with <code>local_guard</code> and <code>show_pages</code>, no hotspots). <code>agents-code.md</code>: one line on <code>show_page</code>; the full redraw waits for chunk 5.</li>
+<li><strong>Docs for chunks 1 and 4.</strong> <code>api/app_kit.md</code> (<code>local_guard</code>), <code>api/infra.md</code> (<code>show_page</code>; the <code>SessionTaskAgent</code> SHOW line points to it), <code>api/reusable.md</code> (both rows; <code>CompanionApp</code>'s JSON-only <code>/quit</code>), <code>api/README.md</code>, <code>architecture/voice.md</code> and <code>html-viewer.md</code> (refuse other hosts and other origins).</li>
+<li><strong>Architecture check (chunks 1–4):</strong> modularity OK (<code>local_guard</code> is standard library only, in <code>app_kit</code>; the apps still import no <code>assistant</code>); reuse OK (both new parts listed with Used by lines, the viewer's own host check replaced); fit OK (no contract changed). <strong>Open:</strong> <code>show_pages</code> names the viewer's tools in shared code, against principle 21; it's now one place instead of two, and passing the names in is chunk 9's job.</li>
+</ul>
+<h3 id="was-next-session-2-now-done">Was next (session 2), now done</h3>
+<ol>
+<li>Chunk 2 as approved above: principles 18–22 (wording above), principle 12 gets one line saying <code>Menu</code> stays in contracts (decided, with the reason: it is the module's menu contract and every module and the core share it), principle 14's "Today" line fixed; <code>reusable-parts.md</code>: the <code>ctx.permissions</code> "planned" status fixed, the SSE "only one user" line (now two: <code>temp_ui</code>, <code>voice_notes</code>), checklist item 2 as worded above; the overview diagram in <code>architecture/README.md</code> as proposed (permissions handler built and inside the core, an Independent apps block through <code>CompanionApp</code>, <code>usage</code> / <code>cv</code> / <code>job_search</code> / <code>task_agents</code> in Features, Talker → Hub through <code>hub.*</code>) and <code>code-map</code> in its Pages list; the new permanent page <code>architecture/code-map.md</code> with the flowchart above (no red hotspots; include <code>local_guard</code> in app_kit and <code>show_pages</code> in infra); <code>agents-code.md</code>: add <code>show_pages</code> beside the worker and the Talker (the full redraw waits for chunk 5).</li>
+<li>Docs for chunks 1 and 4: <code>docs/api/app_kit.md</code> (a <code>local_guard</code> section), <code>docs/api/infra.md</code> (a <code>show_page</code> section; <code>SessionTaskAgent</code>'s SHOW line points to it), <code>docs/api/reusable.md</code> (rows for <code>local_guard</code> with Used by <code>voice_service</code> (<code>server.py</code>, <code>__main__.py</code>), <code>html_viewer</code> (<code>viewer.py</code>); <code>show_page</code> with Used by <code>SessionTaskAgent</code>, <code>talker</code>; <code>CompanionApp</code>'s row: the service's JSON-only <code>/quit</code>), <code>docs/api/README.md</code> (both in the reusable list and the App kit / Infrastructure tables), <code>docs/architecture/voice.md</code> and <code>html-viewer.md</code> (one line each: refuses other hosts and other origins).</li>
+<li>The architecture check (skill) over chunks 1–4, then <code>.\.venv\Scripts\python scripts\build_docs.py</code> (docs-html skill) and the next-steps HTML (next-steps-html skill).</li>
+<li>The full test suite and ruff once more; the final report.</li>
+</ol>
+<h3 id="whats-waiting-for-the-batched-restart">What's waiting for the batched restart</h3>
+<ul>
+<li><strong>Chunk 1:</strong> only a voice service restart (it runs on its own; the batched app restart, or a <code>voice_in</code> reload, restarts it because its code changed). The viewer's guard loads when the viewer next restarts (it restarts with new code on its next launch).</li>
+<li><strong>Chunk 3:</strong> reloads only: <code>main_assistant</code>, <code>html_viewer</code>, <code>voice_in</code>, <code>temp_ui</code>; the <code>Piece.seconds</code> fix with the voice service restart.</li>
+<li><strong>Chunk 4:</strong> the app restart (<code>assistant.infra</code> changed; the Talker's change rides with it).</li>
+<li><strong>Chunk 2:</strong> nothing (docs only).</li>
+</ul>
+<p>Hand checks after the restart: click the mic once and speak (the voice service still answers the app); open a page with SHOW from a task and from the Talker, with and without a quote.</p>
+<p>The earlier queue items (the live Auto/Manual switch, the restart note, the text box resize) are each recorded in their own notes.</p>
+<h2 id="build-progress-the-against-our-principles-fixes-task-7">Build progress: the "against our principles" fixes (task 7)</h2>
+<p>The user asked (2026-11-08) to fix the findings under "Findings: against our principles". They approved chunks 5 to 14 in ranked order as small chunks, with behaviour kept the same, tests for each new class, the full suite and ruff after each chunk, and nothing reloaded or restarted (and no question about it) until all are done. <strong>Ask first, don't build:</strong> chunk 9's <code>config/default.toml</code> edit, chunk 10 (typed question kinds: a contract change) and chunk 13 (splitting the Agent Hub). Put each as a full question with a recommendation in one NEED <strong>after</strong> the other chunks, and keep going with the others meanwhile. Also in scope: the chunk 4 gap (<code>show_pages</code> names the viewer's tools in shared code, against principle 21) and the <code>voice_in</code> double <code>/health</code> ping (in chunk 8).</p>
+<h3 id="done-session-3-code-of-chunks-5-and-6-tests-and-ruff-green">Done (session 3): code of chunks 5 and 6, tests and ruff green</h3>
+<p>Full suite: <strong>660</strong> (657 + the 3 <code>test_usage.py</code> tests now pointing at the meter); ruff clean.</p>
+<p><strong>Chunk 5, <code>SessionTaskAgent</code> split (built, waits on the app restart).</strong></p>
+<ul>
+<li>New <code>infra/permission_gate.py</code>: <code>PermissionGate</code> (the one open question: tool requests, approvals, timer, Auto policy and the <code>git push</code> block, approval outcomes delivered after the turn); <code>describe_request</code>, <code>is_git_push</code>, <code>summarize</code>; texts <code>CODE_LOADED</code>, <code>APPROVAL_PENDING</code>, <code>GIT_PUSH_BLOCKED</code>, <code>NO_TASK</code>, <code>TIMED_OUT</code>.</li>
+<li>New <code>infra/handoff_keeper.py</code>: <code>HandoffKeeper</code> (count against <code>max_handoffs</code>, <code>take</code>, <code>progress</code>, <code>too_many</code>, <code>reset_request</code>, <code>reminder</code>); texts <code>HANDED_OFF</code>, <code>RESET_NOW</code>, <code>CONTEXT_REMINDER</code>, <code>TOO_MANY_HANDOFFS</code>.</li>
+<li><code>infra/agent_tags.py</code>: <code>LastLineTags</code>, a table of last-line prefixes → handlers (principle 20); the Talker can reuse it in chunk 14 for any last-line tags.</li>
+<li><code>infra/session_agent.py</code>: keeps the state machine and orchestrates; <code>_finish_turn</code> dispatches through the table (<code>NEED</code>, <code>RELOAD</code>, <code>ADD_MODULE</code>, <code>HANDOFF</code>); new module functions <code>reload_request</code>, <code>add_module_request</code>.</li>
+<li><code>infra/profile_agent.py</code>: <code>session_factory=ClaudeSession</code> argument (principle 22).</li>
+<li><code>infra/__init__.py</code> exports <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>. Tests: <code>tests/test_worker_parts.py</code>.</li>
+</ul>
+<p><strong>Chunk 6, <code>UsageMeter</code> (built, waits on the app restart).</strong></p>
+<ul>
+<li>New <code>infra/usage_meter.py</code>: <code>UsageMeter</code> (all the token counting, <code>line(event)</code>, <code>restarted()</code>), <code>TokenKind</code> / <code>TOKEN_KINDS</code> (the one token-field map: API usage, per-model, event names), <code>USAGE_FIELDS</code>, <code>EVENT_FIELDS</code>, <code>event_fields(used)</code>.</li>
+<li><code>ClaudeSession</code> has <code>meter</code>; <code>context_tokens</code>, <code>used</code>, <code>subagents</code> read it. <code>UsageLedger.TOKEN_FIELDS = EVENT_FIELDS</code>; <code>session_usage</code> / <code>subagent_usage</code> use <code>event_fields</code>. Tests: <code>tests/test_usage_meter.py</code>; <code>tests/test_usage.py</code> calls <code>session.meter.line</code>.</li>
+</ul>
+<h3 id="done-session-4-chunk-7-tests-and-ruff-green">Done (session 4): chunk 7, tests and ruff green</h3>
+<p>Full suite: <strong>664</strong> passed (660 + 4 in <code>tests/test_agent_kit.py</code>); ruff clean.</p>
+<p><strong>Chunk 7, agent module kit (built, waits on the app restart).</strong></p>
+<ul>
+<li>New <code>infra/agent_kit.py</code>: <code>AgentKit(ctx)</code>: <code>add</code> (provide as <code>ITaskAgent</code>, keep it), <code>get</code>, <code>agents</code>, <code>open</code> (the start sequence: <code>request_access</code> → <code>ProfileAgent</code> → provide → start; a failed start is taken back and re-raised), <code>take_back</code> (stop + withdraw), <code>follow_grant(agent_id, config)</code> (the grant handler: <code>granted_config</code> → <code>set_access</code>, <code>AccessDenied</code> logged), <code>busy</code>, <code>stop</code>, and the reset handler (subscribes <code>ResetRequested</code> itself). Exported from <code>assistant.infra</code>.</li>
+<li><code>infra/agent_profile.py</code>: <code>BASICS_BLOCK</code> (the three bullets every agent was told: access at the end, a line before each step, a summary at the end) now starts <code>prompt_block</code>, for helpers and the coordinator alike; the bullets left <code>WORKER_PROMPT</code> (Main Assistant), <code>JOB_PROMPT</code>, <code>HELPER_PROMPT</code> and the cv worker's prompt. The words are the same; they now sit after each agent's own rules.</li>
+<li><code>main_assistant</code>, <code>job_search</code>, <code>cv</code>, <code>task_agents</code> use the kit: their own reset handlers, grant handlers (all but <code>task_agents</code>'s per-kind one) and provide/start/take-back code are gone.</li>
+</ul>
+<h3 id="done-sessions-45-chunk-8-tests-and-ruff-green">Done (sessions 4–5): chunk 8, tests and ruff green</h3>
+<p>Full suite: <strong>669</strong> passed; ruff clean. (<code>test_html_viewer.py::test_refuses_what_it_cant_do</code> once failed with a Windows <code>ConnectionAbortedError</code> on a refused request and passed on rerun: a flaky socket abort, not this chunk.)</p>
+<p><strong>Chunk 8, companion handover in <code>app_kit</code> (built, waits on the app restart):</strong></p>
+<ul>
+<li><code>app_kit/window.py</code>: <code>window_profile(name)</code> (<code>%LOCALAPPDATA%\AI_Assistant\&lt;name&gt;_window</code>); used by <code>temp_ui</code>, <code>voice_notes</code>, the <code>html_viewer</code> module's <code>DEFAULT_PROFILE</code>.</li>
+<li><code>app_kit/companion.py</code>: <code>CompanionApp.last_answer</code> (the last ping's answer, <code>{}</code> if none); new <code>CompanionHandover(handover, module, host, port, *, args, label, log, **app_kwargs)</code> with <code>app</code>, <code>key</code>, <code>export()</code>, <code>stop()</code>. It's a separate class, not methods on <code>CompanionApp</code>, because the handed-over/restart flags belong to each module copy while the <code>CompanionApp</code> object moves between copies. Exported from <code>app_kit</code>.</li>
+<li><code>html_viewer/module.py</code> and <code>voice_in/module.py</code> use <code>CompanionHandover</code> (<code>self._companion</code>, with <code>self._app = self._companion.app</code>); their copied handover code is gone. <code>tests/test_companion_reload.py</code> reads <code>second._companion._restart</code>.</li>
+<li>
+<p><code>voice_in._ensure_service</code> reads <code>self._app.last_answer</code> instead of a second <code>/health</code> call (the double ping is fixed).</p>
+</li>
+<li>
+<p><code>html_viewer/viewer.py</code>: <code>DEFAULT_PROFILE = window_profile("html_viewer")</code>; its own config (P12): <code>load_viewer_config(path=None)</code> (the defaults <code>CONFIG_DEFAULTS</code>, then <code>config/html_viewer.toml</code> and its <code>.local</code> through <code>load_layered</code>, only if the file exists; no file was created) and <code>viewer_settings(argv)</code> (<code>--config</code>; the flags win over the config). <code>main</code> uses them.</p>
+</li>
+<li>Tests: <code>test_voice_in.py</code> (the one ping decides: <code>ensure_running</code> only, no second <code>/health</code>), <code>test_app_kit.py</code> (<code>last_answer</code>, <code>CompanionHandover</code> kept / not kept / quit when the code changed, <code>window_profile</code>), <code>test_html_viewer.py</code> (config, <code>.local</code>, flags over it, a missing given file).</li>
+</ul>
+<h3 id="done-session-5-chunk-9-without-the-config-edit-tests-and-ruff-green">Done (session 5): chunk 9 without the config edit, tests and ruff green</h3>
+<p>Full suite: <strong>669</strong> passed; ruff clean.</p>
+<p><strong>Chunk 9, module names out of shared code, first half (built, waits on the app restart):</strong></p>
+<ul>
+<li><code>infra/agent_names.py</code>: <code>check_agent_id(..., reserved=())</code>; the reserved ids left shared code. <code>RESERVED_AGENT_IDS</code> (<code>core</code>, <code>hub</code>, <code>talker</code>) now lives in <code>agent_hub</code>, which adds its coordinator and passes them to <code>_Names</code> (same refusals as before when the Hub is on). <code>task_agents</code> passes <code>TRUSTED_CALLERS</code> (<code>talker</code> and <code>YOU</code>), the callers its menu trusts, for its own early checks (the Hub-off fallback and <code>instances</code>); <code>hub</code> / <code>core</code> there are now refused at the claim, not at config load.</li>
+<li><code>infra/agent_profile.py</code>: <code>COORDINATOR_BLOCK</code> (the <code>hub.*</code> / <code>agents.*</code> text) moved to <code>main_assistant/module.py</code>. <code>AgentProfile.coordinator: bool</code> became <code>role_block: str = HELPER_BLOCK</code>; <code>from_config(..., role_block)</code>, <code>prompt_block(role_block=HELPER_BLOCK)</code>; <code>ProfileAgent(role_block=...)</code>. <code>main_assistant</code> passes its block; the prompt text is unchanged.</li>
+<li>Tests updated: <code>test_agent_names.py</code> (shared rules reserve nothing; the Hub's set), <code>test_multi_agent.py</code>, <code>test_task_agents.py</code>.</li>
+<li><strong>Left, on purpose:</strong> the examples "<code>viewer.open</code>" in <code>DOOR_PROMPT</code> and the door's <code>use_item</code> description (help text, not a dependency); the <code>docs/next-steps/</code> paths in <code>HandoffKeeper</code> (a project convention, not a module). <strong>Waits on the question below:</strong> the <code>show_page</code> tool names, and the permissions reviewer / "you".</li>
+</ul>
+<h3 id="done-session-6-chunk-11-and-the-first-half-of-chunk-12-tests-and-ruff-green">Done (session 6): chunk 11, and the first half of chunk 12; tests and ruff green</h3>
+<p>Full suite: <strong>678</strong> passed (669 + 9 in <code>tests/test_honest_manifests.py</code>); ruff clean. The module library table was regenerated (<code>build_docs.py</code>, needed by <code>test_module_docs.py</code>).</p>
+<p><strong>Chunk 11, honest manifests (built, waits on the app restart).</strong></p>
+<ul>
+<li><code>Manifest.uses</code> (contracts): contracts looked up at each call that may be missing, <strong>with no start order</strong>. It's needed because <code>optional</code> adds a start-order edge, and agent modules ↔ the Hub would form a cycle (the Hub lists <code>ITaskAgent</code> as optional). <code>registry.py</code> and <code>lifecycle.py</code> check <code>uses</code> entries are contracts; <code>build_docs.py</code> shows <code>uses</code> in the library's Contracts column.</li>
+<li><code>AgentStateChanged.change: "state" | "opened" | "closed"</code> (default <code>"state"</code>), <strong>in place of a new <code>HelpersChanged</code> event</strong>: there are five listeners (Hub, Talker, usage, temp UI, assistant view), and all of them treat an open or close the way they treat a state change, so a second event would have meant a second subscription in each one for the same handling. <code>task_agents</code> sets <code>opened</code> / <code>closed</code>. The change is additive with a default, and no listener changed.</li>
+<li><code>ScopedContext</code>: a <code>subscribe</code> not in <code>listens</code>, or a <code>get_one</code> / <code>get_all</code> not in provides / requires / optional / uses, still works but is <strong>logged once</strong> as a warning. Across the suite only test fakes trip it.</li>
+<li><code>infra/agent_kit.py</code>: <code>AGENT_USES</code> (<code>IModuleDoor</code>, <code>IAgentNames</code>), <code>AGENT_SENDS</code>, <code>AGENT_PUBLISHES</code>, <code>AGENT_LISTENS</code> (<code>ResetRequested</code>, <code>ModuleStateChanged</code>), each named once and exported from <code>assistant.infra</code>. <code>main_assistant</code>, <code>job_search</code>, <code>cv</code> and <code>task_agents</code> declare from them. <code>task_agents</code> adds <code>ITaskAgent</code> to <code>uses</code>, plus <code>StartTask</code> / <code>GetTaskStatus</code> and <code>PermissionChanged</code>.</li>
+</ul>
+<p><strong>Chunk 12, core tidy: first half (built, waits on the app restart).</strong></p>
+<ul>
+<li><code>core/permissions/handler.py</code>: <code>CardAction</code> (a <code>StrEnum</code> inside the core, not a contract; <code>PermissionRequested.action</code> gets <code>.value</code>), an <code>_appliers</code> table (<code>_apply_access</code>, <code>_apply_grant</code>, <code>_apply_revoke</code>; grant and revoke share <code>_close_agent_card</code>), and one <code>_changed(...)</code> builder for every <code>PermissionChanged</code>. <code>REVIEWER</code> and <code>YOU</code> are now named once at the top (they still name modules; they move to config when chunk 9's question is answered). No behaviour change: the existing permissions tests pass unchanged. No new class needs its own test (<code>CardAction</code> is covered by the card tests).</li>
+<li><strong>Left for the next session:</strong> <code>lifecycle.py</code> gets one init path (<code>_init_one(cls, handover)</code>: context, instance, <code>init</code>, <code>link_menu</code>, close on failure), used by both <code>start()</code> and <code>_activate()</code>. Check how tests build <code>LifecycleManager</code> / <code>make_context</code> first: <code>start()</code> calls <code>make_context(manifest)</code> with one argument and <code>_activate</code> with two. Also one single-provider rule <code>allows_another(contract, current_ids)</code> in <code>container.py</code>, used by <code>Container.provide</code>, <code>registry.resolve_modules</code> and <code>lifecycle._activate</code>. Keep every error message as it is, then add a small test for <code>allows_another</code>.</li>
+</ul>
+<h3 id="done-session-7-the-rest-of-chunk-12-chunk-14-the-docs-and-the-architecture-check">Done (session 7): the rest of chunk 12, chunk 14, the docs and the architecture check</h3>
+<p>Full suite: <strong>684</strong> passed (681 after chunk 12, plus 3 in <code>tests/test_talker_parts.py</code>); ruff clean.</p>
+<p><strong>Chunk 12, second half (built, waits on the app restart).</strong> <code>core/container.py</code>: <code>allows_another(contract, current)</code>, the one single-provider rule, used by <code>Container.provide</code>, <code>resolve_modules</code> and <code>LifecycleManager._activate</code>. Every error message is unchanged. <code>lifecycle.py</code>: <code>_init_one(cls, handover)</code> is the one init path (context, instance, <code>init</code>, menu linked; the context is closed on failure), used by <code>start()</code> and <code>_activate()</code>. Test: <code>tests/test_core_tidy.py</code> (the rule, and the <code>CardAction</code> values).</p>
+<p><strong>Chunk 14, Talker split (built, waits on the batched restart; a <code>talker</code> reload would also do).</strong></p>
+<ul>
+<li>New <code>talker/restart.py</code>: <code>RestartFlow</code> (<code>first_input</code>, <code>used</code>, <code>close</code>, <code>ask</code>, <code>on_worker_update</code>, <code>restart</code>, <code>app_state</code>, <code>history_text</code>) and the restart texts. The module re-exports the texts, and keeps <code>restart</code> as its attribute.</li>
+<li><code>talker/session.py</code>: <code>_run_tag</code> is a table (<code>_tags</code>, one <code>_tag_*</code> handler per tag). The session no longer changes the module's fields: it uses <code>task_started</code>, <code>usage_of</code> and <code>restart.ask</code> / <code>restart.used</code>.</li>
+<li><code>talker/module.py</code>: <code>focus</code> / <code>main</code> properties and <code>task_started</code> / <code>usage_of</code>, with the restart code moved out.</li>
+<li><code>tests/test_restart.py</code> calls <code>restart.app_state()</code>. New <code>tests/test_talker_parts.py</code>.</li>
+<li><strong>Not done here (needs chunk 13):</strong> the Talker's <code>SetPermissionMode</code> / <code>AnswerPermission</code> still go straight to the Hub as commands (P9).</li>
+</ul>
+<p><strong>Docs (one pass):</strong> <code>api/infra.md</code>, <code>api/app_kit.md</code>, <code>api/core.md</code>, <code>api/modules.md</code>, <code>api/agents.md</code>, <code>api/reusable.md</code>, <code>api/README.md</code>, <code>architecture/principles.md</code> (17), <code>architecture/code-map.md</code> (the infra block and the cleanup status), <code>architecture/agents-code.md</code> (the worker's and the Talker's parts, picture 2). Rebuilt with <code>build_docs.py</code>.</p>
+<p><strong>Architecture check (chunks 5–14):</strong></p>
+<ul>
+<li><strong>Modularity:</strong> OK. The apps still import no <code>assistant</code> (the test passes), <code>CompanionHandover</code> and <code>window_profile</code> are standard library only, in <code>app_kit</code>, and no module imports another's internals.</li>
+<li><strong>Reuse:</strong> OK. Every new part is in the index with its Used by line, and the copies these chunks found (the token maps, the handover code, the profile path, the agent module code, the SHOW code) are now one each.</li>
+<li><strong>Fit:</strong> OK. The contract changes are additive with defaults (<code>Manifest.uses</code>, <code>AgentStateChanged.change</code>), and no listener changed.</li>
+<li><strong>Open, against principle 21:</strong> <code>show_page</code>'s viewer tool names and the permissions handler's <code>REVIEWER</code> / <code>YOU</code> (question A below), and the Hub's text prefixes (question B).</li>
+</ul>
+<h3 id="waiting-on-the-user-the-three-questions-asked-2026-11-08">Waiting on the user: the three questions (asked 2026-11-08)</h3>
+<p>A. <strong>Chunk 9, second half: config edit.</strong> Add to <code>config/default.toml</code> <code>[core.permissions] reviewer = "main_assistant"</code> and <code>you = ["temp_ui"]</code> (the handler already reads both keys), and <code>[modules.html_viewer] open_tool = "viewer.open"</code>, <code>highlight_tool = "viewer.highlight"</code> for <code>show_page</code>, read by the worker and the Talker. The code defaults then become empty or neutral. <em>Recommended:</em> yes for the two permissions keys. For the viewer's tool names, rather than config: have <code>show_page</code> find the tools by a menu tag in the directory (still config-free), or leave them as they are (one place, documented).
+B. <strong>Chunk 10: typed question kinds.</strong> <code>TaskUpdated</code> and <code>TaskInfo</code> get <code>question_kind</code> (<code>permission</code>, <code>risky</code>, <code>need</code>, with <code>""</code> as the default). The Hub fills it, and the Talker, temp UI and page read it instead of parsing <code>"Permission: "</code> and <code>NEED: Risky:</code>; <code>MAX_SNIPS</code> and <code>"(pasted)"</code> move into contracts. It's a contract change across four parts, behaviour the same. <em>Recommended:</em> yes, as an additive field with a default.
+C. <strong>Chunk 13: Agent Hub split.</strong> <code>agent_hub/module.py</code> wires <code>tasks.py</code> (the task state machine), <code>focus.py</code> (the focus and held questions) and <code>names.py</code>. The Talker's mode switch and card answers move onto the Hub's menu (<code>hub.mode</code>, <code>hub.answer</code>) so they get its caller checks (P9). <em>Recommended:</em> yes, after B (B changes the same code), as two small steps: the split first, then the two menu items.</p>
+<p><strong>Answers (2026-11-08):</strong> A yes (with the recommendation: the viewer's tool names stay where they are, in one place), B yes, C <strong>not approved yet</strong> (explained to the user; not built).</p>
+<h3 id="done-session-8-task-8-a-and-b-tests-and-ruff-green">Done (session 8, task 8): A and B, tests and ruff green</h3>
+<p>Full suite: <strong>689</strong> passed (684 + 5 in the new <code>tests/test_question_kinds.py</code>); ruff clean.</p>
+<p><strong>A. Chunk 9, second half (built, waits on the app restart).</strong> <code>config/default.toml</code> <code>[core.permissions]</code> now sets <code>reviewer = "main_assistant"</code> and <code>you = ["temp_ui"]</code>; <code>core/permissions/handler.py</code> defaults are <code>REVIEWER = ""</code>, <code>YOU = ()</code>, so the core names no module. Tests that build an app from a bare config now pass <code>you = ["temp_ui"]</code> as the config does (<code>test_permissions_handler.py</code>, <code>test_access_cards.py</code>). <code>show_page</code>'s viewer tool names stay as they are (the user's choice).</p>
+<p><strong>B. Chunk 10, typed question kinds (built, waits on the app restart).</strong></p>
+<ul>
+<li>Contracts: <code>QuestionKind</code> (<code>none</code> <code>""</code>, <code>need</code>, <code>risky</code>, <code>permission</code>) with <code>QuestionKind.of(kind, text)</code>, the one place <code>RISKY_PREFIX</code> (<code>"Risky:"</code>) is read; <code>TaskInfo.question_kind</code> and <code>TaskUpdated.question_kind</code>, both defaulting to <code>none</code>; <code>TaskInfo.question_line</code> (<code>Permission: &lt;text&gt;</code> for a permission request, for display). <code>MAX_SNIPS</code> and <code>PASTED_FILE</code> moved into <code>contracts/messages.py</code>.</li>
+<li><code>agent_hub</code>: <code>_TaskRecord.ask(kind, text)</code> and <code>answered()</code>; the question is stored as the agent wrote it (no <code>Permission:</code> added) and its kind goes on every <code>TaskUpdated</code> and <code>TaskInfo</code>.</li>
+<li><code>talker</code>: reads <code>task.question_kind</code> on a focus change (no <code>PERMISSION_PREFIX</code>); its task lines and restart note use <code>question_line</code>, so they read as before. <code>MAX_SNIPS</code> / <code>PASTED_FILE</code> from the contracts.</li>
+<li><code>temp_ui</code>: the risky card and the released permission / risky cards are picked by <code>question_kind</code> (no <code>PERMISSION</code> / <code>RISKY</code> constants); the page needed only a comment change (it already got typed item kinds).</li>
+<li><strong>Same behaviour:</strong> every card, line and text the user sees is unchanged. One small difference for agents: <code>hub.status</code> now gives the bare question plus <code>question_kind</code> instead of <code>Permission: …</code>.</li>
+<li><strong>Still text, left for later:</strong> the temp UI's <code>"permission allowed / denied"</code> check on an answered update, and <code>"Risky:"</code> inside the NEED text the Talker reads (the agent writes it; the Talker's prompt explains it).</li>
+</ul>
+<p><strong>Architecture check (A, B):</strong> modularity OK (the core and shared code name no module for the permissions; contracts import nothing new); reuse OK (<code>QuestionKind</code>, <code>MAX_SNIPS</code>, <code>PASTED_FILE</code> in the index with Used by; the two copies of each limit are now one); fit OK (both new fields are additive with defaults, old senders and tests unchanged).</p>
+<p>Files edited more than once this session: <code>contracts/agents.py</code>, <code>contracts/__init__.py</code>, <code>agent_hub/module.py</code>, <code>talker/module.py</code>, <code>talker/restart.py</code>, <code>temp_ui/module.py</code> (targeted Edits in one batch each), <code>tests/test_agents.py</code>, and the doc pages <code>api/agents.md</code>, <code>api/messaging.md</code>, <code>architecture/core.md</code>, <code>permissions.md</code>, <code>principles.md</code> (two targeted Edits each).</p>
+<p><strong>C approved (2026-11-08).</strong></p>
+<h3 id="done-session-9-task-9-c-chunk-13-the-agent-hub-split">Done (session 9, task 9): C, chunk 13, the Agent Hub split</h3>
+<p>Full suite: <strong>696</strong> passed (689 + 7 in the new <code>tests/test_agent_hub_parts.py</code>); ruff clean.</p>
+<p><strong>Chunk 13 (built, waits on the batched restart; reloading <code>agent_hub</code> and <code>talker</code> would also do).</strong></p>
+<ul>
+<li><code>agent_hub/module.py</code> (~250 lines, was ~590) is a small coordinator: the commands, events, menu and door, plus the running-agent lookup (<code>_agents</code>, <code>_agent</code>) and the coordinator's feed (<code>_feed</code>), handed to the parts.</li>
+<li>New <code>agent_hub/tasks.py</code>: <code>TaskRecord</code> (was <code>_TaskRecord</code>) and <code>TaskBoard</code> (start, status, send, cancel, report, answer, set_mode, <code>release</code>, <code>holds</code>, <code>may_steer(anyone=)</code>, the cap, the folder check). The board never names the Talker: the module passes <code>anyone=caller == "talker"</code>.</li>
+<li>New <code>agent_hub/focus.py</code>: <code>Focus</code> (<code>focused()</code> with the fallback to the coordinator, <code>set</code>, <code>check</code>, <code>stored</code> for the handover).</li>
+<li>New <code>agent_hub/names.py</code>: <code>AgentNames</code> (was <code>_Names</code>) and <code>RESERVED_AGENT_IDS</code> (still importable from <code>module.py</code>).</li>
+<li><strong>P9 fixed:</strong> two new menu items, both <code>callers=("talker",)</code>: <code>hub.answer(task_id, allow)</code> and <code>hub.mode(agent_id, mode)</code> (Auto refused with <code>not_available</code>). The Talker's <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> (task cards) and <code>&lt;&lt;MODE: manual&gt;&gt;</code> use them; its manifest no longer sends <code>AnswerPermission</code> / <code>SetPermissionMode</code>. The temp UI's buttons still send the commands (your own clicks). Access cards still go to the core as <code>AnswerPermissionRequest</code>.</li>
+<li><strong>Same behaviour:</strong> every command, event, text and refusal is unchanged; the existing end-to-end Talker tests for ALLOW and MODE pass through the menu now. <code>tests/test_agent_tabs.py</code> reads the focus as <code>hub._focus.focused()</code>.</li>
+<li><strong>Docs:</strong> principles 15 (one road) and 18 (the Hub as the example), code map, agent code page (the Hub's parts, pictures 1 and 2), <code>api/agents.md</code> (the menu table, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>IAgentNames</code>), <code>api/reusable.md</code>, <code>api/infra.md</code>, <code>api/README.md</code>, <code>api/tools.md</code>, <code>modules/agent_hub.md</code>, <code>modules/talker.md</code>, <code>agents/runtime.md</code>. Rebuilt with <code>build_docs.py</code>.</li>
+</ul>
+<p><strong>Architecture check (chunk 13):</strong> modularity OK (the parts import only contracts and infra; no module imports another's internals; the board and focus name no module); reuse OK (no new shared helper: <code>TaskBoard</code>, <code>Focus</code>, <code>AgentNames</code> are the Hub's own, so not in the reusable index; <code>IAgentNames</code> and the Hub's menu rows updated); fit OK (no contract change; the menu gained two items, the Talker lost two direct commands, so the menu's caller checks now cover every Talker → Hub call).</p>
+<p>Files edited more than once this session: <code>talker/session.py</code> and <code>talker/module.py</code> (imports and calls, one batch each), and the doc pages <code>principles.md</code>, <code>agents-code.md</code>, <code>api/agents.md</code>, <code>api/reusable.md</code>, <code>modules/agent_hub.md</code>, <code>agents/runtime.md</code> (targeted Edits in one batch each).</p>
+<h3 id="then">Then</h3>
+<ol>
+<li>Every queued chunk is built. Ask the user about the one batched restart (now asked).</li>
+</ol>
+<p>The earlier docs list, now done: <code>api/infra.md</code> (<code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>ProfileAgent.session_factory</code>, <code>AgentKit</code> and the <code>AGENT_*</code> declarations, <code>CompanionHandover</code> / <code>window_profile</code> / <code>last_answer</code> in <code>api/app_kit.md</code>, <code>check_agent_id(reserved=)</code>, <code>AgentProfile.role_block</code>), <code>api/modules.md</code> (<code>Manifest.uses</code>, the <code>ScopedContext</code> warning), <code>api/agents.md</code> (<code>AgentStateChanged.change</code>), <code>api/core.md</code> (<code>CardAction</code>, the appliers table), <code>principles.md</code> 17 (<code>uses</code>, the warning), <code>api/reusable.md</code> rows with Used by (<code>PermissionGate</code>, <code>HandoffKeeper</code>: <code>SessionTaskAgent</code>; <code>LastLineTags</code>: <code>SessionTaskAgent</code>; <code>UsageMeter</code>, <code>TOKEN_KINDS</code>: <code>ClaudeSession</code>, <code>UsageLedger</code>, <code>session_usage</code>; <code>AgentKit</code>, <code>AGENT_*</code>: the four agent modules; <code>CompanionHandover</code>: <code>html_viewer</code>, <code>voice_in</code>; <code>window_profile</code>: <code>temp_ui</code>, <code>voice_notes</code>, <code>html_viewer</code>), <code>api/README.md</code>, <code>architecture/agents-code.md</code> (redraw the worker layer: <code>SessionTaskAgent</code> with its gate, keeper, tag table, feed), <code>architecture/code-map.md</code>, then the architecture check, <code>build_docs.py</code>, and the next-steps HTML.</p>
+<p><strong>Waiting for the batched restart:</strong> chunks 1 and 3–14 (contracts, core, shared infra and <code>app_kit</code> changed, so an app restart is needed; it also restarts the voice service and the viewer with their new code). Nothing reloaded, nothing asked. <strong>Hand checks after it:</strong></p>
+<ul>
+<li>Click the mic once and speak.</li>
+<li>SHOW a page from a task and from the Talker, with and without a quote.</li>
+<li>Open and close a helper with the + button (its tab comes and goes).</li>
+<li>Answer an access card in the app and by telling the Talker.</li>
+<li>Ask the Talker to restart the app (the note is saved and read back).</li>
+<li>Reload <code>html_viewer</code> once (the viewer is handed over, or restarted if its code changed).</li>
+<li>A permission request and a risky-step card still appear (B); tell the Talker "allow" / "deny" on a task's card and "switch to Manual" (both now go through <code>hub.answer</code> / <code>hub.mode</code>, C).</li>
+</ul>
+<p><strong>The helpers before the restart (checked 2026-11-08).</strong> The user restarts the app themselves.</p>
+<ul>
+<li><code>hub.agents</code>: only <code>main_assistant</code> (this task) and <code>job_search_agent</code> are running. <code>cv_agent</code> is gone and has no task.</li>
+<li><code>job_search_agent</code>, task <code>26423c52</code>: <strong>busy, not safe to restart yet.</strong> It's in the middle of a live 7-day job search in Chrome: the script sweep is done (346 rows, 21 boards failed on rate limits, to retry), Google's careers site and Tesla were checked (the user asked to redo both by hand in Chrome), and it was running the core Meta terms with Newest sort. Still to do: the rest of Meta, Google search, LinkedIn keyword searches and suggested jobs, Indeed, JobRadar, screening, queue entries and the report. It says its run notes live under <code>C:\Chang\Jobs\CV\Recruiters\docs\job_ui\search_runs\scratch_20261108\</code>.</li>
+<li>Its task has no parent (the user started it), so <code>hub.send</code> from <code>main_assistant</code> is refused ("isn't one of main_assistant child tasks"). The user is already in its tab: they tell it there to stop at a safe point and write its handoff note, and give its path.</li>
+<li><strong>After the restart:</strong> <code>hub.start</code> with <code>agent_id="job_search_agent"</code> and a text like "Continue the 7-day job search from your handoff note at <path>", or start it from its tab.</li>
+<li><strong>Its handoff note:</strong> <code>C:\Chang\Jobs\CV\Recruiters\docs\job_ui\search_runs\scratch_20261108\handoff.md</code>. The restart stopped the agent before it wrote the note, so the note was missing after the restart. The user chose (2026-11-08) to restart the task and have the agent rebuild the note first, from <code>C:\Chang\Jobs\CV\Recruiters\docs\job_ui\search_progress.json</code> (the live checklist) and the <code># FAILED (21)</code> line of <code>docs\job_ui\search_runs\sweep_20261108_0318.log</code>.</li>
+</ul>
+<p>Files edited twice in session 6: <code>core/context.py</code> (the field setup, then the lookup checks), <code>infra/__init__.py</code> (the import, then <code>__all__</code>), and <code>main_assistant</code> / <code>job_search</code> / <code>cv</code> <code>module.py</code> (the manifest, then the import). <code>task_agents/module.py</code> took four Edits in one batch, and <code>registry.py</code> / <code>lifecycle.py</code> one each; both get one more in the rest of chunk 12.</p>
+<p>Files edited twice so far in this task: <code>agent_tags.py</code> (import and table, same step), <code>profile_agent.py</code> (argument, then factory call and import), <code>infra/__init__.py</code> (imports, then <code>__all__</code>), <code>session_agent.py</code> (chunk 5 Write, then chunk 6's <code>event_fields</code>), <code>tests/test_worker_parts.py</code> (two test fixes after the first run).</p>
+<footer>Generated from <code>docs/next-steps/code-review.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

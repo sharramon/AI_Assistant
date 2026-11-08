@@ -8,7 +8,9 @@ Two halves, both here so they share the tool names:
   turned on or off: the menus are read through the core at call time.
 - **`DoorServer`** (in the app, hosted by `agent_hub`): the local HTTP endpoint the relay calls.
   Each call becomes a core command (`ListModules`, `GetMenu`, `InvokeTool`), so the directory,
-  permissions and hot swap all still apply. Guarded by a random token.
+  permissions and hot swap all still apply. Each session's config names its caller and
+  carries a token made from the door's secret and that name (`token_for`, an HMAC), so the
+  `InvokeTool` it sends has a caller the session can't fake.
 
 Modules are never MCP servers and never import this; MCP stays at the agents' edge.
 """
@@ -17,6 +19,8 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -28,8 +32,8 @@ from enum import Enum
 from typing import Any
 
 SERVER = "modules"  # the MCP server's name: claude calls its tools `mcp__modules__<tool>`
-URL_ENV, TOKEN_ENV = "ASSISTANT_DOOR_URL", "ASSISTANT_DOOR_TOKEN"
-TOKEN_HEADER = "x-door-token"
+URL_ENV, TOKEN_ENV, CALLER_ENV = "ASSISTANT_DOOR_URL", "ASSISTANT_DOOR_TOKEN", "ASSISTANT_DOOR_CALLER"
+TOKEN_HEADER, CALLER_HEADER = "x-door-token", "x-door-caller"
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -105,23 +109,23 @@ class DoorServer:
         self._send = send
         self._commands = commands  # "list" -> ListModules, "menu" -> GetMenu, "call" -> InvokeTool
         self._host, self._port = host, port
-        self.token = token or secrets.token_hex(16)
+        self.token = token or secrets.token_hex(16)  # the secret; each caller gets token_for(caller)
         self._core_line = core_line
         self._server: asyncio.Server | None = None
         self.url = ""
 
-    def mcp_config(self) -> dict[str, Any]:
-        """The `--mcp-config` for a claude session: the relay, pointed at this endpoint."""
+    def token_for(self, caller: str) -> str:
+        """The token that proves `caller`: an HMAC-SHA256 of the secret and the name, as hex."""
+        return hmac.new(self.token.encode(), caller.encode(), hashlib.sha256).hexdigest()
+
+    def mcp_config(self, caller: str) -> dict[str, Any]:
+        """The `--mcp-config` for one claude session of `caller`: the relay, pointed at this endpoint."""
         if not self.url:
             return {}
+        env = {URL_ENV: self.url, TOKEN_ENV: self.token_for(caller), CALLER_ENV: caller}
         return {
             "mcpServers": {
-                SERVER: {
-                    "type": "stdio",
-                    "command": sys.executable,
-                    "args": ["-m", "assistant.infra.mcp_door"],
-                    "env": {URL_ENV: self.url, TOKEN_ENV: self.token},
-                }
+                SERVER: {"type": "stdio", "command": sys.executable, "args": ["-m", "assistant.infra.mcp_door"], "env": env}
             }
         }
 
@@ -135,8 +139,8 @@ class DoorServer:
             await self._server.wait_closed()
         self.url = ""
 
-    async def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        """One tool call: `{"ok", "value"}` or `{"ok": False, "error"}`."""
+    async def call(self, tool: str, arguments: dict[str, Any], caller: str = "") -> dict[str, Any]:
+        """One tool call for `caller`: `{"ok", "value"}` or `{"ok": False, "error"}`."""
         if tool == "list_modules":
             result = await self._send(self._commands["list"]())
             if not result.is_ok:
@@ -150,7 +154,8 @@ class DoorServer:
             args = arguments.get("args") or {}
             if not isinstance(args, dict):
                 return {"ok": False, "error": "args must be an object"}
-            result = await self._send(self._commands["call"](name=str(arguments.get("name", "")), args=args))
+            name = str(arguments.get("name", ""))
+            result = await self._send(self._commands["call"](name=name, args=args, caller=caller))
         else:
             return {"ok": False, "error": f"No tool called {tool!r}"}
         if result.is_ok:
@@ -165,13 +170,15 @@ class DoorServer:
                 name, _, value = line.decode("latin-1").partition(":")
                 headers[name.strip().lower()] = value.strip()
             body = await reader.readexactly(int(headers.get("content-length", 0)))
-            if headers.get(TOKEN_HEADER) != self.token:
+            caller = headers.get(CALLER_HEADER, "")
+            if not hmac.compare_digest(headers.get(TOKEN_HEADER, ""), self.token_for(caller)):
                 status, answer = 403, {"ok": False, "error": "wrong door token"}
             elif method != "POST" or path != "/tool":
                 status, answer = 404, {"ok": False, "error": "not found"}
             else:
                 request = json.loads(body or b"{}")
-                status, answer = 200, await self.call(str(request.get("tool", "")), request.get("arguments") or {})
+                tool, arguments = str(request.get("tool", "")), request.get("arguments") or {}
+                status, answer = 200, await self.call(tool, arguments, caller)
             data = json.dumps(answer, ensure_ascii=False).encode()
             reason = {200: "OK", 403: "Forbidden", 404: "Not Found"}[status]
             writer.write(f"HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\n"
@@ -186,11 +193,14 @@ class DoorServer:
 # --- the relay (runs in its own process, started by claude) ---
 
 
-def _post(url: str, token: str, tool: str, arguments: dict[str, Any], timeout: float = 120) -> dict[str, Any]:
+def _post(
+    url: str, token: str, tool: str, arguments: dict[str, Any], caller: str = "", timeout: float = 120
+) -> dict[str, Any]:
     data = json.dumps({"tool": tool, "arguments": arguments}).encode()
     request = urllib.request.Request(f"{url}/tool", data=data, method="POST")
     request.add_header("Content-Type", "application/json")
     request.add_header(TOKEN_HEADER, token)
+    request.add_header(CALLER_HEADER, caller)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read() or b"{}")
@@ -198,7 +208,7 @@ def _post(url: str, token: str, tool: str, arguments: dict[str, Any], timeout: f
         return json.loads(exc.read() or b"{}")
 
 
-def answer(message: dict[str, Any], url: str, token: str) -> dict[str, Any] | None:
+def answer(message: dict[str, Any], url: str, token: str, caller: str = "") -> dict[str, Any] | None:
     """The relay's reply to one JSON-RPC message, or None for a notification."""
     method, msg_id = message.get("method"), message.get("id")
     if msg_id is None:
@@ -214,7 +224,7 @@ def answer(message: dict[str, Any], url: str, token: str) -> dict[str, Any] | No
     elif method == "tools/call":
         params = message.get("params") or {}
         try:
-            reply = _post(url, token, str(params.get("name", "")), params.get("arguments") or {})
+            reply = _post(url, token, str(params.get("name", "")), params.get("arguments") or {}, caller)
         except (OSError, ValueError) as exc:
             reply = {"ok": False, "error": f"the assistant app didn't answer ({exc}); it may be restarting"}
         result = {"content": [{"type": "text", "text": json.dumps(reply, ensure_ascii=False)}],
@@ -226,7 +236,7 @@ def answer(message: dict[str, Any], url: str, token: str) -> dict[str, Any] | No
 
 def relay() -> int:
     """Read JSON-RPC lines on stdin, answer on stdout, until stdin closes."""
-    url, token = os.environ.get(URL_ENV, ""), os.environ.get(TOKEN_ENV, "")
+    url, token, caller = (os.environ.get(name, "") for name in (URL_ENV, TOKEN_ENV, CALLER_ENV))
     for line in sys.stdin:
         if not line.strip():
             continue
@@ -234,7 +244,7 @@ def relay() -> int:
             message = json.loads(line)
         except ValueError:
             continue
-        reply = answer(message, url, token)
+        reply = answer(message, url, token, caller)
         if reply is not None:
             sys.stdout.write(json.dumps(reply) + "\n")  # ASCII: safe whatever the console's encoding
             sys.stdout.flush()

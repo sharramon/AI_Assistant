@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temp UI: paste an image into the chat box</title>
+<!-- Generated from docs/next-steps/temp-ui-paste-image.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="temp-ui-paste-image.html"></nav>
+<main>
+<h1 id="temp-ui-paste-an-image-into-the-chat-box">Temp UI: paste an image into the chat box</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-05).</strong> Approved with all three recommendations (reuse <code>ViewerClip</code>, <code>[Pasted] image</code>, Talker only). Built in <code>temp_ui</code> and <code>talker</code>; the full suite and <code>ruff</code> pass; loaded with <code>RELOAD</code>, no restart. Left: the checks by hand in the test plan.</p>
+<p><strong>As built:</strong> a clipboard that also holds text stays a text paste (so copying from a page doesn't turn into an image). The page converts any image to PNG; the server takes PNG only. A refused paste shows why in the box's placeholder for a few seconds. The string <code>(pasted)</code> lives in both modules for now; at the next restart, widen <code>ViewerClip</code>'s docstring and consider a shared constant in <code>contracts</code>.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Make images pastable into the main talking module as well", so you can paste a screenshot of the temp UI and the assistant can see what's wrong (the horizontal bar over the top buttons, still to look at after this is built).</p>
+<p><strong>Why:</strong> today the only way to show the assistant an image is a snip from the HTML viewer. A screenshot of the temp UI itself (or anything else) can't get in.</p>
+<p><strong>Touches:</strong> <code>temp_ui</code> only (<code>page.html</code>, <code>module.py</code>), plus maybe one line in <code>talker</code> (question 2). No contract, core or config change, so it loads with <code>RELOAD: temp_ui</code> (and <code>talker</code>), no restart. Docs: <a href="../html/modules/temp_ui.html">temp_ui</a> (its <strong>Snips</strong> paragraph), <a href="../html/modules/talker.html">talker</a> if question 2 is yes, the snips line in the <a href="../html/agents/runtime.html#temp-ui">runtime page</a>. Tests: <code>tests/test_temp_ui.py</code>.</p>
+<p><strong>Approach:</strong> a pasted image becomes a snip, so everything after the paste is the existing snip path (<a href="temp-ui-snip-send.html">snip-send</a>).</p>
+<ol>
+<li><strong>Page:</strong> a <code>paste</code> listener on the chat box. If the clipboard holds an image, the page posts it (<code>POST /paste-image</code>, the PNG bytes) and the text paste is left alone. No thumbnail is drawn on the page side: it arrives over the event stream like a viewer snip.</li>
+<li><strong>Saved:</strong> <code>temp_ui</code> writes it to <code>&lt;launch log folder&gt;/snips/paste-&lt;id&gt;.png</code>, the same folder the viewer's snips go in (<code>ctx.logs.folder()</code>), refuses anything over 10 MB or not an image, and publishes the existing <code>ViewerClip</code> (<code>id</code>, <code>image_path</code>, <code>file="(pasted)"</code>, no heading).</li>
+<li><strong>Everything else is reused as is:</strong> the Talker's pending snips (limit 3, oldest dropped and logged), the thumbnail with its × (<code>POST /drop-snip</code>, <code>ViewerClipDropped</code>), <code>GET /snip/&lt;id&gt;</code>, send with no text as <code>(snip)</code>, the thumbnails moving into your sent bubble, and the 30 kept sent snips.</li>
+<li><strong>Logged at info level:</strong> temp_ui logs the paste (id, size, file) or why it was refused; the receive, ×, attach and drop lines are the existing ones.</li>
+</ol>
+<p>Checked <a href="../html/api/reusable.html">reusable.md</a>: nothing new to add; this reuses <code>ViewerClip</code>, <code>ViewerClipDropped</code> and <code>ctx.logs</code>.</p>
+<p><strong>Helper agent tabs:</strong> there is one chat box; a tab only moves the focus. With a helper in focus, the Talker still gets the image, but it passes your <em>text</em> to the helper word for word (<code>hub.send</code> carries text only), so <strong>the helper doesn't see the image</strong>. See question 3.</p>
+<p><strong>Test plan:</strong> automated: <code>/paste-image</code> with a PNG saves the file and publishes <code>ViewerClip</code>; non-image and oversized bodies are refused and logged; then the existing snip tests. By hand, after the reload: paste a screenshot, send with no text (bubble shows it, the Talker describes it); paste plus text; paste then ×.</p>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li><strong>Reusing <code>ViewerClip</code> for a paste</strong> (its docstring says "from the HTML viewer"). <strong>Recommend</strong> reuse it now, and widen the docstring to "a snip or a pasted image" at the next restart. A new event type would need a restart now.</li>
+<li><strong>How the Talker names it:</strong> today it would say <code>[Viewer] snip from (pasted)</code>. <strong>Recommend</strong> a one-line Talker change: <code>[Pasted] image (image attached; file: …)</code> when <code>file</code> is <code>(pasted)</code>.</li>
+<li><strong>Helpers:</strong> <strong>recommend</strong> Talker only for now. Later, if wanted: when a helper has the focus, the passed text gets the image's file path added, so the helper can open it with Read.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/temp-ui-paste-image.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code map</title>
+<!-- Generated from docs/architecture/code-map.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/code-map.html"></nav>
+<main>
+<h1 id="code-map">Code map</h1>
+<p>Every package and its main classes, with who calls whom. The <a href="index.html">overview</a> shows the parts by what they do; this page shows them by where their code lives. Back to the <a href="index.html">overview</a>.</p>
+<blockquote>
+<p><strong>Kept up to date by the architecture check</strong> after each build: a new package, class or link between packages is added here. First drawn 2026-11-08 from the code review.</p>
+</blockquote>
+<p>Plain arrows are calls; dashed arrows are events or processes.</p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+
+    subgraph Apps[&quot;Independent apps: own process, never import assistant&quot;]
+        VS[&quot;&lt;b&gt;voice_service&lt;/b&gt;&lt;br/&gt;server → ListenSession&lt;br/&gt;SttEngine · AudioSource · PieceCutter&quot;]
+        HV[&quot;&lt;b&gt;html_viewer&lt;/b&gt;&lt;br/&gt;ViewerServer → Tab · HtmlDocument&lt;br/&gt;highlight · snip · MarkdownSource&quot;]
+    end
+
+    subgraph Kit[&quot;app_kit: standard library only&quot;]
+        CA[&quot;CompanionApp&quot;]
+        Guard[&quot;local_guard&lt;br/&gt;refuse other hosts · origins&quot;]
+        KitOther[&quot;window · load_layered · merge · module_docs&quot;]
+    end
+
+    subgraph Core[&quot;Core: the host&quot;]
+        App[&quot;&lt;b&gt;App&lt;/b&gt;&lt;br/&gt;wires everything&quot;]
+        Life[&quot;LifecycleManager&lt;br/&gt;+ loader · registry&quot;]
+        Router[&quot;CommandRouter&quot;]
+        Bus[&quot;EventBus&quot;]
+        DI[&quot;Container&quot;]
+        Dir[&quot;CoreMenu · directory&lt;br/&gt;MenuTools · dispatch_tool&quot;]
+        Perm[&quot;PermissionsHandler&lt;br/&gt;card actions table · GrantStore · rules · port · menu&quot;]
+        Logs[&quot;SessionLogs&quot;]
+        App --&gt; Life &amp; Router &amp; Bus &amp; DI &amp; Dir &amp; Perm &amp; Logs
+        Life -- &quot;ScopedContext per module&quot; --&gt; DI
+    end
+
+    subgraph Contracts[&quot;Contracts: interfaces · commands · events&quot;]
+        CMod[&quot;ModuleProtocol · ModuleContext · Manifest · Menu&quot;]
+        CAg[&quot;ITaskAgent · IAgentNames · IModuleDoor&quot;]
+        CVo[&quot;IVoice · voice events&quot;]
+        CMsg[&quot;messages · control · permissions · tools&quot;]
+    end
+
+    subgraph Infra[&quot;Infra: shared helpers for modules&quot;]
+        Kit[&quot;AgentKit&lt;br/&gt;provide · reset · grants · AGENT_* declarations&quot;]
+        PA[&quot;ProfileAgent&lt;br/&gt;AgentProfile · agent_access&quot;]
+        STA[&quot;SessionTaskAgent&lt;br/&gt;task state machine&quot;]
+        Gate[&quot;PermissionGate · HandoffKeeper&lt;br/&gt;LastLineTags&quot;]
+        CS[&quot;ClaudeSession&lt;br/&gt;process I/O&quot;]
+        Meter[&quot;UsageMeter&lt;br/&gt;token counting · TOKEN_KINDS&quot;]
+        Show[&quot;show_page&lt;br/&gt;SHOW → viewer.open · highlight&quot;]
+        Door[&quot;mcp_door · DoorServer&quot;]
+        InfraOther[&quot;MilestoneFeed · ContextWatch · agent_tags&lt;br/&gt;agent_names · UsageLedger · LogSession · config&quot;]
+        Kit --&gt; PA --&gt; STA --&gt; CS --&gt; Meter
+        STA --&gt; Gate
+        STA --&gt; Show
+    end
+
+    subgraph Mods[&quot;Modules: each a wrapper with a menu&quot;]
+        Hub[&quot;&lt;b&gt;agent_hub&lt;/b&gt;&lt;br/&gt;TaskBoard · Focus · AgentNames · door host&quot;]
+        Talker[&quot;&lt;b&gt;talker&lt;/b&gt;&lt;br/&gt;module + session + prompt&quot;]
+        MA[&quot;main_assistant&quot;]
+        TA[&quot;task_agents&quot;]
+        Job[&quot;job_search&quot;]
+        CV[&quot;cv (rezi · build · compare)&quot;]
+        TUI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&lt;br/&gt;module + page.html&quot;]
+        VIn[&quot;voice_in&quot;]
+        VN[&quot;voice_notes&quot;]
+        HVm[&quot;html_viewer (thin)&quot;]
+        Use[&quot;usage&quot;]
+        Misc[&quot;console_io · assistant_view · echo&quot;]
+    end
+
+    Agents([&quot;claude -p processes&quot;])
+
+    You -- type · click --&gt; TUI
+    You -- speak --&gt; VS
+    TUI -- &quot;InputReceived&quot; --&gt; Talker
+    Talker -- &quot;hub.* · viewer.* · usage.*&quot; --&gt; Hub
+    Talker --&gt; Show
+    Hub -- &quot;StartTask → ITaskAgent&quot; --&gt; MA &amp; TA &amp; Job &amp; CV
+    MA &amp; TA &amp; Job &amp; CV --&gt; PA
+    CS -. &quot;stream-json&quot; .-&gt; Agents
+    Talker --&gt; CS
+    Agents -. &quot;MCP: list · menu · use&quot; .-&gt; Door
+    Hub -- hosts --&gt; Door
+    Door -- &quot;ListModules · GetMenu · InvokeTool&quot; --&gt; Router
+    Show -- &quot;InvokeTool&quot; --&gt; Router
+    Router --&gt; Dir
+    VIn -- CompanionApp --&gt; VS
+    HVm -- CompanionApp --&gt; HV
+    VS &amp; HV --&gt; Guard
+    VN -- &quot;requires IVoice&quot; --&gt; VIn
+    Perm -- &quot;StartTask (review) · cards&quot; --&gt; Hub
+    Perm -. &quot;PermissionRequested&quot; .-&gt; TUI
+    Mods -. &quot;events&quot; .-&gt; Bus
+    Use -. &quot;SessionUsage&quot; .-&gt; Bus
+
+    classDef port fill:#ffffff,stroke:#6b4fa0,color:#1d1d1b
+    classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
+    classDef app fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    class Life,Router,Bus,DI,Dir,Logs,App,Perm port
+    class Hub,Talker,TUI,MA,TA,Job,CV,VIn,VN,HVm,Use,Misc module
+    class VS,HV app
+    class You person
+</code></pre>
+<h2 id="how-it-reads">How it reads</h2>
+<ul>
+<li><strong>Imports point one way.</strong> Modules import contracts and infra; infra imports contracts and <code>app_kit</code>; the core imports contracts and infra. No module imports another module, and the core imports no module. <code>app_kit</code>, <code>html_viewer</code> and <code>voice_service</code> never import <code>assistant</code>.</li>
+<li><strong>Agents.</strong> Every big agent is a <code>ProfileAgent</code> (its <code>AgentProfile</code>, <code>ClaudeSession</code> and <code>SessionTaskAgent</code>); the Agent Hub starts their tasks through <code>ITaskAgent</code> and hosts the one MCP door their <code>claude</code> processes call. More in <a href="agents-code.html">Agents: code layout</a>.</li>
+<li><strong>SHOW tags.</strong> The worker and the Talker both turn a SHOW tag into the viewer's tool call with one helper, <a href="../api/infra.html#show_page"><code>show_page</code></a>; the core starts the viewer if it's off.</li>
+<li><strong>Independent apps.</strong> Each runs in its own process, launched by its thin module through <code>CompanionApp</code>, and refuses other hosts and other origins with <a href="../api/app_kit.html#local_guard"><code>local_guard</code></a> (<a href="reusable-parts.html#companion-app-checklist">companion app checklist</a>).</li>
+<li><strong>The permissions handler</strong> is part of the core; it asks you through cards (<code>PermissionRequested</code>) and runs the Main Assistant's review as a Hub task.</li>
+</ul>
+<h2 id="known-gaps">Known gaps</h2>
+<p>The code review of 2026-11-08 found where the code doesn't follow <a href="principles.html">principles 18 to 22</a> yet: big classes doing several jobs (<code>SessionTaskAgent</code>, <code>temp_ui</code>, the Agent Hub, the permissions handler, the Talker, <code>ClaudeSession</code>), facts passed as text prefixes, if-chains where a table would do, and module names in the core and shared code. They are cleaned up in small chunks, each redrawn here when it lands. <strong>Built 2026-11-08 (waiting on the app restart):</strong> <code>SessionTaskAgent</code> split into its gate, handoff keeper and tag table; <code>UsageMeter</code> out of <code>ClaudeSession</code>; <code>AgentKit</code> for the agent modules; <code>CompanionHandover</code> and <code>window_profile</code> in <code>app_kit</code>; the reserved ids and the coordinator block out of shared code; honest manifests (<code>Manifest.uses</code>, logged undeclared uses); the core's one init path, one single-provider rule (<code>allows_another</code>) and the card actions table; the Talker's <code>RestartFlow</code> and tag table; the permissions reviewer and "you" in config; typed question kinds (<code>QuestionKind</code> on <code>TaskInfo</code> / <code>TaskUpdated</code>, set by the Hub, read by the Talker and the temp UI) and the shared snip limits (<code>MAX_SNIPS</code>, <code>PASTED_FILE</code>) in the contracts. <strong>Still open:</strong> <code>show_page</code> names the viewer's two tools (kept, in one place, by your choice), the Agent Hub split (not approved yet), the <code>"permission allowed"</code> text the temp UI still reads, and <code>temp_ui</code>.</p>
+<footer>Generated from <code>docs/architecture/code-map.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Main Assistant&#x27;s session starts without the module door</title>
+<!-- Generated from docs/next-steps/door-at-session-start.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="door-at-session-start.html"></nav>
+<main>
+<h1 id="the-main-assistants-session-starts-without-the-module-door">The Main Assistant's session starts without the module door</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-05).</strong> Approved with the recommended approach. Needs an app restart (infra code), then the helper launch test is rerun.</p>
+</blockquote>
+<p><strong>Cause, confirmed:</strong> <code>agent_hub</code> provides <code>IModuleDoor</code> at its init, but the door gets its address only at the Hub's <code>start</code> (<code>DoorServer.start</code>); until then <code>mcp_config</code> returns <code>{}</code>. <code>main_assistant</code> starts before <code>agent_hub</code> (the Hub lists <code>ITaskAgent</code> as optional), so its session, started with the module, had no door. The "later" empty starts in the log were the same process: claude repeats its init line every turn.</p>
+<p><strong>Built:</strong> <code>ProfileAgent.start</code> (with <code>start_session</code>) sees there's no door, logs a warning, and listens for <code>ModuleStateChanged</code>. The first <code>active</code> with the door up restarts an idle session once with the new <code>SessionTaskAgent.restart_session()</code>; a busy agent is left alone. That method holds a session lock which every session start now takes, because a first try (<code>reset()</code>, then <code>start()</code>) raced with a task arriving during the close and broke it. Tests: 485 pass, plus the known flaky voice test; ruff clean. Test: <code>test_the_worker_restarts_once_to_pick_up_the_door</code> in <code>tests/test_mcp_door.py</code>. Docs: <code>ProfileAgent</code> in <code>docs/api/infra.md</code>.</p>
+<p><strong>Asked:</strong> the live helper launch test (handoff-73fc479c item 3) couldn't run, because the Main Assistant had no module door tools. Write a change note for the fix; don't change code yet.</p>
+<p><strong>Why:</strong> with no door, the Main Assistant can't use <code>modules.*</code>, <code>hub.*</code> or <code>agents.*</code>, so none of the live checks after the restart can run. What the launch <code>2026-11-05_16-09-39</code> shows:</p>
+<ul>
+<li>The door runs: <code>assistant.log</code> has "The agents' module door is at http://127.0.0.1:49628", with no errors.</li>
+<li>The Main Assistant's session never gets it: every session start in <code>main_assistant.jsonl</code> shows <code>"mcp_servers": []</code>. In the 13:16 launch it showed <code>modules</code> as <code>connected</code>. So the config was never handed over; this isn't a connection that failed.</li>
+<li>Likely cause: <code>ProfileAgent.door()</code> (<code>src/assistant/infra/profile_agent.py:70</code>) returns <code>{}</code> when <code>ctx.get_one(IModuleDoor)</code> finds nothing. <code>start_session=True</code> starts the first session before <code>agent_hub</code> has registered the door. Not confirmed yet: later session starts in this launch were empty too, so <code>get_one</code> may also come back empty after the Hub is up (for example the agent can't see the contract, or <code>door</code> is false in the config).</li>
+</ul>
+<p><strong>Left, after the restart:</strong> (1) Check that the Main Assistant's session has the <code>modules</code> door: its tools load, and the log says "main_assistant restarted its session with the module door". (2) Rerun the helper launch test (handoff-73fc479c item 3): <code>modules.on task_agents</code>, <code>agents.launch</code> two job search helpers under different names, Allow each, and check each helper starts, shows its access card and gets its own temp UI tab. Check <code>hub.agents</code> lists both, and that a taken name is refused with a free name offered. (3) Report, and leave task_agents on until the user says otherwise. (4) Then the other checks in handoff-73fc479c (items 1, 2, 4 to 7). Nothing is committed or pushed.</p>
+<p><strong>Touches:</strong> <code>src/assistant/infra/profile_agent.py</code> (infra: needs an app restart), its tests, and possibly <code>agent_hub</code>'s start order. Docs: <code>docs/api/infra.md</code> (<code>ProfileAgent</code>).</p>
+<p><strong>Approach:</strong></p>
+<ol>
+<li>Confirm the cause first: log one line at each session start saying what <code>door()</code> found (door missing, or turned off in config), and run it in a test that starts <code>main_assistant</code> before <code>agent_hub</code>. If later starts still find nothing, the bug is in how the agent looks up the contract, and the note gets updated before any fix.</li>
+<li>Fix, if the cause is confirmed: when there's no door at session start, a warning is logged. When the door appears (the Hub provides <code>IModuleDoor</code>), an idle agent restarts its session once so it picks the door up. A busy agent picks it up at its next session start, as it does now.</li>
+<li>Add a test: start the agent before the Hub, then provide the door. The next session's command must have <code>--mcp-config</code>.</li>
+<li>After the restart, rerun the helper launch test (handoff-73fc479c item 3).</li>
+</ol>
+<p><strong>Open questions:</strong></p>
+<ul>
+<li>Restart the idle session when the door arrives, or hold the first session start until the Hub is up? <strong>Recommended:</strong> restart it when the door arrives. Holding the start would tie <code>main_assistant</code> to <code>agent_hub</code>, and the two can't depend on each other (that dependency would be circular).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/door-at-session-start.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

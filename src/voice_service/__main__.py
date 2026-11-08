@@ -13,6 +13,8 @@ import logging
 import sys
 from pathlib import Path
 
+from app_kit import require_loopback
+
 from .config import DEFAULT_CONFIG, LoggingConfig, final_engine_name, load_service_config, whisper_folder
 
 
@@ -71,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse(sys.argv[1:] if argv is None else argv)
     try:
         config = load_service_config(args.config, host=args.host, port=args.port)
+        require_loopback(config.server.host)
     except (OSError, ValueError) as exc:
         print(f"voice_service: bad config: {exc}", file=sys.stderr)
         return 2

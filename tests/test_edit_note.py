@@ -11,7 +11,8 @@ from pathlib import Path
 import pytest
 
 from assistant.infra import ClaudeSession
-from assistant.modules.main_assistant.module import WORKER_PROMPT, hook_env
+from assistant.infra.agent_profile import hook_env
+from assistant.modules.main_assistant.module import WORKER_PROMPT
 
 HOOK = Path(__file__).resolve().parents[1] / "scripts" / "hooks" / "edit_tracker.py"
 WORKER_ENV = ("ASSISTANT_AGENT", "ASSISTANT_TASK_FILE", "ASSISTANT_EDIT_NOTE")

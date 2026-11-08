@@ -9,12 +9,14 @@
         "architecture/index.html",
         "architecture/principles.html",
         "architecture/reusable-parts.html",
+        "architecture/code-map.html",
         "architecture/core.html",
         "architecture/modules.html",
         "architecture/module-library.html",
         "modules/index.html",
         "architecture/communication.html",
         "architecture/agents.html",
+        "architecture/agents-code.html",
         "architecture/permissions.html",
         "architecture/remote-clients.html",
         "architecture/decisions.html",
@@ -51,6 +53,10 @@
               "href": "architecture/reusable-parts.html"
             },
             {
+              "name": "Code map",
+              "href": "architecture/code-map.html"
+            },
+            {
               "name": "Core host",
               "href": "architecture/core.html"
             },
@@ -73,6 +79,10 @@
             {
               "name": "Agents",
               "href": "architecture/agents.html"
+            },
+            {
+              "name": "Agents: code layout",
+              "href": "architecture/agents-code.html"
             },
             {
               "name": "Permissions",
@@ -162,7 +172,9 @@
       "home": [
         "modules/talker.html",
         "modules/main_assistant.html",
-        "modules/agent_hub.html"
+        "modules/agent_hub.html",
+        "modules/task_agents.html",
+        "modules/job_search.html"
       ],
       "sep": true,
       "groups": [
@@ -170,7 +182,7 @@
           "label": "Agents",
           "pages": [
             {
-              "name": "talker: the agent that talks with you",
+              "name": "talker: the agents' Talkers, one per agent tab",
               "href": "modules/talker.html"
             },
             {
@@ -180,6 +192,14 @@
             {
               "name": "agent_hub: who is doing what",
               "href": "modules/agent_hub.html"
+            },
+            {
+              "name": "task_agents: helper agents launched by name from kinds in config",
+              "href": "modules/task_agents.html"
+            },
+            {
+              "name": "job_search: the job agent and its menu",
+              "href": "modules/job_search.html"
             }
           ]
         },
@@ -189,6 +209,10 @@
             {
               "name": "Agents (architecture)",
               "href": "architecture/agents.html"
+            },
+            {
+              "name": "Agents: code layout",
+              "href": "architecture/agents-code.html"
             },
             {
               "name": "Agents docs",
@@ -217,6 +241,51 @@
             {
               "name": "SessionTaskAgent (API)",
               "href": "api/infra.html#sessiontaskagent"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "usage",
+      "href": "modules/usage.html",
+      "home": [
+        "modules/usage.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "usage",
+          "pages": [
+            {
+              "name": "usage: every agent's tokens since launch",
+              "href": "modules/usage.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "SessionUsage (API)",
+              "href": "api/agents.html#sessionusage"
+            },
+            {
+              "name": "UsageLedger (API)",
+              "href": "api/infra.html#usageledger"
             }
           ]
         },
@@ -394,12 +463,14 @@
     },
     {
       "name": "Stand-ins and terminals",
-      "href": "modules/console_io.html",
+      "href": "modules/temp_ui.html",
       "home": [
-        "modules/console_io.html",
         "modules/temp_ui.html",
+        "modules/console_io.html",
         "modules/assistant_view.html",
-        "modules/echo_orchestrator.html"
+        "modules/echo_orchestrator/index.html",
+        "modules/echo_orchestrator/architecture.html",
+        "modules/echo_orchestrator/tools.html"
       ],
       "sep": false,
       "groups": [
@@ -407,20 +478,33 @@
           "label": "Stand-ins and terminals",
           "pages": [
             {
-              "name": "console_io: terminal 1",
-              "href": "modules/console_io.html"
-            },
-            {
               "name": "temp_ui: the temporary two-pane page",
               "href": "modules/temp_ui.html"
             },
             {
-              "name": "assistant_view: terminal 2",
-              "href": "modules/assistant_view.html"
+              "name": "console_io: terminal 1",
+              "href": "modules/console_io.html"
             },
             {
-              "name": "echo_orchestrator: stand-in orchestrator",
-              "href": "modules/echo_orchestrator.html"
+              "name": "assistant_view: terminal 2",
+              "href": "modules/assistant_view.html"
+            }
+          ]
+        },
+        {
+          "label": "echo_orchestrator",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/echo_orchestrator/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/echo_orchestrator/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/echo_orchestrator/tools.html"
             }
           ]
         },
@@ -438,6 +522,61 @@
             {
               "name": "AgentActivity (API)",
               "href": "api/agents.html#agentactivity"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cv",
+      "href": "modules/cv/index.html",
+      "home": [
+        "modules/cv/index.html",
+        "modules/cv/architecture.html",
+        "modules/cv/tools.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "cv",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/cv/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/cv/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/cv/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "Agents (architecture)",
+              "href": "architecture/agents.html"
+            },
+            {
+              "name": "Agents API",
+              "href": "api/agents.html"
             }
           ]
         },

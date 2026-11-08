@@ -211,8 +211,12 @@ ClaudeSession(command, transcript=transcript)
 <td>Tokens by kind (<code>input</code>, <code>cache_write</code>, <code>cache_read</code>, <code>output</code>), every call since construction, across restarts. Input counts each call once (by message id). Output comes from each turn's <code>result</code>: the streamed lines undercount it (2.5k against 129k in one real session) and only stand in while a turn runs</td>
 </tr>
 <tr>
-<td><code>cost_usd: float</code></td>
-<td><code>claude</code>'s estimate (<code>total_cost_usd</code>, which counts per process) added up across restarts</td>
+<td><code>id: str</code></td>
+<td>A new id per <code>ClaudeSession</code> object (kept across process restarts inside it), sent as <code>SessionUsage.session</code></td>
+</tr>
+<tr>
+<td><code>subagents</code></td>
+<td>Each sub-agent's tokens, by <code>agentId</code>, with its type. Taken per turn from the <code>result</code>: its <code>model_usage_since_last_result</code> (or the cumulative <code>modelUsage</code>) less the session's own calls since the last result. Shared among the sub-agents that returned that turn, by last-call size; with none, under <code>unnamed</code>. Without per-turn numbers, each sub-agent's last-call numbers are used. Rows with no tokens yet are left out</td>
 </tr>
 <tr>
 <td><code>on_event</code></td>
@@ -228,8 +232,8 @@ await session.send("Hello")
 <p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code></p>
 <h2 id="claude_command"><code>claude_command</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>talker</code>, <code>main_assistant</code> (<code>disallowed</code> for Auto's <code>git push</code> block)</p>
-<p><code>claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, allowed: Sequence[str] = (), disallowed: Sequence[str] = (), permission_prompts: bool = False, system_prompt: str | None = None, program: Sequence[str] = ("claude",)) -&gt; list[str]</code></p>
-<p>The command line for a stream-json <code>claude -p</code> session. Always adds <code>--strict-mcp-config</code> (otherwise your claude.ai MCP connectors load). <code>tools=""</code> means no tools; <code>allowed</code> are permission rules passed as <code>--allowedTools</code> (build path rules with <a href="#path_rule"><code>path_rule</code></a>); <code>disallowed</code> rules (e.g. <code>PowerShell(git push *)</code>) go in as <code>--disallowedTools</code>, one argument each, and are refused outright, even under <code>bypassPermissions</code> (checked against the real <code>claude</code>, 2026-11-02); <code>permission_prompts</code> adds <code>--permission-prompt-tool stdio</code>, so anything the rules don't allow arrives as a <code>can_use_tool</code> control request instead of being refused; <code>system_prompt</code> goes in as <code>--append-system-prompt</code>. <code>program</code> is replaceable so tests can run a fake.</p>
+<p><code>claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, allowed: Sequence[str] = (), disallowed: Sequence[str] = (), permission_prompts: bool = False, system_prompt: str | None = None, program: Sequence[str] = ("claude",), chrome: bool = False) -&gt; list[str]</code></p>
+<p>The command line for a stream-json <code>claude -p</code> session. <code>chrome</code> adds <code>--chrome</code>, the Claude in Chrome tools on your logged-in browser (the job agent; whether it loads under <code>--strict-mcp-config</code> is to be checked in the real app). Always adds <code>--strict-mcp-config</code> (otherwise your claude.ai MCP connectors load). <code>tools=""</code> means no tools; <code>allowed</code> are permission rules passed as <code>--allowedTools</code> (build path rules with <a href="#path_rule"><code>path_rule</code></a>); <code>disallowed</code> rules (e.g. <code>PowerShell(git push *)</code>) go in as <code>--disallowedTools</code>, one argument each, and are refused outright, even under <code>bypassPermissions</code> (checked against the real <code>claude</code>, 2026-11-02); <code>permission_prompts</code> adds <code>--permission-prompt-tool stdio</code>, so anything the rules don't allow arrives as a <code>can_use_tool</code> control request instead of being refused; <code>system_prompt</code> goes in as <code>--append-system-prompt</code>. <code>program</code> is replaceable so tests can run a fake.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code></p>
 <h2 id="path_rule"><code>path_rule</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>main_assistant</code> (one user so far; any agent that gets folder rules)</p>
@@ -237,13 +241,15 @@ await session.send("Hello")
 <p>A permission rule for everything under <code>folder</code>: <code>path_rule("Edit", "docs")</code> → <code>Edit(//c/Chang/.../docs/**)</code>. <code>claude</code> matches absolute paths in POSIX form with a leading <code>//</code>, so Windows <code>C:\x</code> becomes <code>//c/x</code>. <code>Read</code> rules cover Read, Glob, and Grep; <code>Edit</code> rules cover Edit and Write. Checked against a real session: reads and writes inside the rule's folder work without a prompt; writes elsewhere are refused.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code> (<code>from assistant.infra.claude_session import path_rule</code>)</p>
 <h2 id="sessiontaskagent"><code>SessionTaskAgent</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>; every task agent later (the decided pattern)</p>
-<p><code>SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits", context_reminder: int = 0, edit_note: bool = False, task_file: str | Path | None = None)</code></p>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code> (through <a href="#profileagent"><code>ProfileAgent</code></a>)</p>
+<p><code>SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits", context_reminder: int = 0, edit_note: bool = False, task_file: str | Path | None = None, write_folders: Iterable[str] = ())</code></p>
+<p><strong>Working with other agents</strong> (built 2026-11-05). <code>write_folders</code> goes into <code>info()</code> for the Hub's folder-clash check (pass <a href="#agentprofile"><code>AgentProfile.write_folders()</code></a>). Each <code>STATUS: &lt;line&gt;</code> in the agent's text (<a href="#agent_tags"><code>status_lines</code></a>) is reported as a <code>milestone</code>. <a href="agents.html#itaskagentnote"><code>note(text)</code></a> adds the line to a <a href="#milestonefeed"><code>MilestoneFeed</code></a>, whose block goes at the end of the next message the agent writes to its session: a new task, a message (either kind), and every message it sends itself (handoffs, continues, reminders). Never an interrupt, never a turn of its own.</p>
 <p>An <a href="agents.html#itaskagent"><code>ITaskAgent</code></a> backed by one <code>ClaudeSession</code>: the shared part every task agent is built from. Turns <code>assign</code>, <code>message</code>, and <code>cancel</code> into session messages, and the session's events into <a href="agents.html#reporttask"><code>ReportTask</code></a>, <a href="agents.html#agentactivity"><code>AgentActivity</code></a>, <a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, and <a href="agents.html#sessionusage"><code>SessionUsage</code></a>. Sets itself as the session's <code>on_event</code>. Every method returns once its message or interrupt is written. A turn whose last line is <code>NEED: &lt;question&gt;</code> is reported as <code>need</code>. If a cancel's interrupt doesn't end the turn within <code>cancel_timeout</code>, the session is closed and the next task starts a fresh one. A <code>can_use_tool</code> request is reported as <code>permission</code> and held until <a href="agents.html#itaskagentanswer_permission"><code>answer_permission</code></a>; after <code>permission_timeout</code> seconds it's denied. Behavior: <a href="../agents/runtime.html#the-main-assistant-on-its-own">The Main Assistant on its own</a>.</p>
 <p><strong>Fresh sessions and handoffs.</strong> With <code>fresh_sessions</code>, each task starts in a new <code>claude</code> process, so its context holds only that task. A turn (or a reply) whose last line is <code>HANDOFF: &lt;note path&gt;</code> continues the same task in a fresh session told to read that note; it's reported as <code>progress</code> "Handed off to a fresh session (n): <note>". After <code>max_handoffs</code> in one task it asks you instead (<code>need</code>).</p>
 <p><strong>Context reminder.</strong> With <code>context_reminder</code> (tokens; 0, the default, is off), the first time the session's context passes it during a task, checked with <a href="#contextwatch"><code>ContextWatch</code></a> wherever usage is published, the task gets a <code>[Context check]</code> message the same way <a href="agents.html#itaskagent"><code>message</code></a> sends any (interrupt, then carry on): find a safe point, write what's done and next into the change note, and end with <code>HANDOFF:</code>. Once per crossing: a fresh session starts small and re-arms it. While the task waits on you (a <code>NEED</code> or a permission request) the reminder is held and sent once it works again, so an open request isn't dropped. Logged (<code>context 152k past 150k: reminded task … to find a reset point</code>) and published as <code>AgentActivity</code> (<code>context reminder sent (152k)</code>).</p>
 <p><strong>Edit note.</strong> With <code>edit_note</code>, the second edit to a file in a task (<code>Edit</code>, <code>Write</code>, <code>MultiEdit</code> or <code>NotebookEdit</code>, paths compared lowercase with <code>/</code>, counted across handoffs) is logged (<code>batching note for task … : &lt;path&gt; edited twice</code>) and published as <code>AgentActivity</code> (<code>batching note: a.md</code>), once per file. It only reports and never sends the agent anything: the note the agent reads comes from the edit hook, with the tool call. With <code>task_file</code>, the current task's id is written there at each <code>assign</code>, so the hook can count by task across sessions.</p>
-<p><strong>Permission mode.</strong> It holds the <a href="agents.html#permissionmode"><code>PermissionMode</code></a> in memory, Manual at every launch. The owning module builds each session's command for <code>permission_mode</code> (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Mid-task, a switch to Manual sends <code>ClaudeSession.set_permission_mode(manual_claude_mode)</code> when the running session is in Auto. Every switch is logged, published as <code>AgentActivity</code>, and published as <a href="agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>.</p>
+<p><strong>SHOW tags.</strong> Every <code>&lt;&lt;SHOW: path&gt;&gt;</code> or <code>&lt;&lt;SHOW: path | "quote" | heading&gt;&gt;</code> in the agent's text (read with <a href="#agent_tags"><code>agent_tags</code></a>) is sent as <code>InvokeTool viewer.open</code> or <code>viewer.highlight</code> through <a href="#show_page"><code>show_page</code></a>, in the background; the core turns the viewer on first if it's off (<a href="core.html#dispatch_tool">start on use</a>). A failure is logged and published as <code>AgentActivity</code> (<code>couldn't show &lt;path&gt;: &lt;error&gt;</code>). Built 2026-11-05; it was the <code>html_viewer</code> module's job before.</p>
+<p><strong>Permission mode.</strong> It holds the <a href="agents.html#permissionmode"><code>PermissionMode</code></a> in memory, Manual at every launch. The owning module builds each session's command for <code>permission_mode</code> (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Every switch applies at once. Mid-task, a switch to Manual sends <code>ClaudeSession.set_permission_mode(manual_claude_mode)</code> when the running process is in Auto. A switch to Auto mid-task leaves the process in its Manual mode (the <code>git push</code> block is a launch flag) and the agent answers each <code>can_use_tool</code> itself: allowed, logged as <code>allowed in Auto: …</code>, or, for a PowerShell or Bash command containing <code>git push</code>, refused (<code>refused in Auto: …</code>). An open tool request is answered the same way at the switch. The session gets the new mode's rules (<code>AUTO_ACCESS</code> / <code>MANUAL_ACCESS</code>) at the end of its next message; to Auto mid-turn it's interrupted for them (the usual message path), then carries on. Every switch is logged, published as <code>AgentActivity</code>, and published as <a href="agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>.</p>
 <table>
 <thead>
 <tr>
@@ -258,11 +264,19 @@ await session.send("Hello")
 </tr>
 <tr>
 <td><code>async set_permission_mode(mode) -&gt; Result</code></td>
-<td>Set it. No task: <code>now</code>. Mid-task: Manual applies at once (<code>now</code>; <code>next_task</code> if the control request fails), Auto from the next task or handoff session (<code>next_task</code>). Always <code>ok</code></td>
+<td>Set it; applies at once (<code>now</code>; <code>next_task</code> only if a live switch to Manual fails). Always <code>ok</code>; the value is <code>True</code> when it answered an open permission request (the Hub then closes that card)</td>
 </tr>
 <tr>
 <td><code>async reset() -&gt; Result</code></td>
 <td>Start fresh. Idle: close the session now; the next task starts a new one. With a task: ask it (as a message) to write a handoff note, which continues it in a fresh session. <code>not_available</code> while a cancelled turn is still stopping</td>
+</tr>
+<tr>
+<td><code>async restart_session() -&gt; bool</code></td>
+<td>Close the session and start a new one at once, so it re-reads its command (e.g. the module door, now up). Only when idle: <code>False</code> if a task has it. Holds the session lock that every session start takes, so a task assigned meanwhile waits for the new session instead of racing it. Used by <code>ProfileAgent</code> (built 2026-11-05)</td>
+</tr>
+<tr>
+<td><code>async request_approval(action, run) -&gt; Result</code></td>
+<td><a href="agents.html#itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></a>: ask you on the current task, even in Auto. <code>not_available</code> with no task or with a question already open</td>
 </tr>
 <tr>
 <td><code>async close()</code></td>
@@ -270,16 +284,230 @@ await session.send("Hello")
 </tr>
 </tbody>
 </table>
+<p><strong>Approvals</strong> (built 2026-11-05). One path asks you to allow an app action on the task: <code>request_approval</code> (a helper launch from <code>task_agents</code>) and a turn whose last line is <code>RELOAD: &lt;module id&gt; [now]</code> or <code>ADD_MODULE: &lt;package&gt;</code>. It puts a <code>permission</code> report on the task, so you get the same card and answer with <a href="agents.html#answerpermission"><code>AnswerPermission</code></a>. On Allow, <code>run()</code> runs and its outcome becomes the task's next message: <code>[App] &lt;action&gt;: &lt;outcome&gt; Continue the task...</code>. While the approval is open, a turn that ends doesn't finish the task; if you answer mid-turn, the outcome is sent when the turn ends. A tool's permission request that comes while an approval is open is refused (one question to you at a time).</p>
+<p><strong>Its parts</strong> (split 2026-11-08, principle 18). <code>SessionTaskAgent</code> keeps the task state machine and wires these together: a <a href="#permissiongate"><code>PermissionGate</code></a> (the one open question: tool requests, approvals, the timer, the Auto policy and the <code>git push</code> block), a <a href="#handoffkeeper"><code>HandoffKeeper</code></a> (handoff count, reminders, reset requests), and a <a href="#lastlinetags"><code>LastLineTags</code></a> table for the turn's last line (<code>NEED</code>, <code>RELOAD</code>, <code>ADD_MODULE</code>, <code>HANDOFF</code>). Its usage comes from the session's <a href="#usagemeter"><code>UsageMeter</code></a>.</p>
 <p><strong>Example:</strong> see <a href="agents.html#itaskagent"><code>ITaskAgent</code></a>.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/infra/session_agent.py</code></p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/session_agent.py</code> · parts in <code>permission_gate.py</code>, <code>handoff_keeper.py</code>, <code>agent_tags.py</code></p>
+<h2 id="agentprofile"><code>AgentProfile</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code> (its command line, prompt and <code>write_folders</code>), <code>task_agents</code>, <code>job_search</code> (through <code>ProfileAgent</code>) · built 2026-11-05</p>
+<p><code>AgentProfile(agent_id, workspace, read_dirs=(), write_dirs=(), allowed_commands=(), tools="Read,Write,Edit,Glob,Grep", model=None, claude_mode="acceptEdits", permission_prompts=True, program=("claude",), role_block=HELPER_BLOCK, chrome=False, python=None)</code> (frozen dataclass) · <code>from assistant.infra import AgentProfile, prompt_block</code></p>
+<p>What makes one <code>claude</code> task agent: everything but its own prompt comes from config, so the folder, access and command code lives here once (it moved out of <code>main_assistant</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>from_config(agent_id, config, role_block=HELPER_BLOCK)</code></td>
+<td>From a config section: <code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>, <code>python</code> (a Python it may run, with any arguments: a rule and a line in its access section), <code>tools</code>, <code>model</code>, <code>permission_mode</code> (a Manual claude mode only, through <code>manual_claude_mode</code>), <code>permission_prompts</code>, <code>program</code>, <code>chrome</code> (passed to <code>claude_command</code>). A task-agent module passes the granted config (<a href="#agent_access"><code>granted_config</code></a>)</td>
+</tr>
+<tr>
+<td><code>write_folders() -&gt; tuple[str, ...]</code></td>
+<td>Its workspace and <code>write_dirs</code>, resolved, for <a href="agents.html#agentinfo"><code>AgentInfo.write_folders</code></a></td>
+</tr>
+<tr>
+<td><code>command(prompt, mode, door=None) -&gt; list[str]</code></td>
+<td>The session's command line for a <a href="agents.html#permissionmode"><code>PermissionMode</code></a>: <code>prompt</code>, then the shared block, the access section and, with a door config, the door's note. Auto adds <code>bypassPermissions</code>, the <code>git push</code> block (<code>AUTO_BLOCKED</code>) and the risky-step rule; with the door, its two read-only tools are allowed</td>
+</tr>
+<tr>
+<td><code>access(mode) -&gt; str</code></td>
+<td>The access section of the prompt</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Function or constant</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prompt_block(role_block=HELPER_BLOCK) -&gt; str</code></td>
+<td><strong>The shared prompt block.</strong> It starts with <code>BASICS_BLOCK</code> (what every agent is told: its access is listed at the end, a line before each step, a summary at the end), then the role's half. A helper's half (<code>HELPER_BLOCK</code>): <code>STATUS: &lt;one line&gt;</code> for big milestones, for the coordinator; <code>NEED:</code> (or a tool that asks) for questions for you, which may wait until you turn to it, so each must stand on its own; never mix the two. The coordinator's half (<code>COORDINATOR_BLOCK</code>) names the Hub's and <code>task_agents</code>' menus, so it lives in <code>main_assistant</code> and is passed in as <code>role_block</code> (principle 21: shared code names no module)</td>
+</tr>
+<tr>
+<td><code>command_rules(command)</code>, <code>hook_env(agent_id, task_file, edit_note)</code></td>
+<td>Permission rules for a shell command with any arguments; the edit hook's environment</td>
+</tr>
+<tr>
+<td><code>DOOR_PROMPT</code>, <code>MANUAL_ACCESS</code>, <code>AUTO_ACCESS</code>, <code>AUTO_BLOCKED</code>, <code>AUTO_CLAUDE_MODE</code></td>
+<td>The prompt's door note and access texts; Auto's hard block and claude mode</td>
+</tr>
+<tr>
+<td><code>manual_claude_mode(value) -&gt; str</code>, <code>MANUAL_CLAUDE_MODES</code></td>
+<td><strong>♻ Reusable.</strong> The claude mode a session starts in from config's <code>permission_mode</code>: one of <code>MANUAL_CLAUDE_MODES</code> (<code>default</code>, <code>acceptEdits</code>, <code>plan</code>), else <code>acceptEdits</code> with a warning, so no config starts a session in Auto. Used by: <code>AgentProfile.from_config</code> (every task agent). <code>from assistant.infra.agent_profile import manual_claude_mode</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>profile = AgentProfile.from_config("main_assistant", ctx.config, role_block=COORDINATOR_BLOCK)
+session = ClaudeSession(lambda: profile.command(WORKER_PROMPT, agent.permission_mode, door()), ...)
+agent = SessionTaskAgent(session, ctx, ..., write_folders=profile.write_folders())
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/agent_profile.py</code> · <strong>Tests:</strong> <code>tests/test_multi_agent.py</code>, <code>tests/test_agents.py</code>, <code>tests/test_mcp_door.py</code></p>
+<h2 id="profileagent"><code>ProfileAgent</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>task_agents</code> (the autostarted and the launched helpers), <code>job_search</code> (the job agent, bundled with its menu) · built 2026-11-05</p>
+<p><code>ProfileAgent(ctx, agent_id, config, prompt, role_block=HELPER_BLOCK, start_session=False, subject=None, session_factory=ClaudeSession)</code> · <code>from assistant.infra import ProfileAgent</code></p>
+<p><code>session_factory</code> builds its session (with <code>ClaudeSession</code>'s arguments): pass a fake to test or swap it without patching (principle 22). A module that owns ProfileAgents declares what they use from <a href="#agentkit"><code>AGENT_USES</code> and the rest</a>.</p>
+<p>One big agent put together from its config section, the same way for every agent: an <a href="#agentprofile"><code>AgentProfile</code></a>, a <a href="#claudesession"><code>ClaudeSession</code></a> whose command is read at each session start (the mode of that moment, and the module door under the agent's own name), and a <a href="#sessiontaskagent"><code>SessionTaskAgent</code></a> with the profile's <code>write_folders</code>. The owning module provides <code>agent</code> as <code>ITaskAgent</code>. It claims its id from the Hub (<a href="agents.html#iagentnames"><code>IAgentNames</code></a>) on <code>start</code> and releases it on <code>stop</code>, so every agent built this way gets the duplicate check with no code of its own.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent</code>, <code>session</code>, <code>profile</code>, <code>workspace</code></td>
+<td>The parts, for the module to provide and use</td>
+</tr>
+<tr>
+<td><code>door() -&gt; dict</code></td>
+<td><code>IModuleDoor.mcp_config(agent_id)</code>, or <code>{}</code> when <code>door = false</code> or no door is up</td>
+</tr>
+<tr>
+<td><code>snips() -&gt; str</code></td>
+<td>This launch's snips folder (<code>ctx.logs.folder()/snips</code>), read at each session start; the command gets a <code>Read</code> rule and an access line for it, with no card</td>
+</tr>
+<tr>
+<td><code>set_access(config)</code></td>
+<td>A grant changed: rebuild <code>profile</code> from the new granted config and hand <code>agent</code> its new <code>write_folders</code> (a setter on <code>SessionTaskAgent</code>). An idle open session restarts once in the background; a busy one takes it at its next session. The workspace stays as it started. <code>stop</code> cancels a pending restart</td>
+</tr>
+<tr>
+<td><code>subject</code></td>
+<td>The grant it holds (its own id, or its kind). Given, <code>start</code> calls <code>ctx.permissions.own_agent</code>, and its prompt tells it to ask for more access with <code>permissions.request</code> (config <code>permission_requests</code>)</td>
+</tr>
+<tr>
+<td><code>busy() -&gt; str | None</code></td>
+<td>Why a reload should wait (it has a task)</td>
+</tr>
+<tr>
+<td><code>start()</code>, <code>stop()</code></td>
+<td><code>start</code> claims the agent's id with <code>IAgentNames.claim(agent_id, ctx.module_id)</code> when the Hub runs (a refusal raises <code>RuntimeError</code> with the reason, so at launch its module fails to start and the log says why), then makes the workspace (and, with <code>start_session</code>, starts <code>claude</code>). At launch such an agent starts before the Hub, whose door has no address until the Hub starts; it then logs a warning, and when a module turns on (<code>ModuleStateChanged</code> <code>active</code>) and the door is up, an idle session restarts once to pick it up (<code>agent.restart_session()</code>; a busy one is left alone and gets the door at its next session start). <code>stop</code> closes the agent and session, then releases the id through the Hub of that moment (it may have been reloaded)</td>
+</tr>
+</tbody>
+</table>
+<p>Config keys besides <code>AgentProfile.from_config</code>'s: <code>description</code>, <code>capabilities</code>, <code>permission_timeout</code>, <code>fresh_sessions</code>, <code>max_handoffs</code>, <code>context_reminder</code>, <code>edit_note</code>, <code>transcript</code>, <code>door</code>.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/profile_agent.py</code> · <strong>Tests:</strong> <code>tests/test_task_agents.py</code>, <code>tests/test_agents.py</code>, <code>tests/test_agent_names.py</code></p>
+<h2 id="agent_access"><code>agent_access</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>job_search</code> (the job agent, subject <code>job_search_agent</code>), <code>task_agents</code> (each autostart kind on start, a launched helper's kind with <code>wait=True</code>) · built 2026-11-05</p>
+<p><code>from assistant.infra import access_items, granted_config, request_access, watch_grant</code></p>
+<p>A task agent's access list, from its config section, asked for in one request. A module that uses it declares <code>agent.access</code> in its manifest. Design: <a href="../architecture/permissions.html#access-lists-built">access lists</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>access_items(config) -&gt; tuple[AccessItem, ...]</code></td>
+<td>The <a href="messaging.html#accessitem"><code>AccessItem</code></a>s of a config section: <code>workspace</code> (resolved, always first), <code>read_dirs</code>, <code>write_dirs</code> (resolved), <code>python</code>, <code>allowed_commands</code>, <code>chrome</code></td>
+</tr>
+<tr>
+<td><code>granted_config(config, granted) -&gt; dict</code></td>
+<td>The config cut down to the <code>granted</code> items: trimmed folders, Python, commands and Chrome dropped; paths resolved. Granted items beyond the config's list (added by the agent's own <code>permissions.request</code>) are added. Raises <a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code></a> when the workspace wasn't granted, since an agent can't run without it</td>
+</tr>
+<tr>
+<td><code>async request_access(ctx, config, subject="", reason="", wait=False) -&gt; dict</code></td>
+<td>Both: asks with <a href="modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a> and returns the granted config. Raises <code>AccessPending</code> (with <code>wait=False</code>, while its card is open) or <code>AccessDenied</code>, as <code>request_set</code> does</td>
+</tr>
+<tr>
+<td><code>watch_grant(ctx, on_grant, subject=None)</code></td>
+<td>Call <code>async on_grant(subject, granted)</code> whenever one of this module's grants is saved with items (<code>PermissionChanged</code>); <code>subject=None</code>: every subject (a kind each in <code>task_agents</code>). A denied or removed grant is skipped (a revoke turns the module off). Subscribe in <code>init</code>; list <code>PermissionChanged</code> in <code>listens</code></td>
+</tr>
+</tbody>
+</table>
+<p>A trimmed folder or command never becomes a rule, so <code>claude</code> asks for it with a normal card. The config keys it reads, including <code>python</code> (a Python it may run, with any arguments), are <a href="#agentprofile"><code>AgentProfile.from_config</code></a>'s.</p>
+<p><strong>Example</strong></p>
+<pre><code>config = await request_access(ctx, ctx.config, subject="job_search_agent", reason="the job agent's folders")
+agent = ProfileAgent(ctx, "job_search_agent", config, PROMPT, subject="job_search_agent")
+# in init: watch_grant(ctx, on_grant, subject="job_search_agent"); on_grant calls
+# agent.set_access(granted_config(ctx.config, granted))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/agent_access.py</code> · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_access_cards.py</code></p>
+<h2 id="agent_names"><code>agent_names</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> (<code>AgentNames</code>, its <a href="agents.html#iagentnames"><code>IAgentNames</code></a>), <code>task_agents</code> (the autostarted ids, and the launch check when no Hub runs) · built 2026-11-05</p>
+<p><code>from assistant.infra import check_agent_id, free_agent_id</code></p>
+<p>The rules for agent ids, in one place. The Hub applies them when an agent claims its id; anything naming an agent can check a name early with the same rules. The shared rules reserve no id (principle 21): the caller passes the ones it reserves. The Hub reserves <code>core</code>, <code>hub</code>, <code>talker</code> and its coordinator (<code>RESERVED_AGENT_IDS</code> in <code>agent_hub</code>); <code>task_agents</code> passes the callers its menu trusts. Design: <a href="../architecture/agents.html#agent-names">agent names</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check_agent_id(agent_id, owner="", module_ids=(), reserved=()) -&gt; str | None</code></td>
+<td>Why an agent of module <code>owner</code> can't use <code>agent_id</code>, or None. The form: lowercase letters, digits and <code>_</code>, starting with a letter, at most 32 characters (<code>^[a-z][a-z0-9_]{0,31}$</code>). <code>reserved</code> ids and module ids are refused, except when <code>agent_id == owner</code> (a module's own agent may carry its module's id)</td>
+</tr>
+<tr>
+<td><code>free_agent_id(base, taken) -&gt; str</code></td>
+<td><code>base</code> if it's not in <code>taken</code>, else the first free of <code>base_2</code>, <code>base_3</code>, ...</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>check_agent_id("Flight-Search")                       # "`Flight-Search` isn't a valid agent id: ..."
+check_agent_id("voice_in", "task_agents", ["voice_in"])  # "`voice_in` is a module's id"
+check_agent_id("main_assistant", "main_assistant")    # None: its module's own id
+free_agent_id("helper", {"helper", "helper_2"})        # "helper_3"
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/agent_names.py</code> · <strong>Tests:</strong> <code>tests/test_agent_names.py</code></p>
+<h2 id="milestonefeed"><code>MilestoneFeed</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> (<code>note</code>) · built 2026-11-05</p>
+<p><code>MilestoneFeed()</code> · <code>from assistant.infra import MilestoneFeed</code></p>
+<p>Lines waiting for an agent's next message to its session. <code>add(line)</code> keeps it (the last 50; older ones only count). <code>take(max_lines=5) -&gt; str</code> empties the feed into one block under <code>HEADER</code> ("[Updates from the other agents (background: …)]"), one <code>- line</code> each, newest last, the oldest merged as <code>(+N earlier)</code>; <code>""</code> when nothing waits. So lines never pile up in a prompt and never interrupt.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/milestone_feed.py</code> · <strong>Tests:</strong> <code>tests/test_multi_agent.py</code></p>
 <h2 id="session_usage"><code>session_usage</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code>, <code>talker</code></p>
 <p><code>session_usage(agent_id: str, session: ClaudeSession) -&gt; SessionUsage</code></p>
-<p><code>session</code>'s usage so far (<a href="#claudesession"><code>ClaudeSession</code></a> <code>context_tokens</code>, <code>used</code>, <code>cost_usd</code>) as a <a href="agents.html#sessionusage"><code>SessionUsage</code></a> event; context 0 when the session isn't running. Used by <code>SessionTaskAgent</code> and the Talker.</p>
+<p><code>session</code>'s usage so far (<a href="#claudesession"><code>ClaudeSession</code></a> <code>context_tokens</code>, <code>used</code>, <code>id</code> as <code>session</code>) as a <a href="agents.html#sessionusage"><code>SessionUsage</code></a> event; context 0 when the session isn't running. Used by <code>SessionTaskAgent</code> and the Talker.</p>
 <p><strong>Example</strong></p>
 <pre><code>ctx.publish(session_usage("talker", self._session))
 </code></pre>
+<p><code>subagent_usage(agent_id, session) -&gt; list[SessionUsage]</code>: one per sub-agent the session ran (from <a href="#claudesession"><code>ClaudeSession.subagents</code></a>: each turn's sub-agent tokens, by <code>agentId</code>), with <code>parent = agent_id</code>, <code>kind = "subagent"</code>, its tokens and the parent session's <code>session</code> id. <code>SessionTaskAgent</code> publishes each one when its tally grows.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/session_agent.py</code></p>
+<h2 id="usageledger"><code>UsageLedger</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>usage</code></p>
+<p><code>UsageLedger()</code></p>
+<p>Every agent's usage since the app started, from their running totals. Plain Python, no app imports.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add(usage)</code></td>
+<td>Take one <code>SessionUsage</code> (or anything with its fields). Replaces that agent's numbers (they are totals); when its <code>session</code> id changes (or, with no id, when they go down), what it had is kept and the new numbers add to it</td>
+</tr>
+<tr>
+<td><code>total() -&gt; dict</code></td>
+<td>Every agent together: the four token counts, <code>used_tokens</code>, and <code>agents</code> (top-level rows). Tokens only</td>
+</tr>
+<tr>
+<td><code>by_agent() -&gt; list[dict]</code></td>
+<td>One row per top-level agent, in the order they first reported; sub-agents and tools in <code>children</code>; each row has its own numbers and a <code>total</code> with its children</td>
+</tr>
+<tr>
+<td><code>mine(agent_id) -&gt; dict</code></td>
+<td>One agent's row with its children; zeros if it hasn't reported</td>
+</tr>
+</tbody>
+</table>
+<p>A row with a <code>parent</code> is listed under it and rolled into the parent's <code>total</code>. A sub-agent's tokens aren't in its parent's own numbers, so nothing is counted twice.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/usage_ledger.py</code> · <strong>Tests:</strong> <code>tests/test_usage.py</code></p>
 <h2 id="contextwatch"><code>ContextWatch</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>talker</code> (<code>context_warning</code>), <code>SessionTaskAgent</code> (<code>context_reminder</code>, in <code>main_assistant</code>) · built 2026-11-03</p>
 <p><code>ContextWatch(limit: int)</code></p>
@@ -291,8 +519,8 @@ if watch.crossed("main_assistant", usage.context_tokens):
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/context_watch.py</code></p>
 <h2 id="agent_tags"><code>agent_tags</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>talker</code> (<code>find_tags</code>, <code>parse_show</code>), <code>html_viewer</code> module (<code>find_tags</code>, <code>parse_show</code>), <code>SessionTaskAgent</code> (<code>last_line</code>), <code>talker</code> (<code>last_line</code> for <code>RESTART_READY</code>) · built 2026-11-02</p>
-<p><code>from assistant.infra import find_tags, last_line, parse_show, Tag, ShowTag</code></p>
+<p><strong>Reusable</strong> · Used by: <code>talker</code> (<code>find_tags</code>, <code>parse_show</code>), <code>html_viewer</code> module (<code>find_tags</code>, <code>parse_show</code>), <code>SessionTaskAgent</code> (<code>last_line</code>, <code>status_lines</code>), <code>talker</code> (<code>last_line</code> for <code>RESTART_READY</code>) · built 2026-11-02</p>
+<p><code>from assistant.infra import find_tags, last_line, parse_show, status_lines, Tag, ShowTag</code></p>
 <p>Reads the tags agents write in their text, the same way everywhere. Replaced the two SHOW parsers (Talker, <code>html_viewer</code> module), which handled quotes differently, and <code>SessionTaskAgent</code>'s own last-line reader.</p>
 <table>
 <thead>
@@ -314,6 +542,10 @@ if watch.crossed("main_assistant", usage.context_tokens):
 <td><code>parse_show(argument) -&gt; ShowTag</code></td>
 <td>A SHOW argument, <code>path | "quote" | heading</code>, as <code>ShowTag(path, quote, heading)</code>; empty parts are <code>None</code></td>
 </tr>
+<tr>
+<td><code>status_lines(text, max_len=160) -&gt; list[str]</code></td>
+<td>What follows <code>STATUS:</code> on every line that starts with it (any case; <code>*</code> and backticks ignored), in order: an agent's milestones. A longer line is cut and ends with <code>…</code>. Built 2026-11-05</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Quotes:</strong> every quote mark around the path goes (paths never contain them). Around the quote and the heading only <strong>one matching pair</strong> goes (<code>"…"</code>, <code>'…'</code>, <code>“…”</code>, <code>‘…’</code>), so the page's own apostrophes and quote marks stay: <code>"the users' files"</code> → <code>the users' files</code>. An unclosed double quote mark at one end is dropped; a lone apostrophe is kept.</p>
@@ -323,8 +555,103 @@ if watch.crossed("main_assistant", usage.context_tokens):
 question = last_line(text, "NEED:")   # "Which folder?" or None
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/agent_tags.py</code> · <strong>Tests:</strong> <code>tests/test_agent_tags.py</code></p>
+<h2 id="show_page"><code>show_page</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> (<code>_show</code>), <code>talker</code> (its <code>SHOW</code> tag) · built 2026-11-08</p>
+<p><code>async show_page(ctx: ModuleContext, argument: str) -&gt; ShowOutcome</code> · <code>from assistant.infra import show_page, show_command, ShowOutcome</code> (the tool names: <code>from assistant.infra.show_pages import VIEWER_OPEN, VIEWER_HIGHLIGHT</code>)</p>
+<p>The one place that turns a SHOW tag's argument (<code>path</code>, or <code>path | "quote" | heading</code>) into the viewer's tool call, sent through <code>ctx.send</code> as <code>InvokeTool</code>, so the core starts the viewer if it's off. Each caller words its own messages from the outcome.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>show_page(ctx, argument)</code></td>
+<td>Parse the argument (<a href="#agent_tags"><code>parse_show</code></a>) and send the call; returns <code>ShowOutcome(show, result)</code></td>
+</tr>
+<tr>
+<td><code>ShowOutcome.quote_missing</code></td>
+<td>The page opened but the quote isn't on it (<code>result.value["found"] is False</code>)</td>
+</tr>
+<tr>
+<td><code>show_command(show) -&gt; InvokeTool</code></td>
+<td>The call for a parsed <code>ShowTag</code>: <code>viewer.highlight</code> with <code>path</code>, <code>text</code> (and <code>heading</code>) when there's a quote, else <code>viewer.open</code> with <code>path</code></td>
+</tr>
+<tr>
+<td><code>VIEWER_OPEN</code>, <code>VIEWER_HIGHLIGHT</code></td>
+<td>The viewer's tool names, written only here</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>outcome = await show_page(ctx, 'C:\\docs\\page.html | "exact words"')
+if not outcome.result.is_ok: ...
+elif outcome.quote_missing: ...
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/infra/show_pages.py</code> · <strong>Tests:</strong> <code>tests/test_show_pages.py</code></p>
+<h2 id="permissiongate"><code>PermissionGate</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> · built 2026-11-08</p>
+<p><code>from assistant.infra import PermissionGate</code> · <code>src/assistant/infra/permission_gate.py</code></p>
+<p>A task agent's one open question to you: a tool's permission request or an app action's approval (<code>request_approval</code>, <code>RELOAD</code>, <code>ADD_MODULE</code>), the answer timer (<code>permission_timeout</code>), the Auto policy (allow and log; refuse a shell command with <code>git push</code>), and an approval's outcome delivered after the turn ends. Helpers <code>describe_request</code>, <code>is_git_push</code>, <code>summarize</code>; the texts <code>CODE_LOADED</code>, <code>APPROVAL_PENDING</code>, <code>GIT_PUSH_BLOCKED</code>, <code>NO_TASK</code>, <code>TIMED_OUT</code>. <strong>Tests:</strong> <code>tests/test_worker_parts.py</code></p>
+<h2 id="handoffkeeper"><code>HandoffKeeper</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> · built 2026-11-08</p>
+<p><code>from assistant.infra import HandoffKeeper</code> · <code>src/assistant/infra/handoff_keeper.py</code></p>
+<p>A task's handoffs: counts them against <code>max_handoffs</code> (<code>take</code>, <code>too_many</code>), the progress line, the message that starts the fresh session, the reset request and the context reminder. Texts <code>HANDED_OFF</code>, <code>RESET_NOW</code>, <code>CONTEXT_REMINDER</code>, <code>TOO_MANY_HANDOFFS</code>. <strong>Tests:</strong> <code>tests/test_worker_parts.py</code></p>
+<h2 id="lastlinetags"><code>LastLineTags</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> (<code>NEED</code>, <code>RELOAD</code>, <code>ADD_MODULE</code>, <code>HANDOFF</code>) · built 2026-11-08</p>
+<p><code>from assistant.infra import LastLineTags</code> · <code>src/assistant/infra/agent_tags.py</code></p>
+<p>A table of last-line prefixes to handlers (principle 20): <code>add(prefix, handler)</code>, then one lookup per turn instead of an if-chain. Adding a tag is adding an entry. <strong>Tests:</strong> <code>tests/test_worker_parts.py</code></p>
+<h2 id="usagemeter"><code>UsageMeter</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>ClaudeSession</code> (<code>meter</code>), <code>UsageLedger</code> (<code>EVENT_FIELDS</code>), <code>session_usage</code> / <code>subagent_usage</code> (<code>event_fields</code>) · built 2026-11-08</p>
+<p><code>from assistant.infra.usage_meter import UsageMeter, TOKEN_KINDS, USAGE_FIELDS, EVENT_FIELDS, event_fields</code></p>
+<p>All the token counting of one session, out of <code>ClaudeSession</code>: <code>line(event)</code> takes each stream-json line, <code>restarted()</code> keeps the totals across a new process; <code>context_tokens</code>, <code>used</code> and <code>subagents</code> read it. <code>TokenKind</code> / <code>TOKEN_KINDS</code> is the one token-field map (the API usage field, the per-model field, the event field), so the three copies became one. <strong>Tests:</strong> <code>tests/test_usage_meter.py</code>, <code>tests/test_usage.py</code></p>
+<h2 id="agentkit"><code>AgentKit</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>job_search</code>, <code>cv</code>, <code>task_agents</code> · built 2026-11-08</p>
+<p><code>AgentKit(ctx)</code> · <code>from assistant.infra import AgentKit, AGENT_USES, AGENT_SENDS, AGENT_PUBLISHES, AGENT_LISTENS</code> · <code>src/assistant/infra/agent_kit.py</code></p>
+<p>What every agent module used to repeat: it provides each <a href="#profileagent"><code>ProfileAgent</code></a> as <code>ITaskAgent</code>, resets the one a <code>ResetRequested</code> names, and hands a changed grant to the agent that holds it. Build it in the module's <code>init</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add(agent) -&gt; ProfileAgent</code></td>
+<td>Provide it as <code>ITaskAgent</code> and keep it</td>
+</tr>
+<tr>
+<td><code>get(agent_id)</code>, <code>agents()</code></td>
+<td>The agents it holds</td>
+</tr>
+<tr>
+<td><code>async open(agent_id, config, prompt, *, subject, reason, wait=False, **kwargs)</code></td>
+<td>The start sequence: <code>request_access</code> → <code>ProfileAgent</code> → provide → start; a failed start is taken back and raised again</td>
+</tr>
+<tr>
+<td><code>async take_back(agent)</code></td>
+<td>Stop it (releasing its name) and withdraw it</td>
+</tr>
+<tr>
+<td><code>follow_grant(agent_id, config)</code></td>
+<td>The agent takes its grant live when it changes (<code>granted_config</code> → <code>set_access</code>)</td>
+</tr>
+<tr>
+<td><code>busy()</code>, <code>async stop()</code></td>
+<td>For the module's <code>busy</code> and <code>stop</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The declarations, named once</strong> (principle 17): <code>AGENT_USES</code> (<code>IModuleDoor</code>, <code>IAgentNames</code>, in <a href="modules.html#manifest"><code>Manifest.uses</code></a>: looked up at each call, no start order), <code>AGENT_SENDS</code> (<code>ReportTask</code>, <code>InvokeTool</code>), <code>AGENT_PUBLISHES</code> (<code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>), <code>AGENT_LISTENS</code> (<code>ResetRequested</code>, <code>ModuleStateChanged</code>). A module adds <code>PermissionChanged</code> when it follows grants.</p>
+<pre><code>manifest = Manifest(id="job_search", provides=(ITaskAgent,), uses=AGENT_USES, sends=AGENT_SENDS,
+                    publishes=(*AGENT_PUBLISHES, AgentNotice), listens=(*AGENT_LISTENS, PermissionChanged))
+</code></pre>
+<p><strong>Tests:</strong> <code>tests/test_agent_kit.py</code>, <code>tests/test_honest_manifests.py</code></p>
 <h2 id="mcp_door"><code>mcp_door</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> (hosts the <code>DoorServer</code>), <code>main_assistant</code> (its sessions run the relay) · built 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> (hosts the <code>DoorServer</code>), <code>main_assistant</code> and <code>talker</code> (their sessions run the relay) · built 2026-11-05</p>
 <p>The agents' one MCP door to the module menus (<a href="../architecture/modules.html#how-the-agents-reach-the-menus-one-door">design</a>). <code>from assistant.infra.mcp_door import ...</code></p>
 <table>
 <thead>
@@ -336,11 +663,11 @@ question = last_line(text, "NEED:")   # "Which folder?" or None
 <tbody>
 <tr>
 <td>relay: <code>python -m assistant.infra.mcp_door</code></td>
-<td>A stdio MCP server <code>claude</code> starts from its <code>--mcp-config</code> (standard library only). Three fixed tools, <code>list_modules</code>, <code>show_menu(module_id)</code>, <code>use_item(name, args)</code>; each call is passed to the app over local HTTP with a token (env <code>ASSISTANT_DOOR_URL</code>, <code>ASSISTANT_DOOR_TOKEN</code>). If the app doesn't answer (a restart), the call returns an error and the next one tries again</td>
+<td>A stdio MCP server <code>claude</code> starts from its <code>--mcp-config</code> (standard library only). Three fixed tools, <code>list_modules</code>, <code>show_menu(module_id)</code>, <code>use_item(name, args)</code>; each call is passed to the app over local HTTP with its caller and that caller's token (env <code>ASSISTANT_DOOR_URL</code>, <code>ASSISTANT_DOOR_TOKEN</code>, <code>ASSISTANT_DOOR_CALLER</code>; headers <code>x-door-token</code>, <code>x-door-caller</code>). If the app doesn't answer (a restart), the call returns an error and the next one tries again</td>
 </tr>
 <tr>
 <td><code>DoorServer(send, commands, host="127.0.0.1", port=0, token=None, core_line=None)</code></td>
-<td>The app-side endpoint, <code>POST /tool</code> with <code>{"tool", "arguments"}</code> and the <code>x-door-token</code> header (403 without it). <code>commands</code> maps <code>list</code> / <code>menu</code> / <code>call</code> to <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code>, sent with <code>send</code> (a module's <code>ctx.send</code>). <code>async start()</code> / <code>stop()</code>, <code>url</code>, <code>token</code>, <code>mcp_config()</code> (the relay's config, <code>{}</code> while down), <code>async call(tool, arguments)</code></td>
+<td>The app-side endpoint, <code>POST /tool</code> with <code>{"tool", "arguments"}</code>. 403 unless <code>x-door-token</code> is <code>token_for(x-door-caller)</code> (compared in constant time), so one caller's token can't speak as another. <code>commands</code> maps <code>list</code> / <code>menu</code> / <code>call</code> to <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code> (with <code>caller</code>), sent with <code>send</code> (a module's <code>ctx.send</code>). <code>async start()</code> / <code>stop()</code>, <code>url</code>, <code>token</code> (the secret, kept across a Hub reload), <code>token_for(caller)</code> (an HMAC-SHA256 of the secret and the name), <code>mcp_config(caller)</code> (the relay's config, <code>{}</code> while down), <code>async call(tool, arguments, caller="")</code></td>
 </tr>
 <tr>
 <td><code>TOOLS</code>, <code>TOOL_NAMES</code>, <code>READ_ONLY</code></td>

@@ -51,13 +51,18 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 from uuid import uuid4
 
-from app_kit.window import close_app_windows, open_app_window, raise_window
+from app_kit.config import load_layered, merge
+from app_kit.local_guard import local_request, require_loopback
+from app_kit.window import close_app_windows, open_app_window, raise_window, window_profile
 from html_viewer import highlight, snip
 from html_viewer.document import EditText, HtmlDocument, HtmlHandler, handler_for
 from html_viewer.markdown_source import MarkdownSource, find_source, plain
 
 PAGE = Path(__file__).with_name("page.html")
-DEFAULT_PROFILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / "html_viewer_window"
+DEFAULT_PROFILE = window_profile("html_viewer")
+DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "html_viewer.toml"
+CONFIG_DEFAULTS: dict[str, Any] = {"host": "127.0.0.1", "port": 8766, "window": "app", "profile": "", "generated": []}
+WINDOWS = ("app", "browser", "none")
 GENERATED_WARNING = (
     "{name} is built from Markdown by scripts/build_docs.py. The next docs rebuild will overwrite this edit."
 )
@@ -161,11 +166,10 @@ class ViewerServer:
         self._temp = Path(tempfile.mkdtemp(prefix="html_viewer_"))
         self.quit = threading.Event()
         self._serving: threading.Thread | None = None
-        self._http = ThreadingHTTPServer((host, port), _handler(self))
+        self._http = ThreadingHTTPServer((require_loopback(host), port), _handler(self))
         self._http.daemon_threads = True
         self.port = self._http.server_address[1]
         self.url = f"http://{host}:{self.port}/"
-        self._hosts = {f"{host}:{self.port}", f"127.0.0.1:{self.port}", f"localhost:{self.port}"}
 
     def start(self) -> None:
         self._serving = threading.Thread(target=self._http.serve_forever, name="html_viewer", daemon=True)
@@ -198,9 +202,9 @@ class ViewerServer:
             reloaded = False
             if tab is None:
                 tab_id = uuid4().hex[:8]
-                copy = self._temp / f"{tab_id}_{path.name}"
-                shutil.copy2(path, copy)
-                tab = Tab(tab_id, path, handler, handler.load(path), path.stat().st_mtime, copy)
+                opened = self._temp / f"{tab_id}_{path.name}"
+                shutil.copy2(path, opened)
+                tab = Tab(tab_id, path, handler, handler.load(path), path.stat().st_mtime, opened)
                 self._tabs[tab_id] = tab
             elif path.stat().st_mtime != tab.mtime:
                 # Already open, and the file changed since: reload it, unless it has unsaved edits.
@@ -531,8 +535,9 @@ def _handler(viewer: ViewerServer) -> type[BaseHTTPRequestHandler]:
                 viewer.unsubscribe(q)
 
         def _host_ok(self) -> bool:
-            # Only requests addressed to the viewer itself (no DNS rebinding from a web page).
-            if self.headers.get("Host") in viewer._hosts:
+            # Only requests addressed to this machine (no DNS rebinding from a web page), and from a
+            # browser only the viewer's own page (app_kit.local_guard).
+            if local_request(self.headers.get("Host"), self.headers.get("Origin")):
                 return True
             self._send(403, "text/plain", b"Forbidden")
             return False
@@ -551,22 +556,50 @@ def _handler(viewer: ViewerServer) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
-def main(argv: list[str] | None = None) -> int:
+def load_viewer_config(path: str | Path | None = None) -> dict[str, Any]:
+    """The defaults, then `path` (default `config/html_viewer.toml`) and its `.local.toml`.
+
+    A missing default file means the defaults alone; a missing `path` raises `FileNotFoundError`.
+    """
+    file = Path(path) if path is not None else DEFAULT_CONFIG
+    if path is None and not file.exists():
+        return dict(CONFIG_DEFAULTS)
+    return merge(dict(CONFIG_DEFAULTS), load_layered(file))
+
+
+def viewer_settings(argv: list[str] | None = None) -> tuple[dict[str, Any], list[Path]]:
+    """The viewer's settings (the config, then the command-line flags over it) and the files to open."""
     parser = argparse.ArgumentParser(description="The HTML viewer: view, edit, highlight, and snip HTML files")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8766)
-    parser.add_argument("--window", choices=["app", "browser", "none"], default="app")
-    parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE, help="Edge profile for the window")
-    parser.add_argument("--generated", type=Path, action="append", default=[],
+    parser.add_argument("--config", type=Path, help="a TOML config (default config/html_viewer.toml, if present)")
+    parser.add_argument("--host")
+    parser.add_argument("--port", type=int)
+    parser.add_argument("--window", choices=WINDOWS)
+    parser.add_argument("--profile", type=Path, help="Edge profile for the window")
+    parser.add_argument("--generated", type=Path, action="append",
                         help="a folder built from Markdown: saving there writes edits back to the "
                              "Markdown source (repeatable)")
     parser.add_argument("files", nargs="*", type=Path, help="files to open")
     args = parser.parse_args(argv)
+    settings = load_viewer_config(args.config)
+    for key in ("host", "port", "window", "profile", "generated"):
+        if getattr(args, key) is not None:
+            settings[key] = getattr(args, key)
+    if settings["window"] not in WINDOWS:
+        parser.error(f"window must be one of {', '.join(WINDOWS)}")
+    settings["port"] = int(settings["port"])
+    settings["profile"] = Path(settings["profile"]) if settings["profile"] else DEFAULT_PROFILE
+    settings["generated"] = [Path(folder) for folder in settings["generated"]]
+    return settings, args.files
+
+
+def main(argv: list[str] | None = None) -> int:
+    settings, files = viewer_settings(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    viewer = ViewerServer(args.host, args.port, args.window, args.profile, args.generated)
+    viewer = ViewerServer(settings["host"], settings["port"], settings["window"], settings["profile"],
+                          settings["generated"])  # fmt: skip
     viewer.start()
     try:
-        for file in args.files:
+        for file in files:
             try:
                 viewer.open(file)
             except ViewerError as exc:

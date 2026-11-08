@@ -14,9 +14,9 @@
 <h1 id="agents">Agents</h1>
 <p>Task agents and the Agent Hub's commands and events. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>. How it works: <a href="../architecture/agents.html#task-agents">task agents</a>.</p>
 <h2 id="itaskagent"><code>ITaskAgent</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>main_assistant</code> provides (through <code>SessionTaskAgent</code>); <code>agent_hub</code> calls</p>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code> provide (through <code>SessionTaskAgent</code>); <code>agent_hub</code> calls; <code>task_agents</code> calls <code>request_approval</code> on the caller of <code>agents.launch</code></p>
 <p><code>class ITaskAgent(Contract)</code></p>
-<p>A contract for agents that take tasks: the Main Assistant now, subagents later. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and provide a composed object in <code>init</code>: <code>ctx.provide(ITaskAgent, self._agent)</code>. Only the Agent Hub calls these methods.</p>
+<p>A contract for agents that take tasks: the Main Assistant, the helpers and module agents such as <code>job_search_agent</code>. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and provide a composed object in <code>init</code>: <code>ctx.provide(ITaskAgent, self._agent)</code>. Only the Agent Hub calls these methods.</p>
 <p>In v1 an agent runs one task at a time.</p>
 <h3 id="itaskagentinfo"><code>ITaskAgent.info</code></h3>
 <p><code>info(self) -&gt; AgentInfo</code></p>
@@ -114,8 +114,16 @@
 <p><strong>Returns:</strong> <code>ok</code>; <code>invalid_arguments</code> if it's not this agent's current task or no request is open (already answered, timed out, or ended by an interrupt); <code>failed</code> if the session couldn't be written to.</p>
 <h3 id="itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></h3>
 <p><code>async set_permission_mode(self, mode: PermissionMode) -&gt; Result</code></p>
-<p>Not abstract. Switch what the agent may do (<a href="#permissionmode"><code>PermissionMode</code></a>) and publish <a href="#permissionmodechanged"><code>PermissionModeChanged</code></a>. The default refuses with <code>not_available</code>, for agents without modes. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it: with no task the mode applies to the next one (<code>now</code>); mid-task, Manual switches the running session at once, and Auto applies from the next task or handoff session (<code>next_task</code>). Called by the Hub for <a href="#setpermissionmode"><code>SetPermissionMode</code></a>.</p>
+<p>Not abstract. Switch what the agent may do (<a href="#permissionmode"><code>PermissionMode</code></a>) and publish <a href="#permissionmodechanged"><code>PermissionModeChanged</code></a>. The default refuses with <code>not_available</code>, for agents without modes. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it: every switch applies at once (<code>now</code>), to the running task too; mid-task to Auto, it answers permission requests itself (all but <code>git push</code>) and interrupts a running turn to give it the Auto rules (<a href="../agents/runtime.html#permission-mode">live switch</a>). Its <code>Result.value</code> is <code>True</code> when it answered an open permission request, so the Hub closes that card. Called by the Hub for <a href="#setpermissionmode"><code>SetPermissionMode</code></a>.</p>
 <p><strong>Returns:</strong> <code>ok</code>, or <code>not_available</code> (the default).</p>
+<h3 id="itaskagentnote"><code>ITaskAgent.note</code></h3>
+<p><code>note(self, text: str) -&gt; None</code></p>
+<p>Not abstract. A background line for the agent's next turn: another agent's <code>STATUS:</code> milestone, the end of another agent's task, a focus move, or a module's callback (<a href="#agentnotice"><code>AgentNotice</code></a>). Never interrupts and never starts work. The default drops it. Called by the Hub, only on the coordinator for the feed lines and on the named agent for a notice. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> keeps the lines in a <a href="infra.html#milestonefeed"><code>MilestoneFeed</code></a> and adds them at the end of the next message it writes to its session. Built 2026-11-05.</p>
+<h3 id="itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></h3>
+<p><code>async request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -&gt; Result</code></p>
+<p>Not abstract. Ask you to allow <code>action</code> on this agent's open task. It puts a <code>permission</code> report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with <a href="#answerpermission"><code>AnswerPermission</code></a>. It always asks, even in Auto. On Allow, <code>run()</code> is called and its outcome reaches the agent as its next message (<code>[App] &lt;action&gt;: &lt;outcome&gt; Continue the task...</code>). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with <code>not_available</code>, for agents without tasks.</p>
+<p><a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it. Called by <code>task_agents</code>' <code>agents.launch</code> on its caller; <code>SessionTaskAgent</code>'s own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request uses the same path. Built 2026-11-05.</p>
+<p><strong>Returns:</strong> <code>ok</code> once the question is open; <code>not_available</code> if there is no open task, a question is already open, or the agent keeps the default.</p>
 <p><strong>Example</strong></p>
 <pre><code>class MainAssistantModule(ModuleProtocol):
     manifest = Manifest(id="main_assistant", provides=(ITaskAgent,))
@@ -134,6 +142,57 @@
         await self._session.close()
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/agents.py</code>. Implemented by <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a>.</p>
+<h2 id="iagentnames"><code>IAgentNames</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> provides; <a href="infra.html#profileagent"><code>ProfileAgent</code></a> claims and releases (<code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>); <code>task_agents</code> checks a name at <code>agents.launch</code> · built 2026-11-05</p>
+<p><code>class IAgentNames(Contract)</code></p>
+<p>The agent ids in use, so no two agents share one. One provider: the Agent Hub. <code>owner</code> is the id of the module that runs the agent. The rules are <a href="infra.html#agent_names"><code>check_agent_id</code></a>: the form, the reserved ids, and every module's id, except that a module's own agent may carry its module's id (<code>main_assistant</code>). Get it with <code>ctx.get_one(IAgentNames)</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async check(agent_id, owner) -&gt; str | None</code></td>
+<td>Why <code>owner</code> can't have <code>agent_id</code> now, with a free id to use; None if it can</td>
+</tr>
+<tr>
+<td><code>async claim(agent_id, owner) -&gt; Result</code></td>
+<td>Take <code>agent_id</code> for <code>owner</code>. Checked and taken with no <code>await</code> between, so two claims can't both win. A repeat claim by the owner that holds it is <code>ok</code>; a different owner is still refused, and <code>check</code> still calls the name taken (so a module can't name a second agent with it)</td>
+</tr>
+<tr>
+<td><code>release(agent_id, owner) -&gt; None</code></td>
+<td>Free <code>agent_id</code> if <code>owner</code> holds it</td>
+</tr>
+<tr>
+<td><code>taken() -&gt; dict[str, str]</code></td>
+<td>Every claimed id and the module that holds it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Returns</strong> (<code>claim</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>The id is now <code>owner</code>'s</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td><code>check</code>'s reason: a bad form, a reserved or module id, or taken. A taken id names a free one: "<code>flight_search</code> is taken by task_agents; <code>flight_search_2</code> is free"</td>
+</tr>
+</tbody>
+</table>
+<p>The claims survive a Hub reload (handed over as <code>claims</code>, and shown in its <code>export_state</code>). As a safety net, an agent that skipped the claim and shares an id with another is seen once: the Hub uses the first one everywhere (<code>hub.agents</code>, <a href="#listagents"><code>ListAgents</code></a>, routing) and logs the clash once.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/agents.py</code>. Provided by <code>agent_hub</code> (<code>AgentNames</code> in <code>src/assistant/modules/agent_hub/names.py</code>). Design: <a href="../architecture/agents.html#agent-names">agent names</a>.</p>
 <h2 id="task"><code>Task</code></h2>
 <p><code>Task(id: str, text: str, context: str = "")</code></p>
 <p>A unit of work the Hub assigns. Frozen. The other data types and all commands and events below are defined in <code>src/assistant/contracts/agents.py</code> too.</p>
@@ -164,7 +223,7 @@
 </tbody>
 </table>
 <h2 id="agentinfo"><code>AgentInfo</code></h2>
-<p><code>AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), busy: bool = False, working: bool = False, permission_mode: PermissionMode = PermissionMode.MANUAL)</code></p>
+<p><code>AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), busy: bool = False, working: bool = False, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = ())</code></p>
 <p>Frozen. What <a href="#itaskagentinfo"><code>ITaskAgent.info</code></a> returns.</p>
 <table>
 <thead>
@@ -205,6 +264,11 @@
 <td><code>PermissionMode</code></td>
 <td>The mode its next session starts in; Manual at every launch</td>
 </tr>
+<tr>
+<td><code>write_folders</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>Every folder it may write, resolved (its workspace and <code>write_dirs</code>, from <a href="infra.html#agentprofile"><code>AgentProfile.write_folders</code></a>). The Hub refuses to start a task whose agent writes a folder another open task's agent writes, or one inside it</td>
+</tr>
 </tbody>
 </table>
 <h2 id="permissionmode"><code>PermissionMode</code></h2>
@@ -233,7 +297,7 @@
 <h2 id="taskstate"><code>TaskState</code></h2>
 <p><code>class TaskState(StrEnum)</code>: <code>RUNNING</code>, <code>PAUSED</code>, <code>WAITING_FOR_INPUT</code>, <code>DONE</code>, <code>FAILED</code>, <code>CANCELLED</code>. Values are the lowercase names. <code>PAUSED</code> means you stopped it on purpose; <code>WAITING_FOR_INPUT</code> means it asked you something. The last three are final: <code>state.is_final</code>. Transitions: <a href="../architecture/agents.html#task-state">task state</a>.</p>
 <h2 id="taskinfo"><code>TaskInfo</code></h2>
-<p><code>TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), activity: tuple[str, ...] = (), question: str | None = None, result: str | None = None)</code></p>
+<p><code>TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), activity: tuple[str, ...] = (), question: str | None = None, result: str | None = None, parent_task_id: str | None = None, held: bool = False, reply: str | None = None, question_kind: QuestionKind = QuestionKind.NONE)</code></p>
 <p>Frozen. A task as the Hub knows it.</p>
 <table>
 <thead>
@@ -277,15 +341,39 @@
 <tr>
 <td><code>question</code></td>
 <td><code>str | None</code></td>
-<td>The open question while <code>WAITING_FOR_INPUT</code></td>
+<td>The open question while <code>WAITING_FOR_INPUT</code>: the agent's own text, with no prefix added</td>
+</tr>
+<tr>
+<td><code>question_kind</code></td>
+<td><a href="#questionkind"><code>QuestionKind</code></a></td>
+<td>What <code>question</code> is: <code>permission</code>, <code>risky</code>, <code>need</code>, or <code>none</code> (<code>""</code>, the default). Set by the Hub; readers check it instead of parsing the text</td>
 </tr>
 <tr>
 <td><code>result</code></td>
 <td><code>str | None</code></td>
 <td>Final text when <code>DONE</code> or <code>FAILED</code></td>
 </tr>
+<tr>
+<td><code>parent_task_id</code></td>
+<td><code>str | None</code></td>
+<td>The task that started this one (an agent's child task, through <code>hub.start</code>)</td>
+</tr>
+<tr>
+<td><code>held</code></td>
+<td><code>bool</code></td>
+<td>Its <code>question</code>, its <code>reply</code> or its end (<code>result</code>) waits behind its agent's <strong>!</strong> until you focus that agent (<a href="#setfocus"><code>SetFocus</code></a>). Each is stored once, here; held is only a flag</td>
+</tr>
+<tr>
+<td><code>reply</code></td>
+<td><code>str | None</code></td>
+<td>The agent's latest reply, kept only while held (a <code>reply</code> from an agent out of focus)</td>
+</tr>
 </tbody>
 </table>
+<p><code>task.question_line</code>: the question for a person or an agent to read, <code>Permission: &lt;text&gt;</code> for a permission request, else the text (<code>""</code> with none). The Talker's task lines and the restart note use it.</p>
+<h2 id="questionkind"><code>QuestionKind</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> sets it (<code>QuestionKind.of</code>); <code>talker</code>, <code>temp_ui</code> read it</p>
+<p><code>class QuestionKind(StrEnum)</code>: <code>NONE = ""</code>, <code>NEED = "need"</code>, <code>RISKY = "risky"</code>, <code>PERMISSION = "permission"</code>. What a task's open question is, on <a href="#taskinfo"><code>TaskInfo</code></a> and <a href="#taskupdated"><code>TaskUpdated</code></a>, so no reader parses a text prefix (<a href="../architecture/principles.html">principle 19</a>). <code>QuestionKind.of(kind, text)</code> is the one place the text is read: a <code>permission</code> report is <code>PERMISSION</code>; a <code>need</code> starting with <code>RISKY_PREFIX</code> (<code>"Risky:"</code>, also in the contracts) is <code>RISKY</code>; any other <code>need</code> is <code>NEED</code>; anything else <code>NONE</code>.</p>
 <h2 id="listagents"><code>ListAgents</code></h2>
 <p><code>ListAgents()</code> (command)</p>
 <p>Every registered agent, whether it's busy or working, and its permission mode. Handled by the Agent Hub, which reads <a href="#itaskagentinfo"><code>ITaskAgent.info</code></a> from each provider. For UIs and the Talker.</p>
@@ -295,9 +383,9 @@
 working = [a.agent_id for a in result.value if a.working]
 </code></pre>
 <h2 id="starttask"><code>StartTask</code></h2>
-<p><code>StartTask(text: str, context: str = "")</code> (command)</p>
-<p>Give work to a free agent. Handled by the Agent Hub.</p>
-<p><strong>Returns:</strong> <code>Result.ok(task_id)</code>, or <code>not_available</code> if no agent is free.</p>
+<p><code>StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None)</code> (command)</p>
+<p>Give work to a free agent, or to <code>agent_id</code> only. Handled by the Agent Hub. <code>parent_task_id</code> is set by the Hub's <code>hub.start</code> item for an agent's child task. Several agents may run at once, one task each: the coordinator plus at most <code>[modules.agent_hub] max_extra_agents</code> (3) other agents with an open task; past that, <code>not_available</code>.</p>
+<p><strong>Returns:</strong> <code>Result.ok(task_id)</code>; <code>not_available</code> if no agent is free, the cap is reached, or the agent would write a folder another open task's agent writes (<a href="#agentinfo"><code>AgentInfo.write_folders</code></a>); <code>invalid_arguments</code> for an unknown <code>agent_id</code>.</p>
 <h2 id="gettaskstatus"><code>GetTaskStatus</code></h2>
 <p><code>GetTaskStatus(task_id: str | None = None)</code> (command)</p>
 <p>Task status from the Hub, without disturbing the agent.</p>
@@ -312,12 +400,12 @@ working = [a.agent_id for a in result.value if a.working]
 <p><strong>Returns:</strong> the agent's <code>Result</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
 <h2 id="answerpermission"><code>AnswerPermission</code></h2>
 <p><code>AnswerPermission(task_id: str, allow: bool)</code> (command)</p>
-<p>Allow or deny the task's open permission request, once. Sent by the Talker (<code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code>) or a UI (the temp UI's buttons). The Hub calls <a href="#itaskagentanswer_permission"><code>ITaskAgent.answer_permission</code></a>, sets the task back to <code>RUNNING</code>, and publishes <code>TaskUpdated</code> with <code>kind=None</code> and <code>text</code> "permission allowed" or "permission denied".</p>
+<p>Allow or deny the task's open permission request, once. Sent by a UI (the temp UI's buttons); the Talker (<code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code>) uses the Hub's <code>hub.answer</code> item, which does the same. The Hub calls <a href="#itaskagentanswer_permission"><code>ITaskAgent.answer_permission</code></a>, sets the task back to <code>RUNNING</code>, and publishes <code>TaskUpdated</code> with <code>kind=None</code> and <code>text</code> "permission allowed" or "permission denied".</p>
 <p><strong>Returns:</strong> the agent's <code>Result</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
 <h2 id="setpermissionmode"><code>SetPermissionMode</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (the Manual | Auto button), <code>talker</code> (<code>&lt;&lt;MODE: manual&gt;&gt;</code>, Manual only) send; <code>agent_hub</code> handles</p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (the Manual | Auto button) sends; <code>agent_hub</code> handles (and its <code>hub.mode</code> item, for the Talker's <code>&lt;&lt;MODE: manual&gt;&gt;</code>, Manual only)</p>
 <p><code>SetPermissionMode(agent_id: str, mode: PermissionMode)</code> (command)</p>
-<p>Switch a task agent between Manual and Auto. Handled by the Agent Hub, which calls <a href="#itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></a>; later the permissions handler takes it over, with no change for the senders. <strong>Only you switch to Auto</strong>, with the button; the Talker only ever sends Manual, and the Main Assistant has no route to it.</p>
+<p>Switch a task agent between Manual and Auto. Handled by the Agent Hub, which calls <a href="#itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></a>; later the permissions handler takes it over, with no change for the senders. <strong>Only you switch to Auto</strong>, with the button; the Talker only ever asks for Manual (<code>hub.mode</code> refuses Auto), and the Main Assistant has no route to it.</p>
 <p><strong>Returns:</strong> the agent's <code>Result</code>; <code>invalid_arguments</code> for an unknown agent.</p>
 <h2 id="reporttask"><code>ReportTask</code></h2>
 <p><code>ReportTask(task_id: str, kind: ReportKind, text: str)</code> (command)</p>
@@ -343,13 +431,18 @@ working = [a.agent_id for a in result.value if a.working]
 </tr>
 <tr>
 <td><code>need</code></td>
-<td>A question for you; the turn has ended. In Auto, a <code>need</code> starting with <code>Risky:</code> is a pause before a risky step</td>
+<td>A question for you; the turn has ended. In Auto, a <code>need</code> starting with <code>Risky:</code> is a pause before a risky step (<code>question_kind</code> <code>risky</code>, else <code>need</code>)</td>
 <td><code>WAITING_FOR_INPUT</code></td>
 </tr>
 <tr>
 <td><code>permission</code></td>
 <td>Wants to use a tool its rules don't allow, e.g. <code>Write C:\…\SKILL.md</code>; the turn waits for <a href="#answerpermission"><code>AnswerPermission</code></a></td>
-<td><code>WAITING_FOR_INPUT</code> (question <code>Permission: …</code>)</td>
+<td><code>WAITING_FOR_INPUT</code> (<code>question_kind</code> <code>permission</code>)</td>
+</tr>
+<tr>
+<td><code>milestone</code></td>
+<td>A <code>STATUS: &lt;one line&gt;</code> line in its text (<a href="infra.html#agent_tags"><code>status_lines</code></a>). From an agent that isn't the coordinator, the Hub passes <code>[&lt;agent&gt;] &lt;line&gt;</code> to the coordinator's <a href="#itaskagentnote"><code>note</code></a></td>
+<td>unchanged</td>
 </tr>
 <tr>
 <td><code>done</code></td>
@@ -366,23 +459,99 @@ working = [a.agent_id for a in result.value if a.working]
 <p><code>ReportKind</code> is a <code>StrEnum</code> with these values.</p>
 <p><strong>Returns:</strong> <code>ok</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
 <h2 id="taskupdated"><code>TaskUpdated</code></h2>
-<p><code>TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None, text: str)</code> (event)</p>
-<p>Published by the Hub on every report and state change; the Talker listens. <code>kind</code> is <code>None</code> for changes the Hub made itself (start, with <code>text</code> "started"; <code>SendToTask</code>; <code>AnswerPermission</code>, with "permission allowed" / "permission denied"; cancel). May be dropped; <code>GetTaskStatus</code> is authoritative.</p>
+<p><code>TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None = None, text: str = "", agent_id: str = "", parent_task_id: str | None = None, held: bool = False, question_kind: QuestionKind = QuestionKind.NONE)</code> (event)</p>
+<p>Published by the Hub on every report and state change; the Talker listens. <code>question_kind</code>: what the task's open question is now (<a href="#questionkind"><code>QuestionKind</code></a>), so the Talker and the temp UI tell a permission request or a risky step from its kind, not its text. <code>kind</code> is <code>None</code> for changes the Hub made itself (start, with <code>text</code> "started"; <code>SendToTask</code>; <code>AnswerPermission</code>, with "permission allowed" / "permission denied"; cancel). <code>held</code>: the task's question, reply or end waits behind its agent's <strong>!</strong> (a <code>need</code>, <code>permission</code>, <code>reply</code>, <code>done</code> or <code>failed</code> while another agent has the focus). May be dropped; <code>GetTaskStatus</code> is authoritative.</p>
+<h2 id="the-focus">The focus</h2>
+<p>The <strong>focus</strong> is the agent you're talking to. The Hub keeps it: the coordinator (<code>[modules.agent_hub] coordinator</code>, <code>main_assistant</code> by default) at launch, kept across a Hub reload, and back to the coordinator when the focused agent stops running. A <code>need</code>, <code>permission</code>, <code>reply</code>, <code>done</code> or <code>failed</code> from an agent out of focus is held (<a href="#taskinfo"><code>TaskInfo.held</code></a>) until you focus that agent, so nothing lands in another tab's chat. Design: <a href="../architecture/agents.html#working-together">Working together</a>. Built 2026-11-05.</p>
+<h3 id="setfocus"><code>SetFocus</code></h3>
+<p><code>SetFocus(agent_id: str = "")</code> (command)</p>
+<p>Move the focus to <code>agent_id</code>; empty means the coordinator. Handled by the Agent Hub; sent by a UI (a tab click, later) or by the Hub's own <code>hub.focus</code> item (the Talker, after you said so). Releases that agent's held questions and publishes <a href="#focuschanged"><code>FocusChanged</code></a> when the focus moved or something was released; a move also feeds <code>[focus] the user is now talking to &lt;agent&gt;</code> to the coordinator.</p>
+<p><strong>Returns:</strong> <code>Result.ok(agent_id)</code> (the focused agent), <code>invalid_arguments</code> for an unknown agent.</p>
+<h3 id="focuschanged"><code>FocusChanged</code></h3>
+<p><code>FocusChanged(agent_id: str, previous: str = "", released: tuple[TaskInfo, ...] = ())</code> (event)</p>
+<p>The focus moved to <code>agent_id</code>. <code>released</code>: that agent's tasks whose question, permission request, reply or end was held until now (finished tasks too), so the Talker says it in that tab and the UI shows its card.</p>
+<p>Also published when the focused agent goes away (closed with ×, its module turned off or failed): the Hub moves the focus to the coordinator, with <code>previous</code> the gone agent, so no UI stays on a dead tab.</p>
+<h3 id="focussuggested"><code>FocusSuggested</code></h3>
+<p><code>FocusSuggested(agent_id: str, reason: str = "", by: str = "")</code> (event)</p>
+<p>The coordinator (<code>by</code>) suggests you talk to <code>agent_id</code> directly. Published by the Hub's <code>hub.suggest_focus</code>. The Talker asks you; the focus moves only if you say yes (then <code>hub.focus</code>).</p>
+<h3 id="agentnotice"><code>AgentNotice</code></h3>
+<p><code>AgentNotice(agent_id: str, text: str, source: str = "")</code> (event)</p>
+<p>A module's callback for an agent, e.g. a slow menu item's result: the item returns at once and, when the work ends, publishes this with <code>agent_id</code> = the item's caller. The Hub passes <code>[&lt;source&gt;] &lt;text&gt;</code> to that agent's <a href="#itaskagentnote"><code>note</code></a>, for its next turn. Dropped (and logged) if the agent isn't running.</p>
+<h2 id="the-hubs-menu">The Hub's menu</h2>
+<p><strong>Reusable</strong> · Used by: <code>talker</code> and <code>main_assistant</code> through the <a href="tools.html#imoduledoor">module door</a> · built 2026-11-05</p>
+<p>The <code>agent_hub</code> module's <a href="modules.html#menu"><code>Menu</code></a>, id prefix <code>hub.</code>. Every item knows its caller (<a href="tools.html#invoketool"><code>InvokeTool.caller</code></a>), which a session can't fake.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Who may use it</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hub.agents</code></td>
+<td>anyone</td>
+<td>The task agents: <code>agent_id</code>, <code>description</code>, <code>busy</code>, <code>working</code>, <code>permission_mode</code>, <code>focused</code>, <code>held</code> (a question, reply or finished task waiting behind its <strong>!</strong>), <code>task_id</code> (its open task)</td>
+</tr>
+<tr>
+<td><code>hub.status(task_id?)</code></td>
+<td>anyone</td>
+<td><a href="#gettaskstatus"><code>GetTaskStatus</code></a>, without disturbing the agent</td>
+</tr>
+<tr>
+<td><code>hub.start(text, agent_id?, context?)</code></td>
+<td>anyone</td>
+<td><a href="#starttask"><code>StartTask</code></a>; the caller's open task becomes the new task's parent</td>
+</tr>
+<tr>
+<td><code>hub.send(text, task_id?, agent_id?, pause?)</code></td>
+<td>the Talker any task; others only their child tasks</td>
+<td><a href="#sendtotask"><code>SendToTask</code></a>. With no <code>task_id</code> (the Talker only): to <code>agent_id</code>'s open task (its tab's agent; default the focused agent), or a new task on it. <code>ok({"agent_id", "task_id"})</code></td>
+</tr>
+<tr>
+<td><code>hub.cancel(task_id)</code></td>
+<td>the Talker any task; others only their child tasks</td>
+<td><a href="#canceltask"><code>CancelTask</code></a></td>
+</tr>
+<tr>
+<td><code>hub.focus(agent_id)</code></td>
+<td>the Talker only (<code>callers=("talker",)</code>)</td>
+<td><a href="#setfocus"><code>SetFocus</code></a>, after you said so; empty is back to the coordinator</td>
+</tr>
+<tr>
+<td><code>hub.suggest_focus(agent_id, reason?)</code></td>
+<td>the coordinator only</td>
+<td>Publishes <a href="#focussuggested"><code>FocusSuggested</code></a></td>
+</tr>
+<tr>
+<td><code>hub.answer(task_id, allow)</code></td>
+<td>the Talker only</td>
+<td><a href="#answerpermission"><code>AnswerPermission</code></a>, after you said yes or no to a task's permission card</td>
+</tr>
+<tr>
+<td><code>hub.mode(agent_id, mode)</code></td>
+<td>the Talker only</td>
+<td><a href="#setpermissionmode"><code>SetPermissionMode</code></a> to Manual; <code>auto</code> is refused (<code>not_available</code>): only you switch to Auto, with the button</td>
+</tr>
+</tbody>
+</table>
+<p>Refused callers get <code>not_available</code>. The UI's own buttons still send <code>AnswerPermission</code> and <code>SetPermissionMode</code> as commands. Code: <code>AgentHubModule</code> (<code>module.py</code>) wires a <code>TaskBoard</code> (<code>tasks.py</code>), a <code>Focus</code> (<code>focus.py</code>) and <code>AgentNames</code> (<code>names.py</code>); tests in <code>tests/test_agent_hub_parts.py</code>.</p>
 <h2 id="agentstatechanged"><code>AgentStateChanged</code></h2>
-<p><code>AgentStateChanged(agent_id: str, busy: bool, working: bool)</code> (event)</p>
-<p>Published by the agent module whenever <code>busy</code> or <code>working</code> changes, so a UI can show it live without polling. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
+<p><code>AgentStateChanged(agent_id: str, busy: bool, working: bool, change: Literal["state", "opened", "closed"] = "state")</code> (event)</p>
+<p>Published by the agent module whenever <code>busy</code> or <code>working</code> changes, so a UI can show it live without polling. <code>change</code> says what happened: <code>"state"</code> (the default), or <code>"opened"</code> / <code>"closed"</code> for an agent that isn't a module of its own (a helper inside <code>task_agents</code>), so UIs add or drop its tab (built 2026-11-08; it used to be a plain state event with both flags off). May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
 <h2 id="permissionmodechanged"><code>PermissionModeChanged</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> publishes; <code>talker</code>, <code>temp_ui</code> subscribe</p>
 <p><code>PermissionModeChanged(agent_id: str, mode: PermissionMode, applies: Literal["now", "next_task"] = "now")</code> (event)</p>
-<p>A task agent's mode was set. <code>applies</code> is <code>next_task</code> when the running session can't switch: to Auto mid-task (its prompt is fixed when a session starts), or a live switch to Manual that failed. The temp UI shows it (amber header in Auto) and logs it in both panes; the Talker hears it once, as a <code>[Mode] worker: …</code> line before your next message. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
+<p>A task agent's mode was set. <code>applies</code> is <code>now</code>, even mid-task (built 2026-11-08); <code>next_task</code> only when a live switch to Manual failed. The temp UI shows it (amber header in Auto) and logs it in both panes; the Talker hears it once, as a <code>[Mode] worker: …</code> line before your next message. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
 <h2 id="agentactivity"><code>AgentActivity</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> publishes; <code>agent_hub</code>, <code>assistant_view</code>, <code>temp_ui</code>, <code>html_viewer</code> subscribe</p>
 <p><code>AgentActivity(agent_id: str, task_id: str | None, text: str)</code> (event)</p>
 <p>An agent's raw activity (its text and tool calls), published by the agent module itself for viewers such as terminal 2. High-volume and view-only. The Hub keeps each task's latest lines in <a href="#taskinfo"><code>TaskInfo.activity</code></a>.</p>
 <h2 id="sessionusage"><code>SessionUsage</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code>, <code>talker</code> publish; <code>temp_ui</code> subscribes</p>
-<p><code>SessionUsage(agent_id: str, context_tokens: int, input_tokens: int = 0, cache_write_tokens: int = 0, cache_read_tokens: int = 0, output_tokens: int = 0, cost_usd: float = 0.0)</code> (event)</p>
-<p>One agent's <code>claude</code> usage: "talker" or a task agent's id. Agents are never added together. Built with <a href="infra.html#session_usage"><code>session_usage</code></a>. Published by <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> on every call that changes it (live while the worker works), and by the Talker after each turn. View-only.</p>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code>, <code>talker</code> publish; <code>usage</code>, <code>temp_ui</code> subscribe</p>
+<p><code>SessionUsage(agent_id: str, context_tokens: int, input_tokens: int = 0, cache_write_tokens: int = 0, cache_read_tokens: int = 0, output_tokens: int = 0, session: str = "", parent: str = "", kind: "claude" | "subagent" | "tool" = "claude")</code> (event)</p>
+<p>One agent's usage, in tokens only (no money figure): "talker" (the Main Assistant's Talker), <code>talker:&lt;agent&gt;</code> (a helper tab's Talker), a task agent's id, a sub-agent's (<code>&lt;parent&gt;/&lt;type&gt; #&lt;agentId&gt;</code>) or a wrapped tool's. <code>parent</code>: who started it ("" for none); <code>kind</code>: <code>claude</code> (an agent's own session), <code>subagent</code> or <code>tool</code>. The <a href="../modules/usage.html"><code>usage</code></a> module adds them up into one tally since launch, sub-agents nested under their parent. Built with <a href="infra.html#session_usage"><code>session_usage</code></a>. Published by <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> on every call that changes it (live while the worker works), and by the Talker after each turn. View-only.</p>
 <table>
 <thead>
 <tr>
@@ -404,12 +573,12 @@ working = [a.agent_id for a in result.value if a.working]
 <td>(property) Their sum</td>
 </tr>
 <tr>
-<td><code>cost_usd</code></td>
-<td><code>claude</code>'s own estimate for the same span, at API prices (on a subscription you don't pay per token)</td>
+<td><code>session</code></td>
+<td>The sender's session id, new for each fresh session (<code>ClaudeSession.id</code>); when it changes, the ledger keeps the old totals and adds the new ones. "" if unknown</td>
 </tr>
 </tbody>
 </table>
-<p>The Talker hears the worker's, adds its own, and puts both before each of your messages as a <code>[Usage]</code> line; it also warns you once when either context passes <code>context_warning</code>. The temp UI shows both in its header.</p>
+<p>The Talker hears the worker's, adds its own, and puts both before each of your messages as a <code>[Usage]</code> line; it also warns you once when either context passes <code>context_warning</code>. The temp UI keeps every agent's by id and shows the selected tab's worker and Talker in its header.</p>
 <h2 id="resetrequested"><code>ResetRequested</code></h2>
 <p><code>ResetRequested(agent_id: str)</code> (event)</p>
 <p>Asks the session behind <code>agent_id</code> ("talker" or a task agent's id) to start fresh. Sent by the temp UI's Reset buttons and the Talker's <code>&lt;&lt;RESET: talker | worker&gt;&gt;</code> tag. The Talker restarts its session and tells the new one its last few exchanges. A task agent (<a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.reset</code></a>) closes its session at once when idle; with a task, it asks the agent to write a handoff note, and the task carries on in a fresh session.</p>

@@ -24,7 +24,7 @@ def load_layered(base: str | Path, local: str | Path | None = None) -> dict[str,
     local = Path(local) if local is not None else local_path(base)
     config = _read(base)
     if local.exists():
-        config = _merge(config, _read(local))
+        config = merge(config, _read(local))
     return config
 
 
@@ -33,11 +33,13 @@ def _read(path: Path) -> dict[str, Any]:
         return tomllib.load(f)
 
 
-def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+def merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """`override` deep-merged over `base`, as a new dict: tables merge key by key; other values,
+    lists included, are replaced. Neither input is changed."""
     merged = dict(base)
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = _merge(merged[key], value)
+            merged[key] = merge(merged[key], value)
         else:
             merged[key] = value
     return merged

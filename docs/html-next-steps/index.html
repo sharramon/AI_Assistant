@@ -51,7 +51,7 @@
 <tbody>
 <tr>
 <td><a href="permissions-handler.html">Permissions handler</a></td>
-<td>proposed</td>
+<td>proposed; its first piece (access lists, in the core) is built by agent-permissions</td>
 <td>2026-10-26</td>
 </tr>
 <tr>
@@ -101,7 +101,7 @@
 </tr>
 <tr>
 <td><a href="module-system.html">Module system: one interface, a directory, menus everywhere</a></td>
-<td>built (waiting on you): all 9 chunks built and committed locally; needs an app restart, then its restart test</td>
+<td>built (waiting on you): restart test run; the mic checks (7, 8) and the <code>agent_hub</code> / <code>main_assistant</code> reloads are left</td>
 <td>2026-11-05</td>
 </tr>
 <tr>
@@ -111,8 +111,138 @@
 </tr>
 <tr>
 <td><a href="job-agent.html">Job agent: run the job project from the assistant</a></td>
-<td>proposed: the module wrapper first; two questions for you</td>
-<td>2026-11-04</td>
+<td>built (waiting on you): <code>job_search</code> module, stub search; access list settled by agent-permissions; the real runner open; restart needed</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="viewer-start-on-use.html">Opening a page turns the viewer on</a></td>
+<td>built (waiting on you): app restart, then try SHOW and Open in viewer with the viewer off</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="temp-ui-paste-image.html">Temp UI: paste an image into the chat box</a></td>
+<td>built (waiting on you): loaded with <code>RELOAD</code>; your paste checks by hand</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="multi-agent.html">Multi-agent: several task agents at once</a></td>
+<td>built (waiting on you): chunks 1–7 built (cap: 3 extra agents, from config); app restart, then the checks in the handoff</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="agent-permissions.html">Task agents ask for their access when turned on</a></td>
+<td>built (waiting on you): the permissions handler's first piece, in the core; 474 tests pass; app restart, then try the job_search card, Allow, and the rough Grants screen</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="usage-tallies.html">Usage tallies for all agents</a></td>
+<td>built (waiting on the restart): totals per agent since launch, a dropdown with sub-agents nested and the Talker as its own row, in its own <code>usage</code> module</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="door-at-session-start.html">The Main Assistant's session starts without the module door</a></td>
+<td>built (waiting on you): an idle worker restarts once when the door is up; app restart, then rerun the helper launch test</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="agent-names.html">Agent names: ids, named helpers, the duplicate check</a></td>
+<td>built (restart pending): the Hub refuses a taken id; helpers launched by name with your yes; <code>job</code> → <code>job_search_agent</code></td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="temp-ui-snip-send.html">Temp UI: send a snip on its own, show it on the sent message, log every snip step</a></td>
+<td>built (waiting on you): app restart, then send a snip alone, with text, spoken, and × one; check the log</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="plus-agent-tab.html">Temp UI: a plus button to open your own agent tab</a></td>
+<td>built (waiting on you): <code>RELOAD: task_agents</code> and <code>RELOAD: temp_ui</code>, then press + and try ×; later <code>ctx.permissions.is_you</code></td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="rezi-module.html">Rezi: a module for its MCP, the job agent tailoring through it, a PDF viewer</a></td>
+<td>approved, building: replaced by one <code>cv</code> module with its worker; its three docs pages are in, chunk 1 (code) next</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="agent-talkers.html">Agent talkers: every tab a pair, its own Talker and worker</a></td>
+<td>built (waiting on you): hand checks 1–5 pass; check 6 (closing a tab) failed, fix proposed in the note below</td>
+<td>2026-11-05</td>
+</tr>
+<tr>
+<td><a href="close-tab-ends-talker.html">Closing a helper's tab ends its Talker at once; its usage row says "closed"</a></td>
+<td>built (waiting on you): reload <code>task_agents</code>, <code>usage</code>, <code>temp_ui</code> (no restart), then redo hand check 6</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="code-review.html">Code review: the code against our principles, and a cleanup plan</a></td>
+<td>built (waiting on you): chunks 1–4 built (voice service safety, principles 18–22 and the code map, small fixes, one SHOW helper); waiting on the batched restart and your pick on chunks 5–8</td>
+<td>2026-11-08</td>
+</tr>
+<tr>
+<td><a href="closed-tab-moves-focus.html">Closing the tab you're in moves you to the Main Assistant's tab</a></td>
+<td>built (waiting on you): reload <code>agent_hub</code>, <code>temp_ui</code> (no restart), then close the tab you're on</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="voice-to-stop-tab.html">Voice text goes to the tab you pressed stop in</a></td>
+<td>built, waiting on the restart: the exact version (<code>StopListening.agent_id</code>, a contract field); tests pass</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="live-agent-grants.html">A new grant reaches a running agent without off and on</a></td>
+<td>built, waiting on the restart: plan B with the recommended answers (live grants, <code>permissions.request</code>, snips readable); tests pass</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="per-agent-mode-toggle.html">Each agent's own Auto/Manual toggle, shown in the UI</a></td>
+<td>idea, for later; nothing built</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="per-agent-auto-button.html">The Auto button sets the agent of the tab you're in</a></td>
+<td>built, waiting on the restart (with the others; a reload of <code>temp_ui</code> and <code>talker</code> would also do); tests pass</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="temp-ui-tab-scroll.html">Temp UI: switching tabs lands at the bottom, unless you'd scrolled up</a></td>
+<td>built (waiting on you): <code>RELOAD: temp_ui</code>, then the six hand checks in the note</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="module-self-contained.html">Self-contained modules, like downloadable extensions</a></td>
+<td>building: steps 0 to 2 and the standard docs layout built (three required pages: overview, architecture, tools from the menu; HTML in the standard frame); step 3 moved usage, console_io, assistant_view; umbrellas designed, not built</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="restart-keep-agents.html">Restarts that keep the agents running</a></td>
+<td>proposed: keep and re-hook by default when harmless, Stop all as the option; three designs, C recommended; waiting on your check</td>
+<td>2026-11-06</td>
+</tr>
+<tr>
+<td><a href="extension-marketplace.html">Extensions like a marketplace: what's built, what's missing</a></td>
+<td>proposed, answers in: extensions always in their own process, contracts loadable while running (overrides the restart rule), <code>cv</code> the pilot, store later; nine steps; waiting on your check</td>
+<td>2026-11-07</td>
+</tr>
+<tr>
+<td><a href="helper-context-reset.html">Helpers' context reminder and reset</a></td>
+<td>built (waiting on you): reminders reach every pair (checked, tested); the Reset buttons now reset the pair of the tab you're in. <code>RELOAD: temp_ui</code> or the batched restart, then the three checks</td>
+<td>2026-11-07</td>
+</tr>
+<tr>
+<td><a href="restart-note-complete.html">The restart note says everything the next launch needs</a></td>
+<td>built, waiting on the batched restart (a <code>RELOAD: talker</code> would also do): the app adds the tabs, agents, modes, open tasks and questions; the worker lists the changes waiting on the restart and their hand checks; tests pass</td>
+<td>2026-11-08</td>
+</tr>
+<tr>
+<td><a href="temp-ui-box-resize.html">Temp UI: drag the typing box taller or shorter</a></td>
+<td>built, waiting on the batched restart (a <code>RELOAD: temp_ui</code> would also do): a drag handle on the box's top edge, one size for every tab, kept after sending; six hand checks</td>
+<td>2026-11-08</td>
+</tr>
+<tr>
+<td><a href="usage-tokens-only.html">Usage: tokens only, clearer labels, two token fixes</a></td>
+<td>built (waiting on you): no ~$ anywhere, labelled context and used, a session id so restarts keep totals, sub-agent tokens from each turn's result, and the temp UI's header following the selected tab's own worker and Talker; one app restart, then the hand checks</td>
+<td>2026-11-07</td>
 </tr>
 </tbody>
 </table>

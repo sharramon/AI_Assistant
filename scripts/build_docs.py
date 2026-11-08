@@ -20,20 +20,39 @@ Its sidebar lists the active notes and one Archive link: next-steps/archive/ (fi
 notes) builds as a section of that output with its own index, and its notes aren't listed
 in the sidebar.
 
+A module that carries its own docs folder (src/assistant/modules/<id>/docs/) is found by folder,
+not listed here: see module_doc_folders() and module_tabs().
+
 The Markdown files are the source of truth; never edit the generated HTML by hand.
 Run after changing any doc:  python scripts/build_docs.py
 """
 
 from __future__ import annotations
 
+import functools
 import html
 import json
 import os
 import re
 import shutil
+import tomllib
 from pathlib import Path
 
 import markdown
+
+from app_kit.module_docs import (
+    DOCS_DIR,
+    SETTINGS_FILE,
+    SETTINGS_KEYS,
+    STANDARD_PAGES,
+    TOOLS_FILE,
+    doc_pages,
+    docs_settings,
+    page_title,
+    tools_intro,
+    tools_notes,
+    tools_page,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -59,11 +78,19 @@ MODULE_INDEX = "modules/README.md"
 #   related: name -> page#anchor elsewhere (API entries, Overview pages), links only
 # and always the App-wide links. A new module: add its page in docs/modules/ and one entry:
 # its id in an existing tab's `modules`, or a new tab ({} if it has nothing more).
+#
+# Central modules: part of the main app and its window (the agent runtime, the usage tally, the
+# terminals, the temp UI), so their docs stay in the main docs (docs/modules/<id>.md, their tab here)
+# and never move into their own module folders; they're exempt from the three standard pages
+# (user, 2026-11-06). Self-contained features (html_viewer, cv, job_search, voice_notes) move.
+CENTRAL_MODULES = frozenset({"agent_hub", "talker", "main_assistant", "task_agents", "usage",
+                             "console_io", "assistant_view", "temp_ui"})
 MODULE_TABS: dict[str, dict] = {
     "Agents": {
-        "modules": ["talker", "main_assistant", "agent_hub"],
+        "modules": ["talker", "main_assistant", "agent_hub", "task_agents", "job_search"],
         "related": {
             "Agents (architecture)": "architecture/agents.md",
+            "Agents: code layout": "architecture/agents-code.md",
             "Agents docs": "agents/README.md",
             "Agent runtime": "agents/runtime.md",
             "The Talker on its own": "agents/runtime.md#the-talker-on-its-own",
@@ -71,6 +98,12 @@ MODULE_TABS: dict[str, dict] = {
             "Messaging to and from the main app": "agents/runtime.md#messaging-to-and-from-the-main-app",
             "Agents API": "api/agents.md",
             "SessionTaskAgent (API)": "api/infra.md#sessiontaskagent",
+        },
+    },
+    "usage": {
+        "related": {
+            "SessionUsage (API)": "api/agents.md#sessionusage",
+            "UsageLedger (API)": "api/infra.md#usageledger",
         },
     },
     "voice_in": {
@@ -97,7 +130,7 @@ MODULE_TABS: dict[str, dict] = {
         },
     },
     "Stand-ins and terminals": {
-        "modules": ["console_io", "temp_ui", "assistant_view", "echo_orchestrator"],
+        "modules": ["temp_ui", "console_io", "assistant_view"],  # echo_orchestrator: its docs.toml
         "related": {
             "What runs": "agents/runtime.md#what-runs",
             "The temp UI in the runtime": "agents/runtime.md#temp-ui",
@@ -108,11 +141,65 @@ MODULE_TABS: dict[str, dict] = {
 
 
 TAB_KEYS = {"modules", "pages", "related"}
+# A module that carries its own docs (src/assistant/modules/<id>/docs/, see app_kit.module_docs) is
+# found here by folder: its pages publish to docs/html/modules/<id>/ (Markdown rendered, HTML and
+# images copied as written) and its tab comes from its docs.toml. Every page is in the standard
+# layout: its three standard pages (overview, architecture, tools; the tools page generated from its
+# menu) first, in its own sidebar group, and its HTML pages open inside the standard frame. It needs
+# no MODULE_TABS entry and no docs/modules/<id>.md; those stay for the central modules and the ones
+# that haven't moved yet.
+MODULES_DIR = ROOT / "src" / "assistant" / "modules"
+FRAME = "frame.html"  # opens a module's own HTML page inside the docs' tabs and sidebar: frame.html?src=<page>
 
 
 def tab_modules(name: str, spec: dict) -> list[str]:
     """The module ids a tab owns: its `modules`, or just the tab's name."""
     return spec.get("modules", [name])
+
+
+@functools.cache
+def module_doc_folders() -> dict[str, Path]:
+    """Every module folder's own docs/ by module id, a docs-only folder with no code yet too."""
+    return {p.name: (p / DOCS_DIR).resolve() for p in sorted(MODULES_DIR.iterdir())
+            if p.is_dir() and not p.name.startswith(("_", ".")) and (p / DOCS_DIR).is_dir()}
+
+
+def module_of(path: Path) -> str | None:
+    """The module whose own docs folder holds `path`, else None."""
+    p = path.resolve()
+    return next((m for m, folder in module_doc_folders().items() if p.is_relative_to(folder)), None)
+
+
+def docs_rel(path: Path) -> str:
+    """A page as a path relative to docs/ (`../src/assistant/modules/<id>/docs/README.md` for a module's own)."""
+    return Path(os.path.relpath(path, DOCS)).as_posix()
+
+
+def module_pages(module_id: str) -> list[str]:
+    """A module's pages, relative to docs/: its own docs folder's, else docs/modules/<id>.md."""
+    folder = module_doc_folders().get(module_id)
+    return [docs_rel(p) for p in doc_pages(folder)] if folder else [f"modules/{module_id}.md"]
+
+
+def framed_pages(module_id: str) -> set[str]:
+    """The names of a module's HTML pages: every one opens inside the standard frame."""
+    folder = module_doc_folders().get(module_id)
+    return {p.name for p in doc_pages(folder) if p.suffix.lower() == ".html"} if folder else set()
+
+
+def module_tabs() -> dict[str, dict]:
+    """MODULE_TABS, then each module with its own docs added to the tab its docs.toml names (default:
+    its id); a tab no one named before comes after, in folder order."""
+    tabs = {name: {**spec, "related": dict(spec.get("related", {}))} for name, spec in MODULE_TABS.items()}
+    for module_id, folder in module_doc_folders().items():
+        settings = docs_settings(folder)
+        name = settings.get("tab", module_id)
+        spec = tabs.setdefault(name, {"modules": [], "related": {}})
+        spec["modules"] = list(dict.fromkeys(tab_modules(name, spec) + [module_id]))
+        spec["related"].update(settings.get("related", {}))
+    return tabs
+
+
 MERMAID_JS = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
 
 MD_ANCHOR = re.compile(r'<a href="(?![a-z]+:)([^"#]*?\.md)(#[^"]*)?"([^>]*)>(.*?)</a>', re.S)
@@ -124,6 +211,11 @@ def is_next_steps(md: Path) -> bool:
 
 
 def out_path(md: Path) -> Path:
+    module_id = module_of(md)
+    if module_id:  # a module's own page: docs/html/modules/<id>/, README as index, HTML keeping its name
+        rel = md.resolve().relative_to(module_doc_folders()[module_id])
+        name = rel.name if rel.suffix.lower() == ".html" else "index.html" if rel.stem == "README" else f"{rel.stem}.html"
+        return OUT / "modules" / module_id / rel.parent / name
     rel = md.resolve().relative_to(DOCS.resolve())
     name = "index.html" if rel.stem == "README" else f"{rel.stem}.html"
     if rel.parts[0] == NEXT_STEPS:
@@ -136,10 +228,7 @@ def out_root(md: Path) -> Path:
 
 
 def title_of(md: Path) -> str:
-    for line in md.read_text(encoding="utf-8").splitlines():
-        if line.startswith("# "):
-            return line[2:].strip()
-    return md.stem
+    return page_title(md)
 
 
 def section_pages(section: str) -> list[Path]:
@@ -169,10 +258,49 @@ def item(root: Path, rel: str, name: str | None = None) -> dict:
     return {"name": name or title_of(DOCS / rel.partition("#")[0]), "href": link(root, rel)}
 
 
+def framed_href(root: Path, rel: str) -> str:
+    """The link that opens a module's HTML page inside the frame, relative to the output root `root`."""
+    frame = Path(os.path.relpath(OUT / FRAME, root)).as_posix()
+    return f"{frame}?src={Path(os.path.relpath(out_path(DOCS / rel), OUT)).as_posix()}"
+
+
+def nav_item(root: Path, rel: str) -> dict:
+    """A module page's sidebar link: a standard page under its standard name, an HTML page through the frame."""
+    module_id = module_of(DOCS / rel)
+    entry = item(root, rel, STANDARD_PAGES.get(Path(rel).name) if module_id else None)
+    if module_id and Path(rel).name in framed_pages(module_id):
+        entry["href"] = framed_href(root, rel)
+    return entry
+
+
 def check_module_tabs() -> None:
-    """Every module page is in exactly one tab, and every page a tab names exists."""
+    """Every module page is in exactly one tab, every page a tab names exists, and a module's own docs
+    folder is valid (known docs.toml keys, its listed pages there) and is its only layout."""
     pages = {p.stem for p in (DOCS / "modules").glob("*.md") if p.stem != "README"}
-    owned = [m for name, spec in MODULE_TABS.items() for m in tab_modules(name, spec)]
+    own = module_doc_folders()
+    listed = {m for name, spec in MODULE_TABS.items() for m in tab_modules(name, spec)}
+    problems = [f"{m}: has both docs/modules/{m}.md and its own docs folder; keep one" for m in sorted(pages & set(own))]
+    problems += [f"MODULE_TABS: {m} has its own docs folder; its docs.toml sets its tab" for m in sorted(listed & set(own))]
+    problems += [f"{m} is a central module: its docs stay in docs/modules/{m}.md, not its own folder"
+                 for m in sorted(CENTRAL_MODULES & set(own))]
+    problems += [f"{m} is a central module and needs docs/modules/{m}.md" for m in sorted(CENTRAL_MODULES - pages)]
+    for m, folder in own.items():
+        where = f"src/assistant/modules/{m}/{DOCS_DIR}"
+        try:
+            settings = docs_settings(folder)
+        except tomllib.TOMLDecodeError as exc:
+            problems.append(f"{where}/{SETTINGS_FILE}: {exc}")
+            continue
+        problems += [f"{where}/{SETTINGS_FILE}: unknown keys {sorted(extra)}" for extra in [set(settings) - SETTINGS_KEYS] if extra]
+        names = {p.name for p in doc_pages(folder)}
+        problems += [f"{where} has no {p} (every module has the standard pages: {', '.join(STANDARD_PAGES)})"
+                     for p in STANDARD_PAGES if p not in names]
+        problems += [f"{where}/{SETTINGS_FILE}: page {n} not found" for n in settings.get("pages", []) if n not in names]
+        problems += [f"{where}/{SETTINGS_FILE}: related {r} not found" for r in settings.get("related", {}).values()
+                     if not (DOCS / r.partition("#")[0]).is_file()]
+    if problems:
+        raise SystemExit("\n".join(problems))
+    owned = [m for name, spec in module_tabs().items() for m in tab_modules(name, spec)]
     problems = [f"docs/modules/{m}.md has no entry in MODULE_TABS" for m in sorted(pages - set(owned))]
     problems += [f"MODULE_TABS: {m} is in more than one tab" for m in sorted({m for m in owned if owned.count(m) > 1})]
     for name, spec in MODULE_TABS.items():
@@ -199,14 +327,20 @@ def nav_data(root: Path) -> dict:
         names = {r: "Overview" for r in rels if r.endswith("/README.md") and r != MODULE_INDEX}
         groups.append({"label": label, "pages": [item(root, r, names.get(r)) for r in rels]})
     tabs = [_tab("Overview", groups)]
-    for i, (name, spec) in enumerate(MODULE_TABS.items()):
-        own = [f"modules/{m}.md" for m in tab_modules(name, spec)] + spec.get("pages", [])
-        mod_groups = [{"label": name, "pages": [item(root, r) for r in own]}]
+    for i, (name, spec) in enumerate(module_tabs().items()):
+        # A module with its own docs gets its own group (overview, architecture, tools, then its other
+        # pages); the tab's own group holds the modules that haven't moved, and is left out when empty.
+        mods, moved = tab_modules(name, spec), module_doc_folders()
+        old = [nav_item(root, r) for m in mods if m not in moved for r in module_pages(m)]
+        old += [item(root, r) for r in spec.get("pages", [])]
+        mod_groups = [{"label": name, "pages": old}] if old else []
+        mod_groups += [{"label": m, "pages": [nav_item(root, r) for r in module_pages(m)]} for m in mods if m in moved]
+        own = [p for g in mod_groups for p in g["pages"]]
         if spec.get("related"):
             mod_groups.append({"label": "Related", "pages": [item(root, r, n) for n, r in spec["related"].items()]})
         app_wide = [item(root, "architecture/README.md", "Architecture overview"), item(root, LIBRARY)]
         mod_groups.append({"label": "App-wide", "pages": app_wide})
-        tabs.append(_tab(name, mod_groups, home=[link(root, r) for r in own], sep=i == 0))
+        tabs.append(_tab(name, mod_groups, home=[p["href"] for p in own], sep=i == 0))
     for i, (name, section) in enumerate(PROJECT_TABS.items()):
         rels = [p.relative_to(DOCS).as_posix() for p in section_pages(section)]
         pages = [item(root, r, "Overview" if r.endswith("/README.md") else None) for r in rels]
@@ -234,7 +368,7 @@ def fix_links(body: str, md: Path) -> str:
     def repl(match: re.Match) -> str:
         link, anchor, attrs, text = match.groups()
         target = (md.parent / link).resolve()
-        inside_docs = target.is_relative_to(DOCS.resolve())
+        inside_docs = target.is_relative_to(DOCS.resolve()) or module_of(target) is not None
         if inside_docs and is_next_steps(target) and not is_next_steps(md):
             return text
         # Docs pages go to their generated page; anything else (a skill, say) to the Markdown file itself.
@@ -312,6 +446,22 @@ def copy_images(sections) -> None:
             shutil.copytree(src, OUT / section / "img")
 
 
+def write_module_pages() -> int:
+    """Each module's own docs into docs/html/modules/<id>/: Markdown rendered, everything else (the
+    HTML pages it wrote itself, images) copied as written. Returns the number of pages."""
+    count = 0
+    for module_id, folder in module_doc_folders().items():
+        shutil.copytree(folder, OUT / "modules" / module_id, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("*.md", SETTINGS_FILE))
+        for page in doc_pages(folder):
+            if page.suffix.lower() == ".md":
+                target = out_path(page)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(render(page), encoding="utf-8")
+            count += 1
+    return count
+
+
 LIBRARY_START = "<!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->"
 LIBRARY_END = "<!-- library:end -->"
 CORE_LINE = (
@@ -359,10 +509,14 @@ def library_block() -> str:
     for cls in module_classes():
         m = cls.manifest
         contracts = "; ".join(f"{word} {names(group)}" for word, group in
-                              (("provides", m.provides), ("requires", m.requires), ("optional", m.optional)) if group)
+                              (("provides", m.provides), ("requires", m.requires), ("optional", m.optional),
+                               ("uses", m.uses)) if group)
         menu = names(cls.menu.names()) if cls.menu else "none"
+        own = module_doc_folders().get(m.id)
+        page = (f"../../src/assistant/modules/{m.id}/{DOCS_DIR}/README.md" if own and (own / "README.md").is_file()
+                else f"../modules/{m.id}.md")
         rows.append(
-            f"| [`{m.id}`](../modules/{m.id}.md) | {m.description or '(no description)'} | "
+            f"| [`{m.id}`]({page}) | {m.description or '(no description)'} | "
             f"{'yes' if m.id in enabled else 'no'} | {menu} | {contracts or 'none'} | {names(m.handles)} | "
             f"{names(m.sends)} | {names(m.publishes)} | {names(m.listens)} |"
         )
@@ -380,7 +534,28 @@ def write_library() -> bool:
     return new != text
 
 
+def write_tools_pages() -> list[str]:
+    """Each module's tools page (docs/tools.md in its own folder) from its own menu, so it is always
+    right and the core's `modules.docs` lists it too; notes after the generated part are kept.
+    Returns the ids whose page changed."""
+    classes = {c.manifest.id: c for c in module_classes()}
+    changed = []
+    for module_id, folder in module_doc_folders().items():
+        cls = classes.get(module_id)
+        specs = None if cls is None else [s.model_dump() for s in (cls.menu.specs() if cls.menu else [])]
+        path = folder / TOOLS_FILE
+        old = path.read_text(encoding="utf-8") if path.is_file() else ""
+        new = tools_page(module_id, specs, tools_notes(old), tools_intro(old))
+        if new != old:
+            with path.open("w", encoding="utf-8", newline="\n") as f:
+                f.write(new)
+            changed.append(module_id)
+    return changed
+
+
 def main() -> None:
+    for module_id in write_tools_pages():
+        print(f"Regenerated the tools page of {module_id}")
     check_module_tabs()
     if write_library():
         print(f"Regenerated the module table in docs/{LIBRARY}")
@@ -389,8 +564,10 @@ def main() -> None:
             shutil.rmtree(folder)
     count = write_pages(SECTIONS)
     copy_images(SECTIONS)
+    count += write_module_pages()
     write_shared(OUT)
     (OUT / "index.html").write_text(REDIRECT, encoding="utf-8")
+    (OUT / FRAME).write_text(FRAME_PAGE, encoding="utf-8")
     # The next-steps README becomes that output's index.html.
     next_count = write_pages([NEXT_STEPS, ARCHIVE])
     write_shared(NEXT_OUT)
@@ -425,6 +602,40 @@ PAGE = """<!doctype html>
 <script src="{root}nav.js"></script>
 <script src="{mermaid}"></script>
 <script src="{root}site.js"></script>
+</body>
+</html>
+"""
+
+FRAME_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Assistant Docs</title>
+<!-- Generated by scripts/build_docs.py: a module's own HTML page (?src=) inside the docs' menu. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="frame.html"></nav>
+<main class="framed"><iframe title="Module page"></iframe></main>
+</div>
+<script>
+(function () {
+  // Only a page of these docs: a relative path to an .html file, with no "..", no scheme, no leading slash.
+  var src = new URLSearchParams(location.search).get("src") || "";
+  var ok = /^[A-Za-z0-9_\\-.\\/]+\\.html$/.test(src) && src.charAt(0) !== "/" && src.split("/").indexOf("..") < 0;
+  var main = document.querySelector("main");
+  if (!ok) { main.className = ""; main.textContent = "This page can't be opened in the frame: " + src; return; }
+  document.querySelector("nav").setAttribute("data-page", "frame.html?src=" + src);
+  var frame = main.querySelector("iframe");
+  frame.addEventListener("load", function () {
+    try { document.title = frame.contentDocument.title || src; } catch (e) {}
+  });
+  frame.src = src;
+})();
+</script>
+<script src="nav.js"></script>
 </body>
 </html>
 """
@@ -565,6 +776,8 @@ main img { max-width: 100%; height: auto; border: 1px solid var(--border); borde
   font-size: 22px; line-height: 1; cursor: pointer;
 }
 .zoom-close:hover { background: var(--border); }
+main.framed { max-width: none; padding: 0; }
+main.framed iframe { display: block; width: 100%; height: calc(100vh - var(--top)); border: 0; background: #fff; }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }

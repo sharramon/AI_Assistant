@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closing a helper&#x27;s tab ends its Talker at once, and its usage row says &quot;closed&quot;</title>
+<!-- Generated from docs/next-steps/close-tab-ends-talker.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="close-tab-ends-talker.html"></nav>
+<main>
+<h1 id="closing-a-helpers-tab-ends-its-talker-at-once-and-its-usage-row-says-closed">Closing a helper's tab ends its Talker at once, and its usage row says "closed"</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-06.</strong> Found by hand check 6 of the <code>agent-talkers</code> change note. Approved as written on 2026-11-06: both fixes, closed rows greyed and kept in the totals. Built: <code>task_agents.close_item</code> publishes <code>AgentStateChanged</code> and logs "Closed helper"; <code>usage</code> notes the agents it has seen (<code>ListAgents</code> on <code>AgentStateChanged</code> / <code>ModuleStateChanged</code>), marks <code>closed</code> in <code>usage.agents</code> and hands the seen set over on reload; <code>temp_ui</code> asks for the tally again when an agent leaves its tabs and greys closed rows ("· closed"). Tests: <code>test_usage.py::test_a_closed_agents_rows_say_closed_and_stay_in_the_total</code>, and <code>agents.close</code>'s event in <code>test_agent_names.py</code>. Left: <code>RELOAD: task_agents</code>, <code>RELOAD: usage</code>, <code>RELOAD: temp_ui</code>, then redo hand check 6.</p>
+</blockquote>
+<p><strong>Asked:</strong> hand check 6 failed. After you closed the helper's tab (its ×), both usage rows, <code>helper</code> and <code>talker:helper</code>, were still in the usage dropdown. Find out what closing a tab should do, what it actually does, and where it goes wrong.</p>
+<h2 id="what-should-happen">What should happen</h2>
+<p>From the <code>agent-talkers</code> note ("How a tab's Talker starts and ends") and the <code>plus-agent-tab</code> note: the × on a helper you opened with <strong>+</strong> cancels its task, then calls <code>agents.close</code>. That stops the helper's <code>claude</code> session and frees its name. The tab's Talker <strong>closes when its agent is gone</strong>: the talker module re-reads <code>ListAgents</code> on <code>AgentStateChanged</code> and <code>ModuleStateChanged</code>, and closes the session of any agent that's no longer listed. No doc says what happens to a closed agent's usage row. The ledger keeps every agent's usage "since launch".</p>
+<h2 id="what-actually-happened-this-launchs-log">What actually happened (this launch's log)</h2>
+<ul>
+<li>23:07:38: "Opened helper helper (helper), idle" and "Talker for helper's tab opened". The helper was opened with <strong>+</strong>, so the × took the <code>agents.close</code> path.</li>
+<li>Between 23:17:56 and 23:18:53: you pressed ×. Nothing is logged, because <code>agents.close</code> writes no log line.</li>
+<li>23:19:01: "Talker for helper's tab closed: its agent is gone", at the same moment as "Task 657a3e72 started on main_assistant". The Talker closed only because the Main Assistant's next state change made it re-read <code>ListAgents</code>.</li>
+<li>Processes now: the only <code>claude</code> processes running are the main Talker's and the Main Assistant's. Neither the helper's process nor its Talker's is still running.</li>
+</ul>
+<p>So <strong>the processes do end</strong> (the helper's at the close, its Talker's late, at the next unrelated agent event), but <strong>the usage rows stay</strong>.</p>
+<h2 id="the-two-causes">The two causes</h2>
+<ol>
+<li><strong><code>agents.close</code> tells no one.</strong> <code>TaskAgentsModule.close_item</code> (<code>task_agents/module.py</code>) stops the helper and withdraws it, but publishes nothing. The talker module only checks for gone agents on <code>AgentStateChanged</code> / <code>ModuleStateChanged</code>, so the helper's Talker stays open until some other agent's state changes. That could be seconds or hours later. Opening a helper does publish an event (<code>AgentStateChanged</code>, "UIs add its tab"), but closing one doesn't. The temp UI's tab disappears only because the temp UI re-reads <code>ListAgents</code> itself after its own close call. The other close path, <code>modules.off</code> for the job agent, is fine: it publishes <code>ModuleStateChanged</code>. The test (<code>test_a_helper_tabs_talker_starts_on_use_..._closes_with_its_agent</code>) uses <code>DeactivateModule</code>, so it never covered <code>agents.close</code>.</li>
+<li><strong>The usage ledger never removes or marks a row.</strong> <code>UsageLedger</code> keeps every agent's latest totals since launch, on purpose, so the total stays honest. Nothing tells it, or the dropdown, that an agent has ended, so <code>helper</code> and <code>talker:helper</code> look just like live agents.</li>
+</ol>
+<h2 id="proposed-fix">Proposed fix</h2>
+<ol>
+<li><strong><code>agents.close</code> says the helper is gone.</strong> After <code>_take_back</code>, <code>close_item</code> publishes <code>AgentStateChanged(agent_id=&lt;name&gt;, busy=False, working=False)</code>, the same event a launch sends, and logs "Closed helper <name>". The talker module's existing <code>_refresh_agents</code> then closes that tab's Talker at once (its process ends, and its history is kept in case the name comes back). No new part: the event and the handler already exist. One test: <code>agents.close</code> on an opened helper closes its Talker session straight away.</li>
+<li><strong>A closed agent's usage stays in the totals, and its row is marked closed</strong> (proposed; change it if you'd rather drop the rows). The <code>usage</code> module also listens to <code>AgentStateChanged</code> / <code>ModuleStateChanged</code> and re-reads <code>ListAgents</code>. An agent that was listed before and isn't now is <em>closed</em>. Its row, and the rows nested under it (its Talker <code>talker:&lt;name&gt;</code>, its sub-agents), get <code>"closed": true</code> in <code>usage.agents</code>. The temp UI's dropdown shows such a row greyed, with "closed". Totals don't change, because the money was spent. If the name comes back (a new helper with the same name), the mark clears and its numbers carry on, as the ledger already does for a restarted session. The mark lives in the <code>usage</code> module, not in <code>UsageLedger</code> (<code>assistant.infra</code>), so the ledger stays plain and needs no restart. Tests: a row is marked closed when its agent leaves <code>ListAgents</code>, its Talker row too, and the total is unchanged.</li>
+</ol>
+<p>Alternatives for 2: drop the closed rows but keep their numbers in the total (the dropdown no longer adds up), or leave the rows unmarked as today (the check's expectation changes instead).</p>
+<h2 id="touches">Touches</h2>
+<p><code>task_agents</code> (fix 1), <code>usage</code> and <code>temp_ui</code> (fix 2: the dropdown's greyed row). Docs: the module pages <a href="../html/modules/task_agents.html">task_agents</a>, <a href="../html/modules/usage.html">usage</a> and <a href="../html/modules/temp_ui.html">temp_ui</a>, and the <code>usage.agents</code> entry in the API pages. Check <a href="../html/api/reusable.html">reusable</a> for <code>UsageLedger</code>'s Used by line (unchanged).</p>
+<h2 id="restart">Restart?</h2>
+<p><strong>No restart.</strong> All three are modules, so they reload while the app runs: <code>RELOAD: task_agents</code>, <code>RELOAD: usage</code>, <code>RELOAD: temp_ui</code>. No contract, core, infra or <code>app_kit</code> change. Then redo hand check 6: open a helper with <strong>+</strong>, use its tab once, close it, and check that the log says "Talker for helper's tab closed" at once and that both rows read "closed" in the dropdown.</p>
+<footer>Generated from <code>docs/next-steps/close-tab-ends-talker.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

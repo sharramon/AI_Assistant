@@ -13,7 +13,7 @@
 <main>
 <h1 id="permissions-handler">Permissions handler</h1>
 <blockquote>
-<p><strong>Status: proposed (2026-10-26).</strong> Design: <a href="../html/architecture/permissions.html">Permissions</a>. Since 2026-11-02 (<a href="archive/reusable-parts.html#decided">reusable parts</a>) the <code>ctx.permissions</code> stand-in comes first (allow and log; built 2026-11-02, <a href="archive/permissions-stand-in.html">note</a>); this handler later plugs in behind it, with no module changes.</p>
+<p><strong>Status: proposed (2026-10-26).</strong> Design: <a href="../html/architecture/permissions.html">Permissions</a>. Since 2026-11-02 (<a href="archive/reusable-parts.html#decided">reusable parts</a>) the <code>ctx.permissions</code> stand-in comes first (allow and log; built 2026-11-02, <a href="archive/permissions-stand-in.html">note</a>); this handler later plugs in behind it, with no module changes. <strong>Update (2026-11-05):</strong> its first piece is built by <a href="agent-permissions.html">agent-permissions</a>, as part of the core rather than a module: there is no <code>IPermissions</code> contract and no <code>permissions</code> module, so the "Touches" list below is history.</p>
 </blockquote>
 <p><strong>Asked:</strong> "Should permissions work through its own permissions handler? Since different sub-apps / functionality will need different permissions?" Each module should get only what it needs (a map feature gets location, nothing else does), and a missing permission should only affect the module that needs it.</p>
 <p><strong>Why:</strong></p>

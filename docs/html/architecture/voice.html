@@ -617,7 +617,8 @@
 <li><strong>The engine interface's four calls</strong> are split across two objects: <code>SttEngine.new_stream()</code> (the model, loaded once) gives an <code>SttStream</code> with <code>accept(pcm)</code>, <code>partial()</code>, and <code>finish()</code> (one per session). Engines take PCM16 bytes; converting to floats is each engine's job.</li>
 <li><strong>Tests</strong> build the app with <code>create_app(config, FakeEngine(...), lambda: FakeSource(...))</code> and drive <code>/ws/listen</code> with FastAPI's test client. No mic, no model.</li>
 <li><strong><code>/health</code></strong> answers <code>{"app": "voice_service", "engine": "zipformer", "ready": true|false, "error": null|"...", "final": "whisper"|"", "final_ready": true|false, "final_error": null|"..."}</code> (the <code>final</code> fields added 2026-11-03). <code>voice_in</code> uses it as its ping, like the viewer's <code>/api/ping</code>.</li>
-<li><strong><code>/quit</code></strong> (POST, JSON body like the viewer's) ends the current session and shuts the server down.</li>
+<li><strong><code>/quit</code></strong> (POST, JSON body like the viewer's; anything else gets 415) ends the current session and shuts the server down.</li>
+<li><strong>Local only (2026-11-08):</strong> the service refuses other hosts and other origins with <a href="../api/app_kit.html#local_guard"><code>app_kit.local_guard</code></a>: every request and WebSocket whose <code>Host</code> isn't this machine, or whose browser <code>Origin</code> is another site, gets 403 (a WebSocket is closed with 1008), so a web page you visit can't open the mic or quit the service. <code>python -m voice_service</code> refuses a non-local <code>--host</code>.</li>
 </ul>
 <h3 id="the-voice-service-config">The voice service: config</h3>
 <p>Its own TOML file, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (revised 2026-11-02; no loader of its own, and still no <code>assistant</code> import): <code>config/voice_service.toml</code> in the repo, overridden by <code>config/voice_service.local.toml</code> (not committed), then by command-line flags. <code>--config</code> points at another file.</p>
@@ -756,7 +757,7 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </code></pre>
 <ul>
 <li><strong>Provides nothing, requires nothing, uses nothing optional.</strong> It talks only through commands and events: it handles <code>StartListening</code> and <code>StopListening</code>, publishes <code>VoiceState</code>, <code>VoiceTranscript</code>, and <code>InputReceived</code>. The Talker already subscribes to <code>InputReceived</code>, so it needs no contract from it. Not an <code>IToolProvider</code>: agents don't turn on your mic.</li>
-<li><strong>Permissions, from day one:</strong> <code>microphone</code>, declared <strong>optional</strong> (the module starts and shows its button without it), and asked in the moment with <code>ctx.permissions.request("microphone", reason="You clicked the mic")</code> on each <code>StartListening</code>. A denial returns <code>Status.FAILED</code> with "microphone not allowed" and <code>VoiceState(failed)</code>. Until the <a href="permissions.html">permissions handler</a> is built, the <code>ctx.permissions</code> stand-in allows and logs the warning; <code>voice_in</code> logs none of its own.</li>
+<li><strong>Permissions, from day one:</strong> <code>microphone</code>, declared <strong>optional</strong> (the module starts and shows its button without it), and asked in the moment with <code>ctx.permissions.request("microphone", reason="You clicked the mic")</code> on each <code>StartListening</code>. A denial returns <code>Status.FAILED</code> with "microphone not allowed" and <code>VoiceState(failed)</code>. The core's <a href="permissions.html">permissions handler</a> doesn't check single names yet, so <code>ctx.permissions</code> allows it and logs the warning; <code>voice_in</code> logs none of its own.</li>
 </ul>
 <p><strong>Commands</strong> (Messaging group, <code>src/assistant/contracts/voice.py</code>):</p>
 <table>
@@ -802,8 +803,8 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </tr>
 <tr>
 <td><code>InputReceived</code> (existing)</td>
-<td><code>text</code>, <code>source="voice"</code></td>
-<td>Once per session, when the final is non-empty and <code>complete</code>, and <code>send_as_input</code> is true. The Talker gets the cleaned text as <code>[Spoken] &lt;text&gt;</code> and reads it for what was meant</td>
+<td><code>text</code>, <code>source="voice"</code>, <code>agent_id</code></td>
+<td>Once per session, when the final is non-empty and <code>complete</code>, and <code>send_as_input</code> is true. The Talker gets the cleaned text as <code>[Spoken] &lt;text&gt;</code> and reads it for what was meant. <code>agent_id</code> is the tab the stop was pressed in (<code>StopListening.agent_id</code>, built 2026-11-06), so switching tabs while whisper finishes doesn't move the text; <code>None</code> (a silence stop, a UI that doesn't say) means the tab in focus when it arrives</td>
 </tr>
 </tbody>
 </table>

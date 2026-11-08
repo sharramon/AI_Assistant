@@ -81,10 +81,11 @@ A module's menu: the actions an assistant or another module may call. Plain data
 
 | Method | What it does |
 |--------|--------------|
-| `item(name, description, properties=None, required=())` | Decorator for an async method taking the item's arguments as keywords and returning a `Result` (a plain value becomes `Result.ok`). `properties`: a JSON Schema per argument. Raises at import for a duplicate name, a description that isn't one line, or a `required` name not in `properties` |
-| `specs()` / `names()` / `items()` | The items as `ToolSpec`s, names, or `MenuItem`s, in declaration order |
+| `item(name, description, properties=None, required=(), callers=())` | Decorator for an async method taking the item's arguments as keywords and returning a `Result` (a plain value becomes `Result.ok`). `properties`: a JSON Schema per argument. `callers`: the only module or agent ids allowed to use it (empty: anyone). A method with a `caller` parameter is passed the caller's id (`MenuItem.takes_caller`), so it can decide per caller itself; `caller` can't be one of the item's properties. Raises at import for a duplicate name, a description that isn't one line, or a `required` name not in `properties` |
+| `specs()` / `names()` / `items()` | The items as `ToolSpec`s, names, or `MenuItem`s (`spec`, `method`, `callers`, `takes_caller`), in declaration order |
 | `check(name, args)` | What's wrong with `args`, or `None`: a missing required argument, an unknown one, a wrong `type` (bool is not an integer), a value outside `enum`, a string shorter than `minLength` once trimmed |
-| `async call(module, name, args)` | `check`, then run the item on `module`; `invalid_arguments` when the check fails |
+| `allowed(name, caller) -> bool` | Whether `caller` may use the item |
+| `async call(module, name, args, caller="")` | `not_available` for a caller the item doesn't allow, then `check`, then run the item on `module` (with `caller=` if it takes it); `invalid_arguments` when the check fails. The caller comes from [`InvokeTool.caller`](tools.md#invoketool) |
 
 **Example**
 
@@ -105,9 +106,9 @@ A module's menu: the actions an assistant or another module may call. Plain data
 
 **Reusable** · Used by: every module
 
-`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())`
+`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())`
 
-Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated [module library](../architecture/module-library.md)). Dependencies are on contracts, never on other modules. `permissions` and `optional_permissions` are declarations only until the permissions handler runs; the [`ctx.permissions`](#modulecontextpermissions) stand-in allows everything.
+Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated [module library](../architecture/module-library.md)). Dependencies are on contracts, never on other modules. `permissions` and `optional_permissions` are declarations: single names aren't checked yet ([`ctx.permissions`](#modulecontextpermissions) allows and logs them). `agent.access` says the module asks for its config's access list with `request_set` when turned on.
 
 **Fields**
 | Name | Type | Required | Description |
@@ -116,6 +117,7 @@ Frozen dataclass describing a module: who it is, what it needs, and its inputs a
 | `provides` | `tuple[type[Contract], ...]` | no | Contracts this module provides via `ctx.provide` |
 | `requires` | `tuple[type[Contract], ...]` | no | Contracts that must be provided by an enabled module, or startup fails |
 | `optional` | `tuple[type[Contract], ...]` | no | Contracts used if present; only affects start order |
+| `uses` | `tuple[type[Contract], ...]` | no | Contracts looked up at each call that may be missing, with **no** start order: for a provider that itself uses this module (the Hub's `IModuleDoor` and `IAgentNames`, used by the agents the Hub lists as optional), where `optional` would make a cycle (built 2026-11-08) |
 | `permissions` | `tuple[str, ...]` | no | [Permission names](../architecture/permissions.md#permission-names) the module can't run without |
 | `optional_permissions` | `tuple[str, ...]` | no | Permissions it asks for in the moment; without them a feature is off (`voice_in`: `("microphone",)`) |
 | `description` | `str` | no (every module in the app sets it) | One line saying what it does, for the directory and the module library |
@@ -124,7 +126,7 @@ Frozen dataclass describing a module: who it is, what it needs, and its inputs a
 | `publishes` | `tuple[type[Event], ...]` | no | Events it publishes (events out) |
 | `listens` | `tuple[type[Event], ...]` | no | Events it subscribes to (events in) |
 
-Every type in `provides`, `requires` and `optional` must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails.
+Every type in `provides`, `requires`, `optional` and `uses` must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails. A subscription or lookup the manifest doesn't declare is logged once ([`ScopedContext`](core.md#scopedcontext)).
 
 **Raises** (when the manifest is made): `ValueError` if `id` isn't a Python identifier or `description` has a line break; `TypeError` if `handles` / `sends` hold anything but `Command` types, or `publishes` / `listens` anything but `Event` types.
 
@@ -166,7 +168,7 @@ The core owns the paths ([logging](../architecture/core.md#logging)); a module n
 
 ### `ModuleContext.permissions`
 
-**Reusable** · Used by: `voice_in` first (`microphone`, built 2026-11-03); every module that needs a permission · built 2026-11-02 (stand-in)
+**Reusable** · Used by: `voice_in` first (`microphone`, built 2026-11-03); `job_search`, `task_agents` (`request_set`, through [`request_access`](infra.md#agent_access)); the core's `CoreMenu`; every module that needs a permission · built 2026-11-02, backed by the core's handler since 2026-11-05
 
 `class ModulePermissions(ABC)`, in `assistant.contracts`.
 
@@ -174,11 +176,14 @@ The core owns the paths ([logging](../architecture/core.md#logging)); a module n
 |--------|------|
 | `has(name) -> bool` | Whether this module may use `name` now, without asking |
 | `async request(name, reason) -> bool` | Ask in the moment; `reason` is shown to you |
+| `own_agent(agent_id, subject)` | Say that this module's agent `agent_id` holds `subject`'s grant, so that agent may ask for more with `permissions.request` (called by [`ProfileAgent.start`](infra.md#profileagent) when given a `subject`). Non-abstract; does nothing by default |
+| `async request_set(items, reason="", subject="", wait=False) -> tuple[AccessItem, ...]` | Ask for a whole access list ([`AccessItem`](messaging.md#accessitem)s) in one request, for `subject` (its agent's kind; default: the module). Returns the items you allowed: the saved grant if the list is unchanged, else your answer on one card. Raises [`AccessDenied`](messaging.md#accessdenied-accesspending) on Deny. With `wait=False` (a module's `start`), raises [`AccessPending`](messaging.md#accessdenied-accesspending) while the card is open, and the handler turns the module on after your Allow; with `wait=True` (inside an approved run) it waits for your answer |
 
-The caller's id is filled in by the core; a module never passes it. Until the [permissions handler](../architecture/permissions.md) runs, the stand-in ([`AllowAllPermissions`](core.md#allowallpermissions)) allows everything and logs a warning the first time each module uses each permission ("no permissions handler: allowing voice_in microphone (You clicked the mic)"), then debug lines. Required permissions aren't checked at start yet. The handler later plugs in behind the same calls.
+The caller's id is filled in by the core; a module never passes it. Every module's `ctx.permissions` is a [`PermissionsPort`](core.md#permissionsport) forwarding to the core's [permissions handler](../architecture/permissions.md). `request_set` is checked: a module that uses it declares `agent.access` in its manifest. `has` and `request` aren't checked yet: they allow, and log a warning the first time each module uses each name ("not checked yet: allowing voice_in microphone (You clicked the mic)"), then debug lines. Required permissions aren't checked at start yet.
 
     if not await ctx.permissions.request("microphone", reason="You clicked the mic"):
         return Result.failed("microphone not allowed")
+    granted = await ctx.permissions.request_set(access_items(config), "its folders", subject="job_search_agent")
 
 ### `ModuleContext.subscribe`
 
@@ -231,6 +236,14 @@ Cancel in-flight commands whose `id` or `correlation_id` matches. Returns how ma
 Offer `impl` as a provider of `contract`.
 
 **Raises:** `ValueError` if `contract` isn't in `manifest.provides`, or if it is a single-provider contract that already has a provider. `TypeError` if `impl` doesn't implement `contract`.
+
+### `ModuleContext.withdraw`
+
+**Reusable** · Used by: `task_agents` (`agents.close`, and a launch that failed after providing its helper) · built 2026-11-05
+
+`withdraw(contract: type[C], impl: C) -> None`
+
+Stop offering one `impl` this module provided, without stopping the module (one helper of several). Does nothing if it isn't offered, or after the context is closed. Not abstract: the base raises `NotImplementedError`; the core's [`ScopedContext`](core.md#scopedcontext) implements it.
 
 ### `ModuleContext.get_all`
 

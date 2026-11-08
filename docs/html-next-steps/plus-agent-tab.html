@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temp UI: a plus button to open your own agent tab</title>
+<!-- Generated from docs/next-steps/plus-agent-tab.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="plus-agent-tab.html"></nav>
+<main>
+<h1 id="temp-ui-a-plus-button-to-open-your-own-agent-tab">Temp UI: a plus button to open your own agent tab</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-05).</strong> Approved with (b) for question 1 and the recommendations for 2 to 4, plus the × confirmation (below). No restart: <code>RELOAD: task_agents</code> and <code>RELOAD: temp_ui</code>, then press <strong>+</strong> and try <strong>×</strong>. <strong>Later:</strong> <code>ctx.permissions.is_you(caller)</code>, so <code>task_agents</code> reads the permissions handler's one <code>you</code> list instead of its own <code>YOU = ("temp_ui",)</code>; do it with the next core change (it changes a contract, so it needs a restart).</p>
+</blockquote>
+<h2 id="as-built-2026-11-05">As built (2026-11-05)</h2>
+<ul>
+<li><strong>Decided:</strong> question 1 is (b), with <code>temp_ui</code> treated as you inside <code>task_agents</code> for now. Questions 2 to 4 follow the recommendations: the first-task box stays, the × is in, and <code>helper</code> is the only kind.</li>
+<li><strong>The × asks first:</strong> every tab except the Main Assistant's has a <strong>×</strong>. It shows "Close this agent?", names the agent, says any running task will be cancelled, and has <strong>Close</strong> and <strong>Cancel</strong> buttons. Nothing closes until you press Close. Then:</li>
+<li>The agent's running task is cancelled first.</li>
+<li><strong>A launched helper</strong> is closed with <code>agents.close</code>, which frees its name.</li>
+<li><strong>A module's agent</strong> is closed by turning its module off with <code>modules.off</code>. For the job agent that's <code>job_search</code>, and turning it back on brings the agent back with its saved grant.</li>
+<li><strong>An autostarted helper</strong> isn't closed; its × says to turn <code>task_agents</code> off.</li>
+<li>Closing the agent you're talking to moves you back to the Main Assistant.</li>
+<li><strong>Where it lives:</strong></li>
+<li>The page part is <code>temp_ui/static/agent_tabs.js</code>, hooked in by one line in <code>showAgents</code>.</li>
+<li>The server part is <code>temp_ui/agent_tabs.py</code>, behind one route, <code>POST /agent-tabs</code> (<code>kinds</code>, <code>turn_on</code>, <code>open</code>, <code>close</code>). This replaces the two routes the proposal planned.</li>
+<li><code>temp_ui</code> also sends <code>GetTaskStatus</code> and <code>CancelTask</code>, and reads <code>IAgentNames</code> (optional) to find which module an agent belongs to.</li>
+<li><strong>How the new tab appears:</strong> <code>task_agents</code> publishes <code>AgentStateChanged</code> once the helper is provided, and the temp UI rebuilds its tabs.</li>
+<li><strong>Failures:</strong> a failure after the access card (the card denied, or the helper not starting) goes to the log. The status line in the worker pane that the proposal planned isn't built. A denied card already says it was denied.</li>
+<li><strong>Tests:</strong> <code>tests/test_agent_tabs.py</code>, 5 tests:</li>
+<li>opening idle and with a task, the free names, and a taken or bad name</li>
+<li>a denied access card opens nothing</li>
+<li>closing: the Main Assistant refused, an autostarted helper refused, a busy helper's task cancelled then the helper closed, the job agent closed by turning off <code>job_search</code></li>
+<li>the panel turning the helpers on</li>
+<li>the page and its warning text</li>
+</ul>
+<p><strong>Asked:</strong> "an option to be able to press a plus symbol and open my own job task AI by myself, just in case I want a separate agent to be working on something that I don't want the main agent" to do.</p>
+<p><strong>Why:</strong> today a helper starts only when the Main Assistant calls <code>agents.launch</code> during one of its tasks, and you allow its card. You can't open one yourself, so the Main Assistant is always in the loop.</p>
+<p><strong>Touches:</strong> <code>temp_ui</code> (the button, a small form, two routes), <code>task_agents</code> (<code>agents.launch</code> and <code>agents.kinds</code> when the caller is you), their tests, and docs (<code>docs/modules/temp_ui.md</code>, <code>docs/modules/task_agents.md</code>, <a href="../html/architecture/agents.html#launching-a-helper">agents: launching a helper</a>, the module library). No new contract, unless you pick the option in open question 1 that adds one.</p>
+<h2 id="how-it-works">How it works</h2>
+<ol>
+<li><strong>The button:</strong> a <strong>+</strong> at the end of the agent tabs above the worker feed. It shows even when only the Main Assistant's tab is there.</li>
+<li><strong>What you pick:</strong> clicking it opens a small form in the worker pane:
+   - <strong>Kind:</strong> a dropdown of the kinds from <code>agents.kinds</code> (today only <code>helper</code>). Each kind shows its description.
+   - <strong>Name:</strong> filled in with a free name for that kind (<code>helper</code>, or <code>helper_2</code> if that's taken). You can type your own, like <code>flight_search</code>.
+   - <strong>First task</strong> (optional): leave it empty to open an idle tab and type to it afterwards.
+   - <strong>Open</strong> / <strong>Cancel</strong>.</li>
+<li><strong>Names:</strong> the same rules as every agent. <code>agents.kinds</code> also returns a free name per kind, worked out with <code>free_agent_id</code> over <code>IAgentNames.taken()</code>. On Open, <code>agents.launch</code> checks the name with <code>IAgentNames.check</code> (or <code>check_agent_id</code> when no Hub runs). A bad, reserved or taken name is refused at once. The form shows the reason and fills in the free name it suggests. You gave the name, so nothing is picked for you: you click Open again.</li>
+<li><strong>The cards:</strong>
+   - <strong>No launch card.</strong> Your click on Open is your yes, so the <code>request_approval</code> card is skipped. That card exists to ask you about a launch that an agent proposed.
+   - <strong>The access card still applies.</strong> The kind's access list goes through <code>request_access</code> as it does now. A saved grant for the kind answers at once. Otherwise the usual access card shows in the Talker pane. Deny, and no tab opens.</li>
+<li><strong>The new tab:</strong> on Allow (or with a saved grant), <code>task_agents</code> builds the helper the way it does today: <code>ProfileAgent</code>, folder <code>&lt;kind workspace&gt;/&lt;name&gt;</code>, transcript <code>&lt;name&gt;.jsonl</code>. It then provides the helper, and starting the helper claims its name.
+   - The temp UI rebuilds its tabs from <code>ListAgents</code>, so the new tab appears. The page remembers the name it asked for and sends <code>SetFocus</code> to it once it shows up, so you're talking to it straight away.
+   - With a first task, that task starts right away (<code>StartTask</code>, no parent, so it's your task and not the Main Assistant's child). With no first task, your first message to the focused tab starts one. This already works today: the Talker's PASS calls <code>hub.send</code>, which starts a task when the focused agent has none.
+   - The Hub's cap (<code>max_extra_agents</code>) and its folder check apply when the task starts.</li>
+<li><strong>Closing:</strong> a small <strong>×</strong> on the tab of a helper you launched calls <code>agents.close</code>. It works only when the helper has no task, and it frees the name. See open question 3.</li>
+</ol>
+<h2 id="plumbing">Plumbing</h2>
+<p>The temp UI already calls menu items as you (<code>InvokeTool</code> with caller <code>temp_ui</code>, as it does for <code>permissions.revoke</code>). It adds two routes that reuse that path:</p>
+<ul>
+<li><code>POST /agent-kinds</code> → <code>agents.kinds</code></li>
+<li><code>POST /new-agent</code> → <code>agents.launch(name, kind, task)</code>. With no first task, <code>task</code> is empty.</li>
+</ul>
+<p>In <code>task_agents</code>, <code>agents.launch</code> gets a second path for when the caller is you:</p>
+<ul>
+<li><strong>No open task needed</strong> and <strong>no approval card</strong>. The name and kind checks are unchanged.</li>
+<li><strong>The build runs in the background</strong>, so the call returns at once and doesn't hit the command timeout while the access card waits. The call itself returns refusals (kind, name). A failure after that (access denied, or the helper doesn't start) goes to the log and to a status line in the worker pane ("helper_2 wasn't opened: …").</li>
+</ul>
+<p>Agents calling <code>agents.launch</code> work exactly as before. If the module isn't on, the form says "Helpers are off" and offers to turn them on through <code>modules.on task_agents</code> (the core's menu).</p>
+<h2 id="reused-index">Reused (<a href="../html/api/reusable.html">index</a>)</h2>
+<p><code>agents.kinds</code> / <code>agents.launch</code> / <code>agents.close</code>, <code>IAgentNames</code> (<code>check</code>, <code>taken</code>), <code>free_agent_id</code> / <code>check_agent_id</code>, <code>request_access</code> and the access card, <code>ProfileAgent</code>, <code>ListAgents</code> / <code>SetFocus</code> and the tab bar, the Hub's PASS-starts-a-task path, and <code>InvokeTool</code> as <code>temp_ui</code>. Nothing new beyond the two routes, the form, and the "caller is you" branch.</p>
+<h2 id="tests">Tests</h2>
+<ul>
+<li><strong><code>tests/test_agent_names.py</code>:</strong></li>
+<li>a launch from <code>temp_ui</code> with no task builds an idle helper with no approval card</li>
+<li>a launch with a first task starts it with no parent</li>
+<li>a taken name is refused and the free name is suggested</li>
+<li><code>agents.kinds</code> returns a free name per kind</li>
+<li>a denied access card opens nothing</li>
+<li>an agent caller still needs its open task and the card (the existing tests)</li>
+<li><strong><code>tests/test_temp_ui.py</code>:</strong></li>
+<li><code>/agent-kinds</code> and <code>/new-agent</code> call the menu items as <code>temp_ui</code></li>
+<li>the page's agents item lists the new helper</li>
+<li><code>/new-agent</code> with <code>task_agents</code> off says so</li>
+<li><strong>Then you:</strong> press <strong>+</strong>, open <code>helper</code> with no task, allow the access card if it shows, check that the tab opens and takes the focus, type a small task to it, and close it with <strong>×</strong>.</li>
+<li><code>pytest</code> and <code>ruff</code>, then the docs rebuild.</li>
+</ul>
+<h2 id="loading-it">Loading it</h2>
+<p>If you pick option (b) in open question 1, there's no contract change and no restart: <code>RELOAD: task_agents</code> and <code>RELOAD: temp_ui</code> load it into the running app. <code>job_search</code> stays on.</p>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>How does <code>task_agents</code> know the caller is you?</strong> The permissions handler already keeps that list (<code>you = ["temp_ui"]</code>), but modules can't read it. Two options:
+   - (a) Add <code>ctx.permissions.is_you(caller)</code>. The rule lives in one place, but it's a contract change, so the app needs a restart.
+   - (b) For now, treat caller <code>temp_ui</code> as you inside <code>task_agents</code>, and move it to (a) with the next core change.</li>
+</ol>
+<p><strong>Recommended: (a)</strong>, because it builds the rule once. Pick (b) if you'd rather test without a restart.
+2. <strong>A first-task box on the form, or only an idle tab?</strong> <strong>Recommended: keep the optional box.</strong> It's one field, and empty means idle.
+3. <strong>The × to close a tab, now or later?</strong> <strong>Recommended: now.</strong> It reuses <code>agents.close</code>, and without it the names you open stay taken until <code>task_agents</code> stops.
+4. <strong>Kinds:</strong> today there's only <code>helper</code>, a general helper working in <code>../assistant-helper</code>. <strong>Recommended: leave the kinds as they are.</strong> A new kind (a second job-style agent, say) is a config section you can add any time.</p>
+<footer>Generated from <code>docs/next-steps/plus-agent-tab.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

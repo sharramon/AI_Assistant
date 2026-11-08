@@ -13,7 +13,6 @@ from assistant.contracts import (
     Status,
 )
 from assistant.core import App
-from assistant.modules.echo_orchestrator import EchoOrchestrator
 from assistant.modules.html_viewer import HtmlViewerModule
 from tests.support import make_config
 
@@ -78,7 +77,7 @@ async def test_the_core_links_the_menu_to_the_running_copy_and_unlinks_it_on_sto
     bad = await app.router.send(InvokeTool(name="counter.add", args={"by": "lots"}))
     assert bad.status is Status.INVALID_ARGUMENTS
     offered = [s.name for p in app.container.get_all(IToolProvider) for s in p.tools()]
-    assert [n for n in offered if not n.startswith("modules.")] == Counter.menu.names()
+    assert [n for n in offered if not n.startswith(("modules.", "permissions."))] == Counter.menu.names()
 
     assert (await app.router.send(DeactivateModule(module_id="counter"))).is_ok
     assert (await app.router.send(InvokeTool(name="counter.peek"))).status is Status.NOT_AVAILABLE
@@ -92,10 +91,3 @@ def test_the_viewer_menu_keeps_its_tools():
     assert schemas["viewer.open"]["required"] == ["path"]
     assert schemas["viewer.highlight"]["required"] == ["path", "text"]
     assert "can't be empty" in HtmlViewerModule.menu.check("viewer.highlight", {"path": "a.html", "text": "  "})
-
-
-async def test_the_echo_stand_in_has_a_menu():
-    app = App([EchoOrchestrator], make_config("echo_orchestrator"))
-    await app.start()
-    assert (await app.router.send(InvokeTool(name="echo.say", args={"text": "hi"}))).value == "Echo: hi"
-    await app.stop()

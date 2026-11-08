@@ -24,12 +24,16 @@ The Interface section is written by hand from the code (checked 2026-11-04). The
 ## Pages
 
 - [voice_in](voice_in.md): voice input, and the voice service app it launches
-- [voice_notes](voice_notes.md): speak into a page of notes
-- [html_viewer](html_viewer.md): the HTML viewer's thin module, and the viewer app
+- [voice_notes](voice_notes.md): speak into a page of notes (off by default)
+- [html_viewer](html_viewer.md): the HTML viewer's thin module, and the viewer app (off by default)
 - [talker](talker.md): the agent that talks with you
 - [main_assistant](main_assistant.md): the worker agent
 - [agent_hub](agent_hub.md): who is doing what
+- [task_agents](task_agents.md): helper agents launched by name from kinds in config, with your yes (off by default)
+- [usage](usage.md): every agent's tokens since launch, sub-agents nested under their parent (in memory only)
+- [job_search](job_search.md): the job agent and its `job.*` menu (off by default)
+- [cv](../../src/assistant/modules/cv/docs/README.md): tailor a CV for one job with Rezi, one clean page, your yes (planned; its pages live in its own folder)
 - [temp_ui](temp_ui.md): the temporary two-pane web page
 - [console_io](console_io.md): terminal 1, type and read
 - [assistant_view](assistant_view.md): terminal 2, view only (off by default)
-- [echo_orchestrator](echo_orchestrator.md): stand-in orchestrator (off by default)
+- [echo_orchestrator](../../src/assistant/modules/echo_orchestrator/docs/README.md): stand-in orchestrator (off by default; its page lives in its own folder)

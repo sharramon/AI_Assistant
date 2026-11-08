@@ -9,12 +9,14 @@
         "../html/architecture/index.html",
         "../html/architecture/principles.html",
         "../html/architecture/reusable-parts.html",
+        "../html/architecture/code-map.html",
         "../html/architecture/core.html",
         "../html/architecture/modules.html",
         "../html/architecture/module-library.html",
         "../html/modules/index.html",
         "../html/architecture/communication.html",
         "../html/architecture/agents.html",
+        "../html/architecture/agents-code.html",
         "../html/architecture/permissions.html",
         "../html/architecture/remote-clients.html",
         "../html/architecture/decisions.html",
@@ -51,6 +53,10 @@
               "href": "../html/architecture/reusable-parts.html"
             },
             {
+              "name": "Code map",
+              "href": "../html/architecture/code-map.html"
+            },
+            {
               "name": "Core host",
               "href": "../html/architecture/core.html"
             },
@@ -73,6 +79,10 @@
             {
               "name": "Agents",
               "href": "../html/architecture/agents.html"
+            },
+            {
+              "name": "Agents: code layout",
+              "href": "../html/architecture/agents-code.html"
             },
             {
               "name": "Permissions",
@@ -162,7 +172,9 @@
       "home": [
         "../html/modules/talker.html",
         "../html/modules/main_assistant.html",
-        "../html/modules/agent_hub.html"
+        "../html/modules/agent_hub.html",
+        "../html/modules/task_agents.html",
+        "../html/modules/job_search.html"
       ],
       "sep": true,
       "groups": [
@@ -170,7 +182,7 @@
           "label": "Agents",
           "pages": [
             {
-              "name": "talker: the agent that talks with you",
+              "name": "talker: the agents' Talkers, one per agent tab",
               "href": "../html/modules/talker.html"
             },
             {
@@ -180,6 +192,14 @@
             {
               "name": "agent_hub: who is doing what",
               "href": "../html/modules/agent_hub.html"
+            },
+            {
+              "name": "task_agents: helper agents launched by name from kinds in config",
+              "href": "../html/modules/task_agents.html"
+            },
+            {
+              "name": "job_search: the job agent and its menu",
+              "href": "../html/modules/job_search.html"
             }
           ]
         },
@@ -189,6 +209,10 @@
             {
               "name": "Agents (architecture)",
               "href": "../html/architecture/agents.html"
+            },
+            {
+              "name": "Agents: code layout",
+              "href": "../html/architecture/agents-code.html"
             },
             {
               "name": "Agents docs",
@@ -217,6 +241,51 @@
             {
               "name": "SessionTaskAgent (API)",
               "href": "../html/api/infra.html#sessiontaskagent"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "../html/architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "../html/architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "usage",
+      "href": "../html/modules/usage.html",
+      "home": [
+        "../html/modules/usage.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "usage",
+          "pages": [
+            {
+              "name": "usage: every agent's tokens since launch",
+              "href": "../html/modules/usage.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "SessionUsage (API)",
+              "href": "../html/api/agents.html#sessionusage"
+            },
+            {
+              "name": "UsageLedger (API)",
+              "href": "../html/api/infra.html#usageledger"
             }
           ]
         },
@@ -394,12 +463,14 @@
     },
     {
       "name": "Stand-ins and terminals",
-      "href": "../html/modules/console_io.html",
+      "href": "../html/modules/temp_ui.html",
       "home": [
-        "../html/modules/console_io.html",
         "../html/modules/temp_ui.html",
+        "../html/modules/console_io.html",
         "../html/modules/assistant_view.html",
-        "../html/modules/echo_orchestrator.html"
+        "../html/modules/echo_orchestrator/index.html",
+        "../html/modules/echo_orchestrator/architecture.html",
+        "../html/modules/echo_orchestrator/tools.html"
       ],
       "sep": false,
       "groups": [
@@ -407,20 +478,33 @@
           "label": "Stand-ins and terminals",
           "pages": [
             {
-              "name": "console_io: terminal 1",
-              "href": "../html/modules/console_io.html"
-            },
-            {
               "name": "temp_ui: the temporary two-pane page",
               "href": "../html/modules/temp_ui.html"
             },
             {
-              "name": "assistant_view: terminal 2",
-              "href": "../html/modules/assistant_view.html"
+              "name": "console_io: terminal 1",
+              "href": "../html/modules/console_io.html"
             },
             {
-              "name": "echo_orchestrator: stand-in orchestrator",
-              "href": "../html/modules/echo_orchestrator.html"
+              "name": "assistant_view: terminal 2",
+              "href": "../html/modules/assistant_view.html"
+            }
+          ]
+        },
+        {
+          "label": "echo_orchestrator",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "../html/modules/echo_orchestrator/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "../html/modules/echo_orchestrator/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "../html/modules/echo_orchestrator/tools.html"
             }
           ]
         },
@@ -438,6 +522,61 @@
             {
               "name": "AgentActivity (API)",
               "href": "../html/api/agents.html#agentactivity"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "../html/architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "../html/architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cv",
+      "href": "../html/modules/cv/index.html",
+      "home": [
+        "../html/modules/cv/index.html",
+        "../html/modules/cv/architecture.html",
+        "../html/modules/cv/tools.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "cv",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "../html/modules/cv/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "../html/modules/cv/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "../html/modules/cv/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "Agents (architecture)",
+              "href": "../html/architecture/agents.html"
+            },
+            {
+              "name": "Agents API",
+              "href": "../html/api/agents.html"
             }
           ]
         },
@@ -492,6 +631,37 @@
         "module-system.html",
         "voice-notes.html",
         "job-agent.html",
+        "viewer-start-on-use.html",
+        "temp-ui-paste-image.html",
+        "multi-agent.html",
+        "agent-permissions.html",
+        "usage-tallies.html",
+        "door-at-session-start.html",
+        "agent-names.html",
+        "temp-ui-snip-send.html",
+        "plus-agent-tab.html",
+        "rezi-module.html",
+        "agent-talkers.html",
+        "close-tab-ends-talker.html",
+        "code-review.html",
+        "closed-tab-moves-focus.html",
+        "voice-to-stop-tab.html",
+        "live-agent-grants.html",
+        "per-agent-mode-toggle.html",
+        "per-agent-auto-button.html",
+        "temp-ui-tab-scroll.html",
+        "module-self-contained.html",
+        "restart-keep-agents.html",
+        "extension-marketplace.html",
+        "helper-context-reset.html",
+        "restart-note-complete.html",
+        "temp-ui-box-resize.html",
+        "usage-tokens-only.html",
+        "handoff-73fc479c.html",
+        "handoff-8c52a851.html",
+        "handoff-99c9ff7c.html",
+        "handoff-d729a7ef.html",
+        "live-permission-mode.html",
         "archive/index.html",
         "archive/logs-button.html",
         "archive/session-logs.html",
@@ -580,6 +750,130 @@
             {
               "name": "Job agent: run the job project from the assistant",
               "href": "job-agent.html"
+            },
+            {
+              "name": "Opening a page turns the viewer on",
+              "href": "viewer-start-on-use.html"
+            },
+            {
+              "name": "Temp UI: paste an image into the chat box",
+              "href": "temp-ui-paste-image.html"
+            },
+            {
+              "name": "Multi-agent: several task agents at once, each talking to you",
+              "href": "multi-agent.html"
+            },
+            {
+              "name": "Task agents ask for their access when turned on",
+              "href": "agent-permissions.html"
+            },
+            {
+              "name": "Usage tallies for all agents",
+              "href": "usage-tallies.html"
+            },
+            {
+              "name": "The Main Assistant's session starts without the module door",
+              "href": "door-at-session-start.html"
+            },
+            {
+              "name": "Agent names: ids, launching named helpers, and the duplicate check",
+              "href": "agent-names.html"
+            },
+            {
+              "name": "Temp UI: send a snip on its own, show it on the sent message, log every snip step",
+              "href": "temp-ui-snip-send.html"
+            },
+            {
+              "name": "Temp UI: a plus button to open your own agent tab",
+              "href": "plus-agent-tab.html"
+            },
+            {
+              "name": "Rezi: a module for Rezi's MCP, the job agent tailoring through it, and a PDF viewer",
+              "href": "rezi-module.html"
+            },
+            {
+              "name": "Agent talkers: every tab a pair, its own Talker and its own worker",
+              "href": "agent-talkers.html"
+            },
+            {
+              "name": "Closing a helper's tab ends its Talker at once, and its usage row says \"closed\"",
+              "href": "close-tab-ends-talker.html"
+            },
+            {
+              "name": "Code review: the code against our principles, and a cleanup plan",
+              "href": "code-review.html"
+            },
+            {
+              "name": "Closing the tab you're in moves you to the Main Assistant's tab",
+              "href": "closed-tab-moves-focus.html"
+            },
+            {
+              "name": "Voice text goes to the tab you pressed stop in",
+              "href": "voice-to-stop-tab.html"
+            },
+            {
+              "name": "A new grant reaches a running agent without turning it off and on",
+              "href": "live-agent-grants.html"
+            },
+            {
+              "name": "Each agent's own Auto/Manual toggle, shown in the UI",
+              "href": "per-agent-mode-toggle.html"
+            },
+            {
+              "name": "The Auto button sets the agent of the tab you're in",
+              "href": "per-agent-auto-button.html"
+            },
+            {
+              "name": "Temp UI: switching tabs lands at the bottom, unless you'd scrolled up",
+              "href": "temp-ui-tab-scroll.html"
+            },
+            {
+              "name": "Self-contained modules, like downloadable extensions",
+              "href": "module-self-contained.html"
+            },
+            {
+              "name": "Restarts that keep the agents running",
+              "href": "restart-keep-agents.html"
+            },
+            {
+              "name": "Extensions like a marketplace: what's built, what's missing",
+              "href": "extension-marketplace.html"
+            },
+            {
+              "name": "Helpers' context reminder and reset",
+              "href": "helper-context-reset.html"
+            },
+            {
+              "name": "The restart note says everything the next launch needs",
+              "href": "restart-note-complete.html"
+            },
+            {
+              "name": "Temp UI: drag the typing box taller or shorter",
+              "href": "temp-ui-box-resize.html"
+            },
+            {
+              "name": "Usage: tokens only, clearer labels, two token fixes",
+              "href": "usage-tokens-only.html"
+            },
+            {
+              "name": "Handoff: the agent-permissions build (task 73fc479c)",
+              "href": "handoff-73fc479c.html"
+            },
+            {
+              "name": "Handoff: prepare the helpers for the batched restart (task 9, after the code-review cleanup)",
+              "href": "handoff-8c52a851.html"
+            },
+            {
+              "name": "Handoff: multi-agent build, chunks 6–7 (task 99c9ff7c)",
+              "href": "handoff-99c9ff7c.html"
+            },
+            {
+              "name": "Handoff: multi-agent build, docs and final checks (task d729a7ef)",
+              "href": "handoff-d729a7ef.html"
+            },
+            {
+              "name": "Auto / Manual applies at once",
+              "href": "live-permission-mode.html"
             },
             {
               "name": "Archive",

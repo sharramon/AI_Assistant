@@ -1,0 +1,35 @@
+# cv's own defaults. `[modules.cv]` in the app's config only overrides them (merged key by key).
+
+# The usual order of the one page.
+section_order = ["contact", "summary", "skills", "experience", "projects", "education", "awards", "publications"]
+# Used only when the job requires or prefers a master's: Education right under Skills.
+degree_first_order = ["contact", "summary", "skills", "education", "experience", "projects", "awards", "publications"]
+# What goes first when the page is too long, in this order (then older bullets are tightened).
+drop_first = ["publications", "awards"]
+
+target_score = 90   # the Rezi Score to reach (aim 100)
+max_rounds = 5      # score rounds before it stops and reports
+paper = "letter"    # US Letter; "a4" later
+
+output_dir = "C:/Chang/Jobs/rezi/rezi/out"
+cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs: cv.read reads .odt files only here and in output_dir
+soffice = "C:/Program Files/LibreOffice/program/soffice.exe"
+
+# The Rezi connection (mcp.py). Nothing connects until a rezi.* item is used.
+rezi_url = "https://api.rezi.ai/mcp"
+token_file = ""        # "" = %LOCALAPPDATA%/assistant/cv/rezi_token.json; never inside the repo
+callback_port = 33418  # the sign-in's redirect comes back to http://127.0.0.1:<port>/callback
+
+# The worker cv_agent (worker.py): a ProfileAgent, like job_search's agent. These keys are its
+# access list, asked for in one card when cv turns on (the module waits for your answer); the
+# output folder is added to read_dirs. Sessions start in Manual. enabled = false: the menu only.
+[agent]
+enabled = true
+agent_id = "cv_agent"
+workspace = "C:/Chang/Jobs/rezi/cv_agent"
+read_dirs = ["C:/Chang/Jobs/CV"]
+tools = "default"
+chrome = true                 # Claude in Chrome, only for app.rezi.ai (its prompt says so)
+permission_mode = "acceptEdits"
+permission_timeout = 600.0
+transcript = "cv_agent.jsonl"

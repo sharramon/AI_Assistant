@@ -15,8 +15,10 @@ import logging
 import pkgutil
 import shutil
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 from assistant.contracts import ModuleProtocol
 
@@ -24,6 +26,9 @@ log = logging.getLogger(__name__)
 
 # Where the modules live: one sub-folder (package) per module, named with its manifest id.
 MODULES_PACKAGE = "assistant.modules"
+# A module's own config defaults, in its folder; its `[modules.<id>]` section in the app's config
+# is merged over them.
+MODULE_DEFAULTS = "module.toml"
 
 # Packages whose classes are shared by every module. Reloading them (or anything inside them)
 # would break isinstance checks and contract identity, so they still need a restart.
@@ -43,6 +48,35 @@ def package_of(cls: type) -> str:
     if module is not None and hasattr(module, "__path__"):
         return name
     return name.rpartition(".")[0]
+
+
+def module_folder(cls: type) -> Path | None:
+    """The folder of the package a module class lives in (where its own config defaults and docs are),
+    None if it can't be found (a class defined in `__main__`, say)."""
+    try:
+        package = sys.modules.get(package_of(cls)) or importlib.import_module(package_of(cls))
+    except (ImportError, ValueError):
+        return None
+    file = getattr(package, "__file__", None)
+    if file:
+        return Path(file).parent
+    paths = list(getattr(package, "__path__", ()))
+    return Path(paths[0]) if paths else None
+
+
+def module_defaults(cls: type) -> dict[str, Any]:
+    """The module's own config defaults: `module.toml` in its folder, read fresh each time (so a reload
+    picks up new defaults). {} if it has none; an unreadable file is logged and counts as none."""
+    folder = module_folder(cls)
+    path = folder / MODULE_DEFAULTS if folder else None
+    if path is None or not path.is_file():
+        return {}
+    try:
+        with path.open("rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        log.warning("Ignoring %s: %s", path, exc)
+        return {}
 
 
 def check_reloadable(package: str) -> None:

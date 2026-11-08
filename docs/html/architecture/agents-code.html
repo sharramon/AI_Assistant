@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents: code layout</title>
+<!-- Generated from docs/architecture/agents-code.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/agents-code.html"></nav>
+<main>
+<h1 id="agents-code-layout">Agents: code layout</h1>
+<p>How the agent code is laid out: which classes live in which package, and which method calls which. Back to <a href="agents.html">Agents</a>; the ideas behind it are in <a href="agents.html#big-agents-and-their-modules">Big agents and their modules</a>.</p>
+<blockquote>
+<p><strong>Agent talkers (built 2026-11-05):</strong> the <code>talker</code> module is a router with one <code>TalkerSession</code> per agent tab, each with its own partner agent and chat (<code>TalkerSession ×N</code> in the pictures).</p>
+</blockquote>
+<p>Three topics run through it, marked on the boxes: <strong>F</strong> focus and switching, <strong>R</strong> agents reporting to the Main Assistant, <strong>D</strong> the module door.</p>
+<h2 id="the-layers">The layers</h2>
+<p>Boxes are classes, grey regions are packages, and every arrow is a structural link.</p>
+<p><a href="img/agents-code-layout.svg"><img alt="The agent code in layers: contracts, core, modules, infra" src="img/agents-code-layout.svg" /></a></p>
+<ul>
+<li><strong>Grey ━</strong> owns (a box inside a box owns too). <strong>Teal ━</strong> through a core port (<code>ctx</code>): what the module sends, handles, publishes, hears, provides or uses. <strong>Dashed ┅</strong> implements or imports contracts, or calls functions. <strong>Magenta ┈</strong> the door's HTTP hop.</li>
+<li><strong>No line joins two module regions.</strong> Each module reaches the others through its teal stub into the core, by a message or a contract named on the stub.</li>
+<li><strong>Every arrow points up</strong>, toward the core and contracts. Modules own infra helpers, infra imports only contracts, and the core implements the contracts' ports.</li>
+<li><strong>One spine for the three topics.</strong> Focus, reports and the door all go through <code>AgentHubModule</code> and a few contract types. The core only carries the caller (<code>ScopedContext</code> stamps it, <code>dispatch_tool</code> and <code>MenuTools.invoke_as</code> pass it on); it holds no agent logic.</li>
+<li><strong>Every big agent is a <code>ProfileAgent</code></strong> (<code>infra/profile_agent.py</code>): its <code>AgentProfile</code>, its <code>ClaudeSession</code> and the <code>SessionTaskAgent</code> on it, plus the door under its own name. <code>main_assistant</code> has one, <code>job_search</code> bundles one, <code>task_agents</code> builds one per helper.</li>
+<li><strong>The Hub's parts</strong> (split 2026-11-08). <code>AgentHubModule</code> (<code>agent_hub/module.py</code>) is a small coordinator: it wires the commands, events and its menu to a <code>TaskBoard</code> (<code>tasks.py</code>: every <code>TaskRecord</code> and the task state machine, the cap, the folder check), a <code>Focus</code> (<code>focus.py</code>: the focused agent, its fallback to the coordinator, releasing what a tab held) and <code>AgentNames</code> (<code>names.py</code>: <code>IAgentNames</code>). It keeps only the running-agent lookup (<code>_agents</code>, <code>_agent</code>) and the coordinator's feed (<code>_feed</code>), which it hands to the parts. A held question is <code>TaskRecord.held</code> next to its <code>question</code>; <code>Focus.set</code> releases it through <code>TaskBoard.release</code>.</li>
+<li><strong>The Talker reaches the Hub only through its menu.</strong> Its mode switch and card answers are <code>hub.mode</code> (Manual only) and <code>hub.answer</code>, both <code>callers=("talker",)</code>, like <code>hub.focus</code>. The UI still sends <code>SetPermissionMode</code> and <code>AnswerPermission</code> as commands (your own clicks).</li>
+<li><strong>SHOW tags go through one helper.</strong> <code>SessionTaskAgent._show</code> and the Talker's <code>SHOW</code> tag both call <a href="../api/infra.html#show_page"><code>show_page</code></a> (<code>infra/show_pages.py</code>), which sends <code>viewer.open</code> or <code>viewer.highlight</code> as <code>InvokeTool</code>; each words its own message from the outcome.</li>
+<li><strong>The worker's parts</strong> (split 2026-11-08). <code>SessionTaskAgent</code> keeps the task state machine and composes a <code>PermissionGate</code> (the one open question, the Auto policy, the <code>git push</code> block), a <code>HandoffKeeper</code> (handoff count, reminder and reset texts) and a <code>LastLineTags</code> table (<code>_finish_turn</code> looks up <code>NEED</code> / <code>RELOAD</code> / <code>ADD_MODULE</code> / <code>HANDOFF</code>); the session's <code>UsageMeter</code> counts tokens. Every agent module builds its agents through <code>AgentKit</code> and declares <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>. Picture 2 shows this below.</li>
+<li><strong>The Talker's parts</strong> (split 2026-11-08). <code>TalkerModule</code> routes; <code>RestartFlow</code> (<code>talker/restart.py</code>) is the main tab's restart; each <code>TalkerSession</code> runs its tags from a table (<code>_tags</code>, one <code>_tag_*</code> handler each) and uses the module only through its methods for the sessions (<code>task_started</code>, <code>usage_of</code>, <code>hub</code>, <code>restart</code>, ...).</li>
+<li><strong>The feed lives in each agent.</strong> The Hub passes milestones, task ends and focus moves to the coordinator with <code>ITaskAgent.note</code>; the agent's <code>MilestoneFeed</code> keeps them and <code>_with_feed</code> adds them to its next message, its own <code>CONTINUE</code> turns included. Nothing wakes the coordinator.</li>
+</ul>
+<h2 id="1-focus-and-switching">1. Focus and switching</h2>
+<p>Each big box is a class with the file it lives in; the small boxes are its methods. <strong>Solid</strong> arrows are direct calls; <strong>dashed</strong> ones go through the core (<code>ctx.send</code> → <code>CommandRouter</code> → handler, or <code>ctx.publish</code> → <code>EventBus</code> → listener, or the door's hop), with the message on the edge.</p>
+<pre><code class="language-mermaid">flowchart LR
+  subgraph UI[&quot;TempUIModule · modules/temp_ui/module.py&quot;]
+    ui_serve[&quot;_serve&lt;br/&gt;POST /focus: tab click&quot;]
+    ui_focus[&quot;_on_focus&lt;br/&gt;marks the tab, clears !&quot;]
+    ui_task[&quot;_on_task&lt;br/&gt;! when a question is held&quot;]
+  end
+
+  subgraph TK[&quot;TalkerModule · modules/talker/module.py (the router)&quot;]
+    tk_input[&quot;_on_input&lt;br/&gt;by InputReceived.agent_id, else the focus&quot;]
+    tk_fc[&quot;_on_focus&lt;br/&gt;the released items, in their tab's session&quot;]
+    tk_sug[&quot;_on_suggestion&lt;br/&gt;asks you yes or no&quot;]
+    tk_tu[&quot;_on_task_updated&lt;br/&gt;to its agent's session&quot;]
+  end
+
+  subgraph TS[&quot;TalkerSession ×N · modules/talker/session.py (one per tab)&quot;]
+    tk_handle[&quot;_handle&quot;]
+    tk_turn[&quot;_take_turn&quot;]
+    tk_tag[&quot;_run_tag&lt;br/&gt;tags act on its partner&quot;]
+    tk_hub[&quot;_hub&lt;br/&gt;InvokeTool hub.*&quot;]
+  end
+
+  subgraph MCL[&quot;Main Assistant's claude session&quot;]
+    mcl_use[&quot;use_item&lt;br/&gt;hub.suggest_focus&quot;]
+  end
+
+  subgraph HUB[&quot;AgentHubModule · agent_hub/module.py, with Focus (focus.py) and TaskBoard (tasks.py)&quot;]
+    h_send_item[&quot;send_item · hub.send&lt;br/&gt;agent_id: that agent&lt;br/&gt;neither: the focused agent&quot;]
+    h_focus_item[&quot;focus_item · hub.focus&lt;br/&gt;callers: talker&quot;]
+    h_suggest[&quot;suggest_focus_item&lt;br/&gt;the coordinator only&quot;]
+    h_setfocus[&quot;Focus.set&lt;br/&gt;SetFocus handler, releases held&quot;]
+    h_focused[&quot;Focus.focused&quot;]
+    h_report[&quot;TaskBoard.report&lt;br/&gt;NEED · PERMISSION · REPLY ·&lt;br/&gt;DONE · FAILED: held unless focused&quot;]
+    h_sendtask[&quot;TaskBoard.send&quot;]
+    h_start[&quot;TaskBoard.start&quot;]
+    h_updated[&quot;TaskBoard._updated&quot;]
+    h_feed[&quot;_feed&lt;br/&gt;note to the coordinator&quot;]
+  end
+
+  ui_serve -. &quot;SetFocus&quot; .-&gt; h_setfocus
+  tk_input -- &quot;inbox&quot; --&gt; tk_handle
+  tk_fc -- &quot;inbox&quot; --&gt; tk_handle
+  tk_sug -- &quot;inbox&quot; --&gt; tk_handle
+  tk_tu -- &quot;inbox&quot; --&gt; tk_handle
+  tk_handle --&gt; tk_turn
+  tk_handle -- &quot;reply's tags&quot; --&gt; tk_tag
+  tk_tag --&gt; tk_hub
+  tk_hub -. &quot;InvokeTool hub.send&quot; .-&gt; h_send_item
+  tk_hub -. &quot;InvokeTool hub.focus&lt;br/&gt;after you say yes&quot; .-&gt; h_focus_item
+  mcl_use -. &quot;door: InvokeTool&quot; .-&gt; h_suggest
+
+  h_send_item --&gt; h_focused
+  h_send_item -- &quot;task open&quot; --&gt; h_sendtask
+  h_send_item -- &quot;no task&quot; --&gt; h_start
+  h_focus_item --&gt; h_setfocus
+  h_setfocus --&gt; h_feed
+  h_report --&gt; h_focused
+  h_report --&gt; h_updated
+
+  h_suggest -. &quot;FocusSuggested&quot; .-&gt; tk_sug
+  h_setfocus -. &quot;FocusChanged(agent_id, released)&quot; .-&gt; tk_fc
+  h_setfocus -. &quot;FocusChanged&quot; .-&gt; ui_focus
+  h_updated -. &quot;TaskUpdated&quot; .-&gt; tk_tu
+  h_updated -. &quot;TaskUpdated&quot; .-&gt; ui_task
+</code></pre>
+<p><strong>How it reads:</strong> a tab click sends <code>SetFocus</code>. The four <code>_on_*</code> methods on <code>TalkerModule</code> pick the session: your words go to their tab's <code>TalkerSession</code>, whose <code>PASS</code> tag sends them on with <code>hub.send(agent_id=its partner)</code>, so they reach that agent's task, or start one. The Main Assistant can only suggest: <code>hub.suggest_focus</code> publishes <code>FocusSuggested</code>, the tab's Talker asks you, and the focus moves only when you say yes (<code>FOCUS</code> → <code>hub.focus</code>, an item only the Talkers may use). A question, reply or end from an agent out of focus is held on its task record; <code>Focus.set</code> releases it (<code>TaskBoard.release</code>) in <code>FocusChanged</code>, and that tab's Talker says it then.</p>
+<h2 id="2-agents-reporting-to-the-main-assistant">2. Agents reporting to the Main Assistant</h2>
+<pre><code class="language-mermaid">flowchart LR
+  subgraph MODS[&quot;MainAssistantModule.init · JobSearchModule.start · CvModule · TaskAgentsModule._build&quot;]
+    m_new[&quot;ProfileAgent(ctx, id, config, prompt)&lt;br/&gt;then AgentKit.add → ctx.provide ITaskAgent&quot;]
+  end
+
+  subgraph PA[&quot;ProfileAgent · infra/profile_agent.py&quot;]
+    pa_init[&quot;__init__&lt;br/&gt;profile · session · agent&quot;]
+    pa_door[&quot;door()&lt;br/&gt;mcp_config under its own id&quot;]
+  end
+
+  subgraph PROF[&quot;AgentProfile · infra/agent_profile.py&quot;]
+    p_from[&quot;from_config&quot;]
+    p_cmd[&quot;command(prompt, mode, door)&quot;]
+  end
+
+  subgraph STA[&quot;SessionTaskAgent · infra/session_agent.py&quot;]
+    s_assign[&quot;assign(task)&quot;]
+    s_message[&quot;message(task_id, text)&quot;]
+    s_note[&quot;note(text)&quot;]
+    s_with[&quot;_with_feed&quot;]
+    s_send[&quot;_send&lt;br/&gt;CONTINUE turns too&quot;]
+    s_block[&quot;_on_block&lt;br/&gt;STATUS lines&quot;]
+    s_result[&quot;_on_result&quot;]
+    s_finish[&quot;_finish_turn&lt;br/&gt;LastLineTags: NEED · RELOAD · ADD_MODULE · HANDOFF&lt;br/&gt;else DONE&quot;]
+    s_parts[&quot;PermissionGate · HandoffKeeper&lt;br/&gt;(composed in)&quot;]
+    s_report[&quot;_report(kind, text)&quot;]
+    s_sendrep[&quot;_send_reports&lt;br/&gt;queue, then ctx.send&quot;]
+  end
+
+  subgraph FEED[&quot;MilestoneFeed · infra/milestone_feed.py&quot;]
+    f_add[&quot;add(line)&quot;]
+    f_take[&quot;take(max_lines)&quot;]
+  end
+
+  subgraph TAGS[&quot;agent_tags · infra/agent_tags.py (functions)&quot;]
+    t_status[&quot;status_lines&quot;]
+    t_last[&quot;last_line&quot;]
+  end
+
+  subgraph HUB[&quot;AgentHubModule · agent_hub/module.py, with TaskBoard (tasks.py)&quot;]
+    h_report[&quot;TaskBoard.report&quot;]
+    h_finish[&quot;TaskBoard._finish&quot;]
+    h_updated[&quot;TaskBoard._updated&quot;]
+    h_feed[&quot;_feed&lt;br/&gt;coordinator.note(line)&quot;]
+  end
+
+  subgraph TK[&quot;TalkerModule&quot;]
+    tk_tu[&quot;_on_task_updated&lt;br/&gt;skips milestones&lt;br/&gt;planned: to its agent's session&quot;]
+  end
+
+  subgraph UI[&quot;TempUIModule&quot;]
+    ui_task[&quot;_on_task&lt;br/&gt;line in the agent's tab&quot;]
+  end
+
+  m_new --&gt; pa_init
+  pa_init --&gt; p_from
+  pa_init -- &quot;the session's command&quot; --&gt; p_cmd
+  p_cmd --&gt; pa_door
+
+  s_assign --&gt; s_with
+  s_message --&gt; s_with
+  s_send --&gt; s_with
+  s_with --&gt; f_take
+  s_note --&gt; f_add
+  s_block --&gt; t_status
+  s_block -- &quot;MILESTONE&quot; --&gt; s_report
+  s_result --&gt; s_finish
+  s_finish --&gt; t_last
+  s_finish -- &quot;NEED · DONE · FAILED&quot; --&gt; s_report
+  s_report --&gt; s_sendrep
+  s_sendrep -. &quot;ReportTask&quot; .-&gt; h_report
+
+  h_report -- &quot;MILESTONE, not the coordinator's&quot; --&gt; h_feed
+  h_report -- &quot;DONE · FAILED&quot; --&gt; h_finish
+  h_report --&gt; h_updated
+  h_finish --&gt; h_updated
+  h_finish -- &quot;a helper's task ended&quot; --&gt; h_feed
+  h_feed -- &quot;via ITaskAgent&quot; --&gt; s_note
+
+  h_updated -. &quot;TaskUpdated&quot; .-&gt; tk_tu
+  h_updated -. &quot;TaskUpdated&quot; .-&gt; ui_task
+</code></pre>
+<p><strong>How it reads:</strong> a helper writes <code>STATUS: …</code>. <code>_on_block</code> picks it out with <code>status_lines</code>, and it reaches the Hub as a <code>ReportTask</code> of kind <code>milestone</code>. The Hub hands it to the coordinator's agent with <code>note</code>, which files it in that agent's <code>MilestoneFeed</code>. The Main Assistant sees the feed as one block at the end of its next message, task or <code>CONTINUE</code> turn (<code>_with_feed</code>). The loop Hub → agent → <code>ReportTask</code> → Hub is safe: reports go through the <code>_send_reports</code> queue and the router, never back into the same call.</p>
+<h2 id="3-the-module-door">3. The module door</h2>
+<pre><code class="language-mermaid">flowchart LR
+  subgraph AG[&quot;ProfileAgent · TalkerSession.command&quot;]
+    a_door[&quot;mcp_config(own id)&quot;]
+  end
+  subgraph HDOOR[&quot;_Door · IModuleDoor · modules/agent_hub/module.py&quot;]
+    door_cfg[&quot;mcp_config(caller)&quot;]
+  end
+
+  subgraph CS[&quot;claude -p · the agent's process&quot;]
+    cs_tool[&quot;mcp__modules__use_item&lt;br/&gt;name, args&quot;]
+  end
+
+  subgraph RELAY[&quot;relay · infra/mcp_door.py · own process&quot;]
+    r_relay[&quot;relay()&lt;br/&gt;JSON-RPC on stdin&quot;]
+    r_answer[&quot;answer(message, url, token, caller)&quot;]
+    r_post[&quot;_post&quot;]
+  end
+
+  subgraph DS[&quot;DoorServer · infra/mcp_door.py&quot;]
+    d_cfg[&quot;mcp_config(caller)&lt;br/&gt;token_for(caller)&quot;]
+    d_serve[&quot;_serve&lt;br/&gt;checks token → caller&quot;]
+    d_call[&quot;call(tool, arguments, caller)&quot;]
+  end
+
+  subgraph CTX[&quot;ScopedContext · core/context.py (the Hub's)&quot;]
+    c_send[&quot;send(command)&lt;br/&gt;keeps the caller: the door's host&quot;]
+  end
+  subgraph RT[&quot;CommandRouter · core/router.py&quot;]
+    rt_send[&quot;send(command)&quot;]
+  end
+  subgraph TOOLS[&quot;core/tools.py&quot;]
+    dt[&quot;dispatch_tool&quot;]
+    prov[&quot;_providers(name)&quot;]
+    mt_inv[&quot;MenuTools.invoke_as(name, args, caller)&quot;]
+  end
+  subgraph APP[&quot;App · core/app.py&quot;]
+    app_sou[&quot;start on use&lt;br/&gt;module off, item on its menu&quot;]
+  end
+  subgraph MENU[&quot;Menu · contracts/menu.py&quot;]
+    m_call[&quot;call(module, name, args, caller)&quot;]
+    m_allowed[&quot;allowed(name, caller)&quot;]
+    m_check[&quot;check(name, args)&quot;]
+  end
+
+  subgraph JOB[&quot;JobSearchModule · modules/job_search/module.py&quot;]
+    j_search[&quot;search(days, caller) · job.search&lt;br/&gt;answers at once&quot;]
+    j_bg[&quot;_search&lt;br/&gt;background task&quot;]
+  end
+
+  subgraph HUB[&quot;AgentHubModule · modules/agent_hub/module.py&quot;]
+    h_notice[&quot;_on_notice&quot;]
+  end
+  subgraph JA[&quot;SessionTaskAgent · the caller's agent&quot;]
+    ja_note[&quot;note(text)&quot;]
+  end
+
+  a_door --&gt; door_cfg
+  door_cfg --&gt; d_cfg
+
+  cs_tool -- &quot;stdio&quot; --&gt; r_relay
+  r_relay --&gt; r_answer
+  r_answer --&gt; r_post
+  r_post -. &quot;HTTP POST /tool + token&quot; .-&gt; d_serve
+  d_serve --&gt; d_call
+  d_call -- &quot;InvokeTool(name, args, caller)&quot; --&gt; c_send
+  c_send --&gt; rt_send
+  rt_send --&gt; dt
+  dt --&gt; prov
+  dt -- &quot;nobody offers it&quot; --&gt; app_sou
+  dt --&gt; mt_inv
+  mt_inv --&gt; m_call
+  m_call --&gt; m_allowed
+  m_call --&gt; m_check
+  m_call -- &quot;runs the item&quot; --&gt; j_search
+
+  j_search -- &quot;spawns&quot; --&gt; j_bg
+  j_bg -. &quot;AgentNotice(agent_id = caller)&quot; .-&gt; h_notice
+  h_notice -- &quot;via ITaskAgent&quot; --&gt; ja_note
+</code></pre>
+<p><strong>How it reads:</strong> each session's door config carries a token for its own id, so <code>DoorServer</code> knows the caller and the agent can't fake it. Every other module's <code>InvokeTool</code> gets its own id stamped by <code>ScopedContext.send</code>; only the door's host (<code>agent_hub</code>) may pass on the one its token proved. The caller rides on <code>InvokeTool</code> through the core down to the menu item, where <code>Menu.allowed</code> checks the item's <code>callers</code>. <code>job.search</code> returns at once; when its background task finishes, it publishes <code>AgentNotice</code> addressed to the caller, and the Hub passes it to that agent with <code>note</code>, for its next message.</p>
+<h2 id="known-limits">Known limits</h2>
+<ul>
+<li><strong>One point of failure:</strong> the door lives in <code>agent_hub</code>, so with the Hub off no agent has module tools.</li>
+<li><strong>A name in config:</strong> the Hub knows the coordinator by id (<code>coordinator</code> in <code>[modules.agent_hub]</code>, default <code>main_assistant</code>). A replacement Main Assistant must keep that id, or change the setting.</li>
+<li><strong>A near-loop to keep loose:</strong> agent modules use <code>IModuleDoor</code>, which <code>agent_hub</code> provides, and <code>agent_hub</code> uses every <code>ITaskAgent</code>. It stays safe while both remain optional lookups and neither becomes a <code>requires</code>.</li>
+<li><strong>Risky items ask for themselves:</strong> each risky menu item calls <code>ctx.permissions</code> (or <code>request_approval</code>) on its own. There is no <code>risky</code> flag on <code>Menu.item</code> checked once in <code>MenuTools</code>, so a new item can forget to ask.</li>
+<li><strong>A bundled agent reloads with its module:</strong> reloading <code>job_search</code> restarts its agent, so the reload waits while that agent is busy (<code>busy()</code>).</li>
+</ul>
+<footer>Generated from <code>docs/architecture/agents-code.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

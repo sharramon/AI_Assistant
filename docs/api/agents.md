@@ -4,11 +4,11 @@ Task agents and the Agent Hub's commands and events. All items: `from assistant.
 
 ## `ITaskAgent`
 
-**Reusable** · Used by: `main_assistant` provides (through `SessionTaskAgent`); `agent_hub` calls
+**Reusable** · Used by: `main_assistant`, `task_agents`, `job_search` provide (through `SessionTaskAgent`); `agent_hub` calls; `task_agents` calls `request_approval` on the caller of `agents.launch`
 
 `class ITaskAgent(Contract)`
 
-A contract for agents that take tasks: the Main Assistant now, subagents later. Any number of modules may provide it (`multiple = True`). Declare it in `manifest.provides` and provide a composed object in `init`: `ctx.provide(ITaskAgent, self._agent)`. Only the Agent Hub calls these methods.
+A contract for agents that take tasks: the Main Assistant, the helpers and module agents such as `job_search_agent`. Any number of modules may provide it (`multiple = True`). Declare it in `manifest.provides` and provide a composed object in `init`: `ctx.provide(ITaskAgent, self._agent)`. Only the Agent Hub calls these methods.
 
 In v1 an agent runs one task at a time.
 
@@ -71,9 +71,25 @@ Abstract. Answer the task's open permission request (the one its last `permissio
 
 `async set_permission_mode(self, mode: PermissionMode) -> Result`
 
-Not abstract. Switch what the agent may do ([`PermissionMode`](#permissionmode)) and publish [`PermissionModeChanged`](#permissionmodechanged). The default refuses with `not_available`, for agents without modes. [`SessionTaskAgent`](infra.md#sessiontaskagent) implements it: with no task the mode applies to the next one (`now`); mid-task, Manual switches the running session at once, and Auto applies from the next task or handoff session (`next_task`). Called by the Hub for [`SetPermissionMode`](#setpermissionmode).
+Not abstract. Switch what the agent may do ([`PermissionMode`](#permissionmode)) and publish [`PermissionModeChanged`](#permissionmodechanged). The default refuses with `not_available`, for agents without modes. [`SessionTaskAgent`](infra.md#sessiontaskagent) implements it: every switch applies at once (`now`), to the running task too; mid-task to Auto, it answers permission requests itself (all but `git push`) and interrupts a running turn to give it the Auto rules ([live switch](../agents/runtime.md#permission-mode)). Its `Result.value` is `True` when it answered an open permission request, so the Hub closes that card. Called by the Hub for [`SetPermissionMode`](#setpermissionmode).
 
 **Returns:** `ok`, or `not_available` (the default).
+
+### `ITaskAgent.note`
+
+`note(self, text: str) -> None`
+
+Not abstract. A background line for the agent's next turn: another agent's `STATUS:` milestone, the end of another agent's task, a focus move, or a module's callback ([`AgentNotice`](#agentnotice)). Never interrupts and never starts work. The default drops it. Called by the Hub, only on the coordinator for the feed lines and on the named agent for a notice. [`SessionTaskAgent`](infra.md#sessiontaskagent) keeps the lines in a [`MilestoneFeed`](infra.md#milestonefeed) and adds them at the end of the next message it writes to its session. Built 2026-11-05.
+
+### `ITaskAgent.request_approval`
+
+`async request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -> Result`
+
+Not abstract. Ask you to allow `action` on this agent's open task. It puts a `permission` report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with [`AnswerPermission`](#answerpermission). It always asks, even in Auto. On Allow, `run()` is called and its outcome reaches the agent as its next message (`[App] <action>: <outcome> Continue the task...`). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with `not_available`, for agents without tasks.
+
+[`SessionTaskAgent`](infra.md#sessiontaskagent) implements it. Called by `task_agents`' `agents.launch` on its caller; `SessionTaskAgent`'s own `RELOAD:` / `ADD_MODULE:` request uses the same path. Built 2026-11-05.
+
+**Returns:** `ok` once the question is open; `not_available` if there is no open task, a question is already open, or the agent keeps the default.
 
 **Example**
 
@@ -95,6 +111,31 @@ Not abstract. Switch what the agent may do ([`PermissionMode`](#permissionmode))
 
 **Defined in:** `src/assistant/contracts/agents.py`. Implemented by [`SessionTaskAgent`](infra.md#sessiontaskagent).
 
+## `IAgentNames`
+
+**Reusable** · Used by: `agent_hub` provides; [`ProfileAgent`](infra.md#profileagent) claims and releases (`main_assistant`, `task_agents`, `job_search`); `task_agents` checks a name at `agents.launch` · built 2026-11-05
+
+`class IAgentNames(Contract)`
+
+The agent ids in use, so no two agents share one. One provider: the Agent Hub. `owner` is the id of the module that runs the agent. The rules are [`check_agent_id`](infra.md#agent_names): the form, the reserved ids, and every module's id, except that a module's own agent may carry its module's id (`main_assistant`). Get it with `ctx.get_one(IAgentNames)`.
+
+| Method | Does |
+|--------|------|
+| `async check(agent_id, owner) -> str \| None` | Why `owner` can't have `agent_id` now, with a free id to use; None if it can |
+| `async claim(agent_id, owner) -> Result` | Take `agent_id` for `owner`. Checked and taken with no `await` between, so two claims can't both win. A repeat claim by the owner that holds it is `ok`; a different owner is still refused, and `check` still calls the name taken (so a module can't name a second agent with it) |
+| `release(agent_id, owner) -> None` | Free `agent_id` if `owner` holds it |
+| `taken() -> dict[str, str]` | Every claimed id and the module that holds it |
+
+**Returns** (`claim`)
+| Status | When |
+|--------|------|
+| `ok` | The id is now `owner`'s |
+| `invalid_arguments` | `check`'s reason: a bad form, a reserved or module id, or taken. A taken id names a free one: "`flight_search` is taken by task_agents; `flight_search_2` is free" |
+
+The claims survive a Hub reload (handed over as `claims`, and shown in its `export_state`). As a safety net, an agent that skipped the claim and shares an id with another is seen once: the Hub uses the first one everywhere (`hub.agents`, [`ListAgents`](#listagents), routing) and logs the clash once.
+
+**Defined in:** `src/assistant/contracts/agents.py`. Provided by `agent_hub` (`AgentNames` in `src/assistant/modules/agent_hub/names.py`). Design: [agent names](../architecture/agents.md#agent-names).
+
 ## `Task`
 
 `Task(id: str, text: str, context: str = "")`
@@ -109,7 +150,7 @@ A unit of work the Hub assigns. Frozen. The other data types and all commands an
 
 ## `AgentInfo`
 
-`AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), busy: bool = False, working: bool = False, permission_mode: PermissionMode = PermissionMode.MANUAL)`
+`AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), busy: bool = False, working: bool = False, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = ())`
 
 Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 
@@ -121,6 +162,7 @@ Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 | `busy` | `bool` | It has an unfinished task: running, paused, or waiting for input |
 | `working` | `bool` | Its session is in a turn right now (generating or running tools). True from sending a message until the turn's `result` arrives. Always false when `busy` is false |
 | `permission_mode` | `PermissionMode` | The mode its next session starts in; Manual at every launch |
+| `write_folders` | `tuple[str, ...]` | Every folder it may write, resolved (its workspace and `write_dirs`, from [`AgentProfile.write_folders`](infra.md#agentprofile)). The Hub refuses to start a task whose agent writes a folder another open task's agent writes, or one inside it |
 
 ## `PermissionMode`
 
@@ -143,7 +185,7 @@ Design: [permission mode](../agents/runtime.md#permission-mode).
 
 ## `TaskInfo`
 
-`TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), activity: tuple[str, ...] = (), question: str | None = None, result: str | None = None)`
+`TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), activity: tuple[str, ...] = (), question: str | None = None, result: str | None = None, parent_task_id: str | None = None, held: bool = False, reply: str | None = None, question_kind: QuestionKind = QuestionKind.NONE)`
 
 Frozen. A task as the Hub knows it.
 
@@ -155,8 +197,20 @@ Frozen. A task as the Hub knows it.
 | `state` | `TaskState` | Authoritative state |
 | `recent` | `tuple[str, ...]` | Latest reports, newest last |
 | `activity` | `tuple[str, ...]` | The agent's last 15 [`AgentActivity`](#agentactivity) lines for this task (its text, and tool calls with their file or command), newest last. What lets the Talker answer "what is it doing?" without interrupting it |
-| `question` | `str \| None` | The open question while `WAITING_FOR_INPUT` |
+| `question` | `str \| None` | The open question while `WAITING_FOR_INPUT`: the agent's own text, with no prefix added |
+| `question_kind` | [`QuestionKind`](#questionkind) | What `question` is: `permission`, `risky`, `need`, or `none` (`""`, the default). Set by the Hub; readers check it instead of parsing the text |
 | `result` | `str \| None` | Final text when `DONE` or `FAILED` |
+| `parent_task_id` | `str \| None` | The task that started this one (an agent's child task, through `hub.start`) |
+| `held` | `bool` | Its `question`, its `reply` or its end (`result`) waits behind its agent's **!** until you focus that agent ([`SetFocus`](#setfocus)). Each is stored once, here; held is only a flag |
+| `reply` | `str \| None` | The agent's latest reply, kept only while held (a `reply` from an agent out of focus) |
+
+`task.question_line`: the question for a person or an agent to read, `Permission: <text>` for a permission request, else the text (`""` with none). The Talker's task lines and the restart note use it.
+
+## `QuestionKind`
+
+**Reusable** · Used by: `agent_hub` sets it (`QuestionKind.of`); `talker`, `temp_ui` read it
+
+`class QuestionKind(StrEnum)`: `NONE = ""`, `NEED = "need"`, `RISKY = "risky"`, `PERMISSION = "permission"`. What a task's open question is, on [`TaskInfo`](#taskinfo) and [`TaskUpdated`](#taskupdated), so no reader parses a text prefix ([principle 19](../architecture/principles.md)). `QuestionKind.of(kind, text)` is the one place the text is read: a `permission` report is `PERMISSION`; a `need` starting with `RISKY_PREFIX` (`"Risky:"`, also in the contracts) is `RISKY`; any other `need` is `NEED`; anything else `NONE`.
 
 ## `ListAgents`
 
@@ -173,11 +227,11 @@ Every registered agent, whether it's busy or working, and its permission mode. H
 
 ## `StartTask`
 
-`StartTask(text: str, context: str = "")` (command)
+`StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None)` (command)
 
-Give work to a free agent. Handled by the Agent Hub.
+Give work to a free agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task. Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an open task; past that, `not_available`.
 
-**Returns:** `Result.ok(task_id)`, or `not_available` if no agent is free.
+**Returns:** `Result.ok(task_id)`; `not_available` if no agent is free, the cap is reached, or the agent would write a folder another open task's agent writes ([`AgentInfo.write_folders`](#agentinfo)); `invalid_arguments` for an unknown `agent_id`.
 
 ## `GetTaskStatus`
 
@@ -207,17 +261,17 @@ Stop a task, like Esc. The Hub calls [`ITaskAgent.cancel`](#itaskagentcancel) an
 
 `AnswerPermission(task_id: str, allow: bool)` (command)
 
-Allow or deny the task's open permission request, once. Sent by the Talker (`<<ALLOW>>` / `<<DENY>>`) or a UI (the temp UI's buttons). The Hub calls [`ITaskAgent.answer_permission`](#itaskagentanswer_permission), sets the task back to `RUNNING`, and publishes `TaskUpdated` with `kind=None` and `text` "permission allowed" or "permission denied".
+Allow or deny the task's open permission request, once. Sent by a UI (the temp UI's buttons); the Talker (`<<ALLOW>>` / `<<DENY>>`) uses the Hub's `hub.answer` item, which does the same. The Hub calls [`ITaskAgent.answer_permission`](#itaskagentanswer_permission), sets the task back to `RUNNING`, and publishes `TaskUpdated` with `kind=None` and `text` "permission allowed" or "permission denied".
 
 **Returns:** the agent's `Result`, or `invalid_arguments` for an unknown or finished task.
 
 ## `SetPermissionMode`
 
-**Reusable** · Used by: `temp_ui` (the Manual | Auto button), `talker` (`<<MODE: manual>>`, Manual only) send; `agent_hub` handles
+**Reusable** · Used by: `temp_ui` (the Manual | Auto button) sends; `agent_hub` handles (and its `hub.mode` item, for the Talker's `<<MODE: manual>>`, Manual only)
 
 `SetPermissionMode(agent_id: str, mode: PermissionMode)` (command)
 
-Switch a task agent between Manual and Auto. Handled by the Agent Hub, which calls [`ITaskAgent.set_permission_mode`](#itaskagentset_permission_mode); later the permissions handler takes it over, with no change for the senders. **Only you switch to Auto**, with the button; the Talker only ever sends Manual, and the Main Assistant has no route to it.
+Switch a task agent between Manual and Auto. Handled by the Agent Hub, which calls [`ITaskAgent.set_permission_mode`](#itaskagentset_permission_mode); later the permissions handler takes it over, with no change for the senders. **Only you switch to Auto**, with the button; the Talker only ever asks for Manual (`hub.mode` refuses Auto), and the Main Assistant has no route to it.
 
 **Returns:** the agent's `Result`; `invalid_arguments` for an unknown agent.
 
@@ -231,8 +285,9 @@ Sent by an agent to the Hub. A command rather than an event so the Hub's state n
 |--------|-------|---------------|
 | `progress` | What it's doing | unchanged |
 | `reply` | Answer to a `message` | unchanged |
-| `need` | A question for you; the turn has ended. In Auto, a `need` starting with `Risky:` is a pause before a risky step | `WAITING_FOR_INPUT` |
-| `permission` | Wants to use a tool its rules don't allow, e.g. `Write C:\…\SKILL.md`; the turn waits for [`AnswerPermission`](#answerpermission) | `WAITING_FOR_INPUT` (question `Permission: …`) |
+| `need` | A question for you; the turn has ended. In Auto, a `need` starting with `Risky:` is a pause before a risky step (`question_kind` `risky`, else `need`) | `WAITING_FOR_INPUT` |
+| `permission` | Wants to use a tool its rules don't allow, e.g. `Write C:\…\SKILL.md`; the turn waits for [`AnswerPermission`](#answerpermission) | `WAITING_FOR_INPUT` (`question_kind` `permission`) |
+| `milestone` | A `STATUS: <one line>` line in its text ([`status_lines`](infra.md#agent_tags)). From an agent that isn't the coordinator, the Hub passes `[<agent>] <line>` to the coordinator's [`note`](#itaskagentnote) | unchanged |
 | `done` | Finished; `text` is the result | `DONE` |
 | `failed` | Gave up; `text` says why | `FAILED` |
 
@@ -242,15 +297,67 @@ Sent by an agent to the Hub. A command rather than an event so the Hub's state n
 
 ## `TaskUpdated`
 
-`TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None, text: str)` (event)
+`TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None = None, text: str = "", agent_id: str = "", parent_task_id: str | None = None, held: bool = False, question_kind: QuestionKind = QuestionKind.NONE)` (event)
 
-Published by the Hub on every report and state change; the Talker listens. `kind` is `None` for changes the Hub made itself (start, with `text` "started"; `SendToTask`; `AnswerPermission`, with "permission allowed" / "permission denied"; cancel). May be dropped; `GetTaskStatus` is authoritative.
+Published by the Hub on every report and state change; the Talker listens. `question_kind`: what the task's open question is now ([`QuestionKind`](#questionkind)), so the Talker and the temp UI tell a permission request or a risky step from its kind, not its text. `kind` is `None` for changes the Hub made itself (start, with `text` "started"; `SendToTask`; `AnswerPermission`, with "permission allowed" / "permission denied"; cancel). `held`: the task's question, reply or end waits behind its agent's **!** (a `need`, `permission`, `reply`, `done` or `failed` while another agent has the focus). May be dropped; `GetTaskStatus` is authoritative.
+
+## The focus
+
+The **focus** is the agent you're talking to. The Hub keeps it: the coordinator (`[modules.agent_hub] coordinator`, `main_assistant` by default) at launch, kept across a Hub reload, and back to the coordinator when the focused agent stops running. A `need`, `permission`, `reply`, `done` or `failed` from an agent out of focus is held ([`TaskInfo.held`](#taskinfo)) until you focus that agent, so nothing lands in another tab's chat. Design: [Working together](../architecture/agents.md#working-together). Built 2026-11-05.
+
+### `SetFocus`
+
+`SetFocus(agent_id: str = "")` (command)
+
+Move the focus to `agent_id`; empty means the coordinator. Handled by the Agent Hub; sent by a UI (a tab click, later) or by the Hub's own `hub.focus` item (the Talker, after you said so). Releases that agent's held questions and publishes [`FocusChanged`](#focuschanged) when the focus moved or something was released; a move also feeds `[focus] the user is now talking to <agent>` to the coordinator.
+
+**Returns:** `Result.ok(agent_id)` (the focused agent), `invalid_arguments` for an unknown agent.
+
+### `FocusChanged`
+
+`FocusChanged(agent_id: str, previous: str = "", released: tuple[TaskInfo, ...] = ())` (event)
+
+The focus moved to `agent_id`. `released`: that agent's tasks whose question, permission request, reply or end was held until now (finished tasks too), so the Talker says it in that tab and the UI shows its card.
+
+Also published when the focused agent goes away (closed with ×, its module turned off or failed): the Hub moves the focus to the coordinator, with `previous` the gone agent, so no UI stays on a dead tab.
+
+### `FocusSuggested`
+
+`FocusSuggested(agent_id: str, reason: str = "", by: str = "")` (event)
+
+The coordinator (`by`) suggests you talk to `agent_id` directly. Published by the Hub's `hub.suggest_focus`. The Talker asks you; the focus moves only if you say yes (then `hub.focus`).
+
+### `AgentNotice`
+
+`AgentNotice(agent_id: str, text: str, source: str = "")` (event)
+
+A module's callback for an agent, e.g. a slow menu item's result: the item returns at once and, when the work ends, publishes this with `agent_id` = the item's caller. The Hub passes `[<source>] <text>` to that agent's [`note`](#itaskagentnote), for its next turn. Dropped (and logged) if the agent isn't running.
+
+## The Hub's menu
+
+**Reusable** · Used by: `talker` and `main_assistant` through the [module door](tools.md#imoduledoor) · built 2026-11-05
+
+The `agent_hub` module's [`Menu`](modules.md#menu), id prefix `hub.`. Every item knows its caller ([`InvokeTool.caller`](tools.md#invoketool)), which a session can't fake.
+
+| Item | Who may use it | Does |
+|------|----------------|------|
+| `hub.agents` | anyone | The task agents: `agent_id`, `description`, `busy`, `working`, `permission_mode`, `focused`, `held` (a question, reply or finished task waiting behind its **!**), `task_id` (its open task) |
+| `hub.status(task_id?)` | anyone | [`GetTaskStatus`](#gettaskstatus), without disturbing the agent |
+| `hub.start(text, agent_id?, context?)` | anyone | [`StartTask`](#starttask); the caller's open task becomes the new task's parent |
+| `hub.send(text, task_id?, agent_id?, pause?)` | the Talker any task; others only their child tasks | [`SendToTask`](#sendtotask). With no `task_id` (the Talker only): to `agent_id`'s open task (its tab's agent; default the focused agent), or a new task on it. `ok({"agent_id", "task_id"})` |
+| `hub.cancel(task_id)` | the Talker any task; others only their child tasks | [`CancelTask`](#canceltask) |
+| `hub.focus(agent_id)` | the Talker only (`callers=("talker",)`) | [`SetFocus`](#setfocus), after you said so; empty is back to the coordinator |
+| `hub.suggest_focus(agent_id, reason?)` | the coordinator only | Publishes [`FocusSuggested`](#focussuggested) |
+| `hub.answer(task_id, allow)` | the Talker only | [`AnswerPermission`](#answerpermission), after you said yes or no to a task's permission card |
+| `hub.mode(agent_id, mode)` | the Talker only | [`SetPermissionMode`](#setpermissionmode) to Manual; `auto` is refused (`not_available`): only you switch to Auto, with the button |
+
+Refused callers get `not_available`. The UI's own buttons still send `AnswerPermission` and `SetPermissionMode` as commands. Code: `AgentHubModule` (`module.py`) wires a `TaskBoard` (`tasks.py`), a `Focus` (`focus.py`) and `AgentNames` (`names.py`); tests in `tests/test_agent_hub_parts.py`.
 
 ## `AgentStateChanged`
 
-`AgentStateChanged(agent_id: str, busy: bool, working: bool)` (event)
+`AgentStateChanged(agent_id: str, busy: bool, working: bool, change: Literal["state", "opened", "closed"] = "state")` (event)
 
-Published by the agent module whenever `busy` or `working` changes, so a UI can show it live without polling. May be dropped; [`ListAgents`](#listagents) is authoritative.
+Published by the agent module whenever `busy` or `working` changes, so a UI can show it live without polling. `change` says what happened: `"state"` (the default), or `"opened"` / `"closed"` for an agent that isn't a module of its own (a helper inside `task_agents`), so UIs add or drop its tab (built 2026-11-08; it used to be a plain state event with both flags off). May be dropped; [`ListAgents`](#listagents) is authoritative.
 
 ## `PermissionModeChanged`
 
@@ -258,7 +365,7 @@ Published by the agent module whenever `busy` or `working` changes, so a UI can 
 
 `PermissionModeChanged(agent_id: str, mode: PermissionMode, applies: Literal["now", "next_task"] = "now")` (event)
 
-A task agent's mode was set. `applies` is `next_task` when the running session can't switch: to Auto mid-task (its prompt is fixed when a session starts), or a live switch to Manual that failed. The temp UI shows it (amber header in Auto) and logs it in both panes; the Talker hears it once, as a `[Mode] worker: …` line before your next message. May be dropped; [`ListAgents`](#listagents) is authoritative.
+A task agent's mode was set. `applies` is `now`, even mid-task (built 2026-11-08); `next_task` only when a live switch to Manual failed. The temp UI shows it (amber header in Auto) and logs it in both panes; the Talker hears it once, as a `[Mode] worker: …` line before your next message. May be dropped; [`ListAgents`](#listagents) is authoritative.
 
 ## `AgentActivity`
 
@@ -270,20 +377,20 @@ An agent's raw activity (its text and tool calls), published by the agent module
 
 ## `SessionUsage`
 
-**Reusable** · Used by: `SessionTaskAgent`, `talker` publish; `temp_ui` subscribes
+**Reusable** · Used by: `SessionTaskAgent`, `talker` publish; `usage`, `temp_ui` subscribe
 
-`SessionUsage(agent_id: str, context_tokens: int, input_tokens: int = 0, cache_write_tokens: int = 0, cache_read_tokens: int = 0, output_tokens: int = 0, cost_usd: float = 0.0)` (event)
+`SessionUsage(agent_id: str, context_tokens: int, input_tokens: int = 0, cache_write_tokens: int = 0, cache_read_tokens: int = 0, output_tokens: int = 0, session: str = "", parent: str = "", kind: "claude" | "subagent" | "tool" = "claude")` (event)
 
-One agent's `claude` usage: "talker" or a task agent's id. Agents are never added together. Built with [`session_usage`](infra.md#session_usage). Published by [`SessionTaskAgent`](infra.md#sessiontaskagent) on every call that changes it (live while the worker works), and by the Talker after each turn. View-only.
+One agent's usage, in tokens only (no money figure): "talker" (the Main Assistant's Talker), `talker:<agent>` (a helper tab's Talker), a task agent's id, a sub-agent's (`<parent>/<type> #<agentId>`) or a wrapped tool's. `parent`: who started it ("" for none); `kind`: `claude` (an agent's own session), `subagent` or `tool`. The [`usage`](../modules/usage.md) module adds them up into one tally since launch, sub-agents nested under their parent. Built with [`session_usage`](infra.md#session_usage). Published by [`SessionTaskAgent`](infra.md#sessiontaskagent) on every call that changes it (live while the worker works), and by the Talker after each turn. View-only.
 
 | Name | Description |
 |------|-------------|
 | `context_tokens` | What each call sends now: the latest call's input, cached or not. Every further call resends that much, so it shows when a reset is worth it. 0 when no session runs; a fresh session starts small |
 | `input_tokens`, `cache_write_tokens`, `cache_read_tokens`, `output_tokens` | Every call since the app started, across fresh sessions and resets |
 | `used_tokens` | (property) Their sum |
-| `cost_usd` | `claude`'s own estimate for the same span, at API prices (on a subscription you don't pay per token) |
+| `session` | The sender's session id, new for each fresh session (`ClaudeSession.id`); when it changes, the ledger keeps the old totals and adds the new ones. "" if unknown |
 
-The Talker hears the worker's, adds its own, and puts both before each of your messages as a `[Usage]` line; it also warns you once when either context passes `context_warning`. The temp UI shows both in its header.
+The Talker hears the worker's, adds its own, and puts both before each of your messages as a `[Usage]` line; it also warns you once when either context passes `context_warning`. The temp UI keeps every agent's by id and shows the selected tab's worker and Talker in its header.
 
 ## `ResetRequested`
 

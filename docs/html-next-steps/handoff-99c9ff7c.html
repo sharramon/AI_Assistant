@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: multi-agent build, chunks 6–7 (task 99c9ff7c)</title>
+<!-- Generated from docs/next-steps/handoff-99c9ff7c.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-99c9ff7c.html"></nav>
+<main>
+<h1 id="handoff-multi-agent-build-chunks-67-task-99c9ff7c">Handoff: multi-agent build, chunks 6–7 (task 99c9ff7c)</h1>
+<p>The design is <a href="multi-agent.html">multi-agent.md</a>. The task, from the user: continue the build in order, chunks 6 → 7, tests and ruff after each, a short progress line after each, don't stop between chunks unless blocked. At the end: docs, reusable parts index, architecture check, docs rebuild, and a final report saying what to check after a restart. Don't restart the app, don't git push. The user may edit <code>config/default.toml</code> for this build only as the task needs (the cap setting is done).</p>
+<h2 id="done-and-checked">Done and checked</h2>
+<ul>
+<li><strong>Chunks 1–3, and the cap</strong> (earlier sessions): contracts, door caller, Hub focus / held / menu / feed, <code>AgentProfile</code>, <code>MilestoneFeed</code>, <code>status_lines</code>, <code>ProfileAgent</code>, the <code>task_agents</code> module, <code>[modules.agent_hub] max_extra_agents = 3</code> (the coordinator isn't counted). Docs for these were updated and rebuilt.</li>
+<li><strong>Chunk 4, the Talker</strong> (<code>modules/talker/module.py</code>, this session):</li>
+<li><strong>Decision (architecture-first):</strong> the Talker keeps its tags as a shorthand, like SHOW for <code>viewer.open</code>. Every Hub tag now runs through the Hub's menu with <code>InvokeTool</code> (<code>_hub(name, **args)</code>; the core fills in the caller <code>talker</code>), so there is one road to the Hub and no MCP round-trips. Permission answers stay on <code>AnswerPermission</code>, per task. Its manifest now sends only <code>InvokeTool</code>, <code>AnswerPermission</code> and <code>SetPermissionMode</code>, and listens to <code>FocusChanged</code> and <code>FocusSuggested</code> too.</li>
+<li><strong>The tags:</strong><ul>
+<li>WORK → <code>hub.start</code> with agent_id = the coordinator.</li>
+<li>ASK / PAUSE → <code>hub.send</code> to the coordinator's task.</li>
+<li>LOOK [agent] → <code>hub.status</code>.</li>
+<li>CANCEL [agent] → <code>hub.cancel</code>.</li>
+<li>New: AGENTS → <code>hub.agents</code> (names and marks only).</li>
+<li>New: FOCUS: agent → <code>hub.focus</code>.</li>
+<li>New: PASS → <code>hub.send</code>, no task id, with the user's own text word for word (only on the user's own input).</li>
+<li>ALLOW / DENY [agent] → a card picked per task. A bare one with more than one card open gets a status asking which (<code>MANY_CARDS</code>).</li>
+</ul>
+</li>
+<li><strong>The rest:</strong><ul>
+<li>It keeps an open-tasks table (<code>_open</code>, built from <code>TaskUpdated</code>), plus <code>_focus</code> and <code>_cards</code>.</li>
+<li>Updates from helpers are named (<code>[Task update: reply from job]</code>); the coordinator's carry no name, so the one-assistant voice stays.</li>
+<li>Held questions and milestones are never said, and a helper out of focus never speaks. The coordinator's done / reply / failed updates are always said; only its questions are held.</li>
+<li><code>FocusChanged.released</code> is said as <code>[Focus] … [Task update: need/permission from X] …</code>. A focus move with nothing released becomes a note on the next message.</li>
+<li>While a helper has the focus, every message is prefixed <code>[Focus] the user is talking to X directly (pass their words on)</code>.</li>
+<li><code>FocusSuggested</code> becomes <code>[Suggestion] … Ask them yes or no; if yes, FOCUS: X</code>.</li>
+<li>The prompt has the new tags and an "Other agents" paragraph.</li>
+</ul>
+</li>
+<li>Tests: new <code>tests/test_talker_agents.py</code> (3 tests).</li>
+<li><strong>Chunk 5, the Main Assistant:</strong> delegation lines in <code>COORDINATOR_BLOCK</code> (<code>infra/agent_profile.py</code>), so every coordinator gets them: <code>hub.agents</code>, <code>hub.start</code> (child task, self-contained text), <code>hub.status</code> / <code>hub.send</code> / <code>hub.cancel</code> for its own children, and <code>hub.suggest_focus</code> (only the user moves the focus). Test: <code>test_task_agents.py::test_only_the_coordinator_is_told_to_delegate_and_suggest</code>. The menu mechanics were already tested in chunk 1.</li>
+<li><strong>Full suite:</strong> 442 passed, ruff clean. The only failure is <code>test_module_docs::test_the_library_table_is_generated…</code>, which clears when the docs are rebuilt (the manifests changed).</li>
+</ul>
+<h2 id="next">Next</h2>
+<ol>
+<li><strong>Chunk 6, the temp UI</strong> (throwaway, keep small). Files: <code>modules/temp_ui/module.py</code> (around 470 lines; <code>_on_task</code> at about line 316, <code>_push</code> / <code>_push_state</code>, <code>_stream</code> at about line 445, <code>_serve</code> routes at about line 358) and <code>page.html</code> (the worker pane at about lines 165–172, <code>permissionCard</code> at about 213, <code>add()</code> at about 398). The plan as worked out:
+   - <strong>Server:</strong><ul>
+<li>Put <code>agent</code> (the event's <code>agent_id</code>) on every worker-pane item: <code>_on_activity</code>, <code>_on_state</code>, <code>_on_task</code>.</li>
+<li>Add an <code>agents</code> state item <code>{"kind": "agents", "focus": id, "agents": [{"id", "busy", "working", "held"}]}</code>. Rebuild it from <code>ListAgents</code> on start, on each SSE connect, on <code>ModuleStateChanged</code> and on <code>AgentStateChanged</code>. Set <code>held</code> from <code>TaskUpdated.held</code> (cleared on a final state and on <code>FocusChanged</code>).</li>
+<li>Subscribe to <code>FocusChanged</code>. For each released task whose question starts with <code>Permission:</code>, push its permission card.</li>
+<li>Push a permission card only when <code>not event.held</code>, and put the agent's name on it (<code>agent</code> field; the title is "{agent} asks permission").</li>
+<li>Add <code>POST /focus</code> <code>{"agent"}</code> → <code>SetFocus</code>.</li>
+<li>Manifest: add <code>SetFocus</code> and <code>ListAgents</code> to sends and <code>FocusChanged</code> to listens. <code>ListAgents</code> is handled by the Hub.</li>
+<li><strong>Page:</strong> a small side panel or tab strip above the worker feed, one tab per big agent: its name, a <strong>!</strong> when held, and the focused one marked. The <code>main_assistant</code> tab gets its own colour. A click posts <code>/focus</code> and shows only that agent's lines (filter by <code>item.agent</code>; items without <code>agent</code> show everywhere). The worker state pill follows the selected tab.</li>
+<li><strong>Tests:</strong> extend <code>tests/test_temp_ui.py</code>: a held card isn't pushed until the focus moves, <code>/focus</code> sends <code>SetFocus</code>, and items carry <code>agent</code>.</li>
+</ul>
+</li>
+<li><strong>Chunk 7, the job agent:</strong> read <code>docs/job-project/README.md</code> and <code>docs/next-steps/job-agent.md</code>. Per the decision, build a <code>job_search</code> module that bundles its <code>ProfileAgent</code> (folder <code>C:\Chang\Jobs\CV</code>, Chrome tools, Manual), with a stub <code>job.search</code> callback through <code>AgentNotice</code> if the notes don't settle the real one. List the unclear points as open questions.</li>
+<li><strong>End:</strong>
+   - Docs: <code>docs/modules/talker.md</code> (the new tags, the one road through the menu, the manifest, its Inner workings diagram), <code>docs/modules/temp_ui.md</code>, <code>architecture/agents.md</code> ("Working together": the Talker part), <code>api/reusable.md</code> (the Used by lines for the Hub's menu and <code>FocusChanged</code> / <code>FocusSuggested</code>: the Talker and the temp UI), and in <code>multi-agent.md</code> the status line and the decision on the Talker's tags (copy it from above). Also the bird's-eye diagram's focus / feed, if the overview allows.
+   - Run the architecture check (skill), then <code>.\.venv\Scripts\python scripts\build_docs.py</code>, pytest and ruff, then write the final report.
+   - <strong>After a restart, check:</strong><ul>
+<li><code>hub.agents</code> lists <code>main_assistant</code> as focused.</li>
+<li>The Main Assistant's and the Talker's doors work.</li>
+<li>A normal WORK task runs to done.</li>
+<li>After <code>modules.on task_agents</code>, a task for <code>helper</code> runs beside the Main Assistant, and its <code>STATUS:</code> reaches the Main Assistant.</li>
+<li>The helper's question shows a <strong>!</strong> until it's focused, then the Talker says it, named.</li>
+<li>PASS sends your words word for word.</li>
+<li>A bare "yes" with two cards open is refused.</li>
+</ul>
+</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/handoff-99c9ff7c.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

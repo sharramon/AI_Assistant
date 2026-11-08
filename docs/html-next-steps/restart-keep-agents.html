@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restarts that keep the agents running</title>
+<!-- Generated from docs/next-steps/restart-keep-agents.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="restart-keep-agents.html"></nav>
+<main>
+<h1 id="restarts-that-keep-the-agents-running">Restarts that keep the agents running</h1>
+<blockquote>
+<p><strong>Status: proposed (2026-11-06).</strong> Waiting for the user's check. No code is changed until then.</p>
+</blockquote>
+<p><strong>Asked:</strong> "When restarting (esp. for updates) there should be an option to keep the agents running and hook them back up on restart. Or to kill all of them." Added later: module reloads and app relaunches should <strong>keep the agents and re-hook them automatically whenever that is harmless</strong>, so the app can be relaunched for updates without losing agents' work. Stopping all agents stays an option. The note says what makes a keep harmful, and what happens then.</p>
+<p><strong>Why:</strong> today a relaunch stops every agent (<code>ClaudeSession.close</code>: stdin closed, 3 s, then killed). A helper's running task is lost, and only the Main Assistant carries on, from its restart note. A crash is worse: nothing stops the <code>claude.exe</code> programs, so they run on with nobody listening.</p>
+<h2 id="how-it-works-today-read-from-the-code">How it works today (read from the code)</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Today</th>
+<th>Effect on a restart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent ↔ app link</td>
+<td>Each agent is a <code>claude -p</code> stream-json process with <strong>stdin/stdout/stderr pipes</strong> to the app process (<code>infra/claude_session.py:242</code>)</td>
+<td>The pipes belong to the app process. When it ends, they break, and nothing else can take them over</td>
+</tr>
+<tr>
+<td>Clean stop</td>
+<td><code>close()</code>: close stdin, wait 3 s, kill (<code>claude_session.py:299</code>)</td>
+<td>The turn in progress is lost</td>
+</tr>
+<tr>
+<td>Crash</td>
+<td>Nothing ties <code>claude.exe</code> to the app. Killing <code>claude.exe</code> doesn't kill what it started (PowerShell, pytest, the door relay)</td>
+<td>Orphans: agents and their commands keep running with nobody listening</td>
+</tr>
+<tr>
+<td>Launcher</td>
+<td><code>python -m assistant</code> is a small parent that restarts the app child on exit code 75 (<code>__main__.py:35</code>)</td>
+<td><strong>It survives every restart already.</strong> It's the one process that lives across app launches</td>
+</tr>
+<tr>
+<td>Module door</td>
+<td><code>DoorServer</code> on <code>127.0.0.1</code>, <strong>a random port and a random secret each launch</strong> (<code>mcp_door.py:112</code>, <code>:134</code>). Each session's relay gets the URL and its token in its env</td>
+<td>A kept session's relay would point at a dead port with an old token</td>
+</tr>
+<tr>
+<td>Hub task records</td>
+<td>In memory only (<code>agent_hub/module.py:191</code>): tasks, held questions, focus, parent tasks</td>
+<td>Lost on a restart</td>
+</tr>
+<tr>
+<td>Permission mode</td>
+<td>Held by <code>SessionTaskAgent</code>, set on the running process with <code>set_permission_mode</code></td>
+<td>Lost (every launch starts in Manual)</td>
+</tr>
+<tr>
+<td>Open permission request</td>
+<td>A <code>can_use_tool</code> control request waiting on stdin for its answer</td>
+<td>Lost with the pipe</td>
+</tr>
+<tr>
+<td>Talker's restart note</td>
+<td><code>talker/module.py:446</code>: written before <code>ShutdownRequested(restart=True)</code>, read once on the next launch</td>
+<td>The only thing carried over today</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The claude CLI (from its documentation, not yet tried here):</strong> each session has an id. The first stream-json line (<code>system</code>/<code>init</code>) carries <code>session_id</code>, and the conversation is saved under <code>~/.claude/projects/&lt;cwd&gt;/&lt;id&gt;.jsonl</code>. <code>claude -p --resume &lt;id&gt;</code> starts a new process on that conversation, <code>--session-id &lt;uuid&gt;</code> sets the id up front, and <code>--fork-session</code> branches it. A resume brings back the <strong>conversation</strong>, not a turn in progress: a turn cut off mid-tool-call is gone, and the resumed session has to be told to carry on. What <code>claude -p</code> does when its stdin closes mid-turn (finish the turn, or stop) also isn't confirmed. A short spike checks all of this first (step 0 below).</p>
+<h2 id="three-designs">Three designs</h2>
+<h3 id="a-resume-each-session-by-id">A. Resume each session by id</h3>
+<p>On a relaunch the app saves every session's id, mode and the Hub's records to a state file, closes the sessions as today, and starts each one again with <code>--resume &lt;id&gt;</code>. The agent is told: "the app restarted; your last turn was cut off at …; carry on."</p>
+<ul>
+<li><strong>Simple:</strong> infra plus the Hub. No new process.</li>
+<li><strong>It doesn't really keep them running:</strong> every agent stops for the restart, and a turn in progress is cut off, which can leave a half-done edit or test run.</li>
+<li><strong>Crash:</strong> good. The ids are saved at every turn's start, so the next launch can resume them all.</li>
+</ul>
+<h3 id="b-an-agent-host-that-survives-the-app-restart">B. An agent host that survives the app restart</h3>
+<p>A small separate process, the <strong>agent host</strong>, owns the <code>claude.exe</code> pipes. The app talks to it over a local socket. <code>ClaudeSession</code> keeps its interface but gets a transport to the host instead of its own pipes. When the app goes away, the host keeps the agents running, buffers their output and holds any open permission request. The new app connects back, re-attaches each agent and replays what it missed.</p>
+<ul>
+<li><strong>Really keeps them running,</strong> turn in progress included.</li>
+<li><strong>The door moves into the host</strong> (a stable port and secret for the launch chain) and forwards calls to the app. While the app is gone it answers "the app is restarting, try again in a moment".</li>
+<li><strong>Big:</strong> a new process and protocol, and the launcher starts the host.</li>
+<li><strong>Crash of the app:</strong> the agents keep going, and the new app re-hooks them. <strong>Crash of the host:</strong> everything under it dies (job object), and nothing is resumed unless A is there too.</li>
+</ul>
+<h3 id="c-b-for-keeping-a-as-the-fallback-recommended">C. B for keeping, A as the fallback (recommended)</h3>
+<p>The host keeps the agents across app relaunches, the default. Resume by id covers the cases where the host itself can't keep them: a host crash, a host or protocol update, a <code>claude</code> upgrade, the PC rebooting. Built in two phases, so the first is useful on its own:</p>
+<ol>
+<li><strong>Phase 1:</strong> the job object, session ids saved, resume by id, the Hub's state file, a stable door. Restarts and crashes then lose only the turn in progress.</li>
+<li><strong>Phase 2:</strong> the agent host. Relaunches then lose nothing.</li>
+</ol>
+<h3 id="what-each-keeps">What each keeps</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>A: resume by id</th>
+<th>B: host only</th>
+<th>C: host + resume</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Turn in progress</td>
+<td>lost (told to carry on)</td>
+<td><strong>kept</strong></td>
+<td><strong>kept</strong> (lost only on the fallback)</td>
+</tr>
+<tr>
+<td>Conversation</td>
+<td>kept</td>
+<td>kept</td>
+<td>kept</td>
+</tr>
+<tr>
+<td>Permission mode</td>
+<td>kept (state file)</td>
+<td>kept (the process has it)</td>
+<td>kept</td>
+</tr>
+<tr>
+<td>Door token</td>
+<td>new; the session gets a new relay env on resume</td>
+<td>kept (door in the host)</td>
+<td>kept</td>
+</tr>
+<tr>
+<td>Held questions (<strong>!</strong>), pending <code>NEED:</code></td>
+<td>kept (state file)</td>
+<td>kept (state file)</td>
+<td>kept</td>
+</tr>
+<tr>
+<td>Open permission request</td>
+<td>lost; denied with "app restarted, ask again"</td>
+<td><strong>kept</strong>, shown again</td>
+<td>kept (lost on the fallback)</td>
+</tr>
+<tr>
+<td>Hub task records, focus, names</td>
+<td>kept (state file)</td>
+<td>kept (state file)</td>
+<td>kept</td>
+</tr>
+<tr>
+<td>Usage tallies</td>
+<td>kept (state file)</td>
+<td>kept (state file)</td>
+<td>kept</td>
+</tr>
+<tr>
+<td>App crash</td>
+<td>resumed on the next launch</td>
+<td>kept, re-hooked</td>
+<td>kept, re-hooked</td>
+</tr>
+<tr>
+<td>Host crash</td>
+<td>n/a</td>
+<td>all lost</td>
+<td>resumed by id</td>
+</tr>
+<tr>
+<td>Core change + restart</td>
+<td>yes, once</td>
+<td>yes, once</td>
+<td>yes, once per phase</td>
+</tr>
+</tbody>
+</table>
+<h2 id="when-keeping-is-harmless-and-when-it-isnt">When keeping is harmless, and when it isn't</h2>
+<p><strong>Default:</strong> a relaunch or module reload keeps every agent and re-hooks it automatically. Before the relaunch the app checks each agent and gives it one of four outcomes:</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>When</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Keep</strong></td>
+<td>Nothing the session depends on changed</td>
+<td>Re-hooked as is. The agent gets one line: "the app was relaunched"</td>
+</tr>
+<tr>
+<td><strong>Keep, refresh at idle</strong></td>
+<td>Its prompt, rules, tools or <code>AgentProfile</code> changed (an update to <code>infra/agent_profile.py</code>, its module's prompt, a new grant)</td>
+<td>Keeps running on the old setup. At its next idle point it restarts on the new one with its conversation (<code>--resume</code>), using the existing stale-session path in <code>SessionTaskAgent._fresh_session</code></td>
+</tr>
+<tr>
+<td><strong>Resume by id</strong></td>
+<td>The host can't keep it: a host or protocol update, a <code>claude</code> upgrade, a host crash</td>
+<td>Its turn in progress is lost; it's resumed and told to carry on</td>
+</tr>
+<tr>
+<td><strong>Stop</strong></td>
+<td>It can't be kept safely (below)</td>
+<td>Stopped as today; the user is told which agents and why</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Not harmless, and what to do:</strong></p>
+<ul>
+<li><strong>A change to what the running agents depend on:</strong> the host ↔ app protocol, <code>ITaskAgent</code> or the agent contracts, <code>ClaudeSession</code>'s event format. The protocol has a version number. If it changed, the host restarts and every agent is resumed by id. If an agent contract changed but the protocol didn't, the agents are kept and the new <code>SessionTaskAgent</code> re-attaches them.</li>
+<li><strong>A changed door or token:</strong> the stable door in the host avoids this. If the door's own protocol changed, the session is refreshed at idle, so its relay gets the new door.</li>
+<li><strong>Mid-permission-request:</strong> with the host, the request is held and shown again after the re-hook (harmless). Without it (A, or the fallback), the relaunch waits up to 60 s for an answer. After that the request is denied with "the app restarted; ask again".</li>
+<li><strong>Mid-door call</strong> (an agent's <code>use_item</code> in flight, such as <code>hub.start</code> or <code>agents.launch</code>): the relaunch waits up to 30 s for in-flight calls to finish. Later calls get "the app is restarting, try again", so nothing runs twice.</li>
+<li><strong>Access revoked, or its module removed or turned off in the new config:</strong> <strong>Stop</strong> that agent. Running on rules you've taken back isn't harmless.</li>
+<li><strong>A module reload</strong> of the module that owns an agent (<code>task_agents</code>, <code>job_search</code>, <code>main_assistant</code>): the same check runs. The module's new code re-attaches its agents from the host instead of starting new ones. A reload that only changes <code>temp_ui</code> touches no agent (as today).</li>
+</ul>
+<h2 id="the-restart-flow">The restart flow</h2>
+<pre><code class="language-mermaid">flowchart TD
+    Ask[&quot;A relaunch is wanted&lt;br/&gt;(you, an update, or an agent asks you first)&quot;] --&gt; Check[&quot;The app checks each agent:&lt;br/&gt;keep · refresh at idle · resume · stop&quot;]
+    Check --&gt; Card[&quot;Card: &lt;b&gt;Relaunch&lt;/b&gt;&lt;br/&gt;Keep agents (default) · Stop all · Cancel&lt;br/&gt;one line per agent with its outcome&quot;]
+    Card -- Keep --&gt; Save[&quot;Save the state file (Hub records, focus, held questions,&lt;br/&gt;modes, names, usage, door secret); wait for door calls&quot;]
+    Save --&gt; Detach[&quot;Tell the host 'app detaching'; it buffers output&quot;]
+    Detach --&gt; Exit[&quot;App exits with code 75; the launcher starts the new app&quot;]
+    Exit --&gt; Reattach[&quot;The new app reads the state file, connects to the host,&lt;br/&gt;re-attaches each agent, replays what it missed,&lt;br/&gt;shows held questions and permission cards again&quot;]
+    Reattach --&gt; Tell[&quot;The Talker and the Main Assistant get one line each:&lt;br/&gt;relaunched, N agents kept, which were refreshed or stopped&quot;]
+    Card -- &quot;Stop all&quot; --&gt; Stop[&quot;Stop every agent as today; the job object ends&lt;br/&gt;their commands too; the state file is cleared&quot;]
+    Stop --&gt; Exit2[&quot;App exits with code 75; the new app starts fresh&quot;]
+</code></pre>
+<ul>
+<li><strong>The card always comes first.</strong> You've asked to be asked before any shutdown, restart or reload, so nothing relaunches without it. The default choice is Keep.</li>
+<li><strong>The re-hooking is done by the app, not by the Main Assistant.</strong> The Hub's records are in the state file and the agents are in the host, so the new app re-hooks every agent by itself. The Main Assistant only gets the summary line, which is safer: if it were the one tracking the agents, losing it would lose them all.</li>
+<li><strong>When the Main Assistant itself restarts:</strong> it's one agent in the host like any other, so a relaunch keeps it too. Its own session is restarted only if its outcome is "refresh at idle" or "resume", and then it resumes its conversation by id. The <code>HANDOFF:</code> note stays for when its context is full, not for restarts. The Talker's sessions are kept the same way, and its restart note becomes a fallback for when the host isn't there.</li>
+</ul>
+<h2 id="crashes-and-tying-the-agents-to-the-app">Crashes, and tying the agents to the app</h2>
+<p><strong>The gap today:</strong> after a crash, the <code>claude.exe</code> programs and their commands run on with nobody listening.</p>
+<p><strong>Fix: a Windows job object</strong> (<code>JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE</code>, through <code>ctypes</code>, so nothing to install). Every process put in the job, and everything it starts later (PowerShell, pytest, the door relay), ends when the job's last handle closes, that is, when its owner dies however it dies. On Linux the same part uses a process group and <code>PR_SET_PDEATHSIG</code>. It goes in <code>infra/</code> as one reusable part (<code>ProcessJob</code>) and is added to the reusable parts index.</p>
+<p><strong>Who owns the job decides what a crash does:</strong></p>
+<ul>
+<li><strong>Phase 1 (no host):</strong> the app owns it. An app crash ends every agent cleanly, nothing is orphaned, and the next launch resumes them by id.</li>
+<li><strong>Phase 2 (host):</strong> the host owns it and the launcher owns the host's. An <strong>app</strong> crash leaves the agents running in the host. The launcher sees an exit code other than 0 or 75, starts the app once more by itself, and the new app re-hooks them. If it crashes again within 5 minutes, the launcher stops all agents and stops. A <strong>host</strong> crash ends the agents, and the next launch resumes them by id. Closing the console ends the launcher, so everything ends with it.</li>
+</ul>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><strong>Core and contracts (restart needed):</strong> <code>ShutdownRequested</code> gets <code>keep_agents: bool = True</code> (and the relaunch card, through the permissions handler's card); <code>__main__.py</code> (the launcher starts the host, and the one-time restart after a crash).</li>
+<li><strong>Infra:</strong> <code>ClaudeSession</code> (records <code>session_id</code>, starts with <code>--resume</code>, a host transport in phase 2), <code>claude_command</code> (<code>resume=</code>), new <code>ProcessJob</code>, <code>DoorServer</code> (a stable port and secret for the launch chain, moved into the host in phase 2), <code>SessionTaskAgent</code> (re-attach, and "carry on" after a resume).</li>
+<li><strong>Modules:</strong> <code>agent_hub</code> (writes and reads the state file), <code>task_agents</code>, <code>job_search</code>, <code>main_assistant</code>, <code>talker</code> (re-attach instead of starting new sessions).</li>
+<li><strong>New (phase 2):</strong> <code>src/agent_host/</code>, its own small app like <code>voice_service</code>.</li>
+<li><strong>Config:</strong> <code>[core] state_dir</code> (default <code>state/</code>, gitignored) and <code>[core] keep_agents_on_restart = true</code>.</li>
+<li><strong>Docs:</strong> core (lifecycle, restarts), agents, agent runtime, infra API, reusable index, decisions.</li>
+<li><strong>Reused:</strong> <code>ClaudeSession</code> (same interface), <code>SessionTaskAgent</code>'s stale and <code>restart_session</code> path, <code>DoorServer</code>, <code>agent_tags</code>, <code>LogSink</code>, <code>load_layered</code>, the permissions card. Nothing in the reusable index already holds processes across launches or ties them to an owner, so <code>ProcessJob</code> and the host are new.</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<ol start="0">
+<li><strong>Spike (read-only on the app, a throwaway <code>claude</code> session):</strong> check <code>session_id</code> in <code>init</code>, <code>--resume &lt;id&gt;</code> with stream-json, what <code>claude -p</code> does when its stdin closes mid-turn, and whether a job object ends <code>claude.exe</code>'s children. Write the findings into this note.</li>
+<li><strong>Phase 1:</strong> <code>ProcessJob</code>, session ids, resume by id, the state file, the stable door, the relaunch card with Keep / Stop all. One restart.</li>
+<li><strong>Phase 2:</strong> the agent host, the re-attach, the one-time restart after a crash. One restart.</li>
+</ol>
+<h2 id="open-questions-recommended-answers-first">Open questions (recommended answers first)</h2>
+<ol>
+<li><strong>Which design?</strong> C, in two phases: phase 1 (job object and resume by id) first, then the host.</li>
+<li><strong>Where does the host run?</strong> As its own process, started by the launcher, so the launcher stays tiny. The other option is inside the launcher itself.</li>
+<li><strong>After an app crash:</strong> restart once by itself and re-hook the agents. A second crash within 5 minutes stops everything. The other option is to always ask in the console.</li>
+<li><strong>The Talkers' sessions:</strong> kept in the host like the workers, one way for every session. The other option is to resume them by id each time.</li>
+<li><strong>An agent whose prompt or rules changed in the update:</strong> keep it running and refresh it at its next idle point. A revoked grant or a removed module: stop it at once.</li>
+<li><strong>Waits before a relaunch:</strong> up to 30 s for in-flight door calls, and up to 60 s for an open permission request without the host. Then go ahead.</li>
+<li><strong>Log folders:</strong> a relaunch that keeps the agents keeps writing to the same launch folder, so a kept agent's transcript stays in one file. A "Stop all" relaunch starts a new folder as today.</li>
+<li><strong>Where the state file lives:</strong> <code>state/agents.json</code> under <code>[core] state_dir</code>, gitignored, deleted after a Stop all.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/restart-keep-agents.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -250,7 +250,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 <tr>
 <td>Naming an agent</td>
-<td>The agent's module id (<code>job_agent</code>, <code>main_assistant</code>) is its name. <code>StartTask.agent_id</code> takes it</td>
+<td>The agent's module id (<code>job_search_agent</code>, <code>main_assistant</code>) is its name. <code>StartTask.agent_id</code> takes it</td>
 </tr>
 <tr>
 <td>Talking to it directly</td>
@@ -269,7 +269,7 @@ class HtmlViewerModule(ModuleProtocol):
 <h2 id="decisions">Decisions</h2>
 <ol>
 <li><strong>The interface: decided 2026-11-05.</strong> It's kept thin (no behaviour), and modules implement it. The menu is a <code>Menu</code> part the module owns, not protocol behaviour. Its name is decision 3.</li>
-<li><strong>How the agents reach the menus: decided 2026-11-05, A (one door).</strong> Why, in plain words, with the picture: <a href="../html/architecture/modules.html#why-one-door-and-not-an-mcp-server-per-module">modules</a>. The agents call tools through MCP, as one adapter at their edge only (the rule below). The options were:
+<li><strong>How the agents reach the menus: decided 2026-11-05, A (one door).</strong> Why, in plain words, with the picture: <a href="../html/architecture/modules.html#why-not-plain-mcp">modules</a>. The agents call tools through MCP, as one adapter at their edge only (the rule below). The options were:
    - <strong>A. One door (recommended).</strong> One MCP server in front of the core with three fixed tools: list modules, show a menu, use an item. The agents' tool list never changes when a module is swapped, on, or off, and the server only reads the directory. If the HTTP link from <code>claude</code> to the app fails, a small stdio relay that <code>claude</code> starts passes the calls on.
    - <strong>B. A door per module.</strong> Each module's menu items show up as their own MCP tools. The agent sees them directly, but its tool list changes with every swap. The experiment shows <code>list_changed</code> handles that, at the cost of a notice per change and a longer tool list.</li>
 </ol>
@@ -550,6 +550,59 @@ class HtmlViewerModule(ModuleProtocol):
 <li><strong>Voice notes uses the recorder through <code>IVoice</code>:</strong> in the voice notes window press Record, speak, then Stop: the text lands in the notes, never in the chat. Press Record, then the chat's mic: the notes say "cancelled" and only the chat gets the words. Then reload <code>voice_in</code> and record again: it still works (the new provider is looked up per call).</li>
 <li><strong>A companion app with new code:</strong> edit any file under <code>src/voice_service/</code> (a comment is enough), then reload <code>voice_in</code>. The log says "The voice service's code changed; it restarts with the new code", and the next mic press launches it fresh.</li>
 </ol>
+<h3 id="restart-test-results-2026-11-05-run-by-the-worker-in-auto">Restart test results (2026-11-05, run by the worker in Auto)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Result</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>passed</td>
+<td>Log: <code>The agents' module door is at http://127.0.0.1:…</code>; no <code>Skipping the module folder</code>, no <code>manifest.handles</code>, no errors</td>
+</tr>
+<tr>
+<td>2</td>
+<td>passed</td>
+<td><code>pytest -m claude tests/test_mcp_door.py</code>: 1 passed</td>
+</tr>
+<tr>
+<td>3</td>
+<td>partly</td>
+<td>The Talker's session shows the <code>modules</code> MCP server <code>connected</code> with the three tools. Nobody has asked it "which modules are there?" yet, so its own call is unchecked. The page opening was checked from the worker (<code>viewer.open</code> opened <code>modules.html</code>)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>passed</td>
+<td>The worker's <code>list_modules</code> gave ten modules plus <code>core</code>; <code>show_menu core</code> and <code>show_menu html_viewer</code> worked; <code>use_item</code> ran (Auto, so no card; the Manual card is unchecked)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>partly</td>
+<td>Reloaded <code>voice_notes</code>, <code>html_viewer</code> (the tab stayed, the viewer was kept), <code>temp_ui</code>, <code>talker</code> and <code>voice_in</code> (the service object was kept): all <code>active</code>. <code>agent_hub</code> and <code>main_assistant</code> were not reloaded, because the worker's own task was open</td>
+</tr>
+<tr>
+<td>6</td>
+<td>passed</td>
+<td><code>voice_in</code> off was refused ("required by voice_notes"); <code>voice_notes</code> off, then <code>voice_in</code> off, both went; <code>voice_notes</code> on brought <code>voice_in</code> up first (log order)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>not checked</td>
+<td>It needs a real mic press in the voice notes window. Seen: a <code>voice_in</code> reload deactivates and reactivates <code>voice_notes</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>not checked</td>
+<td>No mic press since the restart, so the voice service wasn't running, <code>CompanionApp</code> had no source stamp, and the reload just handed over the idle app object (the log still says "Kept the running voice service", which is misleading here). To check: press the mic once, then edit and reload. Gap: an app object made fresh (after off/on) that later finds a service already running with old code takes the new stamp and keeps the old process</td>
+</tr>
+</tbody>
+</table>
+<p>Full suite: 412 passed, 1 failed (<code>test_voice_pieces::test_closing_the_socket…[True]</code>); run alone, its <code>[False]</code> variant failed instead, so it's flaky alone too. Ruff is clean.</p>
 <h2 id="handoff-how-the-unattended-run-continues">Handoff: how the unattended run continues</h2>
 <p>The user is away. Run every remaining chunk in Auto without asking for plan approval. <strong>One chunk per session:</strong> build it, run the tests and ruff, the <code>architecture-check</code> skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (<code>scripts\build_docs.py</code>), commit locally ("Module system, chunk N: …", like <code>git log</code>), update the progress table above, then end with <code>HANDOFF: docs/next-steps/module-system.md</code>.</p>
 <ul>

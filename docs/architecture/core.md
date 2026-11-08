@@ -12,6 +12,7 @@ flowchart TB
         DI[DI Container]
         Router[Command Router]
         Bus[Event Bus]
+        Perms["Permissions handler<br/>always on"]
     end
 
     subgraph Contracts["Contracts (stable)"]
@@ -46,6 +47,8 @@ Dependency direction: the core and modules both depend on contracts; contracts d
 ## Responsibility
 
 The core controls communication and lifecycle: it validates which modules can run together, starts and stops them in dependency order, routes commands, delivers events, and resolves contracts.
+
+It also holds the **permissions handler** (`core/permissions/`), so it's always on and no module or agent can turn it off or reload it. The handler uses only the core's generic parts (the router's `send`, the bus's `publish`, the container's `get_one`) and the shared contracts, and knows no module by code; only its defaults name agents. Each module's `ctx.permissions` is a `PermissionsPort` bound to its id. Design: [permissions](permissions.md#part-of-the-core).
 
 It is **not** responsible for any capability. It contains no input, output, AI, or tool logic, and never imports anything from `assistant.modules`. The only place that names concrete modules is the composition root, `src/assistant/__main__.py`.
 
@@ -130,6 +133,7 @@ classDiagram
 | `bus.py` | `EventBus`, `Subscription`: event delivery |
 | `container.py` | `Container`, `is_shared_contract`: DI restricted to shared contracts |
 | `tools.py` | `dispatch_tool`: the `InvokeTool` handler |
+| `permissions/` | The permissions handler: `PermissionsHandler` (`handler.py`), `PermissionsPort` (`port.py`, each module's `ctx.permissions`), `PermissionsMenu` (`menu.py`, `permissions.*`), the saved grants (`store.py`) and the guardrails (`rules.py`). In the protected zone |
 
 Modules only ever see the `ModuleContext` interface (defined in `assistant.contracts`), never `App` or these classes.
 
@@ -243,9 +247,10 @@ stateDiagram-v2
 - Handles `InvokeTool` by asking every `IToolProvider` for its tools *at call time*, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).
 - Links each module's [`Menu`](../api/modules.md#menu) right after its `init`: a [`MenuTools`](../api/core.md#menutools) adapter provided in the module's name, removed when its context closes, so a reloaded module's menu runs its new code.
 - Unknown name → `NotAvailable`; a name offered by more than one provider → `Failed`.
+- **Start on use:** a tool nobody offers, but on the menu of a module that is off and has `start_on_use = true` in its config, turns that module on first (as `ActivateModule` does), then runs. A failed start returns its error; calls during the start wait for it. Only `html_viewer` uses it today ([`dispatch_tool`](../api/core.md#dispatch_tool)).
 - A future `ToolsChanged` event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.
 - The [directory, then menu](modules.md#find-a-module-then-open-its-menu): `ListModules` gives one line per module, `GetMenu(id)` one module's `ToolSpec`s (read from its class, on or off). Calling stays `InvokeTool`.
-- The core's own menu (`core/directory.py`, id `core`): `modules.list / menu / on / off / reload / add`, each sending the matching control command. Provided as an `IToolProvider` in the name `core` while the app runs. `modules.off` with dependents and `modules.add` ask `ctx.permissions`-style first (today the allow-all stand-in, which logs).
+- The core's own menu (`core/directory.py`, id `core`): `modules.list / menu / on / off / reload / add`, each sending the matching control command. Provided as an `IToolProvider` in the name `core` while the app runs. `modules.off` with dependents and `modules.add` ask the core's `PermissionsPort("core")` first (single names aren't checked yet: allowed and logged). The grant calls `permissions.grants / grant / request / revoke` are on the same `core` menu ([permissions](permissions.md#managing-grants)).
 
 ## Configuration
 
@@ -258,6 +263,10 @@ stateDiagram-v2
 | `core.module_stop_timeout` | `5.0` | Seconds each module gets to stop |
 | `core.event_queue_size` | `100` | Per-subscriber queue size |
 | `core.event_handler_timeout` | `10.0` | Seconds before a stuck event handler is cancelled |
+| `core.permissions.grants_file` | `"data/permissions.toml"` | The saved grants (relative to the repo; in the protected zone) |
+| `core.permissions.reviewer` | `"main_assistant"` (in `default.toml`; `""` in code) | The agent that reviews an access list before its card shows; `""` for none |
+| `core.permissions.review_timeout` / `answer_timeout` | `90.0` / `600.0` | Seconds for the review (then "not reviewed") and for your answer (then Deny) |
+| `core.permissions.you` | `["temp_ui"]` (in `default.toml`; none in code) | Callers that are you clicking; an agent's grant or revoke shows you a card |
 | `logging.dir` | `"logs"` | Where the session folders go. See [Logging](#logging) |
 | `logging.file` | `"assistant.log"` | The app log's file name inside the session folder |
 | `logging.level` / `stderr` | `INFO` / `false` | See `setup_logging` |

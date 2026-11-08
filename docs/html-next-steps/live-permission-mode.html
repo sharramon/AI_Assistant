@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto / Manual applies at once</title>
+<!-- Generated from docs/next-steps/live-permission-mode.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="live-permission-mode.html"></nav>
+<main>
+<h1 id="auto-manual-applies-at-once">Auto / Manual applies at once</h1>
+<blockquote>
+<p><strong>Status: built (waiting for the batched restart) (2026-11-08).</strong> Queue item 2. Approved as written, plus your clarification: clicking Auto mid-turn interrupts the agent, takes effect at once, and from then on its permission requests are approved automatically. Nothing reloaded or restarted. It needs an <strong>app restart</strong> (the code is in <code>assistant.infra</code> and <code>assistant.contracts</code>); a module reload isn't enough. Then the checks below.</p>
+</blockquote>
+<p><strong>Asked:</strong> the Auto / Manual button should change the running session of the tab you're in right away, not from the next task. Only that tab's agent. Only you switch to Auto.</p>
+<h2 id="what-i-found">What I found</h2>
+<ul>
+<li><strong>Per tab already worked.</strong> The button sends the agent of the tab you pressed it in (<code>page.html</code>: <code>agent = focused()</code>), and <code>SetPermissionMode</code> changes only that agent.</li>
+<li><strong>Only-you-for-Auto already held.</strong> Only the UI button sends Auto; the Talker can only switch to Manual (<code>ONLY_YOU_AUTO</code>). Unchanged.</li>
+<li><strong>Manual already applied at once</strong> (a live control request to <code>acceptEdits</code>).</li>
+<li><strong>Auto waited for the next task, on purpose.</strong> A running <code>claude</code> process can't safely be switched to real Auto (<code>bypassPermissions</code>): the <code>git push</code> block is a launch flag (<code>--disallowedTools</code>) and can't be added live; Claude Code may refuse the live switch; and the prompt, with the risky-step rule, is fixed at launch.</li>
+</ul>
+<h2 id="what-was-built-live-auto-run-by-the-app">What was built: live Auto, run by the app</h2>
+<ul>
+<li><strong>Click Auto mid-task:</strong> the process keeps its Manual mode and <code>SessionTaskAgent</code> answers its permission requests: every tool allowed with no card (<code>allowed in Auto: …</code> in the worker pane), except a PowerShell or Bash command containing <code>git push</code>, which is refused ("git push is blocked in Auto").</li>
+<li><strong>Mid-turn it's interrupted at once</strong> with "The user switched you to Auto mode" and the Auto rules (including the risky-step rule). It answers briefly, then carries on. If it's waiting on you, the rules go with your next message.</li>
+<li><strong>A card already open</strong> when you click Auto is answered (allowed, or refused for <code>git push</code>), and the Hub closes it ("permission allowed (Auto)").</li>
+<li><strong>Back to Manual:</strong> the app stops answering, so cards come back at once; the rules go with its next message (no interrupt). A process started in real Auto still gets the live switch to <code>acceptEdits</code>.</li>
+<li><strong>Approvals unchanged:</strong> reloads and adds run at once in Auto; <code>request_approval</code> still asks.</li>
+<li><strong>Next task or handoff</strong> starts a real Auto session, as before.</li>
+<li><code>PermissionModeChanged.applies</code> is now <code>now</code>; <code>next_task</code> only if a live switch to Manual fails.</li>
+</ul>
+<p><strong>Code:</strong> <code>src/assistant/infra/session_agent.py</code> (<code>set_permission_mode</code>, <code>_tell_mode</code>, <code>_auto_answer</code>, <code>_is_git_push</code>; the rules ride on <code>_with_feed</code>), <code>src/assistant/modules/agent_hub/module.py</code> (<code>_set_permission_mode</code> closes an answered card), docstrings in <code>src/assistant/contracts/agents.py</code>. <strong>Tests</strong> (<code>tests/test_permission_mode.py</code>): <code>test_switch_applies_now_idle_and_mid_task</code>, <code>test_auto_mid_turn_interrupts_with_the_rules_and_carries_on</code>, <code>test_live_auto_answers_requests_but_refuses_git_push_and_manual_asks_again</code>, <code>test_auto_closes_an_open_card_and_allows_it</code>; <code>tests/fake_claude.py</code> has a <code>PUSHPERMIT</code> case. 641 tests pass, ruff clean. <strong>Docs:</strong> <code>docs/agents/runtime.md</code> (Permission mode), <code>docs/api/infra.md</code> (<code>SessionTaskAgent</code>), <code>docs/api/agents.md</code>. No new reusable part.</p>
+<h2 id="your-checks-after-the-restart">Your checks (after the restart)</h2>
+<ol>
+<li><strong>The core one.</strong> In a tab in Manual, give its agent a task that needs a permission (e.g. "write a file outside your folders"). While it's working (mid-turn), click <strong>Auto</strong>. Its worker pane shows it was interrupted ("The user switched you to Auto mode…"), then it carries on and its tools run with <strong>no cards</strong> (<code>allowed in Auto: …</code>). If a card was already open when you clicked, it closes by itself.</li>
+<li>Only that tab changed: another tab's agent still asks with cards.</li>
+<li>In the Auto tab, ask it to run <code>git push</code>: refused, with no card.</li>
+<li>Click <strong>Manual</strong> in that tab mid-task: its next tool outside its rules shows a card again.</li>
+<li>Ask the Talker to switch to Auto: it still refuses ("Only the user can…").</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/live-permission-mode.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -19,10 +19,10 @@
 <h2 id="reusable-parts">♻ Reusable parts</h2>
 <p><strong>Check the <a href="reusable.html">reusable parts index</a> before writing a helper.</strong> One line per part (name, kind, purpose, where, used by), sorted by where it lives:</p>
 <ul>
-<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code>, <code>Manifest</code>, the Event Bus, <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
+<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code> (with <code>request_set</code>), <code>Manifest</code>, the Event Bus, <code>AccessItem</code> and the access cards (<code>PermissionRequested</code>, <code>AnswerPermissionRequest</code>, <code>PermissionChanged</code>), <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code> (with <code>request_approval</code>), <code>IAgentNames</code>, <code>ModuleContext.withdraw</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>SetFocus</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>AgentNotice</code>, <code>QuestionKind</code> (with <code>RISKY_PREFIX</code>), <code>MAX_SNIPS</code>, <code>PASTED_FILE</code>, the Hub's menu, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
 <li><strong>Voice service</strong> (<code>voice_service</code>): the <code>/ws/listen</code> messages (<code>protocol</code>); inside the service, <code>SttEngine</code> / <code>SttStream</code>, <code>AudioSource</code> / <code>FakeSource</code> / <code>FileSource</code>, and <code>transcribe</code> / <code>transcribe_file</code></li>
-<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>mcp_door</code></li>
-<li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code>, <code>load_layered</code>, <code>local_path</code>, <code>CompanionApp</code></li>
+<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code>, <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>AgentKit</code> (with <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>), <code>AgentProfile</code>, <code>manual_claude_mode</code>, <code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>MilestoneFeed</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>show_page</code>, <code>mcp_door</code>, <code>check_agent_id</code>, <code>free_agent_id</code></li>
+<li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code> (with <code>window_profile</code>), <code>load_layered</code>, <code>local_path</code>, <code>merge</code>, <code>module_docs</code>, <code>CompanionApp</code>, <code>CompanionHandover</code>, <code>local_guard</code></li>
 </ul>
 <h2 id="groups">Groups</h2>
 <h3 id="modules"><a href="modules.html">Modules</a></h3>
@@ -49,12 +49,12 @@
 <tr>
 <td><a href="modules.html#manifest"><code>Manifest</code></a></td>
 <td>data</td>
-<td>♻ Module id, one-line description, its contracts, the commands it handles and sends, the events it publishes and listens to, its permissions</td>
+<td>♻ Module id, one-line description, its contracts (<code>uses</code>: looked up at each call, no start order), the commands it handles and sends, the events it publishes and listens to, its permissions</td>
 </tr>
 <tr>
 <td><a href="modules.html#modulecontext"><code>ModuleContext</code></a></td>
 <td>interface</td>
-<td>♻ A module's only access to the app: events, commands, contracts, config, logging</td>
+<td>♻ A module's only access to the app: events, commands, contracts (<code>provide</code>, <code>withdraw</code> one back), config, logging</td>
 </tr>
 <tr>
 <td><a href="modules.html#modulecontextlogs"><code>ctx.logs</code></a></td>
@@ -64,7 +64,7 @@
 <tr>
 <td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a></td>
 <td>interface</td>
-<td>♻ <code>has</code> / <code>request</code> a permission (<code>ModulePermissions</code>); a stand-in allows and logs until the handler runs</td>
+<td>♻ <code>has</code> / <code>request</code> a permission, <code>request_set</code> a whole access list (<code>ModulePermissions</code>); forwards to the core's permissions handler</td>
 </tr>
 <tr>
 <td><a href="modules.html#contract"><code>Contract</code></a></td>
@@ -145,6 +145,31 @@
 <td>You dropped a snip before sending it</td>
 </tr>
 <tr>
+<td><a href="messaging.html#accesskind"><code>AccessKind</code></a>, <a href="messaging.html#accessitem"><code>AccessItem</code></a>, <a href="messaging.html#accessnote"><code>AccessNote</code></a></td>
+<td>data</td>
+<td>♻ One line of an access list (<code>workspace</code>, <code>read</code>, <code>write</code>, <code>python</code>, <code>command</code>, <code>chrome</code>) and a card's notes</td>
+</tr>
+<tr>
+<td><a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code>, <code>AccessPending</code></a></td>
+<td>exceptions</td>
+<td>♻ From <code>request_set</code>: you denied the list; the list waits on a card</td>
+</tr>
+<tr>
+<td><a href="messaging.html#permissionrequested"><code>PermissionRequested</code></a></td>
+<td>event</td>
+<td>♻ A card for you: an access list, or an agent's grant or revoke</td>
+</tr>
+<tr>
+<td><a href="messaging.html#answerpermissionrequest"><code>AnswerPermissionRequest</code></a></td>
+<td>command</td>
+<td>♻ Your answer to a card; <code>keep</code> is the ticked items</td>
+</tr>
+<tr>
+<td><a href="messaging.html#permissionchanged"><code>PermissionChanged</code></a></td>
+<td>event</td>
+<td>♻ A grant was saved, denied or revoked; closes the card</td>
+</tr>
+<tr>
 <td><a href="messaging.html#ivoice"><code>IVoice</code></a></td>
 <td>contract</td>
 <td>♻ The voice contract: <code>listen(session_id, destination)</code>, <code>finish(session_id)</code>; <code>voice_notes</code> requires it</td>
@@ -215,7 +240,7 @@
 <tr>
 <td><a href="tools.html#imoduledoor"><code>IModuleDoor</code></a></td>
 <td>contract</td>
-<td>♻ The agents' one MCP door: <code>mcp_config()</code> for a <code>claude</code> session (list modules · show a menu · use an item); <code>agent_hub</code> provides it</td>
+<td>♻ The agents' one MCP door: <code>mcp_config(caller)</code> for a <code>claude</code> session, the caller proved by its token (list modules · show a menu · use an item); <code>agent_hub</code> provides it</td>
 </tr>
 <tr>
 <td><a href="tools.html#tools-offered-today">Tools offered today</a></td>
@@ -248,7 +273,7 @@
 <tr>
 <td><a href="control.html#the-cores-menu">The core's menu</a></td>
 <td>menu</td>
-<td><code>modules.list / menu / on / off / reload / add</code>; the risky ones ask first</td>
+<td><code>modules.list / menu / docs / on / off / reload / add</code>, the risky ones asking first; <code>permissions.grants / grant / request / revoke</code></td>
 </tr>
 <tr>
 <td><a href="control.html#activatemodule"><code>ActivateModule</code></a></td>
@@ -301,7 +326,12 @@
 <tr>
 <td><a href="agents.html#itaskagent"><code>ITaskAgent</code></a></td>
 <td>contract</td>
-<td>♻ An agent that takes tasks: <code>info</code>, <code>assign</code>, <code>message</code>, <code>cancel</code>, <code>answer_permission</code>, <code>set_permission_mode</code></td>
+<td>♻ An agent that takes tasks: <code>info</code>, <code>assign</code>, <code>message</code>, <code>cancel</code>, <code>answer_permission</code>, <code>set_permission_mode</code>, <code>note</code>, <code>request_approval</code> (ask you with the permission card)</td>
+</tr>
+<tr>
+<td><a href="agents.html#iagentnames"><code>IAgentNames</code></a></td>
+<td>contract</td>
+<td>♻ The agent ids in use (<code>check</code>, <code>claim</code>, <code>release</code>, <code>taken</code>), so no two agents share one; <code>agent_hub</code> provides</td>
 </tr>
 <tr>
 <td><a href="agents.html#task"><code>Task</code></a></td>
@@ -316,7 +346,12 @@
 <tr>
 <td><a href="agents.html#taskinfo"><code>TaskInfo</code></a></td>
 <td>data</td>
-<td>A task as the Hub knows it, with its recent activity</td>
+<td>A task as the Hub knows it, with its recent activity and its question's kind</td>
+</tr>
+<tr>
+<td><a href="agents.html#questionkind"><code>QuestionKind</code></a></td>
+<td>enum</td>
+<td>♻ What a task's open question is: <code>permission</code>, <code>risky</code>, <code>need</code> or none; set by the Hub, so nobody parses the text</td>
 </tr>
 <tr>
 <td><a href="agents.html#taskstate"><code>TaskState</code></a></td>
@@ -366,12 +401,37 @@
 <tr>
 <td><a href="agents.html#reporttask"><code>ReportTask</code></a></td>
 <td>command</td>
-<td>Agent → Hub: <code>progress</code>, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code></td>
+<td>Agent → Hub: <code>progress</code>, <code>milestone</code>, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#taskupdated"><code>TaskUpdated</code></a></td>
 <td>event</td>
-<td>A task's report or state changed (for the Talker)</td>
+<td>A task's report or state changed (for the Talker); <code>held</code> when its question waits behind the <strong>!</strong></td>
+</tr>
+<tr>
+<td><a href="agents.html#setfocus"><code>SetFocus</code></a></td>
+<td>command</td>
+<td>♻ Move the focus (the agent you talk to); releases its held questions</td>
+</tr>
+<tr>
+<td><a href="agents.html#focuschanged"><code>FocusChanged</code></a></td>
+<td>event</td>
+<td>♻ The focus moved, with the questions it released</td>
+</tr>
+<tr>
+<td><a href="agents.html#focussuggested"><code>FocusSuggested</code></a></td>
+<td>event</td>
+<td>♻ The coordinator suggests you talk to an agent directly</td>
+</tr>
+<tr>
+<td><a href="agents.html#agentnotice"><code>AgentNotice</code></a></td>
+<td>event</td>
+<td>♻ A module's callback for an agent, passed to its <code>note</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#the-hubs-menu">The Hub's menu</a></td>
+<td>menu</td>
+<td>♻ <code>hub.agents / status / start / send / cancel / focus / suggest_focus / answer / mode</code>, each knowing its caller</td>
 </tr>
 <tr>
 <td><a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a></td>
@@ -391,7 +451,7 @@
 <tr>
 <td><a href="agents.html#sessionusage"><code>SessionUsage</code></a></td>
 <td>event</td>
-<td>♻ One agent's usage, worker or Talker apart: context now, tokens and ~$ since launch</td>
+<td>♻ One agent's usage, worker or Talker apart: context now, tokens since launch</td>
 </tr>
 <tr>
 <td><a href="agents.html#resetrequested"><code>ResetRequested</code></a></td>
@@ -457,9 +517,34 @@
 <td>♻ An <code>ITaskAgent</code> backed by a <code>ClaudeSession</code>, a fresh one per task, with handoffs and the permission mode; reuse it for every task agent</td>
 </tr>
 <tr>
+<td><a href="infra.html#agentprofile"><code>AgentProfile</code></a></td>
+<td>class</td>
+<td>♻ One task agent's setup: folders, rules, command, prompt with the shared <code>STATUS:</code> / <code>NEED:</code> block</td>
+</tr>
+<tr>
+<td><a href="infra.html#profileagent"><code>ProfileAgent</code></a></td>
+<td>class</td>
+<td>♻ One big agent from its config: profile, session and <code>SessionTaskAgent</code>, the door under its own name</td>
+</tr>
+<tr>
+<td><a href="infra.html#agent_access"><code>agent_access</code></a></td>
+<td>functions</td>
+<td>♻ A task agent's access list from its config (<code>access_items</code>), the config cut to the grant (<code>granted_config</code>), both in one call (<code>request_access</code>)</td>
+</tr>
+<tr>
+<td><a href="infra.html#milestonefeed"><code>MilestoneFeed</code></a></td>
+<td>class</td>
+<td>♻ Other agents' milestones, ends, focus moves and notices, merged for an agent's next turn</td>
+</tr>
+<tr>
 <td><a href="infra.html#session_usage"><code>session_usage</code></a></td>
 <td>function</td>
 <td>♻ A <code>ClaudeSession</code>'s usage so far as a <code>SessionUsage</code> event</td>
+</tr>
+<tr>
+<td><a href="infra.html#usageledger"><code>UsageLedger</code></a></td>
+<td>class</td>
+<td>♻ Every agent's usage since launch, sub-agents nested under their parent (the <code>usage</code> module's tally)</td>
 </tr>
 <tr>
 <td><a href="infra.html#contextwatch"><code>ContextWatch</code></a></td>
@@ -469,7 +554,42 @@
 <tr>
 <td><a href="infra.html#agent_tags"><code>agent_tags</code></a></td>
 <td>functions</td>
-<td>♻ Read SHOW tags, <code>NEED:</code> and <code>HANDOFF:</code> lines the same way everywhere</td>
+<td>♻ Read SHOW tags, <code>NEED:</code>, <code>HANDOFF:</code> and <code>STATUS:</code> lines the same way everywhere</td>
+</tr>
+<tr>
+<td><a href="infra.html#show_page"><code>show_page</code></a></td>
+<td>function</td>
+<td>♻ A SHOW tag → the viewer's tool call (<code>viewer.open</code> / <code>viewer.highlight</code>), for the worker and the Talker</td>
+</tr>
+<tr>
+<td><a href="infra.html#agent_names"><code>agent_names</code></a></td>
+<td>functions</td>
+<td>♻ The agent id rules: <code>check_agent_id</code> (the caller passes the ids it reserves), <code>free_agent_id</code></td>
+</tr>
+<tr>
+<td><a href="infra.html#permissiongate"><code>PermissionGate</code></a></td>
+<td>class</td>
+<td>♻ A task agent's one open question: tool requests, approvals, the Auto policy, the <code>git push</code> block</td>
+</tr>
+<tr>
+<td><a href="infra.html#handoffkeeper"><code>HandoffKeeper</code></a></td>
+<td>class</td>
+<td>♻ A task's handoffs, their count and texts</td>
+</tr>
+<tr>
+<td><a href="infra.html#lastlinetags"><code>LastLineTags</code></a></td>
+<td>class</td>
+<td>♻ A table of last-line tags to handlers</td>
+</tr>
+<tr>
+<td><a href="infra.html#usagemeter"><code>UsageMeter</code></a></td>
+<td>class</td>
+<td>♻ One session's token counting, with the one token-field map (<code>TOKEN_KINDS</code>)</td>
+</tr>
+<tr>
+<td><a href="infra.html#agentkit"><code>AgentKit</code></a></td>
+<td>class</td>
+<td>♻ What every agent module repeated (provide, reset, grants, open, take back), and the <code>AGENT_*</code> manifest declarations</td>
 </tr>
 <tr>
 <td><a href="infra.html#mcp_door"><code>mcp_door</code></a></td>
@@ -505,9 +625,24 @@
 <td>♻ A config file's <code>.local</code> override path</td>
 </tr>
 <tr>
+<td><a href="app_kit.html#merge"><code>merge</code></a></td>
+<td>function</td>
+<td>♻ Deep-merge one dict over another (a module's <code>module.toml</code> under its config section)</td>
+</tr>
+<tr>
+<td><a href="app_kit.html#module_docs"><code>module_docs</code></a></td>
+<td>functions</td>
+<td>♻ A module's own <code>docs/</code> folder: <code>docs_settings</code>, <code>doc_pages</code>, <code>page_title</code>, <code>tools_page</code> (its tools page from its menu)</td>
+</tr>
+<tr>
 <td><a href="app_kit.html#companionapp"><code>CompanionApp</code></a></td>
 <td>class</td>
-<td>♻ Launch a companion app if needed, call its API, read its event stream, quit it if we launched it; restart it on a reload when its code changed</td>
+<td>♻ Launch a companion app if needed, call its API, read its event stream, quit it if we launched it; restart it on a reload when its code changed. <code>CompanionHandover</code>: one module copy's handover of it</td>
+</tr>
+<tr>
+<td><a href="app_kit.html#local_guard"><code>local_guard</code></a></td>
+<td>functions</td>
+<td>♻ Refuse other hosts and other origins: <code>require_loopback</code>, <code>local_request</code>, <code>LOOPBACK_HOSTS</code></td>
 </tr>
 </tbody>
 </table>
@@ -558,9 +693,19 @@
 <td>The <code>ctx.logs</code> port, backed by the launch's <code>LogSession</code></td>
 </tr>
 <tr>
-<td><a href="core.html#allowallpermissions"><code>AllowAllPermissions</code></a></td>
+<td><a href="core.html#permissionshandler"><code>PermissionsHandler</code></a></td>
 <td>class</td>
-<td>The <code>ctx.permissions</code> stand-in: allows, warns once per module and permission</td>
+<td>The permissions handler, part of the core and always on: access lists, saved grants, cards, the review, grant calls</td>
+</tr>
+<tr>
+<td><a href="core.html#permissionsport"><code>PermissionsPort</code></a></td>
+<td>class</td>
+<td>Each module's <code>ctx.permissions</code>, bound to its id, forwarding to the handler</td>
+</tr>
+<tr>
+<td><a href="core.html#permissionsmenu"><code>PermissionsMenu</code></a></td>
+<td>class</td>
+<td>The grant calls <code>permissions.grants / grant / request / revoke</code> on the core's menu</td>
 </tr>
 <tr>
 <td><a href="core.html#commandrouter"><code>CommandRouter</code></a></td>

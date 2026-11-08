@@ -15,16 +15,12 @@ from typing import Any, TextIO
 from uuid import uuid4
 
 from assistant.infra.log import LogSink
+from assistant.infra.usage_meter import USAGE_FIELDS, UsageMeter
+
+__all__ = ["USAGE_FIELDS", "ClaudeSession", "claude_command", "path_rule"]
 
 # Stream-json lines can be large (whole file contents in tool calls).
 _LINE_LIMIT = 16 * 1024 * 1024
-# `used` keys, and the `usage` fields they come from.
-USAGE_FIELDS = {
-    "input": "input_tokens",
-    "cache_write": "cache_creation_input_tokens",
-    "cache_read": "cache_read_input_tokens",
-    "output": "output_tokens",
-}
 
 
 def claude_command(
@@ -38,8 +34,11 @@ def claude_command(
     system_prompt: str | None = None,
     program: Sequence[str] = ("claude",),
     mcp_config: dict | None = None,
+    chrome: bool = False,
 ) -> list[str]:
     """The command line for a stream-json `claude -p` session.
+
+    `chrome` adds `--chrome`, the Claude in Chrome tools on your logged-in browser (the job agent).
 
     `--strict-mcp-config` is always set: `--tools` alone still loads your
     claude.ai MCP connectors. `allowed` are permission rules such as
@@ -62,6 +61,8 @@ def claude_command(
     ]
     if mcp_config:
         command += ["--mcp-config", json.dumps(mcp_config)]
+    if chrome:
+        command += ["--chrome"]
     if model:
         command += ["--model", model]
     if permission_mode:
@@ -100,11 +101,12 @@ class ClaudeSession:
     `{"type": "exit", "returncode": n}`.
     `on_event` may be set after construction, by whatever part consumes the
     events. `working` is true from `send` until the turn's `result` line.
-    `context_tokens` is the input size of the latest call (cached or not), read
-    from each assistant line's `usage`: what every further call resends. It is
-    updated before `on_event` sees the line, and is 0 after `start`. `used`
-    (tokens by kind) and `cost_usd` (`claude`'s estimate) add up every call
-    since construction, across restarts.
+
+    Its tokens are counted by a `UsageMeter` (`meter`), which sees each line before
+    `on_event` does: `context_tokens` (the latest call's input size, 0 after `start`),
+    `used` (every own call since construction, across restarts) and `subagents` read it.
+    `id` is new for each `ClaudeSession` object (not each process), so a usage tally
+    can tell a fresh session from a restarted process.
 
     With `transcript`, every line in and out (and stderr) is appended to that
     file as JSON lines: `{"t": time, "dir": "in" | "out" | "stderr", "msg": ...}`.
@@ -136,61 +138,27 @@ class ClaudeSession:
         self._tasks: list[asyncio.Task] = []
         self._closing = False
         self.working = False
-        self.context_tokens = 0
-        # Input: every call counts once; a call's lines share its message id, so the latest
-        # line's usage stands for the call until the next id arrives. Output: the streamed
-        # lines undercount it (2.5k against 129k in one real session), so it comes from each
-        # turn's `result`, with the lines' count standing in only while a turn runs.
-        self._used_before = dict.fromkeys(USAGE_FIELDS, 0)
-        self._call_id: str | None = None
-        self._call_used = dict.fromkeys(USAGE_FIELDS, 0)
-        self._output_before = 0
-        self._turn_output = 0  # streamed estimate for the turn in progress
-        # `total_cost_usd` in a result counts from the process's start.
-        self._cost_before = 0.0
-        self._cost_now = 0.0
+        self.meter = UsageMeter()
+        self.id = uuid4().hex
 
     @property
     def running(self) -> bool:
         return self._proc is not None and self._proc.returncode is None
 
     @property
-    def used(self) -> dict[str, int]:
-        """Tokens by kind (`input`, `cache_write`, `cache_read`, `output`), every call so far."""
-        used = {key: self._used_before[key] + self._call_used[key] for key in USAGE_FIELDS}
-        used["output"] = self._output_before + self._turn_output
-        return used
+    def context_tokens(self) -> int:
+        """The input size of the latest call (cached or not): what every further call resends."""
+        return self.meter.context_tokens
 
     @property
-    def cost_usd(self) -> float:
-        """`claude`'s cost estimate for every turn so far, at API prices."""
-        return self._cost_before + self._cost_now
+    def used(self) -> dict[str, int]:
+        """Tokens by kind (`input`, `cache_write`, `cache_read`, `output`), every call so far."""
+        return self.meter.used
 
-    def _count_call(self, message: dict[str, Any]) -> None:
-        usage = message.get("usage")
-        if not usage:
-            return
-        call_id = message.get("id")
-        if call_id is None or call_id != self._call_id:
-            self._commit_call()
-            self._call_id = call_id
-        else:
-            self._turn_output -= self._call_used["output"]
-        self._call_used = {key: int(usage.get(name) or 0) for key, name in USAGE_FIELDS.items()}
-        self._turn_output += self._call_used["output"]
-        self.context_tokens = self._call_used["input"] + self._call_used["cache_write"] + self._call_used["cache_read"]
-
-    def _count_turn(self, result: dict[str, Any]) -> None:
-        """A turn ended: its real output count replaces the streamed estimate; the cost is updated."""
-        self._cost_now = float(result.get("total_cost_usd") or self._cost_now)
-        usage = result.get("usage") or {}
-        self._output_before += int(usage["output_tokens"]) if "output_tokens" in usage else self._turn_output
-        self._turn_output = 0
-
-    def _commit_call(self) -> None:
-        for key in USAGE_FIELDS:
-            self._used_before[key] += self._call_used[key]
-        self._call_id, self._call_used = None, dict.fromkeys(USAGE_FIELDS, 0)
+    @property
+    def subagents(self) -> dict[str, dict[str, Any]]:
+        """Each sub-agent's tokens since construction, by its `agentId` (`UsageMeter.subagents`)."""
+        return self.meter.subagents
 
     async def start(self) -> None:
         """Launch the process. Raises FileNotFoundError if the program isn't installed."""
@@ -202,10 +170,7 @@ class ClaudeSession:
         program = shutil.which(command[0]) or command[0]
         self._closing = False
         self.working = False
-        self.context_tokens = 0
-        self._commit_call()
-        self._cost_before, self._cost_now = self._cost_before + self._cost_now, 0.0
-        self._output_before, self._turn_output = self._output_before + self._turn_output, 0  # a turn cut off
+        self.meter.restarted()
         if self._transcript_path and self._transcript is None:
             self._transcript_path.parent.mkdir(parents=True, exist_ok=True)
             self._transcript = self._transcript_path.open("a", encoding="utf-8")
@@ -322,9 +287,7 @@ class ClaudeSession:
                 continue
             if event.get("type") == "result":
                 self.working = False
-                self._count_turn(event)
-            elif event.get("type") == "assistant":
-                self._count_call(event.get("message", {}))
+            self.meter.line(event)
             self._emit(event)
         returncode = await proc.wait()
         self.working = False

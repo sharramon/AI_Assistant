@@ -104,7 +104,7 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 | Job-agent gap | As a module |
 |---|---|
 | Agent registry | The directory, filtered to modules that provide `ITaskAgent`. No separate list |
-| Naming an agent | The agent's module id (`job_agent`, `main_assistant`) is its name. `StartTask.agent_id` takes it |
+| Naming an agent | The agent's module id (`job_search_agent`, `main_assistant`) is its name. `StartTask.agent_id` takes it |
 | Talking to it directly | Its menu: for example `job.status`, `job.ask`, `job.next`, wrapping `GetTaskStatus` / `SendToTask` for that agent |
 | Agent cap | A limit on how many `ITaskAgent` modules are on or working at once, checked by the core when one is turned on (chunk 3's approval path) |
 | Folder and access code | Moves to shared infra, with a config section per agent module (already in that note) |
@@ -112,7 +112,7 @@ Not now (decision 4). Agents will use or live inside modules, so the [job agent]
 ## Decisions
 
 1. **The interface: decided 2026-11-05.** It's kept thin (no behaviour), and modules implement it. The menu is a `Menu` part the module owns, not protocol behaviour. Its name is decision 3.
-2. **How the agents reach the menus: decided 2026-11-05, A (one door).** Why, in plain words, with the picture: [modules](../architecture/modules.md#why-one-door-and-not-an-mcp-server-per-module). The agents call tools through MCP, as one adapter at their edge only (the rule below). The options were:
+2. **How the agents reach the menus: decided 2026-11-05, A (one door).** Why, in plain words, with the picture: [modules](../architecture/modules.md#why-not-plain-mcp). The agents call tools through MCP, as one adapter at their edge only (the rule below). The options were:
    - **A. One door (recommended).** One MCP server in front of the core with three fixed tools: list modules, show a menu, use an item. The agents' tool list never changes when a module is swapped, on, or off, and the server only reads the directory. If the HTTP link from `claude` to the app fails, a small stdio relay that `claude` starts passes the calls on.
    - **B. A door per module.** Each module's menu items show up as their own MCP tools. The agent sees them directly, but its tool list changes with every swap. The experiment shows `list_changed` handles that, at the cost of a notice per change and a longer tool list.
 
@@ -216,6 +216,21 @@ Every chunk from 4 on needs it (core, contracts, `infra`, `app_kit`). No reset s
 6. **On and off, with dependencies:** "turn voice_in off" is refused while voice notes is on. "Turn voice_notes off", then "turn voice_in off": both go. "Turn voice_notes on": `voice_in` comes on first by itself.
 7. **Voice notes uses the recorder through `IVoice`:** in the voice notes window press Record, speak, then Stop: the text lands in the notes, never in the chat. Press Record, then the chat's mic: the notes say "cancelled" and only the chat gets the words. Then reload `voice_in` and record again: it still works (the new provider is looked up per call).
 8. **A companion app with new code:** edit any file under `src/voice_service/` (a comment is enough), then reload `voice_in`. The log says "The voice service's code changed; it restarts with the new code", and the next mic press launches it fresh.
+
+### Restart test results (2026-11-05, run by the worker in Auto)
+
+| # | Result | Evidence |
+|---|---|---|
+| 1 | passed | Log: `The agents' module door is at http://127.0.0.1:…`; no `Skipping the module folder`, no `manifest.handles`, no errors |
+| 2 | passed | `pytest -m claude tests/test_mcp_door.py`: 1 passed |
+| 3 | partly | The Talker's session shows the `modules` MCP server `connected` with the three tools. Nobody has asked it "which modules are there?" yet, so its own call is unchecked. The page opening was checked from the worker (`viewer.open` opened `modules.html`) |
+| 4 | passed | The worker's `list_modules` gave ten modules plus `core`; `show_menu core` and `show_menu html_viewer` worked; `use_item` ran (Auto, so no card; the Manual card is unchecked) |
+| 5 | partly | Reloaded `voice_notes`, `html_viewer` (the tab stayed, the viewer was kept), `temp_ui`, `talker` and `voice_in` (the service object was kept): all `active`. `agent_hub` and `main_assistant` were not reloaded, because the worker's own task was open |
+| 6 | passed | `voice_in` off was refused ("required by voice_notes"); `voice_notes` off, then `voice_in` off, both went; `voice_notes` on brought `voice_in` up first (log order) |
+| 7 | not checked | It needs a real mic press in the voice notes window. Seen: a `voice_in` reload deactivates and reactivates `voice_notes` |
+| 8 | not checked | No mic press since the restart, so the voice service wasn't running, `CompanionApp` had no source stamp, and the reload just handed over the idle app object (the log still says "Kept the running voice service", which is misleading here). To check: press the mic once, then edit and reload. Gap: an app object made fresh (after off/on) that later finds a service already running with old code takes the new stamp and keeps the old process |
+
+Full suite: 412 passed, 1 failed (`test_voice_pieces::test_closing_the_socket…[True]`); run alone, its `[False]` variant failed instead, so it's flaky alone too. Ruff is clean.
 ## Handoff: how the unattended run continues
 
 The user is away. Run every remaining chunk in Auto without asking for plan approval. **One chunk per session:** build it, run the tests and ruff, the `architecture-check` skill, update the docs it touches (diagrams, module library, API pages, the reusable index, module pages), rebuild (`scripts\build_docs.py`), commit locally ("Module system, chunk N: …", like `git log`), update the progress table above, then end with `HANDOFF: docs/next-steps/module-system.md`.

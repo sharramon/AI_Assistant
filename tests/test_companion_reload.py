@@ -29,6 +29,6 @@ async def test_a_reload_keeps_the_app_unless_its_code_changed(module_id):
         assert (await app.router.send(ReloadModule(module_id=module_id))).is_ok
         third = app._lifecycle._active[module_id][0]
         assert third._app is not second._app  # a fresh CompanionApp: the next start runs the new code
-        assert second._restart_app
+        assert second._companion._restart
     finally:
         await app.stop()

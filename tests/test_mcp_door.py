@@ -11,7 +11,7 @@ import pytest
 from assistant.contracts import IModuleDoor, PermissionMode, ReloadModule
 from assistant.core import App
 from assistant.infra import ClaudeSession, claude_command
-from assistant.infra.mcp_door import READ_ONLY, TOKEN_HEADER, TOOL_NAMES
+from assistant.infra.mcp_door import CALLER_HEADER, READ_ONLY, TOKEN_HEADER, TOOL_NAMES
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.echo_orchestrator import EchoOrchestrator
 from assistant.modules.main_assistant.module import build_command
@@ -62,7 +62,7 @@ class Relay:
 
 
 async def test_the_relay_reaches_the_menus_through_the_core(app):
-    config = app.container.get_one(IModuleDoor).mcp_config()
+    config = app.container.get_one(IModuleDoor).mcp_config("main_assistant")
     async with Relay(config["mcpServers"]["modules"]) as relay:
         init = await relay.ask("initialize", {"protocolVersion": "2025-06-18"})
         assert init["result"]["capabilities"] == {"tools": {}}
@@ -84,21 +84,42 @@ async def test_the_relay_reaches_the_menus_through_the_core(app):
         assert missing["isError"]
 
 
-async def test_the_endpoint_wants_its_token(app):
-    url = app.container.get_one(IModuleDoor).mcp_config()["mcpServers"]["modules"]["env"]["ASSISTANT_DOOR_URL"]
+async def _post_raw(url: str, token: str, caller: str = "") -> bytes:
     host, port = url.removeprefix("http://").split(":")
     reader, writer = await asyncio.open_connection(host, int(port))
     body = b'{"tool": "list_modules"}'
-    writer.write(b"POST /tool HTTP/1.1\r\n" + f"{TOKEN_HEADER}: wrong\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body)
+    head = f"{TOKEN_HEADER}: {token}\r\n{CALLER_HEADER}: {caller}\r\nContent-Length: {len(body)}\r\n\r\n"
+    writer.write(b"POST /tool HTTP/1.1\r\n" + head.encode() + body)
     await writer.drain()
-    assert (await reader.read()).startswith(b"HTTP/1.1 403")
+    reply = await reader.read()
     writer.close()
+    return reply
+
+
+async def test_the_endpoint_wants_its_token(app):
+    env = app.container.get_one(IModuleDoor).mcp_config("main_assistant")["mcpServers"]["modules"]["env"]
+    url, token = env["ASSISTANT_DOOR_URL"], env["ASSISTANT_DOOR_TOKEN"]
+    assert (await _post_raw(url, "wrong", "main_assistant")).startswith(b"HTTP/1.1 403")
+    assert (await _post_raw(url, token, "main_assistant")).startswith(b"HTTP/1.1 200")
+    # One caller's token can't speak as another: the worker can't pass itself off as the Talker.
+    assert (await _post_raw(url, token, "talker")).startswith(b"HTTP/1.1 403")
+
+
+async def test_the_relay_passes_its_caller_to_the_menu(app):
+    door = app.container.get_one(IModuleDoor)
+    for caller, allowed in (("talker", True), ("main_assistant", False)):
+        async with Relay(door.mcp_config(caller)["mcpServers"]["modules"]) as relay:
+            focused = await relay.call("use_item", {"name": "hub.focus", "args": {"agent_id": ""}})
+            assert focused["isError"] is not allowed  # hub.focus is the Talker's only
+            if not allowed:
+                assert focused["status"] == "not_available"
 
 
 async def test_a_hub_reload_keeps_the_same_door(app):
-    before = app.container.get_one(IModuleDoor).mcp_config()
+    before = app.container.get_one(IModuleDoor).mcp_config("main_assistant")
     assert (await app.router.send(ReloadModule(module_id="agent_hub"))).is_ok
-    assert app.container.get_one(IModuleDoor).mcp_config() == before  # a running session's relay keeps working
+    # A running session's relay keeps working.
+    assert app.container.get_one(IModuleDoor).mcp_config("main_assistant") == before
 
 
 def test_the_worker_session_gets_the_door(tmp_path):
@@ -111,6 +132,32 @@ def test_the_worker_session_gets_the_door(tmp_path):
     assert "--mcp-config" not in build_command({}, tmp_path, PermissionMode.MANUAL)
 
 
+async def test_the_worker_restarts_once_to_pick_up_the_door(tmp_path, monkeypatch):
+    """At launch the worker starts before the Hub, whose door has no address yet: once the Hub
+    is on, the idle worker restarts its session once, now with the door."""
+    from tests.test_agents import start_hub
+
+    started: list[list[str]] = []
+    original = ClaudeSession.start
+
+    async def recording(self):
+        if not self.running:
+            started.append(list(self._command_source()))
+        await original(self)
+
+    monkeypatch.setattr(ClaudeSession, "start", recording)
+    app, _ = await start_hub(tmp_path)
+    try:
+        await wait_until(lambda: len(started) >= 2)
+        assert "--mcp-config" not in started[0] and "--mcp-config" in started[1]
+        session = app._lifecycle._active["main_assistant"][0]._session
+        await wait_until(lambda: session.running)  # the recording is made as the start begins
+        await asyncio.sleep(0.2)
+        assert len(started) == 2  # once only
+    finally:
+        await app.stop()
+
+
 async def test_the_talker_session_gets_the_door():
     from assistant.modules.talker import TalkerModule
     from tests.test_agents import FAKE
@@ -120,7 +167,7 @@ async def test_the_talker_session_gets_the_door():
     await app.start()
     try:
         command = app._lifecycle._active["talker"][0]._command()
-        door = app.container.get_one(IModuleDoor).mcp_config()
+        door = app.container.get_one(IModuleDoor).mcp_config("talker")
         assert json.loads(command[command.index("--mcp-config") + 1]) == door
         assert set(TOOL_NAMES) <= set(command[command.index("--allowedTools") + 1].split(","))
     finally:
@@ -130,7 +177,7 @@ async def test_the_talker_session_gets_the_door():
 @pytest.mark.claude
 async def test_real_claude_calls_a_menu_item_through_the_door(app, tmp_path):
     """Needs a logged-in claude CLI (a paid call): `pytest -m claude tests/test_mcp_door.py`."""
-    door = app.container.get_one(IModuleDoor).mcp_config()
+    door = app.container.get_one(IModuleDoor).mcp_config("main_assistant")
     events: list[dict] = []
     command = claude_command(model="sonnet", tools="", permission_mode="bypassPermissions",
                              allowed=list(TOOL_NAMES), mcp_config=door)  # fmt: skip

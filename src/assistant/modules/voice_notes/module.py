@@ -29,14 +29,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import subprocess
 import webbrowser
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from app_kit.window import close_app_windows, open_app_window
+from app_kit.window import close_app_windows, open_app_window, window_profile
 from assistant.contracts import (
     IVoice,
     ListeningState,
@@ -66,8 +65,7 @@ class VoiceNotesModule(ModuleProtocol):
         self._host = ctx.config.get("host", "127.0.0.1")
         self._port = int(ctx.config.get("port", 8770))
         self._window = ctx.config.get("window", "app")
-        default_profile = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / "voice_notes_window"
-        self._profile = Path(ctx.config.get("window_profile", default_profile)).resolve()
+        self._profile = Path(ctx.config.get("window_profile", window_profile("voice_notes"))).resolve()
         self._edge: subprocess.Popen | None = None
         self._server: asyncio.Server | None = None
         self._connections: set[asyncio.Task] = set()

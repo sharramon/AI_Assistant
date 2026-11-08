@@ -79,7 +79,7 @@ Handlers normally return only `ok`, `invalid_arguments`, `not_available`, or `fa
 
 **Reusable** · Used by: `console_io`, `temp_ui`, `voice_in` (`source="voice"`) publish; `talker`, `echo_orchestrator` subscribe
 
-`InputReceived(text: str, source: str, conversation_id: str | None = None)` (event)
+`InputReceived(text: str, source: str, conversation_id: str | None = None, agent_id: str | None = None)` (event)
 
 User input from any source.
 
@@ -89,6 +89,7 @@ User input from any source.
 | `text` | `str` | What the user said or typed |
 | `source` | `str` | Id of the module (or client) it came from. `"voice"` (from `voice_in`) reaches the Talker's session as `[Spoken] <text>`, so it reads the text as possibly misheard |
 | `conversation_id` | `str \| None` | Groups inputs into a conversation, if the source tracks one |
+| `agent_id` | `str \| None` | The agent tab it was typed in (the temp UI's chat box sets it). `None` (voice, terminal 1): the focused tab. Added 2026-11-05 (agent talkers) |
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
@@ -96,9 +97,9 @@ User input from any source.
 
 **Reusable** · Used by: `talker`, `echo_orchestrator` publish; `console_io`, `temp_ui` subscribe
 
-`ResponseReady(text: str, conversation_id: str | None = None, correlation_id=...)` (event)
+`ResponseReady(text: str, conversation_id: str | None = None, agent_id: str | None = None, correlation_id=...)` (event)
 
-A reply to present. Set `correlation_id` to the `id` of the `InputReceived` it answers, so the source can tell which replies are its own. Leave it `None` when the assistant speaks first (e.g. "the task is done"); `console_io` prints those too.
+A reply to present. Set `correlation_id` to the `id` of the `InputReceived` it answers, so the source can tell which replies are its own. Leave it `None` when the assistant speaks first (e.g. "the task is done"); `console_io` prints those too. `agent_id`: the agent tab whose chat it belongs in (the Talker sets it); `None` means the focused tab.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
@@ -130,7 +131,9 @@ The [HTML viewer](../architecture/html-viewer.md)'s open tabs or highlights chan
 
 `ViewerClip(id: str, image_path: str, file: str, heading: str | None = None)` (event)
 
-You snipped part of a page in the [HTML viewer](../architecture/html-viewer.md). `image_path` is the PNG, kept in the launch's log folder (`snips/`); `file` is the page; `heading` the nearest heading above the box. The `html_viewer` module publishes it. The Talker keeps up to 3 and sends them as images with your next message; the temp UI shows them as thumbnails until then.
+**Shared limits** (in `assistant.contracts`, one owner, principle 19): `MAX_SNIPS = 3`, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); `PASTED_FILE = "(pasted)"`, a pasted image's `file`. Used by `talker`, `temp_ui`.
+
+You snipped part of a page in the [HTML viewer](../architecture/html-viewer.md). `image_path` is the PNG, kept in the launch's log folder (`snips/`); `file` is the page; `heading` the nearest heading above the box. The `html_viewer` module publishes it; so does `temp_ui` for an image pasted into its chat box (`file=PASTED_FILE`, `"(pasted)"`, no heading; the Talker labels it `[Pasted] image`). The type's docstring still says "from the HTML viewer": widen it at the next restart. The Talker keeps up to `MAX_SNIPS` (3) and sends them as images with your next message; the temp UI shows them as thumbnails until then.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
@@ -141,6 +144,59 @@ You snipped part of a page in the [HTML viewer](../architecture/html-viewer.md).
 You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by `temp_ui`.
 
 **Defined in:** `src/assistant/contracts/messages.py`
+
+## Access and permissions
+
+Access lists and the messages of the core's [permissions handler](../architecture/permissions.md#access-lists-built) (its first piece). A task-agent module asks for its whole list with [`ctx.permissions.request_set`](modules.md#modulecontextpermissions); the handler answers from a saved grant, or asks you on one card: `PermissionRequested` → `AnswerPermissionRequest` → `PermissionChanged`. Built 2026-11-05.
+
+**Reusable** · Used by: `job_search`, `task_agents` (lists, through [`request_access`](infra.md#agent_access)); the core's handler (sends the cards); `talker`, `temp_ui` (show and answer them)
+
+### `AccessKind`
+
+`class AccessKind(StrEnum)`: `workspace` (its working folder, read and write; always kept when the list is allowed), `read` (a folder), `write` (a folder), `python` (a Python, with any arguments), `command` (a shell command, with any arguments), `chrome` (the Claude in Chrome tools).
+
+### `AccessItem`
+
+`AccessItem(kind: AccessKind, target: str = "")` (frozen)
+
+One line of an access list. `target`: the resolved folder, the Python's path or the command; empty for Chrome.
+
+| Member | Does |
+|--------|------|
+| `key` | `kind:target` (or `chrome`): names the item in answers and saved grants |
+| `from_key(key)` | The item a key names. `ValueError` for an unknown kind |
+| `trimmable` | Whether the card gives it a tick box (not the workspace) |
+| `label` | The line on the card: "read C:\Chang\Jobs", "run … (any arguments)", "use Chrome" |
+
+### `AccessNote`
+
+`AccessNote(text: str, items: tuple[str, ...] = (), source: "rule" | "review" | "refused" = "rule")` (frozen)
+
+A line on the card about some items (their keys): a fixed rule warning, the Main Assistant's review note, or an item taken off the list.
+
+### `AccessDenied`, `AccessPending`
+
+Exceptions from `request_set`. `AccessDenied`: you denied the list, didn't answer in time, or the workspace was refused. `AccessPending`: the list waits on a card (`wait=False`); a module's `start` lets it through, so the start ends at once with this reason, and the handler turns the module on after your Allow.
+
+### `PermissionRequested`
+
+`PermissionRequested(request_id, module_id, subject="", action="access", reason="", items=(), notes=(), reviewed=None, rules=(), caller="")` (event)
+
+A card for you. `action`: `access` (a module's list), or `grant` / `revoke` (an agent's call, `caller`, waiting for your yes). `items`: the lines offered. `notes`: refused items, rule warnings, then the review's notes. `reviewed`: `True` or `False` for an access list (`False` shows "not reviewed"), `None` for no review step. `rules`: the fixed rules. Published by the handler; `temp_ui` shows it with tick boxes, the Talker says it.
+
+### `AnswerPermissionRequest`
+
+`AnswerPermissionRequest(request_id: str, allow: bool, keep: tuple[str, ...] | None = None)` (command)
+
+Your answer to a card. `keep`: the keys of the ticked items (`None`: all of them); ignored on Deny. Handled by the core. `invalid_arguments` if the card isn't open or a key isn't on it.
+
+### `PermissionChanged`
+
+`PermissionChanged(module_id, subject="", granted=(), request_id="", text="")` (event)
+
+A grant was saved, denied, widened or revoked. `request_id`: the card it closes, if any (UIs drop it). `granted`: what the module or subject holds now. `text`: what happened, for you.
+
+**Defined in:** `src/assistant/contracts/permissions.py` · **Tests:** `tests/test_permissions_handler.py`, `tests/test_access_cards.py`
 
 ## Voice
 
@@ -176,9 +232,9 @@ Turn the mic on. With `send_as_input=False` (dictating into a text box, say) the
 
 **Reusable** · Used by: `temp_ui` and `voice_notes` send; `voice_in` handles
 
-`StopListening(discard: bool = False)` (command)
+`StopListening(discard: bool = False, agent_id: str | None = None)` (command)
 
-Turn the mic off. **Result:** `ok` after the final arrives, value `{"text", "latency_ms"}`; nothing listening: `ok` with `None`. `failed` if the mic was lost (its text is dropped), the service stopped, or no final came within `reply_timeout`.
+Turn the mic off. **`agent_id`** (added 2026-11-06): the agent tab the stop was pressed in. `voice_in` keeps it on the session and publishes the final as `InputReceived(source="voice", agent_id=...)`, so the text reaches that tab's Talker even if you switch tabs while whisper finishes. `None` (another UI, or a stop by a long silence): the tab in focus when the text arrives. **Result:** `ok` after the final arrives, value `{"text", "latency_ms"}`; nothing listening: `ok` with `None`. `failed` if the mic was lost (its text is dropped), the service stopped, or no final came within `reply_timeout`.
 
 **`discard=True`** (a clear button; added 2026-11-03): throw the session away instead. `voice_in` closes the socket (the service aborts and sends no final), publishes an empty final `VoiceTranscript` (clears the line) and `VoiceState(idle, reason="cleared")`, and sends nothing to the Talker; a final that still arrives is ignored. **Result:** `ok`, value `{"text": "", "discarded": true}`; nothing listening: `ok` with `None`. To carry on, the UI sends `StartListening` next; a `busy` answer within 2 s of a clear is retried once.
 

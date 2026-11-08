@@ -1,10 +1,10 @@
-"""The ctx.permissions stand-in: allows everything, logs the first use of each permission."""
+﻿"""The ctx.permissions stand-in: allows everything, logs the first use of each permission."""
 
 import logging
 
 from assistant.contracts import Manifest, ModuleContext, ModuleProtocol
 from assistant.core import App
-from assistant.core.permissions import AllowAllPermissions
+from assistant.core.permissions import PermissionsPort
 from tests.support import make_config
 
 LOGGER = "assistant.core.permissions"
@@ -15,28 +15,28 @@ def records(caplog, level=logging.WARNING):
 
 
 async def test_has_and_request_allow_any_name():
-    perms = AllowAllPermissions("map")
+    perms = PermissionsPort("map")
     assert perms.has("location")
     assert await perms.request("files.write:src", reason="Fix the bug")
 
 
 async def test_first_use_warns_with_module_and_reason(caplog):
     caplog.set_level(logging.DEBUG, logger=LOGGER)
-    perms = AllowAllPermissions("voice_in")
+    perms = PermissionsPort("voice_in")
     await perms.request("microphone", reason="You clicked the mic")
-    assert records(caplog) == ["no permissions handler: allowing voice_in microphone (You clicked the mic)"]
+    assert records(caplog) == ["not checked yet: allowing voice_in microphone (You clicked the mic)"]
 
 
 async def test_later_uses_of_the_same_permission_log_at_debug(caplog):
     caplog.set_level(logging.DEBUG, logger=LOGGER)
-    perms = AllowAllPermissions("map")
+    perms = PermissionsPort("map")
     perms.has("location")
     perms.has("location")
     await perms.request("location")
     perms.has("network")
     assert records(caplog) == [
-        "no permissions handler: allowing map location",
-        "no permissions handler: allowing map network",
+        "not checked yet: allowing map location",
+        "not checked yet: allowing map network",
     ]
     assert len(records(caplog, logging.DEBUG)) == 2
 
@@ -58,8 +58,8 @@ async def test_each_module_context_is_bound_to_its_own_id(caplog):
     await app.start()
     await app.stop()
     assert sorted(records(caplog)) == [
-        "no permissions handler: allowing asker microphone (test)",
-        "no permissions handler: allowing other_asker microphone (test)",
+        "not checked yet: allowing asker microphone (test)",
+        "not checked yet: allowing other_asker microphone (test)",
     ]
 
 

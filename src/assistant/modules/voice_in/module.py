@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from app_kit import CompanionApp
+from app_kit import CompanionHandover
 from assistant.contracts import (
     InputReceived,
     IVoice,
@@ -82,6 +82,7 @@ class _Session:
 
     id: str  # the StartListening command's id: every event's correlation_id
     send_as_input: bool
+    agent_id: str | None = None  # the tab the stop was pressed in: where the final goes (None: the focus)
     ws: Any = None
     reader: asyncio.Task | None = None
     ended: bool = False
@@ -128,18 +129,12 @@ class VoiceInModule(ModuleProtocol):
             args += ["--config", str(ctx.config["service_config"])]
         # A reload hands over the running voice app, so it isn't quit and its model isn't reloaded.
         # Only if it would be launched the same way; otherwise the old one was quit by the old copy.
-        handover = ctx.handover if isinstance(ctx.handover, dict) else {}
-        self._app_key = (SERVICE, host, port, tuple(args))
-        self._handed_over = False
-        self._restart_app = False  # a reload found the service's code changed: quit it at stop
-        if handover.get("app_key") == self._app_key and handover.get("app") is not None:
-            self._app = handover["app"]
-            ctx.log.info("Kept the running voice service from before the reload")
-        else:
-            self._app = CompanionApp(  # launched on the first click; quit at stop only if we launched it
-                SERVICE, host, port, ping="/health", quit="/quit", args=args,
-                start_timeout=float(ctx.config.get("start_timeout", 20.0)), log=ctx.log,
-            )  # fmt: skip
+        # Launched on the first click; quit at stop only if we launched it.
+        self._companion = CompanionHandover(
+            ctx.handover, SERVICE, host, port, args=args, label="voice service", log=ctx.log,
+            ping="/health", quit="/quit", start_timeout=float(ctx.config.get("start_timeout", 20.0)),
+        )  # fmt: skip
+        self._app = self._companion.app
         self._url = f"ws://{host}:{port}/ws/listen"
         self._reply_timeout = float(ctx.config.get("reply_timeout", 10.0))
         self._live_text = bool(ctx.config.get("live_text", True))  # False: text on send, even with a live engine
@@ -166,20 +161,14 @@ class VoiceInModule(ModuleProtocol):
                 await asyncio.gather(session.reader, return_exceptions=True)
             elif session.ws is not None:
                 await self._close(session)
-        if not self._handed_over:
-            await self._app.stop(adopted=self._restart_app)
+        await self._companion.stop()
 
     def export_state(self) -> dict | None:
         """For a reload: the voice app (an `app_kit` object, not reloaded) goes to the new copy,
         unless the voice service's own code changed: then `stop` quits it (even one it found
-        running) and the new copy launches the new code on the first click. An open mic session
-        still ends at `stop`, and its words are dropped."""
-        if self._app.code_changed():
-            self._ctx.log.info("The voice service's code changed; it restarts with the new code")
-            self._restart_app = True
-            return None
-        self._handed_over = True
-        return {"app": self._app, "app_key": self._app_key}
+        running) and the new copy launches the new code on the first click (`CompanionHandover`).
+        An open mic session still ends at `stop`, and its words are dropped."""
+        return self._companion.export()
 
     # --- the commands ---
 
@@ -187,8 +176,7 @@ class VoiceInModule(ModuleProtocol):
         return await self._begin(command.id, command.send_as_input)
 
     async def _stop_listening(self, command: StopListening) -> Result:
-        # getattr: a reload onto an app with the older contract
-        return await self._finish_session(None, getattr(command, "discard", False))
+        return await self._finish_session(None, command.discard, command.agent_id)
 
     async def _begin(self, session_id: str, send_as_input: bool) -> Result:
         """Open a session (the command, or `IVoice.listen`)."""
@@ -203,8 +191,9 @@ class VoiceInModule(ModuleProtocol):
                 await self._close(session)
             return result
 
-    async def _finish_session(self, session_id: str | None, discard: bool) -> Result:
-        """End the open session (`StopListening`), or only the one called `session_id` (`IVoice.finish`)."""
+    async def _finish_session(self, session_id: str | None, discard: bool, agent_id: str | None = None) -> Result:
+        """End the open session (`StopListening`), or only the one called `session_id` (`IVoice.finish`).
+        `agent_id`: the tab the stop was pressed in; the final goes there."""
         async with self._lock:
             session = self._session
             if session_id is not None and (session is None or session.id != session_id):
@@ -213,6 +202,8 @@ class VoiceInModule(ModuleProtocol):
                 return Result.ok(None)
             if discard:
                 return await self._discard(session)
+            if agent_id:
+                session.agent_id = agent_id
             try:
                 await session.ws.send(dump(Stop()))
             except Exception as exc:  # the socket closed: the reader ends the session
@@ -291,8 +282,8 @@ class VoiceInModule(ModuleProtocol):
             log.warning("The voice service answered start with %s", reply.type)
             return self._fail(session, "service_stopped", "voice service stopped",
                               Result.failed(f"unexpected reply: {reply.type}"))  # fmt: skip
-        session.partials = bool(getattr(reply, "partials", True))
-        session.clean_pieces = bool(getattr(reply, "clean_pieces", False))
+        session.partials = reply.partials
+        session.clean_pieces = reply.clean_pieces
         self._listening(session)
         session.reader = asyncio.create_task(self._read(session), name="voice_in:reader")
         log.info("Voice session %s started (%s%s)", session.id, "live text" if session.partials else "text on send",
@@ -307,20 +298,15 @@ class VoiceInModule(ModuleProtocol):
         return time.monotonic() - self._cleared_at < CLEAR_RETRY_WINDOW
 
     async def _ensure_service(self) -> str | None:
-        """Launch the service if it isn't running. A running one we reuse gets a quick `/health` check first.
+        """Launch the service if it isn't running. A running one we reuse: its ping is `/health`,
+        so the ping's answer (`last_answer`) says whether its model loaded; no second call.
 
         Returns the model's load error, if `/health` reports one. Raises `OSError` or `TimeoutError`
         if the service can't be started.
         """
         if await self._app.ensure_running():
             return None  # launched just now: CompanionApp has pinged it
-        try:
-            health = await self._app.call("GET", "/health", timeout=2)
-        except (OSError, ValueError, TimeoutError):
-            health = {}
-        if health.get("app") != SERVICE:  # it went away since the ping: launch it again
-            await self._app.ensure_running()
-            return None
+        health = self._app.last_answer
         if not health.get("ready") and health.get("error"):
             return str(health["error"])
         return None  # ready, or the model is still loading (the service buffers the audio)
@@ -395,7 +381,7 @@ class VoiceInModule(ModuleProtocol):
             self._fail(session, ErrorCode.MIC_LOST, "mic disconnected; what you said was dropped",
                        Result.failed("the mic was lost; the text was dropped"))  # fmt: skip
             return
-        parts = tuple(getattr(final, "parts", ()))  # two passes: one per piece; empty with one engine
+        parts = final.parts  # two passes: one per piece; empty with one engine
         segments = [Segment(p.text) for p in parts] if parts else [Segment(raw)]
         text, _ = self._render(segments, final=True)
         log.info("Voice session %s: %d chars, %d ms after the stop, ended by %s",
@@ -407,7 +393,7 @@ class VoiceInModule(ModuleProtocol):
             log.info("Voice session %s raw: %r -> clean: %r", session.id, raw, text)
         self._ctx.publish(VoiceTranscript(session_id=session.id, text=text, final=True, correlation_id=session.id))
         if text and session.send_as_input:
-            self._ctx.publish(InputReceived(text=text, source="voice"))
+            self._ctx.publish(InputReceived(text=text, source="voice", agent_id=session.agent_id))
         silence = final.ended_by == "silence"
         self._end(session, ListeningState.IDLE, "silence" if silence else None,
                   "mic turned off after a long silence" if silence else None,

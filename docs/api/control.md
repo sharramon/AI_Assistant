@@ -46,14 +46,23 @@ Module control as menu items, under the id `core` (`GetMenu(module_id="core")`),
 |------|-----------|-------|------------|
 | `modules.list` | none | `ListModules` | no |
 | `modules.menu` | `module_id` | `GetMenu` | no |
+| `modules.docs` | `module_id` | (the core reads the module's own `docs/` folder) | no |
 | `modules.on` | `module_id` | `ActivateModule` | no |
 | `modules.off` | `module_id`, `with_dependents` (false) | `DeactivateModule` | with `with_dependents` |
 | `modules.reload` | `module_id`, `now` (false) | `ReloadModule` | no |
 | `modules.add` | `package`, `activate` (true) | `AddModule` | yes |
+| `permissions.grants` | none | (the handler) | no |
+| `permissions.grant` | `module_id`, `items` (keys), `subject` | (the handler) | from an agent: your card |
+| `permissions.request` | `read`, `write`, `commands` (lists), `python`, `chrome`, `reason` | (the handler) | always your card |
+| `permissions.revoke` | `module_id`, `subject`, `items` (keys; none: all) | (the handler) | from an agent: your card |
 
-"Asks first" goes through the core's permissions (`modules.off_with_dependents`, `modules.add`); today that's the allow-all stand-in, which logs. Refused → `failed` ("Not allowed: …"). Through `InvokeTool` a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and `ModuleStateChanged` reports it.
+`modules.docs` returns the module's own docs, on or off: a list of `{"title", "path"}`, one per page in its folder's `docs/` (order and titles from [`module_docs`](app_kit.md#module_docs)), `[]` if it ships none, `invalid_arguments` for an unknown id. An agent learns what a module does from the module itself: its menu, then these pages. Added 2026-11-06.
 
-**Defined in:** `src/assistant/core/directory.py`
+"Asks first" for `modules.*` goes through the core's `ctx.permissions` (`modules.off_with_dependents`, `modules.add`); single names aren't checked yet, so they're allowed and logged. Refused → `failed` ("Not allowed: …"). Through `InvokeTool` a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and `ModuleStateChanged` reports it.
+
+The `permissions.*` items are the [permissions handler](../architecture/permissions.md#managing-grants)'s grant calls ([`PermissionsMenu`](core.md#permissionsmenu)). `permissions.grants` lists the saved grants per module and subject (the kind of agent): what was granted, the date, and whether the current list still matches. `permissions.grant` widens a grant with asked-for items, and a module that's off is turned on; one that's on takes it live (from its agents' next session, at once when idle). `permissions.request` is an agent asking for more access for itself (its module and subject come from its id; folders resolved); on Allow the items join its grant as added items, and a running agent takes them live. `permissions.revoke` takes back all or some items; the module turns off right away and its running tasks are stopped. From you (a UI you click in, `temp_ui` by default) they apply at once; from an agent they show you a card, and the answer reaches the agent as a note.
+
+**Defined in:** `src/assistant/core/directory.py`, `src/assistant/core/permissions/menu.py`
 
 ## `ActivateModule`
 

@@ -15,6 +15,7 @@ from assistant.contracts import (
     InputReceived,
     ListAgents,
     PermissionMode,
+    QuestionKind,
     ReportKind,
     ResetRequested,
     ResponseReady,
@@ -31,10 +32,10 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.infra import ClaudeSession, ContextWatch, SessionTaskAgent, claude_command
+from assistant.infra.agent_profile import command_rules
 from assistant.infra.claude_session import path_rule
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
-from assistant.modules.main_assistant.module import command_rules
 from assistant.modules.talker import TalkerModule
 from assistant.modules.talker.module import split_tags
 from tests.support import wait_until
@@ -110,17 +111,16 @@ async def test_session_tracks_context_now_and_usage_across_restarts():
     await session.interrupt()
     await wait_until(lambda: any(e["type"] == "result" for e in events), TIMEOUT)
     # The fake: input 1000 per message so far, 25 output per turn (from the result, not the
-    # streamed 10), $0.01 per message.
+    # streamed 10).
     assert session.context_tokens == 2000
     assert session.used == {"input": 4, "cache_write": 0, "cache_read": 2996, "output": 50}
-    assert session.cost_usd == pytest.approx(0.02)
+    first_id = session.id
     await session.close()
     await session.start()  # a fresh process: context starts over, usage keeps adding up
-    assert session.context_tokens == 0
+    assert session.context_tokens == 0 and session.id == first_id  # same session object, same id
     await turn("again")
     assert session.context_tokens == 1000
     assert sum(session.used.values()) == 3000 + 1000 + 75
-    assert session.cost_usd == pytest.approx(0.03)
     await session.close()
 
 
@@ -271,8 +271,10 @@ async def test_permission_request_allowed(hub):
     task_id = (await app.router.send(StartTask(text="PERMIT a skill"))).value
     asked = await next_matching(updates, report(ReportKind.PERMISSION))
     assert asked.text == "Write .claude/skills/x/SKILL.md"
+    assert asked.question_kind is QuestionKind.PERMISSION  # typed by the Hub, no prefix to parse
     status = (await app.router.send(GetTaskStatus(task_id=task_id))).value[0]
-    assert status.state is TaskState.WAITING_FOR_INPUT and status.question.startswith("Permission:")
+    assert status.state is TaskState.WAITING_FOR_INPUT and status.question_kind is QuestionKind.PERMISSION
+    assert status.question == asked.text and status.question_line == "Permission: " + asked.text
     assert (await app.router.send(AnswerPermission(task_id=task_id, allow=True))).is_ok
     done = await next_matching(updates, report(ReportKind.DONE))
     assert done.text == "allowed"
@@ -340,6 +342,21 @@ async def test_each_task_gets_a_fresh_session(hub):
         # while "used" keeps adding up across sessions.
         size = await next_matching(sizes, lambda e, used=used: e.used_tokens == used)
         assert size.agent_id == "main_assistant" and size.context_tokens == 1000
+
+
+async def test_a_subagents_usage_is_published_once_under_its_parent(hub):
+    app, updates = hub
+    seen: list[SessionUsage] = []
+    app.bus.subscribe(SessionUsage, seen.append)
+    await app.router.send(StartTask(text="SUBAGENT task"))
+    await next_matching(updates, report(ReportKind.DONE))
+    await wait_until(lambda: any(e.parent for e in seen), TIMEOUT)
+    subs = [e for e in seen if e.parent]
+    assert len(subs) == 1  # published when its tally grows, not on every later change
+    assert (subs[0].agent_id, subs[0].kind, subs[0].used_tokens) == (
+        "main_assistant/general-purpose #a1b2", "subagent", 6 + 2874 + 5000 + 40)  # every call, not its last
+    own = [e for e in seen if e.agent_id == "main_assistant"][-1]
+    assert own.kind == "claude" and own.used_tokens < 2880  # the parent's own calls only
 
 
 async def test_handoff_continues_the_task_in_a_fresh_session(hub):
@@ -426,8 +443,9 @@ class _StubSession:
     def __init__(self):
         self.on_event = None
         self.running = self.working = True
-        self.context_tokens, self.cost_usd = 0, 0.0
+        self.context_tokens, self.id = 0, "stub"
         self.used = {"input": 0, "cache_write": 0, "cache_read": 0, "output": 0}
+        self.subagents: dict[str, dict] = {}
         self.sent: list[str] = []
         self.interrupts = 0
 
@@ -599,6 +617,24 @@ async def test_talker_hands_off_work_and_relays_the_question(tmp_path):
         await app.stop()
 
 
+async def test_a_helper_tabs_talker_is_warned_about_its_own_pair():
+    # A low line: the fake Talker's own 2k context passes it after one turn.
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE, "context_warning": 1_000}}, "core": {}}
+    app = App([TalkerModule], config)
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        app.bus.publish(InputReceived(text="hi", source="test", agent_id="cv_agent"))
+        own = await next_matching(replies, lambda e: e.text.startswith("[Status] Your own"))
+        assert own.agent_id == "cv_agent"  # said in the helper's tab, about its own Talker
+        app.bus.publish(SessionUsage(agent_id="cv_agent", context_tokens=2_000))
+        worker = await next_matching(replies, lambda e: e.text.startswith("[Status] cv_agent's context"))
+        assert worker.agent_id == "cv_agent" and "It has been reminded" in worker.text
+    finally:
+        await app.stop()
+
+
 async def test_talker_sees_both_usages_and_warns_once():
     config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE, "context_warning": 150_000}}, "core": {}}
     app = App([TalkerModule], config)
@@ -609,11 +645,13 @@ async def test_talker_sees_both_usages_and_warns_once():
         # The fake Talker repeats what it's sent (with SHOWUSAGE, the [Usage] line too).
         app.bus.publish(InputReceived(text="SHOWUSAGE hi", source="test"))
         first = await next_matching(replies, lambda e: "hi" in e.text)
-        assert first.text.startswith("[Usage] worker: not started · you: context 0k, used 0k (~$0.00)")
+        assert first.text.startswith(
+            "[Usage] worker: not started · you: context 0k (last call), used 0k (incl. resent cache)")
+        assert "~$" not in first.text
 
         def worker(context: int) -> SessionUsage:
             return SessionUsage(agent_id="main_assistant", context_tokens=context,
-                                cache_read_tokens=2_300_000, output_tokens=5_000, cost_usd=5.1)
+                                cache_read_tokens=2_300_000, output_tokens=5_000)
 
         # Past the warning: the Talker is told once, and sees both numbers, kept apart.
         app.bus.publish(worker(152_000))
@@ -623,7 +661,8 @@ async def test_talker_sees_both_usages_and_warns_once():
         app.bus.publish(worker(160_000))  # still over: no second warning
         app.bus.publish(InputReceived(text="SHOWUSAGE how full?", source="test"))
         line = (await next_matching(replies, lambda e: "how full?" in e.text)).text.splitlines()[0]
-        assert line.startswith("[Usage] worker: context 160k, used 2.3M (~$5.10) · you: context 2k, used ")
+        assert line.startswith("[Usage] worker: context 160k (last call), used 2.3M (incl. resent cache) · "
+                               "you: context 2k (last call), used ")
 
         # Back under (a reset or a fresh session), then over again: warned again.
         app.bus.publish(worker(0))

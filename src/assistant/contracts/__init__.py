@@ -1,21 +1,28 @@
 """Stable contracts shared by the core and all modules. Depends on nothing else in the app."""
 
 from assistant.contracts.agents import (
+    RISKY_PREFIX,
     AgentActivity,
     AgentInfo,
+    AgentNotice,
     AgentStateChanged,
     AnswerPermission,
     CancelTask,
+    FocusChanged,
+    FocusSuggested,
     GetTaskStatus,
+    IAgentNames,
     ITaskAgent,
     ListAgents,
     PermissionMode,
     PermissionModeChanged,
+    QuestionKind,
     ReportKind,
     ReportTask,
     ResetRequested,
     SendToTask,
     SessionUsage,
+    SetFocus,
     SetPermissionMode,
     StartTask,
     Task,
@@ -37,6 +44,8 @@ from assistant.contracts.control import (
 from assistant.contracts.door import IModuleDoor
 from assistant.contracts.menu import Menu, MenuItem
 from assistant.contracts.messages import (
+    MAX_SNIPS,
+    PASTED_FILE,
     Command,
     Event,
     InputReceived,
@@ -58,6 +67,16 @@ from assistant.contracts.module import (
     ModulePermissions,
     ModuleProtocol,
 )
+from assistant.contracts.permissions import (
+    AccessDenied,
+    AccessItem,
+    AccessKind,
+    AccessNote,
+    AccessPending,
+    AnswerPermissionRequest,
+    PermissionChanged,
+    PermissionRequested,
+)
 from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
 from assistant.contracts.voice import (
     IVoice,
@@ -70,11 +89,23 @@ from assistant.contracts.voice import (
 )
 
 __all__ = [
+    "AccessDenied",
+    "AccessItem",
+    "AccessKind",
+    "AccessNote",
+    "AccessPending",
+    "AnswerPermissionRequest",
+    "PermissionChanged",
+    "PermissionRequested",
     "ActivateModule",
     "AddModule",
     "AgentActivity",
     "AgentInfo",
+    "AgentNotice",
     "AgentStateChanged",
+    "FocusChanged",
+    "FocusSuggested",
+    "SetFocus",
     "AnswerPermission",
     "CancelTask",
     "Command",
@@ -85,6 +116,7 @@ __all__ = [
     "GetTaskStatus",
     "InputReceived",
     "InvokeTool",
+    "IAgentNames",
     "ITaskAgent",
     "ListAgents",
     "ListeningState",
@@ -103,6 +135,10 @@ __all__ = [
     "PermissionMode",
     "PermissionModeChanged",
     "ReloadModule",
+    "QuestionKind",
+    "RISKY_PREFIX",
+    "MAX_SNIPS",
+    "PASTED_FILE",
     "ReportKind",
     "ReportTask",
     "ResetRequested",

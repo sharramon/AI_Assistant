@@ -26,6 +26,12 @@ Abstract. Run tool `name`. Called by the core when an [`InvokeTool`](#invoketool
 
 **Returns:** a [`Result`](messaging.md#result). Use `Result.invalid_arguments` for bad `args`.
 
+### `IToolProvider.invoke_as`
+
+`async invoke_as(self, name: str, args: dict[str, Any], caller: str) -> Result`
+
+Not abstract. `invoke` with the caller ([`InvokeTool.caller`](#invoketool)); the core's `dispatch_tool` calls this. The default ignores `caller` and calls `invoke`. [`MenuTools`](core.md#menutools) overrides it to pass the caller to [`Menu.call`](modules.md#menu). Built 2026-11-05.
+
 **Example**
 
     class Calculator(ModuleProtocol, IToolProvider):
@@ -67,9 +73,11 @@ Describes one tool. Frozen.
 
 ## `InvokeTool`
 
-`InvokeTool(name: str, args: dict[str, Any] = {})` (command)
+`InvokeTool(name: str, args: dict[str, Any] = {}, caller: str = "")` (command)
 
-Run the tool called `name`. Handled by the core, which routes it to the provider currently offering that tool.
+Run the tool called `name`. Handled by the core, which routes it to the provider currently offering that tool (`invoke_as`, with `caller`).
+
+**Who sets `caller`:** the sender's context does. `ScopedContext.send` overwrites it with the sending module's id, so a module can't pass itself off as another. The one exception is the module that provides [`IModuleDoor`](#imoduledoor) (`agent_hub`): it passes on the caller its door proved with that session's token (an agent's id, e.g. `talker` or `main_assistant`). Menu items use it to decide who may call them ([`Menu`](modules.md#menu) `callers`).
 
 **Returns:** the provider's `Result`, or `not_available` if no provider offers `name`, or `failed` if more than one does.
 
@@ -81,13 +89,13 @@ Run the tool called `name`. Handled by the core, which routes it to the provider
 
 ## `IModuleDoor`
 
-**Reusable** · Used by: `agent_hub` provides; `main_assistant` reads it at each session start · built 2026-11-05
+**Reusable** · Used by: `agent_hub` provides; `main_assistant` and `talker` read it at each session start · built 2026-11-05
 
 `class IModuleDoor(Contract)`, single provider, in `assistant.contracts`.
 
 | Method | Does |
 |--------|------|
-| `mcp_config() -> dict` | The `--mcp-config` for one `claude` session: the door's stdio relay ([`mcp_door`](infra.md#mcp_door)), or `{}` while it's down. Pass it to [`claude_command(mcp_config=...)`](infra.md#claude_command) |
+| `mcp_config(caller: str) -> dict` | The `--mcp-config` for one `claude` session of `caller` (the agent's id): the door's stdio relay ([`mcp_door`](infra.md#mcp_door)) with a token made for that caller, or `{}` while it's down. Pass it to [`claude_command(mcp_config=...)`](infra.md#claude_command). Every `use_item` the session makes reaches the menus as an `InvokeTool` with that caller; a session can't claim another name |
 
 The session then has three fixed tools, the same whatever modules are on: `mcp__modules__list_modules` (one line per module, plus `core`), `mcp__modules__show_menu(module_id)` (that module's `ToolSpec`s) and `mcp__modules__use_item(name, args)` (`InvokeTool`). They go through the core, so the directory, the menus' argument checks, permissions and hot swap all apply. Modules never provide or use it: MCP stays at the agents' edge.
 
@@ -101,4 +109,5 @@ Every item of every module's menu; the [module library](../architecture/module-l
 | `viewer.open` | `html_viewer` | `{"path": str, "front"?: bool}` | Opens an HTML file in the [HTML viewer](../architecture/html-viewer.md), starting it if needed; switches to the file's tab if it's open, and reloads it if the file changed. `path` should be absolute: a relative one resolves against the app's folder. `front` (default false; the chat's button sends true) brings the viewer window to the front, or opens a new one if it was closed; leave it off for pages an agent opens on its own. `ok({"tab", "path", "reloaded"})`; `invalid_arguments` for a missing file; `failed` if the viewer can't start or refuses the file (not HTML) |
 | `viewer.highlight` | `html_viewer` | `{"path": str, "text": str, "heading"?: str, "front"?: bool}` | Opens the file like `viewer.open` (including `front`) and highlights `text`, a short quote of the page's words (case and whitespace ignored), in `heading`'s section if given; scrolls to it. Highlights stay until you clear them and are never saved into the file. `ok({"tab", "path", "found", "matches"})`; `found` false means the file is open but the quote isn't on the page; `invalid_arguments` without a path or text, or for a missing file |
 | `modules.list`, `modules.menu`, `modules.on`, `modules.off`, `modules.reload`, `modules.add` | the core (id `core`) | see [the core's menu](control.md#the-cores-menu) | the matching control command's result |
+| `hub.agents`, `hub.status`, `hub.start`, `hub.send`, `hub.cancel`, `hub.focus`, `hub.suggest_focus`, `hub.answer`, `hub.mode` | `agent_hub` | see [the Hub's menu](agents.md#the-hubs-menu) | some items are for one caller only |
 | `viewer.tabs` | `html_viewer` | none | `ok([{"path", "active", "unsaved", "highlights"}])` (`highlights`: the quoted texts), empty if the viewer isn't running |

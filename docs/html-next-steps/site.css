@@ -74,6 +74,8 @@ main img { max-width: 100%; height: auto; border: 1px solid var(--border); borde
   font-size: 22px; line-height: 1; cursor: pointer;
 }
 .zoom-close:hover { background: var(--border); }
+main.framed { max-width: none; padding: 0; }
+main.framed iframe { display: block; width: 100%; height: calc(100vh - var(--top)); border: 0; background: #fff; }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }

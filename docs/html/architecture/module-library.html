@@ -47,58 +47,47 @@
 </tr>
 <tr>
 <td><a href="../modules/agent_hub.html"><code>agent_hub</code></a></td>
-<td>Task state and routing between the agents; hosts the agents' door to the module menus</td>
+<td>Task state and routing between the agents, and who you're talking to; hosts the agents' door to the module menus</td>
 <td>yes</td>
-<td>none</td>
-<td>provides <code>IModuleDoor</code>; optional <code>ITaskAgent</code></td>
-<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code></td>
+<td><code>hub.agents</code>, <code>hub.status</code>, <code>hub.start</code>, <code>hub.send</code>, <code>hub.cancel</code>, <code>hub.answer</code>, <code>hub.mode</code>, <code>hub.focus</code>, <code>hub.suggest_focus</code></td>
+<td>provides <code>IModuleDoor</code>, <code>IAgentNames</code>; optional <code>ITaskAgent</code></td>
+<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>SetFocus</code></td>
 <td><code>ListModules</code>, <code>GetMenu</code>, <code>InvokeTool</code></td>
-<td><code>TaskUpdated</code></td>
-<td><code>AgentActivity</code></td>
+<td><code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code></td>
+<td><code>AgentActivity</code>, <code>AgentNotice</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/main_assistant.html"><code>main_assistant</code></a></td>
 <td>The worker: does the tasks the Talker hands over</td>
 <td>yes</td>
 <td>none</td>
-<td>provides <code>ITaskAgent</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code></td>
 <td>none</td>
-<td><code>ReportTask</code></td>
+<td><code>ReportTask</code>, <code>InvokeTool</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
-<td><code>ResetRequested</code></td>
+<td><code>ResetRequested</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/talker.html"><code>talker</code></a></td>
-<td>Talks with you; hands work to the Agent Hub</td>
+<td>Talks with you, one Talker per agent tab; hands work to the Agent Hub</td>
 <td>yes</td>
 <td>none</td>
 <td>optional <code>IModuleDoor</code></td>
 <td>none</td>
-<td><code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
+<td><code>InvokeTool</code>, <code>AnswerPermissionRequest</code>, <code>ListAgents</code></td>
 <td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
-<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code></td>
+<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/temp_ui.html"><code>temp_ui</code></a></td>
 <td>Temporary two-pane page: worker and Talker, mic, usage, permissions</td>
 <td>yes</td>
 <td>none</td>
+<td>optional <code>IAgentNames</code></td>
 <td>none</td>
-<td>none</td>
-<td><code>ListModules</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code></td>
-<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>ViewerClipDropped</code></td>
-<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code></td>
-</tr>
-<tr>
-<td><a href="../modules/html_viewer.html"><code>html_viewer</code></a></td>
-<td>View, edit, highlight and snip HTML; launches the viewer app</td>
-<td>yes</td>
-<td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
-<td>none</td>
-<td>none</td>
-<td>none</td>
-<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code></td>
-<td><code>AgentActivity</code></td>
+<td><code>ListModules</code>, <code>ListAgents</code>, <code>SetFocus</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>GetTaskStatus</code>, <code>CancelTask</code></td>
+<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code></td>
+<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>FocusChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/voice_in.html"><code>voice_in</code></a></td>
@@ -112,15 +101,15 @@
 <td>none</td>
 </tr>
 <tr>
-<td><a href="../modules/voice_notes.html"><code>voice_notes</code></a></td>
-<td>Speak into a page of notes; the words never go to the Talker</td>
+<td><a href="../modules/usage.html"><code>usage</code></a></td>
+<td>Every agent's tokens since launch, sub-agents under their parent</td>
 <td>yes</td>
-<td>none</td>
-<td>requires <code>IVoice</code></td>
-<td>none</td>
+<td><code>usage.total</code>, <code>usage.agents</code>, <code>usage.mine</code></td>
 <td>none</td>
 <td>none</td>
-<td><code>VoiceState</code>, <code>VoiceTranscript</code></td>
+<td><code>ListAgents</code></td>
+<td>none</td>
+<td><code>SessionUsage</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/assistant_view.html"><code>assistant_view</code></a></td>
@@ -134,7 +123,18 @@
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>TaskUpdated</code></td>
 </tr>
 <tr>
-<td><a href="../modules/echo_orchestrator.html"><code>echo_orchestrator</code></a></td>
+<td><a href="../modules/cv/index.html"><code>cv</code></a></td>
+<td>Tailors a CV for one job with Rezi: one clean page, checked by Rezi, your yes; its worker cv_agent</td>
+<td>no</td>
+<td><code>rezi.sign_in</code>, <code>rezi.status</code>, <code>rezi.list_resumes</code>, <code>rezi.read_resume</code>, <code>rezi.get_resume_format</code>, <code>rezi.write_resume</code>, <code>rezi.generate_keywords</code>, <code>rezi.search_jobs</code>, <code>rezi.get_job_details</code>, <code>cv.task</code>, <code>cv.read_result</code>, <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code>, <code>cv.report</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code></td>
+<td>none</td>
+<td><code>ReportTask</code>, <code>InvokeTool</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>AgentNotice</code></td>
+<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
+</tr>
+<tr>
+<td><a href="../modules/echo_orchestrator/index.html"><code>echo_orchestrator</code></a></td>
 <td>Stand-in orchestrator: echoes, /tools</td>
 <td>no</td>
 <td><code>echo.say</code></td>
@@ -143,6 +143,50 @@
 <td>none</td>
 <td><code>ResponseReady</code></td>
 <td><code>InputReceived</code></td>
+</tr>
+<tr>
+<td><a href="../modules/html_viewer.html"><code>html_viewer</code></a></td>
+<td>View, edit, highlight and snip HTML; launches the viewer app</td>
+<td>no</td>
+<td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code></td>
+<td>none</td>
+</tr>
+<tr>
+<td><a href="../modules/job_search.html"><code>job_search</code></a></td>
+<td>The job agent (applies to jobs, runs searches in the job project), with its job.* menu</td>
+<td>no</td>
+<td><code>job.search</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code></td>
+<td>none</td>
+<td><code>ReportTask</code>, <code>InvokeTool</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>AgentNotice</code></td>
+<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
+</tr>
+<tr>
+<td><a href="../modules/task_agents.html"><code>task_agents</code></a></td>
+<td>Helper agents launched by name from kinds in config, each a task agent the Hub can start and focus</td>
+<td>no</td>
+<td><code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>ITaskAgent</code></td>
+<td>none</td>
+<td><code>ReportTask</code>, <code>InvokeTool</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
+<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
+</tr>
+<tr>
+<td><a href="../modules/voice_notes.html"><code>voice_notes</code></a></td>
+<td>Speak into a page of notes; the words never go to the Talker</td>
+<td>no</td>
+<td>none</td>
+<td>requires <code>IVoice</code></td>
+<td>none</td>
+<td>none</td>
+<td>none</td>
+<td><code>VoiceState</code>, <code>VoiceTranscript</code></td>
 </tr>
 </tbody>
 </table>
@@ -308,7 +352,7 @@
 <tr>
 <td><code>SessionUsage</code></td>
 <td>event</td>
-<td>context now, tokens and ~$ since launch</td>
+<td>context now, tokens since launch</td>
 <td><a href="../api/agents.html#sessionusage">agents</a></td>
 </tr>
 <tr>

@@ -33,7 +33,7 @@ Changes you asked for, each with a note written before anything is built ([`app-
 
 | Change | Status | Date |
 |--------|--------|------|
-| [Permissions handler](permissions-handler.md) | proposed | 2026-10-26 |
+| [Permissions handler](permissions-handler.md) | proposed; its first piece (access lists, in the core) is built by agent-permissions | 2026-10-26 |
 | [Viewer edits write back to the Markdown](markdown-write-back.md) | built (waiting on you): not yet tried by hand in the real window | 2026-10-27 |
 | [Voice in](voice-in.md) | building; design moved to [Voice](../architecture/voice.md) | 2026-10-28 |
 | [Voice in: code design](voice-in.md#code-design-2026-11-02) | building: phase 1 steps 1 to 4 built, step 6's code built; your mic check left, step 7 next | 2026-11-02 |
@@ -43,9 +43,35 @@ Changes you asked for, each with a note written before anything is built ([`app-
 | [Voice: the layers in code, and whisper as a second engine](voice-layers-whisper.md) | built (waiting on you): loaded; your check: switch `[engine] name` to whisper | 2026-11-03 |
 | [Voice: two passes (live text while you talk, whisper cleans it piece by piece)](voice-two-pass.md) | built (waiting on you): real check passed, loaded; your check (step 3.5) | 2026-11-03 |
 | [Module shape: directory, menus, and clean boundaries](module-shape-refactor.md) | superseded by the module system note below; kept for its docs table | 2026-11-04 |
-| [Module system: one interface, a directory, menus everywhere](module-system.md) | built (waiting on you): all 9 chunks built and committed locally; needs an app restart, then its restart test | 2026-11-05 |
+| [Module system: one interface, a directory, menus everywhere](module-system.md) | built (waiting on you): restart test run; the mic checks (7, 8) and the `agent_hub` / `main_assistant` reloads are left | 2026-11-05 |
 | [Voice notes: a quick record-to-page module](voice-notes.md) | built (waiting on you): v1, own module, second press wins; your mic checks next | 2026-11-04 |
-| [Job agent: run the job project from the assistant](job-agent.md) | proposed: the module wrapper first; two questions for you | 2026-11-04 |
+| [Job agent: run the job project from the assistant](job-agent.md) | built (waiting on you): `job_search` module, stub search; access list settled by agent-permissions; the real runner open; restart needed | 2026-11-05 |
+| [Opening a page turns the viewer on](viewer-start-on-use.md) | built (waiting on you): app restart, then try SHOW and Open in viewer with the viewer off | 2026-11-05 |
+| [Temp UI: paste an image into the chat box](temp-ui-paste-image.md) | built (waiting on you): loaded with `RELOAD`; your paste checks by hand | 2026-11-05 |
+| [Multi-agent: several task agents at once](multi-agent.md) | built (waiting on you): chunks 1–7 built (cap: 3 extra agents, from config); app restart, then the checks in the handoff | 2026-11-05 |
+| [Task agents ask for their access when turned on](agent-permissions.md) | built (waiting on you): the permissions handler's first piece, in the core; 474 tests pass; app restart, then try the job_search card, Allow, and the rough Grants screen | 2026-11-05 |
+| [Usage tallies for all agents](usage-tallies.md) | built (waiting on the restart): totals per agent since launch, a dropdown with sub-agents nested and the Talker as its own row, in its own `usage` module | 2026-11-05 |
+| [The Main Assistant's session starts without the module door](door-at-session-start.md) | built (waiting on you): an idle worker restarts once when the door is up; app restart, then rerun the helper launch test | 2026-11-05 |
+| [Agent names: ids, named helpers, the duplicate check](agent-names.md) | built (restart pending): the Hub refuses a taken id; helpers launched by name with your yes; `job` → `job_search_agent` | 2026-11-05 |
+| [Temp UI: send a snip on its own, show it on the sent message, log every snip step](temp-ui-snip-send.md) | built (waiting on you): app restart, then send a snip alone, with text, spoken, and × one; check the log | 2026-11-05 |
+| [Temp UI: a plus button to open your own agent tab](plus-agent-tab.md) | built (waiting on you): `RELOAD: task_agents` and `RELOAD: temp_ui`, then press + and try ×; later `ctx.permissions.is_you` | 2026-11-05 |
+| [Rezi: a module for its MCP, the job agent tailoring through it, a PDF viewer](rezi-module.md) | approved, building: replaced by one `cv` module with its worker; its three docs pages are in, chunk 1 (code) next | 2026-11-06 |
+| [Agent talkers: every tab a pair, its own Talker and worker](agent-talkers.md) | built (waiting on you): hand checks 1–5 pass; check 6 (closing a tab) failed, fix proposed in the note below | 2026-11-05 |
+| [Closing a helper's tab ends its Talker at once; its usage row says "closed"](close-tab-ends-talker.md) | built (waiting on you): reload `task_agents`, `usage`, `temp_ui` (no restart), then redo hand check 6 | 2026-11-06 |
+| [Code review: the code against our principles, and a cleanup plan](code-review.md) | built (waiting on you): chunks 1–4 built (voice service safety, principles 18–22 and the code map, small fixes, one SHOW helper); waiting on the batched restart and your pick on chunks 5–8 | 2026-11-08 |
+| [Closing the tab you're in moves you to the Main Assistant's tab](closed-tab-moves-focus.md) | built (waiting on you): reload `agent_hub`, `temp_ui` (no restart), then close the tab you're on | 2026-11-06 |
+| [Voice text goes to the tab you pressed stop in](voice-to-stop-tab.md) | built, waiting on the restart: the exact version (`StopListening.agent_id`, a contract field); tests pass | 2026-11-06 |
+| [A new grant reaches a running agent without off and on](live-agent-grants.md) | built, waiting on the restart: plan B with the recommended answers (live grants, `permissions.request`, snips readable); tests pass | 2026-11-06 |
+| [Each agent's own Auto/Manual toggle, shown in the UI](per-agent-mode-toggle.md) | idea, for later; nothing built | 2026-11-06 |
+| [The Auto button sets the agent of the tab you're in](per-agent-auto-button.md) | built, waiting on the restart (with the others; a reload of `temp_ui` and `talker` would also do); tests pass | 2026-11-06 |
+| [Temp UI: switching tabs lands at the bottom, unless you'd scrolled up](temp-ui-tab-scroll.md) | built (waiting on you): `RELOAD: temp_ui`, then the six hand checks in the note | 2026-11-06 |
+| [Self-contained modules, like downloadable extensions](module-self-contained.md) | building: steps 0 to 2 and the standard docs layout built (three required pages: overview, architecture, tools from the menu; HTML in the standard frame); step 3 moved usage, console_io, assistant_view; umbrellas designed, not built | 2026-11-06 |
+| [Restarts that keep the agents running](restart-keep-agents.md) | proposed: keep and re-hook by default when harmless, Stop all as the option; three designs, C recommended; waiting on your check | 2026-11-06 |
+| [Extensions like a marketplace: what's built, what's missing](extension-marketplace.md) | proposed, answers in: extensions always in their own process, contracts loadable while running (overrides the restart rule), `cv` the pilot, store later; nine steps; waiting on your check | 2026-11-07 |
+| [Helpers' context reminder and reset](helper-context-reset.md) | built (waiting on you): reminders reach every pair (checked, tested); the Reset buttons now reset the pair of the tab you're in. `RELOAD: temp_ui` or the batched restart, then the three checks | 2026-11-07 |
+| [The restart note says everything the next launch needs](restart-note-complete.md) | built, waiting on the batched restart (a `RELOAD: talker` would also do): the app adds the tabs, agents, modes, open tasks and questions; the worker lists the changes waiting on the restart and their hand checks; tests pass | 2026-11-08 |
+| [Temp UI: drag the typing box taller or shorter](temp-ui-box-resize.md) | built, waiting on the batched restart (a `RELOAD: temp_ui` would also do): a drag handle on the box's top edge, one size for every tab, kept after sending; six hand checks | 2026-11-08 |
+| [Usage: tokens only, clearer labels, two token fixes](usage-tokens-only.md) | built (waiting on you): no ~$ anywhere, labelled context and used, a session id so restarts keep totals, sub-agent tokens from each turn's result, and the temp UI's header following the selected tab's own worker and Talker; one app restart, then the hand checks | 2026-11-07 |
 
 Finished notes (done, nothing waiting on you) are in the [archive](archive/README.md).
 

@@ -51,6 +51,12 @@ header h1 { font-size: 15px; font-weight: 600; margin: 0; }
 .perm.done { border-color: var(--border); }
 .perm.done .title { color: var(--muted); }
 .perm .note { font-size: 12px; color: var(--muted); }
+/* The permissions handler's access card: tick boxes, warnings, the fixed rules. */
+.perm.access label { display: flex; gap: 6px; align-items: baseline; font: 12.5px/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.perm.access .warn { font-size: 12.5px; color: var(--waiting); margin: 2px 0; }
+.perm.access .warn.review { color: var(--text); }
+.perm.access .warn.refused { text-decoration: line-through; color: var(--muted); }
+.perm.access details { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
 .opens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .opens .ghost { height: 26px; background: var(--panel); }
 .opens .note { font-size: 12px; color: var(--muted); align-self: center; }
@@ -69,6 +75,20 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .usage { display: flex; gap: 14px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .usage b { font-weight: 600; color: var(--text); margin-right: 4px; }
 .usage .ctx[data-level="high"] { color: var(--waiting); font-weight: 600; }
+/* THROWAWAY usage dropdown: the total button and its list, one row per agent, sub-agents indented. */
+.usage { align-items: center; }
+.tally-wrap { position: relative; }
+.tally { height: 24px; padding: 0 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tally-menu {
+  position: absolute; top: 28px; left: 0; z-index: 10; min-width: 300px; padding: 6px 0; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text); box-shadow: 0 6px 20px rgba(0,0,0,.15);
+}
+.tally-menu .row { display: flex; gap: 12px; padding: 3px 12px; white-space: nowrap; }
+.tally-menu .row .name { flex: 1; }
+.tally-menu .row.sub { padding-left: 28px; color: var(--muted); }
+.tally-menu .row.closed { color: var(--muted); opacity: 0.6; }
+.tally-menu .row.sum { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; font-weight: 600; }
+.tally-menu .none { padding: 3px 12px; color: var(--muted); }
 .pane-head .ghost { margin-left: auto; height: 24px; padding: 0 8px; text-transform: none; letter-spacing: 0; }
 /* The permission mode toggle (a stand-in) and the amber head while Auto is on. */
 .mode { display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -83,6 +103,27 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .pane-head.auto .mode .seg button[aria-pressed="true"] { background: #1d1d1b; color: #ffffff; }
 .pane-head.auto .ghost { color: #1d1d1b; border-color: #1d1d1b; }
 .tag.auto { color: #1d1d1b; background: var(--waiting); border-color: var(--waiting); text-transform: none; letter-spacing: 0; }
+/* One tab per big agent (shown with two or more): its state dot, a ! while it holds a question,
+   the focused one filled. The Main Assistant's tab has its own colour. A click moves the focus. */
+/* The Talker pane's header names the pair (Talker · agent) in its tab's colour. */
+.pair { padding: 1px 8px; border-radius: 6px; background: var(--accent); color: #ffffff; text-transform: none; letter-spacing: 0; }
+.pair.helper { background: var(--task); }
+.pair:empty { display: none; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 6px; }
+.tabs:empty { display: none; }
+.tab {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 12px; font-weight: 500;
+}
+.tab.main { border-color: var(--accent); color: var(--accent); }
+.tab[aria-selected="true"] { background: var(--task); border-color: var(--task); color: #ffffff; cursor: default; }
+.tab.main[aria-selected="true"] { background: var(--accent); border-color: var(--accent); }
+.tab[data-state="working"] .dot { background: var(--working); animation: pulse 1.2s infinite; }
+.tab[data-state="waiting"] .dot { background: var(--waiting); }
+.tab .bang {
+  display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--waiting); color: #1d1d1b; font-size: 11px; font-weight: 700;
+}
 .feed { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
 .msg { max-width: 85%; margin: 8px 0; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg.talker { background: var(--bubble); border-bottom-left-radius: 4px; }
@@ -99,6 +140,7 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--panel); }
 #snips { display: none; gap: 8px; padding: 8px 16px 0; border-top: 1px solid var(--border); background: var(--panel); }
 #snips.show { display: flex; }
+.sent-snips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; white-space: normal; }
 #snips + form { border-top: 0; }
 .snip { position: relative; display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); max-width: 140px; }
 .snip img { width: 120px; height: 72px; object-fit: cover; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
@@ -133,8 +175,16 @@ form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--
 /* The clear button: only while the mic is on. */
 .mic-clear { width: 32px; padding: 0; color: var(--muted); }
 .mic-clear[hidden] { display: none; }
+/* The typing box's drag handle (its top edge): drag to set the box's height, one size for every tab. */
+#grip { flex: none; height: 9px; cursor: ns-resize; touch-action: none; border-top: 1px solid var(--border);
+  background: var(--panel); display: flex; align-items: center; justify-content: center; }
+#grip::before { content: ""; width: 36px; height: 3px; border-radius: 2px; background: var(--border); }
+#grip:hover::before, #grip.drag::before { background: var(--accent); }
+#grip ~ #voice, #grip ~ #snips, #grip ~ form { border-top: 0; }
+form { align-items: flex-end; }
+form > button { height: 40px; flex: none; }
 textarea {
-  flex: 1; resize: none; height: 40px; max-height: 160px; padding: 9px 12px; border-radius: 10px;
+  flex: 1; resize: none; height: 40px; min-height: 40px; padding: 9px 12px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
 }
 textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -151,9 +201,16 @@ button {
 <body>
 <header>
   <h1>Assistant</h1><span class="tag">temp UI</span>
-  <span class="usage" title="context: what each call sends now · used: every token since the app started · ~$: claude's estimate at API prices">
-    <span id="usage-worker"><b>Worker</b>not started</span>
-    <span id="usage-talker"><b>Talker</b>not started</span>
+  <span class="usage">
+    <!-- THROWAWAY usage dropdown: the total since launch; a click lists every agent (see "usage dropdown" below). -->
+    <span class="tally-wrap">
+      <button class="ghost tally" id="tally-btn" type="button" aria-expanded="false"
+        title="Every agent's tokens since the app started: every call counted, so cached context counts again on each call (work done, not new text). Click for each agent">Total not started ▾</button>
+      <div class="tally-menu" id="tally-menu" hidden></div>
+    </span>
+    <span id="usage-worker" title="This tab's worker: the size of its latest call, about what each next call resends"><b>Worker</b>context 0k</span>
+    <span id="usage-talker" title="This tab's Talker: the size of its latest call, about what each next call resends"><b>Talker</b>context 0k</span>
+    <span id="usage-pair" title="This tab's worker and Talker, with their sub-agents: tokens since the app started. Every call counted, so cached context counts again on each call (work done, not new text)"><b>Used</b>0k</span>
   </span>
   <span class="conn" id="conn">connecting…</span>
   <button class="ghost" id="logs" title="Open the logs folder in Explorer">
@@ -168,19 +225,21 @@ button {
       <span class="tag auto" id="worker-mode" hidden>AUTO</span>
       <button class="ghost" data-reset="worker" title="Start the worker fresh (mid-task it writes a handoff first)">Reset</button>
     </div>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Big agents"></div>
     <div class="feed log" id="worker"><div class="empty">No activity yet.</div></div>
   </section>
   <section class="pane">
-    <div class="pane-head" id="talker-head">Talker
+    <div class="pane-head" id="talker-head">Talker <span class="pair" id="talker-pair" title="Each agent's tab has its own chat"></span>
       <!-- STAND-IN: the permission mode toggle lives here until the control panel / UI handler
            exist. It only sends SetPermissionMode and shows PermissionModeChanged, so they reuse both. -->
-      <span class="mode" id="mode" title="Stand-in (temp UI): sets what the Main Assistant may do. Manual: it asks before tools outside its standing rules. Auto: full permissions, no prompts, git push blocked. Manual at every launch.">
+      <span class="mode" id="mode" title="Stand-in (temp UI): sets what this tab's agent may do. Manual: it asks before tools outside its standing rules. Auto: full permissions, no prompts, git push blocked. Manual at every launch.">
         <span id="mode-label">Main Assistant: Manual</span>
         <span class="seg"><button data-mode="manual" aria-pressed="true">Manual</button><button data-mode="auto" aria-pressed="false">Auto</button></span>
       </span>
       <button class="ghost" data-reset="talker" title="Start the Talker fresh (it keeps the last few exchanges)">Reset</button>
     </div>
     <div class="feed" id="talker"><div class="empty">Say something to start.</div></div>
+    <div id="grip" title="Drag to make the typing box taller or shorter (double-click: back to one line)"></div>
     <div id="voice" data-state="idle"></div>
     <div id="snips" title="Snips from the HTML viewer: sent with your next message"></div>
     <form id="say">
@@ -200,6 +259,55 @@ const conn = document.getElementById("conn");
 
 function atBottom(el) { return el.scrollHeight - el.scrollTop - el.clientHeight < 40; }
 
+// Scroll memory per tab (docs/next-steps/temp-ui-tab-scroll.md). Both panes hold every tab's
+// lines and a switch only hides the others, so each tab's place is saved before the switch
+// and set again after the new lines are laid out, then once more a frame later. A pane you'd
+// scrolled up in keeps its block: the shown block nearest the middle of the view, and its offset.
+const scrollMemory = {};                       // tab id -> { talker: {pinned, top, anchor, offset}, worker: {...} }
+const stuck = { talker: true, worker: true };  // the shown tab's panes: following the bottom?
+let settling = 0;                              // while > 0, scroll events are ours, not the user's
+for (const [name, pane] of Object.entries(panes)) {
+  pane.addEventListener("scroll", () => { if (!settling) stuck[name] = atBottom(pane); });
+  pane.addEventListener("load", () => { if (stuck[name]) pane.scrollTop = pane.scrollHeight; }, true);  // a late image
+}
+function middleLine(pane) {  // the shown block nearest the middle of the view, and its top's offset from the pane's top
+  const box = pane.getBoundingClientRect(), mid = box.top + box.height / 2;
+  let best = null, bestGap = Infinity;
+  for (const el of pane.children) {
+    if (el.hidden) continue;
+    const r = el.getBoundingClientRect();
+    const gap = r.top > mid ? r.top - mid : r.bottom < mid ? mid - r.bottom : 0;  // 0: it spans the middle
+    if (gap < bestGap) { best = { anchor: el, offset: r.top - box.top }; bestGap = gap; }
+    if (gap === 0 || r.top > mid) break;  // the children run top to bottom
+  }
+  return best || { anchor: null, offset: 0 };
+}
+function saveScroll(tab) {
+  scrollMemory[tab] = {};
+  for (const [name, pane] of Object.entries(panes)) {
+    const pinned = stuck[name] || atBottom(pane);
+    scrollMemory[tab][name] = { pinned, top: pane.scrollTop, ...(pinned ? {} : middleLine(pane)) };
+  }
+}
+function restoreScroll(tab, changed) {
+  const saved = changed ? scrollMemory[tab] || {} : {};
+  for (const name of Object.keys(panes)) if (changed) stuck[name] = !saved[name] || saved[name].pinned;
+  const apply = () => {
+    for (const [name, pane] of Object.entries(panes)) {
+      if (stuck[name]) pane.scrollTop = pane.scrollHeight;
+      else if (changed) {
+        const { anchor, offset, top } = saved[name];
+        if (anchor && anchor.parentNode === pane && !anchor.hidden) {
+          pane.scrollTop += anchor.getBoundingClientRect().top - pane.getBoundingClientRect().top - offset;
+        } else pane.scrollTop = top;  // that line is gone (a rebuilt pane): the old offset
+      }
+    }
+  };
+  settling++;
+  apply();
+  requestAnimationFrame(() => { apply(); requestAnimationFrame(() => { apply(); settling--; }); });
+}
+
 function post(path, body) {
   return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
@@ -214,7 +322,8 @@ function permissionCard(item) {
   const card = document.createElement("div");
   card.className = "perm";
   card.dataset.task = item.task_id;
-  const title = Object.assign(document.createElement("div"), { className: "title", textContent: "The assistant asks permission" });
+  const who = item.agent ? label(item.agent) : "The assistant";
+  const title = Object.assign(document.createElement("div"), { className: "title", textContent: who + " asks permission" });
   const what = Object.assign(document.createElement("div"), { className: "what", textContent: item.text });
   const actions = Object.assign(document.createElement("div"), { className: "actions" });
   for (const [label, allow] of [["Allow", true], ["Deny", false]]) {
@@ -231,7 +340,52 @@ function permissionCard(item) {
   return card;
 }
 
-// Auto only: the Main Assistant paused before a risky step (a "NEED: Risky: ..."). The buttons
+// The permissions handler's card: a module's access list (one tick box per item; the working
+// folder comes with the agent), its warnings and the review, or an agent's grant / revoke.
+function accessCard(item) {
+  const c = item.card, card = document.createElement("div");
+  card.className = "perm access";
+  card.dataset.request = item.request_id;
+  const who = c.subject && c.subject !== c.module_id ? `${c.module_id} → ${c.subject}` : c.module_id;
+  const head = c.action === "access" ? `${who} asks for its access` : `${c.caller} asks to ${c.action} access for ${who}`;
+  const title = Object.assign(document.createElement("div"), { className: "title", textContent: head });
+  const body = [title];
+  if (c.reason) body.push(Object.assign(document.createElement("div"), { className: "note", textContent: c.reason }));
+  const boxes = [];
+  for (const i of c.items) {
+    const row = document.createElement("label"), box = document.createElement("input");
+    box.type = "checkbox"; box.checked = true; box.value = i.key;
+    box.disabled = !i.trimmable || c.action !== "access";
+    if (!box.disabled) boxes.push(box);
+    row.append(box, i.label);
+    body.push(row);
+  }
+  for (const n of c.notes) body.push(Object.assign(document.createElement("div"), {
+    className: "warn " + n.source, textContent: (n.source === "review" ? "Review: " : n.source === "refused" ? "Refused: " : "⚠ ") + n.text }));
+  if (c.reviewed === false) body.push(Object.assign(document.createElement("div"), { className: "warn", textContent: "Not reviewed (the Main Assistant was busy or didn't answer in time)" }));
+  if (c.rules.length) {
+    const d = document.createElement("details");
+    d.append(Object.assign(document.createElement("summary"), { textContent: "Rules that always hold" }), ...c.rules.map((r) => Object.assign(document.createElement("div"), { textContent: r })));
+    body.push(d);
+  }
+  const actions = Object.assign(document.createElement("div"), { className: "actions" });
+  for (const [label, allow] of [["Allow ticked", true], ["Deny", false]]) {
+    const b = Object.assign(document.createElement("button"), { textContent: c.action === "access" ? label : allow ? "Allow" : "Deny", className: allow ? "" : "deny" });
+    b.onclick = async () => {
+      actions.querySelectorAll("button").forEach((x) => (x.disabled = true));
+      const keep = c.action === "access" ? [...c.items.filter((i) => !i.trimmable).map((i) => i.key), ...boxes.filter((x) => x.checked).map((x) => x.value)] : null;
+      const r = await post("/access-answer", { request_id: item.request_id, allow, keep })
+        .then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
+      if (!r.ok) settle(card, "Couldn't answer: " + (r.error || "unknown error"), "Access");
+    };
+    actions.append(b);
+  }
+  card.append(...body, actions);
+  return card;
+}
+
+// Auto only: the Main Assistant paused before a risky step (an item of kind "risky": the Hub
+// typed the question, the module sends the text without its "Risky:"). The buttons
 // send the same answer as typing it would; answering in words works too.
 function riskyCard(item) {
   const card = document.createElement("div");
@@ -244,7 +398,7 @@ function riskyCard(item) {
     const b = Object.assign(document.createElement("button"), { textContent: label, className: label === "Go ahead" ? "" : "deny" });
     b.onclick = async () => {
       actions.querySelectorAll("button").forEach((x) => (x.disabled = true));
-      const r = await post("/say", { text: answer }).catch(() => null);
+      const r = await post("/say", { text: answer, agent: item.agent || focused() }).catch(() => null);
       settle(card, r && r.ok ? "You said: " + answer : "Couldn't send: no connection", "Risky step");
     };
     actions.append(b);
@@ -253,18 +407,26 @@ function riskyCard(item) {
   return card;
 }
 
-// The worker's permission mode (STAND-IN toggle). Auto takes a confirm; Manual is one click.
+// Each agent's permission mode (STAND-IN toggle): the button sets and shows the focused tab's
+// agent. Auto takes a confirm; Manual is one click.
 const modeBox = document.getElementById("mode"), modeLabel = document.getElementById("mode-label");
 const talkerHead = document.getElementById("talker-head"), workerMode = document.getElementById("worker-mode");
-const AUTO_WARNING = "Switch the Main Assistant to Auto?\n\n" +
+const modes = {};  // agent id -> its last mode item; Manual until one comes
+const autoWarning = (name) => "Switch " + (name === "Main Assistant" ? "the Main Assistant" : name) + " to Auto?\n\n" +
   "Auto gives it full permissions for every tool, with no permission prompts, except git push, which stays blocked (you push yourself).\n\n" +
   "It pauses to ask before risky steps on its own judgment only. This is not a guarantee.";
 
 function showMode(item) {
+  modes[item.agent || agents.coordinator] = item;
+  renderMode();
+}
+
+function renderMode() {  // the focused tab's agent; called on a mode item and on every tab switch
+  const item = modes[focused()] || { mode: "manual", applies: "now" };
   const auto = item.mode === "auto";
   const later = item.applies === "next_task" ? " (from the next task)" : "";
   talkerHead.classList.toggle("auto", auto);
-  modeLabel.textContent = (auto ? "Main Assistant: AUTO, no permission prompts" : "Main Assistant: Manual") + later;
+  modeLabel.textContent = label(focused()) + (auto ? ": AUTO, no permission prompts" : ": Manual") + later;
   modeBox.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === item.mode)));
   workerMode.hidden = !auto;
   workerMode.textContent = "AUTO, no permission prompts" + later;
@@ -273,8 +435,9 @@ function showMode(item) {
 modeBox.querySelectorAll("button").forEach((b) => {
   b.onclick = async () => {
     if (b.getAttribute("aria-pressed") === "true") return;
-    if (b.dataset.mode === "auto" && !confirm(AUTO_WARNING)) return;
-    const r = await post("/permission-mode", { mode: b.dataset.mode })
+    const agent = focused();  // the tab you pressed it in
+    if (b.dataset.mode === "auto" && !confirm(autoWarning(label(agent)))) return;
+    const r = await post("/permission-mode", { mode: b.dataset.mode, agent })
       .then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
     if (!r.ok) alert("Couldn't switch the permission mode: " + (r.error || "unknown error"));
   };
@@ -315,19 +478,94 @@ function showSnips(list) {
   strip.classList.toggle("show", list.length > 0);
 }
 
-// Usage in the header, worker and Talker apart: context now (amber from 100k), used since launch, ~$.
+// The snips that went with a message, shown in its bubble as confirmation (same thumbnail size, no ×).
+function sentSnips(list) {
+  const row = Object.assign(document.createElement("div"), { className: "sent-snips" });
+  row.append(...list.map((s) => {
+    const el = Object.assign(document.createElement("div"), { className: "snip", title: s.file });
+    el.append(Object.assign(document.createElement("img"), { src: "/snip/" + s.id, alt: "snip" }),
+              Object.assign(document.createElement("span"), { textContent: s.heading || s.file.split(/[\\/]/).pop() }));
+    return el;
+  }));
+  return row;
+}
+
+// Context in the header, worker and Talker apart: what each call sends now (amber from 100k).
 const k = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : Math.round(n / 1000) + "k";
 
+// The header follows the selected tab: its worker (`<id>`), its Talker (`talker` for the main
+// pair, `talker:<id>` for a helper), and the tokens that pair used (its tally rows).
+const contexts = {};  // agent id -> its latest context
+let lastTally = null;
+const pairIds = () => {
+  const id = focused();
+  return { worker: id, talker: id === agents.coordinator ? "talker" : "talker:" + id };
+};
+
 function showUsage(item) {
-  const el = document.getElementById("usage-" + item.agent);
-  if (!el) return;
-  const ctx = Object.assign(document.createElement("span"), { className: "ctx", textContent: "context " + k(item.context) });
-  ctx.dataset.level = item.context >= 100000 ? "high" : "";
-  el.replaceChildren(Object.assign(document.createElement("b"), { textContent: item.agent === "worker" ? "Worker" : "Talker" }),
-    ctx, ` · used ${k(item.used)} · ~$${item.cost.toFixed(2)}`);
-  el.title = `used: ${k(item.input)} fresh input, ${k(item.cache_write)} cache writes, ` +
-    `${k(item.cache_read)} cache reads, ${k(item.output)} output`;
+  contexts[item.agent] = item.context;
+  renderUsage();
 }
+
+function renderUsage() {
+  const ids = pairIds();
+  for (const pane of ["worker", "talker"]) {
+    const n = contexts[ids[pane]] || 0;
+    const ctx = Object.assign(document.createElement("span"), { className: "ctx", textContent: "context " + k(n) });
+    ctx.dataset.level = n >= 100000 ? "high" : "";
+    document.getElementById("usage-" + pane).replaceChildren(
+      Object.assign(document.createElement("b"), { textContent: pane === "worker" ? "Worker" : "Talker" }), ctx);
+  }
+  // A helper's Talker is nested under its row; the main Talker has a row of its own.
+  const rows = lastTally && lastTally.available ? lastTally.agents.filter((a) => a.agent_id === ids.worker || a.agent_id === ids.talker) : [];
+  const used = rows.reduce((sum, a) => sum + a.total.used_tokens, 0);
+  document.getElementById("usage-pair").replaceChildren(Object.assign(document.createElement("b"), { textContent: "Used" }), k(used));
+}
+
+// --- THROWAWAY usage dropdown (until the UI handler is designed) ---
+// The `tally` item is the usage module's usage.total and usage.agents; nothing is added up here.
+// A row's numbers include its sub-agents. Tokens only: every call counted, cached context included.
+const tallyBtn = document.getElementById("tally-btn"), tallyMenu = document.getElementById("tally-menu");
+const agentName = { main_assistant: "Main Assistant", talker: "Talker" };
+
+function tallyRow(cls, name, tokens) {
+  const row = Object.assign(document.createElement("div"), { className: "row " + cls });
+  row.append(Object.assign(document.createElement("span"), { className: "name", textContent: name }),
+    Object.assign(document.createElement("span"), { textContent: k(tokens) }));
+  return row;
+}
+
+function showTally(item) {
+  lastTally = item;
+  renderUsage();
+  if (!item.available) {
+    tallyBtn.textContent = "Total: " + (item.why || "not available") + " ▾";
+    tallyMenu.replaceChildren(Object.assign(document.createElement("div"), { className: "none", textContent: item.why || "not available" }));
+    return;
+  }
+  tallyBtn.textContent = `Total ${k(item.total.used_tokens)} ▾`;
+  const rows = [];
+  const walk = (a, depth) => {  // a closed agent's rows stay (its usage is in the total), greyed
+    const closed = a.closed ? " closed" : "", tag = a.closed ? " · closed" : "";
+    rows.push(depth ? tallyRow("sub" + closed, a.name + tag, a.total.used_tokens)
+      : tallyRow(closed, (agentName[a.agent_id] || a.name) + tag, a.total.used_tokens));
+    for (const c of a.children) walk(c, depth + 1);
+  };
+  for (const a of item.agents) walk(a, 0);
+  if (!rows.length) rows.push(Object.assign(document.createElement("div"), { className: "none", textContent: "No agent has used anything yet" }));
+  else rows.push(tallyRow("sum", "Total", item.total.used_tokens));
+  tallyMenu.replaceChildren(...rows);
+}
+
+tallyBtn.onclick = (e) => {
+  e.stopPropagation();
+  tallyMenu.hidden = !tallyMenu.hidden;
+  tallyBtn.setAttribute("aria-expanded", String(!tallyMenu.hidden));
+};
+document.addEventListener("click", (e) => {
+  if (!tallyMenu.hidden && !tallyMenu.contains(e.target)) { tallyMenu.hidden = true; tallyBtn.setAttribute("aria-expanded", "false"); }
+});
+// --- end of the usage dropdown ---
 
 // The mic (voice_in): the button shows VoiceState; the grey line shows the live text, the
 // dropped mic's countdown and word count, or why it failed. Spoken messages land in the chat
@@ -384,7 +622,7 @@ micButton.onclick = async () => {
   if (voice.state === "starting" || voice.state === "finishing") return;  // finishing: clicks are ignored
   const on = !(voice.state === "listening" || voice.state === "dropped");
   if (on) showVoice({ ...voice, state: "starting", text: "", detail: null });  // the server confirms it at once
-  const r = await post("/mic", { on }).then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
+  const r = await post("/mic", { on, agent: focused() }).then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
   if (!r.ok && r.error === "no connection") showVoice({ ...voice, state: "failed", detail: "no connection to the app" });
 };
 
@@ -395,32 +633,90 @@ clearButton.onclick = async () => {
   if (!r.ok && r.error === "no connection") showVoice({ ...voice, state: "failed", detail: "no connection to the app" });
 };
 
+// The big agents: one tab each (with two or more), the focused one selected. Both panes show
+// the focused agent's items: the worker feed its lines, the Talker pane its own chat (items
+// without an agent show always); the pill its state.
+const tabs = document.getElementById("tabs");
+const pair = document.getElementById("talker-pair");
+let agents = { focus: null, coordinator: "main_assistant", agents: [] };
+const states = {};
+const label = (id) => (id === agents.coordinator ? "Main Assistant" : id);
+const focused = () => agents.focus || agents.coordinator;
+const shown = (el) => !el.dataset.agent || el.dataset.agent === focused();
+
+function showState() {
+  const s = states[focused()] || "idle";
+  stateEl.dataset.state = s;
+  stateText.textContent = s;
+}
+
+function showAgents(item) {
+  const before = focused();
+  saveScroll(before);  // measured while the old tab's lines are still shown
+  agents = item;
+  const changed = before !== focused();
+  for (const id of Object.keys(scrollMemory)) if (!item.agents.some((a) => a.id === id)) delete scrollMemory[id];  // a closed tab starts fresh
+  tabs.replaceChildren(...(item.agents.length < 2 ? [] : item.agents.map((a) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "tab" + (a.id === item.coordinator ? " main" : "") });
+    b.setAttribute("role", "tab");
+    b.dataset.agent = a.id;
+    b.setAttribute("aria-selected", String(a.id === focused()));
+    b.dataset.state = a.working ? "working" : a.busy ? "waiting" : "idle";
+    b.append(Object.assign(document.createElement("span"), { className: "dot" }), label(a.id));
+    if (a.held) b.append(Object.assign(document.createElement("span"), { className: "bang", textContent: "!" }));
+    b.title = a.id === focused() ? "You're talking to " + label(a.id)
+      : a.held ? label(a.id) + " has a question waiting: click to talk to it" : "Click to talk to " + label(a.id);
+    b.onclick = async () => {
+      if (a.id === focused()) return;
+      const r = await post("/focus", { agent: a.id }).then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
+      if (!r.ok) alert("Couldn't switch to " + label(a.id) + ": " + (r.error || "unknown error"));
+    };
+    return b;
+  })));
+  if (window.agentTabsExtras) window.agentTabsExtras(tabs, item);  // the + and the × (agent_tabs.js)
+  for (const pane of Object.values(panes)) for (const el of pane.children) el.hidden = !shown(el);
+  pair.textContent = item.agents.length < 2 ? "" : label(focused());
+  pair.classList.toggle("helper", focused() !== item.coordinator);
+  restoreScroll(focused(), changed);
+  showState();
+  renderMode();
+  renderUsage();
+}
+
 function add(item) {
   if (item.kind === "voice") return showVoice(item);
   if (item.kind === "snips") return showSnips(item.snips);
   if (item.kind === "usage") return showUsage(item);
+  if (item.kind === "tally") return showTally(item);
   if (item.kind === "mode") return showMode(item);
+  if (item.kind === "agents") return showAgents(item);
   if (item.pane === "worker" && item.kind === "state") {
-    stateEl.dataset.state = item.text;
-    stateText.textContent = item.text;
-    return;
+    states[item.agent || agents.coordinator] = item.text;
+    return showState();
   }
   if (item.kind === "answered") {
     document.querySelectorAll(`.perm[data-task="${item.task_id}"]:not(.done):not(.risky)`).forEach((c) => settle(c, item.text + " · " + item.t));
     return;
   }
+  if (item.kind === "access_closed") {
+    document.querySelectorAll(`.perm.access[data-request="${item.request_id}"]:not(.done)`).forEach((c) => settle(c, item.text + " · " + item.t, "Access"));
+    return;
+  }
   const pane = panes[item.pane];
   if (!pane) return;
   pane.querySelector(".empty")?.remove();
-  const follow = atBottom(pane);
+  const follow = stuck[item.pane] || atBottom(pane);
   let el = document.createElement("div");
   if (item.kind === "permission") {
     el = permissionCard(item);
+  } else if (item.kind === "access") {
+    el = accessCard(item);
   } else if (item.kind === "risky") {
     el = riskyCard(item);
   } else if (item.pane === "talker") {
     el.className = "msg " + item.kind;
     el.textContent = item.text;
+    if (item.snips?.length) el.append(sentSnips(item.snips));
     const t = document.createElement("span");
     t.className = "time";
     t.textContent = item.voice ? "spoken · " + item.t : item.t;
@@ -434,6 +730,8 @@ function add(item) {
     t.textContent = item.t;
     el.append(t, item.text);
   }
+  if (item.agent) el.dataset.agent = item.agent;  // the worker's lines and each tab's chat
+  el.hidden = !shown(el);
   pane.append(el);
   if (follow) pane.scrollTop = pane.scrollHeight;
 }
@@ -467,20 +765,71 @@ connect();
 
 document.getElementById("logs").onclick = () => fetch("/open-logs", { method: "POST" });
 document.querySelectorAll("[data-reset]").forEach((b) => {
-  b.onclick = () => post("/reset", { agent: b.dataset.reset });
+  b.onclick = () => post("/reset", { agent: b.dataset.reset, tab: focused() });  // the pair of the tab you're in
 });
 
 const form = document.getElementById("say"), text = document.getElementById("text");
+// The typing box's height: dragged on #grip, one size for every tab, kept across sends and refreshes.
+const grip = document.getElementById("grip"), talkerFeed = document.getElementById("talker");
+const BOX_MIN = 40, BOX_KEY = "temp_ui.boxHeight";
+function boxLimit() {  // at most 60% of the window, and the chat keeps at least 120 px
+  const room = text.offsetHeight + talkerFeed.clientHeight - 120;
+  return Math.max(BOX_MIN, Math.min(window.innerHeight * 0.6, room));
+}
+function setBox(h, save = true) {
+  h = Math.round(Math.max(BOX_MIN, Math.min(boxLimit(), h)));
+  text.style.height = h + "px";
+  if (save) localStorage.setItem(BOX_KEY, String(h));
+}
+setBox(Number(localStorage.getItem(BOX_KEY)) || BOX_MIN, false);
+let boxDrag = null;
+grip.addEventListener("pointerdown", (e) => {
+  boxDrag = { y: e.clientY, h: text.offsetHeight };
+  grip.setPointerCapture(e.pointerId); grip.classList.add("drag"); e.preventDefault();
+});
+grip.addEventListener("pointermove", (e) => { if (boxDrag) setBox(boxDrag.h + boxDrag.y - e.clientY); });
+const endBoxDrag = () => { boxDrag = null; grip.classList.remove("drag"); };
+grip.addEventListener("pointerup", endBoxDrag);
+grip.addEventListener("pointercancel", endBoxDrag);
+grip.addEventListener("dblclick", () => setBox(BOX_MIN));
+window.addEventListener("resize", () => setBox(text.offsetHeight, false));
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const value = text.value.trim();
-  if (!value) return;
+  // Nothing typed still sends when a snip is waiting (the server gives it the text "(snip)").
+  if (!value && !document.querySelector("#snips.show")) return;
   text.value = "";
-  await post("/say", { text: value });
+  await post("/say", { text: value, agent: focused() });  // the tab you typed in
 });
 text.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
 });
+// Pasting an image (Ctrl+V) makes it a snip: the server saves it, and it comes back like a viewer
+// snip (thumbnail, ×, sent with your next message). A paste that also holds text stays a text paste.
+text.addEventListener("paste", async (e) => {
+  const items = [...(e.clipboardData?.items || [])];
+  const item = items.find((i) => i.kind === "file" && i.type.startsWith("image/"));
+  if (!item || items.some((i) => i.type === "text/plain")) return;
+  e.preventDefault();
+  let image = item.getAsFile();
+  if (image && image.type !== "image/png") {  // the server keeps PNGs only
+    const bitmap = await createImageBitmap(image);
+    const canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height });
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    image = await new Promise((done) => canvas.toBlob(done, "image/png"));
+  }
+  const r = image ? await fetch("/paste-image", { method: "POST", headers: { "Content-Type": "image/png" }, body: image })
+    .then((x) => x.json()).catch(() => null) : null;
+  if (!r || !r.ok) {
+    const was = text.placeholder;
+    text.placeholder = "Couldn't paste the image: " + (r?.error || "no answer from the app");
+    setTimeout(() => { text.placeholder = was; }, 6000);
+  }
+});
 </script>
+<!-- ROUGH, THROWAWAY: the saved-grants screen, all of it in grants.js (its own button and panel). -->
+<script src="/grants.js"></script>
+<!-- The agent tabs' + (open your own helper) and × (close an agent, after a warning). -->
+<script src="/agent-tabs.js"></script>
 </body>
 </html>

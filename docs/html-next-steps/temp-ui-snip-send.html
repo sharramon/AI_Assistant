@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temp UI: send a snip on its own, show it on the sent message, log every snip step</title>
+<!-- Generated from docs/next-steps/temp-ui-snip-send.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="temp-ui-snip-send.html"></nav>
+<main>
+<h1 id="temp-ui-send-a-snip-on-its-own-show-it-on-the-sent-message-log-every-snip-step">Temp UI: send a snip on its own, show it on the sent message, log every snip step</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-05).</strong> Approved as written: <code>(snip)</code> for a snip sent alone, the same thumbnail size in the sent bubble. Built; the full suite passes (488 passed, 0 failed, checked after the build) and <code>ruff</code> is clean. Left: the app restart, then the by-hand checks in the test plan.</p>
+<p><strong>Checks by hand (after the restart):</strong> (a) snip sent with no text: <strong>passed</strong> (2026-11-05). The Talker got <code>(snip)</code> with the image and the image stayed on the sent message. (b), (c) and (d) are still to do.</p>
+<p><strong>As built:</strong> the last 30 sent snips stay served by <code>GET /snip/&lt;id&gt;</code> so the bubbles keep their images. Besides × drops, a snip pushed out by the limit of 3 is logged too, in both modules. The Talker logs the snip count for every message, 0 included.</p>
+</blockquote>
+<p><strong>Asked:</strong> "When I press send with only the image it does send, and in my input in the chat the image remains there, you know, as a separate image in the chat box. I just need some confirmation that the image sent as I send it to you." Also: find out where a snip got lost.</p>
+<p><strong>Why:</strong> the diagnosis (2026-11-05) found:</p>
+<ul>
+<li><strong>Send with only a snip does nothing.</strong> Both ends stop on empty text on purpose: the page's send handler (<code>temp_ui/page.html:652</code>, <code>if (!value) return;</code>) and <code>/say</code> (<code>temp_ui/module.py:509</code>). The page posts only <code>{text}</code>; the Talker adds the image from its own list of pending snips (<code>talker/module.py:528-530</code>, attached at <code>:560-567</code>).</li>
+<li><strong>Nothing confirms a snip went out.</strong> On every message the temp UI clears the thumbnails (<code>temp_ui/module.py:240-242</code>), and the "you" bubble shows only the text.</li>
+<li><strong>One snip was lost with no trace.</strong> In the 16:09 launch, snip <code>6b47364b</code> went out with the next message; snip <code>087352c6</code> (16:36:11) never went out with any later one. No dropped events, errors, resets or reloads in the log, and the debugger couldn't reproduce it. Only a sent message or the × on a thumbnail empties the Talker's list, and neither is logged.</li>
+</ul>
+<p><strong>Touches:</strong> <code>temp_ui</code> (<code>page.html</code>, <code>module.py</code>) and the <code>talker</code> module only. No contract, core or config change. Docs: <a href="../html/modules/temp_ui.html">temp_ui</a> (a short <strong>Snips</strong> paragraph: send with a snip alone, thumbnails move into the sent bubble), <a href="../html/modules/talker.html">talker</a> (pending snips, the placeholder text, the log lines), the snips line in the <a href="../html/agents/runtime.html#temp-ui">runtime page</a>. Tests: <code>tests/test_temp_ui.py</code> and the Talker's tests.</p>
+<p><strong>Approach:</strong></p>
+<ol>
+<li><strong>Send with only a snip.</strong> The page lets send through when the box is empty but thumbnails are showing. <code>/say</code> publishes <code>InputReceived</code> when there is text <em>or</em> a waiting snip; with no text it uses the placeholder <code>(snip)</code>, so the Talker's turn has some text. The Talker attaches the image as today.</li>
+<li><strong>Show the snip on the sent message.</strong> When a message goes out (typed or spoken), the temp UI puts the waiting thumbnails into that "you" bubble as a separate image row under the text, instead of only clearing them. The bubble shows what the temp UI held; the Talker's log line (step 3) shows what was really attached.</li>
+<li><strong>Log every snip step, at info level</strong> (in the launch's log):
+   - Talker: a snip received (id, file); a snip dropped and from where (<code>sent</code> with message <em>id</em>, or <code>x</code> from the thumbnail); how many it attached to a message (count and ids, <code>0</code> included when the temp UI showed some).
+   - temp_ui: a snip shown, a × click (<code>/drop-snip</code>), and how many thumbnails moved into a sent bubble.
+   If a snip goes missing again, the log shows which step lost it.</li>
+</ol>
+<p><strong>Test plan:</strong></p>
+<ul>
+<li>Automated: <code>/say</code> with empty text and a waiting snip publishes <code>(snip)</code>; with empty text and no snip publishes nothing; the sent item carries the thumbnails; the Talker logs receive, attach and drop. Then <code>pytest</code> and <code>ruff</code>.</li>
+<li>By hand, after the app restart: (a) snip, send with no text: the bubble shows the image and the Talker describes it; (b) snip plus typed text, and snip plus a spoken message; (c) snip, then × on its thumbnail, then send text: no image goes out; (d) read the log: one line per step for each of these.</li>
+</ul>
+<p><strong>Restart:</strong> the code could be reloaded module by module, but you asked for an <strong>app restart</strong> after the change; it will be offered when the build is done.</p>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li><strong>Placeholder text</strong> for a snip sent alone: <code>(snip)</code>? <strong>Recommend</strong> <code>(snip)</code>; the Talker sees the image either way.</li>
+<li><strong>Image size in the bubble:</strong> same small thumbnail as above the input, or larger? <strong>Recommend</strong> the same thumbnail size, click to open it full size in the viewer later if wanted.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/temp-ui-snip-send.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

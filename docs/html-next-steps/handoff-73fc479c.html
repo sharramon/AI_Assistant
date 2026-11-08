@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: the agent-permissions build (task 73fc479c)</title>
+<!-- Generated from docs/next-steps/handoff-73fc479c.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-73fc479c.html"></nav>
+<main>
+<h1 id="handoff-the-agent-permissions-build-task-73fc479c">Handoff: the agent-permissions build (task 73fc479c)</h1>
+<p>The task is to build <a href="agent-permissions.html">agent-permissions.md</a>: all 8 build steps, run in Auto mode. Follow batching, architecture-first, and architecture-check after each big chunk and before the final report. Write tests, then run pytest and ruff, rebuild the HTML (docs-html), and mark the note built in <code>docs/next-steps/README.md</code>. Don't git push or restart the app; the restart is asked about after usage-tallies. Agent names is built: the job agent's id is <code>job_search_agent</code>, a helper launch needs your yes on a card, and <code>IAgentNames</code> exists. The <code>config/default.toml</code> edit for the job agent's keys is approved and done. At the end, report the architecture check, test and ruff results, and what needs your eyes after the restart.</p>
+<h2 id="user-decisions-session-3-already-in-the-code-the-docs-still-need-them">User decisions (session 3), already in the code; the docs still need them</h2>
+<ol>
+<li><strong>The permissions handler is part of the core, not a module.</strong> It's always on, and no module or agent can turn it off or reload it. <code>ctx.permissions</code> is backed by the core handler (<code>PermissionsPort</code>), which replaces <code>AllowAllPermissions</code>. There's no permissions module and no <code>IPermissions</code>. The <code>permissions.*</code> grants menu is on the core's menu (id <code>core</code>). <code>data/permissions.toml</code> stays protected, and an agent's grant or revoke needs your card. The Main Assistant's review goes through <code>StartTask</code>, <code>TaskUpdated</code> and <code>CancelTask</code>. The user wants the docs to say this (the note, <code>architecture/permissions.md</code>, the README parts table, <code>decisions.md</code>, the API pages) and a report of the check that the core stays small and uses only generic parts.</li>
+<li><strong>Grants are saved per kind of agent</strong> (<code>helper_2</code> shares <code>helper</code>'s; the job agent's subject is <code>job_search_agent</code>). Record it in the note as decided (it refines decisions 5 and 10).</li>
+</ol>
+<h2 id="done-sessions-14-code-written-the-full-suite-not-yet-green">Done (sessions 1–4); code written, the full suite not yet green</h2>
+<ul>
+<li>Steps 1–3: the contract <code>contracts/permissions.py</code> (now without <code>IPermissions</code>), and <code>core/permissions/</code> (<code>rules</code>, <code>store</code>, <code>handler</code>, <code>port</code>, <code>menu</code>). The old <code>core/permissions.py</code> and <code>modules/permissions/</code> are deleted.</li>
+<li><strong>Core wiring (session 4):</strong></li>
+<li><code>core/app.py</code>: <code>self.permissions = PermissionsHandler.from_config(...)</code>; <code>AnswerPermissionRequest</code> is handled; <code>TaskUpdated</code> is subscribed; <code>permissions_menu_tools</code> is under <code>CORE_ID</code>; <code>GetMenu("core")</code> includes <code>PermissionsMenu</code>; <code>CoreMenu</code> and <code>ScopedContext</code> get a <code>PermissionsPort</code>; <code>permissions.close()</code> runs in <code>stop()</code>.</li>
+<li><code>core/context.py</code> takes a <code>permissions=</code> argument. <code>core/registry.py</code> no longer has the <code>IPermissions</code> ordering.</li>
+<li><strong>Step 4</strong> (earlier): <code>infra/agent_access.py</code> and the <code>python</code> key / <code>manual_claude_mode</code> in <code>agent_profile.py</code>.</li>
+<li><strong>Step 5 (session 4):</strong></li>
+<li><code>job_search</code>: builds its agent in <code>start()</code> after <code>request_access(subject=job_search_agent, wait=False)</code>; it has the manifest permission <code>agent.access</code>, and is guarded for None.</li>
+<li><code>task_agents</code>: each autostart kind is asked in <code>start()</code>, all cards at once, with one combined <code>AccessPending</code>. The helpers are built from the granted kind config with the new <code>instances(kind, merged)</code> (<code>agent_configs</code> uses it). <code>_launch</code> asks <code>request_access(subject=kind, wait=True)</code>, and on <code>AccessDenied</code> it fails. It has the manifest permission <code>agent.access</code>.</li>
+<li><strong>Step 6 (session 4):</strong></li>
+<li>Talker: subscribes <code>PermissionRequested</code> / <code>PermissionChanged</code>. Cards are keyed <code>access:&lt;request_id&gt;</code> in <code>_cards</code>, so <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> send <code>AnswerPermissionRequest</code> (all or deny). <code>access_card_text(event)</code> is a module-level function. The prompt gained the "[Access card]" paragraph.</li>
+<li>temp UI: <code>accessCard()</code> in <code>page.html</code> (tick boxes, warnings, "not reviewed", fixed rules), and <code>POST /access-answer</code>. <code>PermissionChanged.request_id</code> settles the card (<code>access_closed</code> item).</li>
+<li><strong>Step 7 (session 4):</strong> <code>temp_ui/static/grants.js</code>, the rough throwaway screen: its own header button, panel and styles, plus one marked <code>&lt;script&gt;</code> tag in <code>page.html</code>. It uses <code>GET /grants.js</code> and <code>POST /grants</code> (<code>list</code> → <code>permissions.grants</code>, <code>revoke</code> → <code>permissions.revoke</code>, as <code>temp_ui</code>).</li>
+<li><strong>Step 8 (session 4):</strong> <code>config/default.toml</code> has <code>python = ".../Resume/.venv/Scripts/python.exe"</code> in <code>[modules.job_search]</code>, the comment fixed, and a commented <code>[core.permissions]</code> block.</li>
+</ul>
+<h2 id="in-flight-when-this-session-ended">In flight when this session ended</h2>
+<p>A <code>debugger</code> subagent was fixing the test suite: <code>test_permissions.py</code>, <code>test_permissions_handler.py</code> (core form), a new <code>tests/conftest.py</code> (autouse: <code>GRANTS_FILE</code> → tmp), <code>support.pre_grant(...)</code>, pre-grants in the job_search / agent_names / task_agents tests, the <code>permissions.*</code> filter in <code>test_app.py</code>, and new behaviour tests. <strong>Its result wasn't seen.</strong> The next session should run pytest first and finish what's left. Also check that <code>data/permissions.toml</code> wasn't created by tests.</p>
+<h2 id="next">Next</h2>
+<p><strong>Status (2026-11-05, session 5):</strong></p>
+<ul>
+<li><strong>Steps 1–5 below are DONE.</strong> The suite passes: 474 + 1 tests. Ruff is clean, and <code>data/permissions.toml</code> is never written by tests.</li>
+<li><strong>Test setup:</strong> <code>tests/conftest.py</code> gives a short card timeout and turns the review off. <code>support.pre_grant</code> / <code>pre_grant_kinds</code> and <code>tests/test_access_cards.py</code> are in place.</li>
+<li><strong>Docs and HTML:</strong> updated, and agent-permissions is marked built.</li>
+<li><strong>Architecture check:</strong> OK.</li>
+<li>The handler holds no logic for any particular module: a new module only declares <code>agent.access</code> and lists its access in config.</li>
+<li>Only the defaults <code>reviewer = main_assistant</code> and <code>you = temp_ui</code> name agents; both are configurable in <code>[core.permissions]</code>.</li>
+<li>The handler uses only generic core parts. It is 476 + 40 + 49 + 91 + 113 lines.</li>
+<li><strong>Still wrong:</strong> the bird's-eye diagram shows Permissions as a planned module. Fix it in the fold step (6.4).</li>
+<li><strong>Next:</strong> 6.2, usage tallies.</li>
+</ul>
+<p><strong>Usage tallies, part A, DONE (session 5):</strong></p>
+<ul>
+<li><code>docs/next-steps/usage-tallies.md</code> is edited to the user's decisions. The time buckets, the history and <code>usage.jsonl</code> are gone (nothing on disk).</li>
+<li>The real sub-agent test ran. Its "Verified (2026-11-05)" section is in the note, and the HTML is rebuilt.</li>
+<li><strong>What the stream shows:</strong></li>
+<li>The sub-agent's own lines don't appear. Only its prompt does, as a <code>user</code> line with <code>parent_tool_use_id</code> and <code>agent_id</code>.</li>
+<li>Its tokens are in <code>tool_use_result.usage</code> on the tool_result line, with <code>agentId</code> and <code>agentType</code>. There's no cost per sub-agent.</li>
+<li>The <code>result</code>'s <code>usage</code> covers the parent only, while <code>modelUsage</code> and <code>total_cost_usd</code> include the sub-agent.</li>
+<li>So a sub-agent's row shows tokens, and its ~$ stays in the parent's.</li>
+<li><strong>Next:</strong> part B, the build, from the note's rewritten build steps: the own <code>usage</code> module, the dropdown with nesting, and the Talker as its own row. Then tests, ruff, the architecture check, docs and the HTML rebuild, and mark it built. After that, the rest of step 6.</li>
+</ul>
+<p><strong>Usage tallies, part B, STARTED then stopped (session 5):</strong></p>
+<ul>
+<li>A build subagent was stopped partway through. It had already changed files on disk: at least <code>src/assistant/contracts/agents.py</code> and <code>src/assistant/modules/talker/module.py</code>, and maybe a new <code>src/assistant/modules/usage/</code>.</li>
+<li>The next session starts by reading <code>git diff</code> of those files and <code>git status</code> for new files. It keeps what fits the note, and finishes the build:</li>
+<li>the own <code>usage</code> module, with sub-agent tokens from <code>tool_use_result.usage</code> (<code>agentId</code>, <code>agentType</code>) nested under the parent; a sub-agent's ~$ stays in the parent's;</li>
+<li>the dropdown in the temp UI, in a clearly marked place, with the Talker as its own row;</li>
+<li>tests (full suite with a 300 s shell cap, about 75 s and 475 tests before), ruff, the architecture check, docs (<code>docs/modules/usage.md</code>, the API pages, <code>reusable.md</code>) and the HTML rebuild;</li>
+<li>mark the note built.</li>
+<li>The contracts changed, so the app needs a restart, done by the Talker.</li>
+<li><strong>A second build subagent was also stopped partway (session 5).</strong> By then it had also changed <code>src/assistant/modules/temp_ui/module.py</code>, <code>temp_ui/page.html</code> and <code>config/default.toml</code>, probably the <code>[modules.usage]</code> section.</li>
+<li>The next session should do the build itself, in a fresh context, rather than through a long subagent (they keep being cut off).</li>
+</ul>
+<p><strong>Usage tallies: BUILT (session 5).</strong></p>
+<ul>
+<li>The code the stopped runs left was complete and passed. Session 5 added the docs: <code>docs/modules/usage.md</code>, its tab in <code>build_docs.py</code>, <code>SessionUsage</code> in <code>api/agents.md</code>, <code>subagent_usage</code> and <code>UsageLedger</code> in <code>api/infra.md</code>, <code>reusable.md</code>, the <code>api/README</code> row, and the module-library regeneration. The note and <code>next-steps/README</code> are marked built.</li>
+<li><strong>Tests:</strong> all 485 pass. Ruff is clean. <code>test_voice_pieces::test_closing_the_socket...[False]</code> failed once in the full run, then passed when re-run with its file and the docs tests, so it's timing-flaky and unrelated.</li>
+<li><strong>Architecture check:</strong> OK. The <code>usage</code> module uses only contracts and infra, and the ledger is plain Python in infra. The Talker uses <code>usage.total</code> through the menu.</li>
+<li><strong>The whole list is now built, and the app is READY FOR THE RESTART,</strong> which the Talker does.</li>
+</ul>
+<p><strong>After the restart, test (the next session; fix, ask for a restart again, and re-test until all of it works):</strong></p>
+<ol>
+<li><strong>Post-restart basics:</strong> the door lists modules, <code>viewer.open</code> works, <code>hub.agents</code> shows <code>main_assistant</code> focused, and a normal task runs to done.</li>
+<li><strong>Agent names:</strong>
+   - <code>job_search</code> registers as <code>job_search_agent</code>.
+   - <code>IAgentNames.taken()</code> is right.
+   - A clash is refused with a free name.
+   - A repeat claim by the same owner is ok.</li>
+<li><strong>Helper launch:</strong> <code>modules.on task_agents</code>, then <code>agents.launch</code> gives the user a card. Allow starts the helper as a child task, and its access card (kind <code>helper</code>) shows.</li>
+<li><strong>Permissions:</strong>
+   - <code>modules.on job_search</code> shows the access card in the temp UI, with tick boxes, warnings, and the review or "not reviewed".
+   - Allow turns it on, and <code>data/permissions.toml</code> gets written.
+   - <code>permissions.grants</code> lists it.
+   - Revoke from the Grants (rough) screen turns it off.
+   - A revoke from an agent shows a card.</li>
+<li><strong>Usage:</strong> <code>usage.total</code> and <code>usage.agents</code> (the Talker's row, <code>main_assistant</code>'s row). A task that uses a sub-agent shows it nested. The temp UI's total and dropdown.</li>
+<li>Turn <code>job_search</code> and <code>task_agents</code> back off afterwards.</li>
+<li>
+<p>Then the docs move (6.4) and the bird's-eye diagram fix.
+- Read the usage parts of <code>git diff</code> and <code>git status</code>, then finish, test, run ruff and update the docs as listed above.</p>
+</li>
+<li>
+<p>Run <code>.\.venv\Scripts\python -m pytest -q</code> and ruff, and fix what fails (hand loops to <code>debugger</code>).</p>
+</li>
+<li>Add <code>tests/test_access_cards.py</code>:
+   - <code>access_card_text</code> (talker), including "Not reviewed".
+   - temp UI: publish a <code>PermissionRequested</code> and see an <code>access</code> item on <code>/events</code> with <code>card.items[].trimmable</code>; <code>POST /access-answer</code> reaches the handler; <code>POST /grants {"action":"list"}</code> returns rows.
+   - Use the <code>request</code> / <code>read_events</code> / <code>post</code> / <code>ui_port</code> helpers in <code>tests/test_temp_ui.py</code>.</li>
+<li>Architecture check (core growth ~450 lines in 5 files using only send/publish/find + shared contracts; no module import; the registry special case removed; temp UI grants screen isolated in one file).</li>
+<li>Docs:
+   - <code>architecture/permissions.md</code>: core, first piece built, the flow, per-kind grants. A widened grant applies at the next turn-on; a narrowed revoke keeps the fingerprint; a full or workspace revoke removes the grant.
+   - README parts row → <code>src/assistant/core/permissions/</code>, built.
+   - <code>decisions.md</code>.
+   - API: <code>core.md</code> (<code>PermissionsHandler</code>, <code>PermissionsPort</code>, <code>PermissionsMenu</code>; drop <code>AllowAllPermissions</code>), <code>modules.md</code> (<code>request_set</code>), <code>control.md</code> (<code>permissions.*</code> on the core menu), and messaging (the access types).
+   - <code>reusable.md</code> (<code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>manual_claude_mode</code>, <code>instances</code>).
+   - The module pages: <code>job_search</code>, <code>task_agents</code>, <code>talker</code>, <code>temp_ui</code>.
+   - The job-agent note and this note's decisions.</li>
+<li><code>build_docs</code>, mark the note built in <code>docs/next-steps/README.md</code>, then delete this handoff.</li>
+<li><strong>Then, as separate steps in the same run, without asking the user whether to carry on</strong> (the user said so on 2026-11-05; hand off to fresh sessions as needed; ask only for a real decision or a risky step; never restart the app; don't push):</li>
+<li><strong>DONE (2026-11-05):</strong> a repeat claim of an agent name by the <strong>same owner</strong> succeeds (<code>IAgentNames.claim</code> in <code>agent_hub</code>); a different owner is still refused. Add a test in <code>tests/test_agent_names.py</code>. Delete <code>docs/next-steps/handoff-5930027e.md</code> (the user said yes).</li>
+<li><strong>Usage tallies:</strong><ul>
+<li>Edit <code>docs/next-steps/usage-tallies.md</code> first. Drop the time buckets and the per-time history. Keep only the totals per agent since launch, the dropdown by agent with sub-agents nested, and the Talker as its own row. No spend alerts. The ledger is its own module, with no history after the app closes.</li>
+<li>Then run one real test with a sub-agent: is its usage in the parent's totals, and do its lines appear in the stream? Record what you verified in the note.</li>
+<li>Then build the rest with the same architecture-check loop, tests, ruff and doc rebuild, and mark the note built.</li>
+</ul>
+</li>
+<li>At the end, report that everything is ready for the restart (the user is asked about it then), with the architecture-check, test and ruff results.</li>
+<li><strong>Last step, after usage-tallies and the restart tests (approved by the user, docs only, don't ask):</strong><ul>
+<li>Fold the lasting content of each built note (agent-names, agent-permissions, usage-tallies, and multi-agent and job-agent where built) into the permanent docs, with their diagrams:<ul>
+<li>naming rules and the helper launch flow → <code>architecture/agents.md</code> and <code>api/agents.md</code>;</li>
+<li>the permissions design, the card flow and the grants menu → <code>architecture/permissions.md</code>;</li>
+<li>the job agent and the usage design → their module and architecture pages;</li>
+<li>then update the parts table and the module library.</li>
+</ul>
+</li>
+<li>Add the focus and the milestone feed to the bird's-eye diagram, keeping it simple.</li>
+<li>Leave each note as a short history entry marked built, linking to where its content lives now. Keep <code>next-steps/README.md</code> accurate.</li>
+<li>Rebuild the HTML (docs-html).</li>
+</ul>
+</li>
+<li><strong>Standing instruction (user, 2026-11-05):</strong><ul>
+<li>Don't ask about restarts. When the whole list is built, report it's ready, and the Talker restarts the app (not you, not the user).</li>
+<li>After each restart, test everything the new code touches: the post-restart checks, the permissions card and grants menu, agent names and the duplicate check, helper launch on a card, and the usage ledger and dropdown.</li>
+<li>If anything fails, fix it, build again, ask for another restart and re-test. Repeat until all of it works.</li>
+<li>Don't stop until the whole list is built and verified after a restart. Ask only for decisions you truly can't make. Never push.</li>
+</ul>
+</li>
+<li>After the restart, the user should look at: the job_search access card (tick boxes, review or "not reviewed"), Allow turning it on, the Grants (rough) screen and its revoke, and the Talker reading a card aloud.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/handoff-73fc479c.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

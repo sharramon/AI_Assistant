@@ -13,7 +13,8 @@
 <main>
 <h1 id="job-agent-run-the-job-project-from-the-assistant">Job agent: run the job project from the assistant</h1>
 <blockquote>
-<p><strong>Status: proposed (2026-11-04).</strong> A plan only; nothing is built. How the job project works today is on the <a href="../html/job-project/index.html">Job project</a> page. Building it changes a contract (<code>StartTask</code>) and shared infra, so it will need an app restart.</p>
+<p><strong>Status: built (waiting on you), 2026-11-05.</strong> Built with the <a href="multi-agent.html">multi-agent</a> build as the <code>job_search</code> module (<a href="../html/modules/job_search.html">page</a>): the job agent <code>job_search_agent</code> (renamed by <a href="agent-names.html">agent-names</a>; a <code>ProfileAgent</code> in <code>C:\Chang\Jobs\CV</code>, Chrome tools, Manual) and its <code>job.search</code> menu item, a <strong>stub</strong> that answers through <code>AgentNotice</code>. Question 1 is settled by <a href="agent-permissions.html">agent-permissions</a> (built 2026-11-05): the access list is config keys, asked for on one card. Still open: the real search runner (<code>sweep.py</code> with JobRadar's Python). Needs an app restart. How the job project works today is on the <a href="../html/job-project/index.html">Job project</a> page.</p>
+<p><strong>Tested by hand (2026-11-05, after the restart):</strong> <code>modules.on job_search</code> showed the access card ("not reviewed": <code>main_assistant</code> was busy). You allowed all 5 items, and <code>job_search</code> turned on. <code>job_search_agent</code> is in the Hub (Manual, free) and took the focus. Its tab opened in the temp UI: the log shows tab clicks moving the focus between it and <code>main_assistant</code>. The grant is saved in <code>data/permissions.toml</code>, and <code>permissions.grants</code> lists it with <code>matches: true</code>. <code>job.search</code> (the stub) answered "Search started". Not yet tried: giving the agent a real task, and the revoke from the Grants screen.</p>
 </blockquote>
 <h2 id="what-you-decided">What you decided</h2>
 <ul>
@@ -97,12 +98,12 @@
 <li><strong>The Main Assistant</strong> has no way to send Hub commands today, so only the Talker can do the above. Whether it should is question 2.</li>
 </ul>
 <h2 id="permissions-outside-this-project">Permissions outside this project</h2>
-<p>The job agent works outside this repo, so it gets its own access list (built with <code>path_rule</code>), not the Main Assistant's. Anything outside the list comes to you as an Allow / Deny card through the Hub, as today. It starts in Manual mode. The list itself is question 1.</p>
+<p>The job agent works outside this repo, so it gets its own access list (built with <code>path_rule</code>), not the Main Assistant's. Since 2026-11-05 the list is config keys in <code>[modules.job_search]</code>: <code>workspace</code>, <code>read_dirs</code>, <code>python</code> (added: JobRadar's Python, any arguments), <code>allowed_commands</code> and <code>chrome</code>. When the module is turned on, the whole list is asked for on one card, and the grant is saved for <code>job_search_agent</code> (<a href="../html/architecture/permissions.html#access-lists-built">permissions</a>). Anything outside the list comes to you as an Allow / Deny card through the Hub, as before. It always starts in Manual mode.</p>
 <h2 id="later-cloud-agents">Later: cloud agents</h2>
 <p>A cloud agent can't see <code>C:\Chang\Jobs\CV</code> (not a git repo), the <code>.odt</code> CVs, JobRadar's Python or your logged-in Chrome. Its status would come from checking a remote API over and over, through its own <code>ITaskAgent</code> adapter, and it means sending job data off the machine. A later step, for the web-only half of a search at most.</p>
 <h2 id="open-questions-for-you">Open questions for you</h2>
 <ol>
-<li><strong>The job agent's permissions.</strong> Proposed: read and write <code>C:\Chang\Jobs\CV</code>; read <code>C:\Chang\Jobs</code> and JobRadar (<code>C:\Chang\Git_projects\Resume</code>); run JobRadar's Python; use Chrome; Manual mode; never submit or send anything.</li>
+<li><strong>The job agent's permissions.</strong> Proposed: read and write <code>C:\Chang\Jobs\CV</code>; read <code>C:\Chang\Jobs</code> and JobRadar (<code>C:\Chang\Git_projects\Resume</code>); run JobRadar's Python; use Chrome; Manual mode; never submit or send anything. <strong>Settled (built 2026-11-05):</strong> the list is in config, with the <code>python</code> key added, and is asked for on one card when the module is turned on (<a href="agent-permissions.html">note</a>).</li>
 <li><strong>May the Main Assistant start or question the job agent itself</strong>, or only you through the Talker for now? Recommended: only you, for now.</li>
 </ol>
 <footer>Generated from <code>docs/next-steps/job-agent.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

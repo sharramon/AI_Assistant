@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv: architecture</title>
+<!-- Generated from src/assistant/modules/cv/docs/architecture.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/cv/architecture.html"></nav>
+<main>
+<h1 id="cv-architecture">cv: architecture</h1>
+<p>How the <code>cv</code> module works inside. What it is and the 8 steps: <a href="index.html">Overview</a>. Its menu: <a href="tools.html">Tools</a>.</p>
+<h2 id="one-module-with-its-worker-inside">One module with its worker inside</h2>
+<ul>
+<li><strong>One module, id <code>cv</code></strong>, holds everything it needs: the Rezi connection, the CV output side, and its worker.</li>
+<li><strong>Its worker, <code>cv_agent</code></strong>, is a <code>ProfileAgent</code> (a Claude session with its own access card), the way <code>job_search</code> bundles its agent. It runs the 8 steps, is the truth gate and formats the one page.</li>
+<li><strong>Chrome only in the worker:</strong> only this worker's session uses Chrome, only on app.rezi.ai, with your Rezi login. Keyword Targeting, the Rezi Score and the PDF import happen there, not as menu items.</li>
+<li><strong>Jobs sent through the Hub:</strong> a caller gets the task's text from <code>cv.task</code> and sends it to <code>cv_agent</code> with <code>hub.start</code>. The result comes back as the task's result, read with <code>cv.read_result</code>. There is no <code>rezi.tailor_cv</code> item.</li>
+<li><strong>It stands alone:</strong> no other module is changed for it. The job agent (or any caller) connects later through those three calls.</li>
+<li><strong>The worker uses its own module's menu through the door</strong>, like any caller, so every call gets the one permission check and the resume guard stays in code.</li>
+</ul>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td>the <code>rezi.*</code> and <code>cv.*</code> items: see <a href="tools.html">Tools</a></td>
+</tr>
+<tr>
+<td>Its worker</td>
+<td><code>cv_agent</code>: one job per task through the Hub (<code>cv.task</code> gives the text, then <code>hub.start</code>); the task's result ends with a <code>CV_RESULT</code> line (<code>cv.read_result</code>)</td>
+</tr>
+<tr>
+<td>Provides</td>
+<td><code>ITaskAgent</code>: the worker, so the Hub lists it and starts its tasks</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td>nothing beyond its menu</td>
+</tr>
+<tr>
+<td>Sends</td>
+<td><code>ReportTask</code> (the worker's task reports) and <code>InvokeTool</code> (its SHOW tags), as every <code>ProfileAgent</code> does</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td>the worker's agent events: <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>AgentNotice</code></td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><code>ResetRequested</code> (resets <code>cv_agent</code>), <code>PermissionChanged</code> (a new grant reaches the worker live)</td>
+</tr>
+<tr>
+<td>Permissions</td>
+<td><code>agent.access</code>: the worker's access list on one card</td>
+</tr>
+</tbody>
+</table>
+<h2 id="class-chart">Class chart</h2>
+<pre><code class="language-mermaid">classDiagram
+  direction LR
+  class ModuleProtocol { &lt;&lt;existing&gt;&gt; }
+  class Menu { &lt;&lt;existing&gt;&gt; }
+  class ProfileAgent { &lt;&lt;existing&gt;&gt; AgentProfile + ClaudeSession + SessionTaskAgent }
+  class ITaskAgent { &lt;&lt;existing contract&gt;&gt; }
+  class CvModule { rezi.* and cv.* items, owns the worker }
+  class CvWorker { worker.py: WORKER_PROMPT, worker_config(agent), worker_prompt() }
+  class McpClient { +status() +list_tools() +call(name, args) +sign_in(open_browser) }
+  class TokenStore { +load() +save() +days_left() +clear_token() mcp TokenStorage }
+  class LoopbackCallback { +redirect_uri +wait(timeout) }
+  class ReziTools { the rezi.* items' work +start_sign_in() +write_resume(fields, id) +write_cv(sections) +generate_keywords(id) ... }
+  class ResumeGuard { +check_write(id, fields) +created(id, name) +owns(id) +as_value() }
+  class read_rezi { &lt;&lt;function&gt;&gt; Rezi's resume JSON to sections, skipped keys }
+  class CvContent { +from_odt(path) +from_rezi(json) }
+  class SectionOrder { +pick(degree_first) +drop(n) +choose(content, degree_first, drop) }
+  class OdtWriter { +write(content, order, path) }
+  class PdfExport { +export(odt) pdf }
+  class PageCheck { +read(pdf, paper, titles, name) PageReport }
+  class build_cv { &lt;&lt;function&gt;&gt; write, export, check, fit to one page }
+  class FieldCompare { +diff(edited, parsed) Comparison +diff_text(edited, text) Comparison }
+  class ReportWriter { +render(result, company, role, rounds, comparison) +write(folder, ...) }
+  class handoff { &lt;&lt;functions&gt;&gt; task_text, read_request, read_jd_file, result_line, read_result, result_view }
+  class CvData { &lt;&lt;data.py&gt;&gt; CvRequest, CvResult, Round, ResumeRef }
+  ModuleProtocol &lt;|.. CvModule
+  CvModule *-- Menu
+  CvModule *-- ProfileAgent : the worker
+  ProfileAgent ..|&gt; ITaskAgent : given to the Hub
+  ProfileAgent *-- CvWorker : its prompt and access
+  CvModule *-- McpClient
+  McpClient *-- TokenStore
+  McpClient ..&gt; LoopbackCallback : sign_in only
+  CvModule *-- ReziTools : rezi.* items
+  ReziTools --&gt; McpClient
+  ReziTools --&gt; ResumeGuard : every write
+  CvModule *-- ResumeGuard
+  CvContent ..&gt; read_rezi : from_rezi
+  CvModule *-- CvContent
+  CvModule *-- SectionOrder
+  CvModule *-- PdfExport
+  CvModule ..&gt; build_cv : cv.build
+  build_cv ..&gt; OdtWriter
+  build_cv ..&gt; PdfExport
+  build_cv ..&gt; PageCheck
+  CvModule *-- FieldCompare
+  CvModule *-- ReportWriter
+  CvModule ..&gt; handoff : cv.task, cv.read_result
+  handoff ..&gt; CvData
+  ReportWriter ..&gt; CvData
+</code></pre>
+<p>Everything on the chart is built (chunks 1 to 8) and tested against a fake Rezi and a fake <code>claude</code> only. Still to do: the real run (chunk 9, with your yes), then retiring the separate Rezi helper as its own step.</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Its one job</th>
+<th>Reuse or new</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ModuleProtocol</code>, <code>Manifest</code>, <code>Menu</code>, <code>Result</code>, <code>ctx.permissions</code>, <code>ctx.logs</code></td>
+<td>The wrapper, the menu, permission asks, logs</td>
+<td>Reuse</td>
+</tr>
+<tr>
+<td><code>ProfileAgent</code> (<code>AgentProfile</code>, <code>ClaudeSession</code>, <code>SessionTaskAgent</code>)</td>
+<td>The worker: its Claude session with Chrome, its access card, its id, its tasks</td>
+<td>Reuse</td>
+</tr>
+<tr>
+<td><code>ITaskAgent</code>, the Hub (<code>hub.start</code>, <code>hub.status</code>)</td>
+<td>A caller hands a job to <code>cv_agent</code> and reads its result</td>
+<td>Reuse</td>
+</tr>
+<tr>
+<td><code>request_access</code>, <code>granted_config</code>, <code>watch_grant</code></td>
+<td>The worker's access card, and grants taken live</td>
+<td>Reuse</td>
+</tr>
+<tr>
+<td><code>viewer.open</code></td>
+<td>Shows HTML at steps 3 and 7; it refuses a PDF, so the worker gives you the PDF's path</td>
+<td>Reuse (HTML only)</td>
+</tr>
+<tr>
+<td><code>handoff.py</code></td>
+<td>The contract: <code>task_text</code> / <code>read_request</code> (<code>CV_REQUEST</code>), <code>result_line</code> / <code>read_result</code> (<code>CV_RESULT</code>), <code>read_jd_file</code> (<code>.txt</code>, <code>.md</code>, <code>.html</code>), <code>result_view</code> (what <code>cv.read_result</code> returns)</td>
+<td>New (standard library)</td>
+</tr>
+<tr>
+<td><code>CvRequest</code>, <code>CvResult</code>, <code>Round</code> (<code>data.py</code>)</td>
+<td>One job in; its outcome out, with rounds, target, keywords, recommendations, compare and files; refuses a result that contradicts itself</td>
+<td>New (pydantic)</td>
+</tr>
+<tr>
+<td><code>McpClient</code> (<code>mcp.py</code>)</td>
+<td>Rezi's MCP server: Streamable HTTP, OAuth with PKCE (the <code>mcp</code> package's <code>Client</code> and <code>OAuthClientProvider</code>), list and call tools, sign in</td>
+<td>New, in this module only</td>
+</tr>
+<tr>
+<td><code>TokenStore</code> (<code>mcp.py</code>)</td>
+<td>Keeps the 30-day token and the registered client in one file outside the repo; days left; the <code>mcp</code> package's <code>TokenStorage</code></td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>LoopbackCallback</code> (<code>mcp.py</code>)</td>
+<td>Catches the browser's redirect after the sign-in on <code>127.0.0.1</code></td>
+<td>New (standard library)</td>
+</tr>
+<tr>
+<td><code>CvModule</code></td>
+<td>The menu, and the owner of the worker</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>CvWorker</code> (<code>worker.py</code>)</td>
+<td>The worker's prompt (the 8 steps, the truth gate, the never list, the config's target, rounds, paper and folders) and its checked <code>[agent]</code> table (output folder added to <code>read_dirs</code>)</td>
+<td>New (prompt + config)</td>
+</tr>
+<tr>
+<td><code>ReziTools</code> (<code>rezi.py</code>)</td>
+<td>The <code>rezi.*</code> items' work: Rezi's seven tools used here, one write at a time, the new resume's id, the read-back, <code>check_tools</code> against the live list, the error mapping (<code>run</code>)</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>ResumeGuard</code> (<code>guard.py</code>)</td>
+<td>Refuses writes to any Rezi resume not created by this module; handed over on a reload</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>CvContent</code></td>
+<td>The base <code>.odt</code> and Rezi's resume JSON (<code>read_rezi</code> in <code>rezi_json.py</code>) as plain sections</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>SectionOrder</code></td>
+<td>Default or degree-first order; drops Publications, then Awards</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>OdtWriter</code></td>
+<td>One column, standard headings, no tables, text boxes or images</td>
+<td>New (standard library)</td>
+</tr>
+<tr>
+<td><code>PdfExport</code></td>
+<td><code>.odt</code> to PDF with headless LibreOffice</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>PageCheck</code></td>
+<td>Page count, page size and clean text (<code>assess</code> holds the rules, tested without a PDF)</td>
+<td>New (<code>pypdf</code>)</td>
+</tr>
+<tr>
+<td><code>build_cv</code> (<code>build.py</code>)</td>
+<td>The fit: roomy to tight layouts, then the drop list, first one-page result wins</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>FieldCompare</code> (<code>compare.py</code>)</td>
+<td>What Rezi read from the PDF against the edited resume: missing sections, missing, moved and extra lines (<code>Comparison</code>, <code>Issue</code>)</td>
+<td>New (standard library)</td>
+</tr>
+<tr>
+<td><code>ReportWriter</code> (<code>report.py</code>)</td>
+<td><code>report.md</code>: result, files, score rounds, keywords still missing and left out, recommendations, the compare; refuses a report that contradicts itself</td>
+<td>New</td>
+</tr>
+</tbody>
+</table>
+<h2 id="code-flow">Code flow</h2>
+<pre><code class="language-mermaid">flowchart LR
+  subgraph JA[&quot;a caller (later the job agent)&quot;]
+    j_task[&quot;use_item cv.task&lt;br/&gt;→ the task's text&quot;]
+    j_start[&quot;use_item hub.start&lt;br/&gt;agent_id = cv_agent&quot;]
+    j_read[&quot;use_item cv.read_result&lt;br/&gt;on the task's result&quot;]
+  end
+  subgraph HUB[&quot;Hub (agent_hub)&quot;]
+    h_start[&quot;start the task&quot;]
+    h_report[&quot;report the task&quot;]
+  end
+  subgraph CVM[&quot;cv module&quot;]
+    subgraph WK[&quot;worker: ProfileAgent cv_agent&quot;]
+      w_cs[&quot;Claude session with Chrome&lt;br/&gt;the 8 steps, truth gate&quot;]
+      w_chrome[&quot;Chrome on app.rezi.ai:&lt;br/&gt;Keyword Targeting · Score · PDF import&quot;]
+      w_door[&quot;use_item rezi.* / cv.*&quot;]
+      w_fin[&quot;finish: NEED or DONE&quot;]
+    end
+    subgraph ITEMS[&quot;menu items&quot;]
+      r_read[&quot;rezi.read · list · format · search&quot;]
+      v_read[&quot;cv.read: an .odt as sections&quot;]
+      r_write[&quot;rezi.write_resume&quot;]
+      r_guard[&quot;ResumeGuard.check_write&quot;]
+      v_build[&quot;cv.build&quot;]
+      v_cmp[&quot;cv.compare → FieldCompare&quot;]
+      v_rep[&quot;cv.report → ReportWriter&quot;]
+    end
+    subgraph MC[&quot;McpClient&quot;]
+      m_call[&quot;call(name, args)&quot;]
+      m_tok[&quot;TokenStore.load&lt;br/&gt;expired → not_available&quot;]
+    end
+    subgraph CVP[&quot;CV parts&quot;]
+      p_content[&quot;CvContent&quot;] --&gt; p_order[&quot;SectionOrder&quot;] --&gt; p_odt[&quot;OdtWriter&quot;] --&gt; p_pdf[&quot;PdfExport&quot;] --&gt; p_page[&quot;PageCheck&quot;]
+    end
+  end
+  CORE[&quot;door → InvokeTool → Menu.call&quot;]
+  REZI[(&quot;api.rezi.ai/mcp&quot;)]
+  WEB[(&quot;app.rezi.ai, your login&quot;)]
+
+  j_task --&gt; j_start
+  j_start -. door .-&gt; h_start
+  h_report -. &quot;CV_RESULT line&quot; .-&gt; j_read
+  h_start -- &quot;ITaskAgent&quot; --&gt; w_cs
+  w_cs --&gt; w_chrome -. &quot;Claude in Chrome&quot; .-&gt; WEB
+  w_cs --&gt; w_door -. door .-&gt; CORE
+  CORE --&gt; r_read &amp; r_write &amp; v_read &amp; v_build &amp; v_cmp &amp; v_rep
+  r_write --&gt; r_guard
+  r_read --&gt; m_call
+  r_write --&gt; m_call
+  m_call --&gt; m_tok
+  m_call -. &quot;HTTPS + Bearer&quot; .-&gt; REZI
+  v_build --&gt; p_content
+  w_cs --&gt; w_fin -. &quot;task result&quot; .-&gt; h_report
+</code></pre>
+<h2 id="the-worker-workerpy">The worker (<code>worker.py</code>)</h2>
+<pre><code class="language-mermaid">flowchart TB
+  t0[&quot;modules.on cv&quot;]
+  t1{&quot;agent.enabled?&quot;}
+  t2[&quot;the menu only&lt;br/&gt;(no card, no agent)&quot;]
+  t3[&quot;request_access: the [agent] list&lt;br/&gt;(workspace, read folders, Chrome)&quot;]
+  t4{&quot;saved grant still matches?&quot;}
+  t5[&quot;a card: cv waits&lt;br/&gt;(AccessPending); Allow turns it on&quot;]
+  t6[&quot;ProfileAgent cv_agent from what you allowed&lt;br/&gt;claims its id, provides ITaskAgent&quot;]
+  t7[&quot;its claude session starts on its first task&lt;br/&gt;(Manual mode, Chrome, the door)&quot;]
+  t0 --&gt; t1
+  t1 -- no --&gt; t2
+  t1 -- yes --&gt; t3 --&gt; t4
+  t4 -- no --&gt; t5 --&gt; t6
+  t4 -- yes --&gt; t6 --&gt; t7
+</code></pre>
+<ul>
+<li><strong>Built like <code>job_search</code>'s agent.</strong> One <code>ProfileAgent</code> with <code>subject</code> = its id, so it can ask for more access itself with <code>permissions.request</code>. <code>watch_grant</code> passes a widened grant to it live (<code>set_access</code>), and <code>ResetRequested</code> resets it.</li>
+<li><strong>A reload</strong> waits while the worker has a task (<code>busy</code>). The new copy claims the id again, and the guard's ids come over through the handover.</li>
+<li><strong>Its prompt</strong> is <code>WORKER_PROMPT</code> with the config's target, rounds, paper and folders filled in. It names the items for each step: <code>cv.read</code> (step 1), <code>rezi.get_resume_format</code> and <code>rezi.write_resume</code> with <code>sections</code> and no id (step 2), <code>cv.build</code> (step 5), <code>rezi.read_resume</code> with <code>cv.compare</code> (<code>parsed_resume</code>, step 6), and <code>cv.report</code> (step 8). Steps 3 and 7 are <code>NEED:</code> questions to you. It also asks with <code>NEED:</code> before <code>rezi.sign_in</code> opens your browser.</li>
+<li><strong>Tested with a fake <code>claude</code></strong> (<code>tests/test_agents.FAKE</code>) and a pre-saved grant. No session ran against Rezi.</li>
+</ul>
+<h2 id="the-hand-off-handoffpy">The hand-off (<code>handoff.py</code>)</h2>
+<p>A Hub task is plain text, so each direction is one marked line of JSON. Newlines in the JD are escaped, and the last marked line counts.</p>
+<ul>
+<li><strong>In:</strong> a caller calls <code>cv.task</code> with the job: the JD as <code>jd_text</code>, or as <code>jd_file</code> (<code>read_jd_file</code>: <code>.txt</code>, <code>.md</code> or <code>.html</code> in <code>cv_dir</code> or <code>output_dir</code>), plus the CV file. It checks the job (<code>CvRequest</code>, the base CV in <code>cv_dir</code>, the worker on) and gives <code>text</code>: a first line saying what to do, then <code>CV_REQUEST: &lt;json&gt;</code>. The caller sends that text with <code>hub.start</code> to <code>cv_agent</code>. A <code>CV_RESULT:</code> inside the JD can't be mistaken for a result: it's inside the JSON string, not at the start of a line.</li>
+<li><strong>Out:</strong> the worker ends its task with <code>CV_RESULT: &lt;json&gt;</code> as the very last line, a <code>CvResult</code> whose status is <code>approved</code> or <code>stopped</code>. The caller reads it with <code>cv.read_result</code> (<code>result_view</code>). That gives the files with whether each exists, the score per round against the target (<code>vs_target</code>), the keywords still missing and left out, the recommendations, the one-page check and the compare. It refuses a missing line, bad JSON, or a result that contradicts itself: <code>approved</code> without your yes, scores that aren't the rounds', or <code>match_ok</code> with compare issues.</li>
+<li><strong><code>CvResult</code> holds the metadata</strong>: <code>target_score</code>, <code>rounds</code> (<code>Round</code>, moved to <code>data.py</code>; <code>scores</code> filled from them), <code>missing_keywords</code>, <code>recommendations</code>, <code>compare</code> (checked as a <code>Comparison</code>) and <code>report_path</code>. <code>cv.report</code> uses the result's own rounds, compare and target when none are given.</li>
+<li><strong>Tested end to end through the real Hub</strong> with a fake <code>claude</code> that echoes its task. A caller sends <code>cv.task</code> with a JD file and the CV's path, then <code>hub.start</code> to <code>cv_agent</code>. The job arrives intact, and <code>cv.read_result</code> on the task's result gives the whole view.</li>
+</ul>
+<h2 id="the-rezi-connection-mcppy">The Rezi connection (<code>mcp.py</code>)</h2>
+<p>Every <code>list_tools</code> or <code>call</code> opens one connection with the stored token and closes it again. Only <code>sign_in</code> opens a browser.</p>
+<pre><code class="language-mermaid">flowchart TB
+  subgraph CALL[&quot;list_tools / call (never a browser)&quot;]
+    c0{&quot;TokenStore.load:&lt;br/&gt;a token, not expired?&quot;}
+    c1[&quot;NotSignedIn&lt;br/&gt;(no request sent)&quot;]
+    c2[&quot;httpx2 + OAuthClientProvider (Bearer)&lt;br/&gt;mcp Client over Streamable HTTP&quot;]
+    c3{&quot;Rezi's answer&quot;}
+    c4[&quot;ToolOutput(text, data)&lt;br/&gt;ToolInfo list&quot;]
+    c5[&quot;ReziError: the tool's error&quot;]
+    c6[&quot;401: token forgotten → NotSignedIn&quot;]
+    c7[&quot;no answer → ReziUnreachable&lt;br/&gt;(token kept)&quot;]
+    c0 -- no --&gt; c1
+    c0 -- yes --&gt; c2 --&gt; c3
+    c3 -- ok --&gt; c4
+    c3 -- is_error --&gt; c5
+    c3 -- refused --&gt; c6
+    c3 -- network --&gt; c7
+  end
+  subgraph SIGN[&quot;sign_in (rezi.sign_in)&quot;]
+    s0[&quot;LoopbackCallback on 127.0.0.1:callback_port&quot;]
+    s1[&quot;first request → 401 → discovery,&lt;br/&gt;client registration, PKCE challenge&quot;]
+    s2[&quot;open_browser(authorize URL):&lt;br/&gt;you sign in to Rezi&quot;]
+    s3[&quot;redirect → /callback?code&amp;state&quot;]
+    s4[&quot;code + verifier → token&lt;br/&gt;TokenStore.save (30 days)&quot;]
+    s0 --&gt; s1 --&gt; s2 --&gt; s3 --&gt; s4
+  end
+</code></pre>
+<ul>
+<li><strong>Errors for the items</strong> (<code>rezi.run</code>): <code>NotSignedIn</code> → <code>not_available</code> ("use rezi.sign_in"), a guard refusal → <code>invalid_arguments</code>, <code>ReziError</code> → <code>failed</code>, <code>ReziUnreachable</code> → <code>failed</code>, retryable.</li>
+<li><strong>The token file</strong> (<code>token_file</code>, by default <code>%LOCALAPPDATA%\assistant\cv\rezi_token.json</code>) holds <code>token</code>, <code>saved_at</code>, <code>expires_at</code> and <code>client</code>. It is written through a temporary file. A config that puts it inside the repo is refused.</li>
+<li><strong>Tested against a fake Rezi</strong> (<code>tests/fake_rezi.py</code>): the <code>mcp</code> package's own server with an in-memory OAuth provider and Rezi's tools over in-memory resumes in Rezi's real shape, reached through <code>httpx2.ASGITransport</code>.</li>
+<li><strong>The live tool list.</strong> <code>rezi.sign_in</code> lists the live tools (12 seen on 2026-11-07) and their <code>schemas</code>, and <code>check_tools</code> reports a tool missing, a new one, or an argument we send that it doesn't take. The read items take <code>extra</code> arguments, passed through.</li>
+<li><strong>Rezi's real format</strong> (<code>rezi_json.py</code>): <code>read_real</code> reads a live resume exactly (sections keyed by id, in <code>index</code> order, hidden entries skipped), and <code>write_rezi</code> writes the CV's sections into the same shape, <code>{name, jobTitle, jobCompany, jobDescription, data}</code>. <code>ReziTools.write_cv</code> uses it for <code>rezi.write_resume</code> with <code>sections</code>. The round trip from an <code>.odt</code> is exact except the contact headline, which Rezi has no field for (<code>left_out</code>).</li>
+<li><strong>Started in the background:</strong> a sign-in that waits on the browser outlives the module door's 30-second limit, so <code>start_sign_in</code> runs it as a task and <code>rezi.status</code> reports it.</li>
+</ul>
+<h2 id="the-resume-guard-guardpy-and-writes">The resume guard (<code>guard.py</code>) and writes</h2>
+<pre><code class="language-mermaid">flowchart TB
+  w0[&quot;rezi.write_resume(sections or resume, resume_id?)&quot;]
+  g0{&quot;an id key (id, resume_id, _id)&lt;br/&gt;inside the fields?&quot;}
+  g1{&quot;resume_id given?&quot;}
+  g2{&quot;created by this module?&quot;}
+  n0[&quot;list_resumes (before)&lt;br/&gt;write_resume → new resume&quot;]
+  n1[&quot;its id: from Rezi's answer,&lt;br/&gt;else the one new id in the list&quot;]
+  n2[&quot;guard.created(id, name)&quot;]
+  u0[&quot;write_resume(resume_id)&quot;]
+  rb[&quot;read_resume: read back (verify)&quot;]
+  no[&quot;refused → invalid_arguments&quot;]
+  w0 --&gt; g0
+  g0 -- yes --&gt; no
+  g0 -- no --&gt; g1
+  g1 -- no --&gt; n0 --&gt; n1 --&gt; n2 --&gt; rb
+  g1 -- yes --&gt; g2
+  g2 -- no --&gt; no
+  g2 -- yes --&gt; u0 --&gt; rb
+</code></pre>
+<ul>
+<li><strong>Every resume already in your Rezi account is protected.</strong> There's no fixed base resume; only ids this module made can be updated.</li>
+<li><strong>An id Rezi gives back that was already in the list</strong> isn't taken as made here (a warning comes back instead), and neither is a new resume whose id can't be found.</li>
+<li><strong>Writes run one at a time</strong> (a lock), so the before/after lists can't mix two writes.</li>
+<li><strong>A reload keeps the ids</strong> (<code>export_state</code> → the handover); a restart forgets them, so the worker makes a new resume rather than touching one it can no longer prove it made.</li>
+</ul>
+<h2 id="conceptual-flow-the-8-steps">Conceptual flow: the 8 steps</h2>
+<p>Rezi green, the worker blue, you orange.</p>
+<pre><code class="language-mermaid">flowchart TB
+  S1[&quot;1 🔵 Receive the base CV + JD from the caller (cv.task, via the Hub)&lt;br/&gt;pick the section order&quot;]
+  S2[&quot;2 🟢 New resume from the base · 🔵 Keyword Targeting in Chrome&lt;br/&gt;keep only true edits, save (rezi.write_resume)&quot;]
+  S3{&quot;3 🟠 You read the edited CV&lt;br/&gt;changes wanted?&quot;}
+  S4{&quot;4 🟢 Rezi Score + missing keywords&lt;br/&gt;90 or more (aim 100)? at most 5 rounds&quot;}
+  S5[&quot;5 🔵 One clean page: .odt + PDF (cv.build)&quot;]
+  S6{&quot;6 🟢 Rezi imports the PDF and scores it · 🔵 compare (cv.compare)&lt;br/&gt;same content and score still at target?&quot;}
+  S7{&quot;7 🟠 Is this the one?&quot;}
+  S8[&quot;8 🔵 Return the PDF, .odt and report: CV_RESULT (cv.read_result)&lt;br/&gt;never uploads or submits outside Rezi&quot;]
+  S1 --&gt; S2 --&gt; S3
+  S3 -- &quot;yes, with your notes&quot; --&gt; S2
+  S3 -- no --&gt; S4
+  S4 -- &quot;below: add only terms you really have&quot; --&gt; S2
+  S4 -- &quot;reached, or rounds used up (reported)&quot; --&gt; S5 --&gt; S6
+  S6 -- &quot;layout or parse problem&quot; --&gt; S5
+  S6 -- &quot;content or keyword problem&quot; --&gt; S2
+  S6 -- passed --&gt; S7
+  S7 -- &quot;no: the step you name&quot; --&gt; S2
+  S7 -- &quot;no: reformat&quot; --&gt; S5
+  S7 -- yes --&gt; S8
+</code></pre>
+<ul>
+<li><strong>The one page.</strong> Single column, standard headings, no tables, text boxes or images. Order: Contact, Summary, Skills, Experience, Projects, Education, Awards, Publications. Education moves up under Skills only when the JD requires or prefers a master's. When space is tight, Publications goes first, then Awards, then older bullets are tightened.</li>
+<li><strong>Score loops.</strong> A score held down by terms you don't have is reported as "not on CV, left out", not chased.</li>
+<li><strong>Passing.</strong> The returned PDF is exactly the file that passed step 6.</li>
+<li><strong>The compare (step 6).</strong> Rezi splits an entry line into its own fields and order, so each <code>|</code> part of a line is checked on its own: found when 90% of its words are there (any order) and every number is. A line under another section is <code>moved</code>; text Rezi shows that isn't on the CV is <code>extra</code>. Every issue is a parse problem: back to step 5. What Rezi read comes in as <code>rezi.read_resume</code>'s data (<code>parsed_resume</code>, read by <code>from_rezi</code>), as sections, or as one text.</li>
+<li><strong>The report (step 8).</strong> <code>report.md</code> sits next to the PDF in the job's folder, never outside <code>output_dir</code>. It's refused if the result's scores aren't the rounds' scores, or if the result says <code>match_ok</code> and the compare found issues.</li>
+<li><strong>Imports into Rezi</strong> take PDF or DOCX; check copies are named "<Company> – check". Rezi's free formatting review stays off.</li>
+</ul>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<ul>
+<li><strong>Its worker</strong>, <code>cv_agent</code>: a Claude session with Chrome, started on its first task, working in its own workspace (<code>C:\Chang\Jobs\rezi\cv_agent</code> by default, made when cv turns on).</li>
+<li><strong>The Rezi connection</strong>: an MCP client of <code>https://api.rezi.ai/mcp</code> (OAuth with PKCE, a 30-day token kept outside the repo). It connects on each use and never on load. During a sign-in it listens briefly on <code>127.0.0.1:callback_port</code>.</li>
+<li><strong>LibreOffice</strong> runs headless for each <code>.odt</code> → PDF export.</li>
+<li><strong>Files</strong>: <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\</code> with <code>CV_Test_&lt;Company&gt;.odt</code>, <code>.pdf</code> and <code>report.md</code>. The base CV and every Rezi resume it didn't create are never changed.</li>
+</ul>
+<h2 id="decisions-2026-11-06-and-07">Decisions (2026-11-06 and 07)</h2>
+<ul>
+<li><strong>One module with its worker inside</strong>, not a module plus a separate helper. The separate Rezi helper agent is retired only after the real run passes, as its own step.</li>
+<li><strong>It stands alone.</strong> No other module (not the job agent's prompt) is changed for it; they connect later through <code>cv.task</code>, <code>hub.start</code> and <code>cv.read_result</code>.</li>
+<li><strong>The contract:</strong> in, the JD as text or a file plus the CV file; out, the new CV and PDF with the score per round against the target, the missing keywords, recommendations, the one-page check and the compare.</li>
+<li><strong>Chrome only in the worker</strong>, only on app.rezi.ai. Keyword Targeting, the Score and the PDF import are done there, not as menu items.</li>
+<li><strong>No Rezi AI writer for now.</strong> The worker edits; Rezi targets, scores and checks.</li>
+<li><strong>Jobs sent through the Hub</strong> (<code>hub.start</code> to <code>cv_agent</code>), not a <code>rezi.tailor_cv</code> item.</li>
+<li><strong>No fixed base Rezi resume.</strong> The base is always the <code>CV_Test_*.odt</code> and the JD the caller passes in; the guard refuses writes to every Rezi resume not created in the run.</li>
+<li><strong>US Letter by default</strong> (<code>paper</code>), A4 later.</li>
+<li><strong>A fixed menu</strong>, not the server's tool list passed through.</li>
+<li><strong>The MCP client lives in this module only</strong>, an exception to "modules never import MCP", until a second module needs one.</li>
+<li><strong>PDFs shown with <code>viewer.open</code></strong> first; a separate PDF viewer only if that fails. Tried in chunk 2: the viewer opens HTML only, so for now the worker gives you the PDF's path at steps 3 and 7. A PDF view is still open for you or the Main Assistant to decide.</li>
+<li><strong>Real runs only with your yes.</strong> Chunks 1 to 8 touch no real Rezi account; chunk 9 is the first real run.</li>
+<li><strong>These pages are the module's docs.</strong> The old plan page <code>C:\Chang\Jobs\CV\Recruiters\docs\cv_module_workflow.html</code> is left as it was, as the history of the design; these three pages replace it (2026-11-07).</li>
+</ul>
+<footer>Generated from <code>src/assistant/modules/cv/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

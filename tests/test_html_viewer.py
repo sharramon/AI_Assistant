@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import re
 import socket
@@ -13,7 +14,6 @@ from pathlib import Path
 import pytest
 
 from assistant.contracts import (
-    AgentActivity,
     InputReceived,
     InvokeTool,
     IToolProvider,
@@ -29,8 +29,8 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.infra import LogSession
+from assistant.infra.agent_tags import parse_show
 from assistant.modules.html_viewer import HtmlViewerModule
-from assistant.modules.html_viewer.module import parse_show
 from assistant.modules.talker import TalkerModule
 from assistant.modules.temp_ui import TempUIModule
 from html_viewer.document import EditText, HtmlDocument, add_ids
@@ -107,13 +107,16 @@ def viewer(tmp_path):
     server.stop()
 
 
-def call(server: ViewerServer, method: str, path: str, body=None, content_type="application/json", host=None):
+def call(server: ViewerServer, method: str, path: str, body=None, content_type="application/json", host=None,
+         origin=None):
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(f"http://127.0.0.1:{server.port}{path}", data=data, method=method)
     if data is not None:
         req.add_header("Content-Type", content_type)
     if host:
         req.add_header("Host", host)
+    if origin:
+        req.add_header("Origin", origin)
     try:
         with urllib.request.urlopen(req, timeout=5) as response:
             raw = response.read()
@@ -381,7 +384,13 @@ def test_refuses_what_it_cant_do(viewer, tmp_path):
     # Not JSON (a plain form from a web page), or not addressed to the viewer: refused.
     assert call(viewer, "POST", "/api/quit", {}, content_type="text/plain")[0] == 415
     assert call(viewer, "GET", "/api/tabs", host="evil.example:80")[0] == 403
+    # A page from another origin (a site you visit, or another local app): refused.
+    assert call(viewer, "POST", "/api/quit", {}, origin="https://evil.example")[0] == 403
+    assert call(viewer, "POST", "/api/quit", {}, origin="http://127.0.0.1:1")[0] == 403
+    assert call(viewer, "GET", "/api/tabs", origin=f"http://127.0.0.1:{viewer.port}")[0] == 200  # its own page
     assert not viewer.quit.is_set()
+    with pytest.raises(ValueError):
+        ViewerServer("0.0.0.0", 0, window="none")  # never listens on the network
 
 
 # --- bringing the window to the front ---
@@ -482,17 +491,18 @@ async def test_module_leaves_a_viewer_you_started_running(tmp_path):
         server.stop()
 
 
-async def test_main_assistant_show_tag_opens_the_file(tmp_path):
+async def test_opening_a_page_turns_the_viewer_on_when_it_is_off(tmp_path):
     server = ViewerServer(port=0, window="none", profile=tmp_path / "profile")
     server.start()
     page = write(tmp_path / "report.html")
-    app = App([HtmlViewerModule], module_config(server.port))
+    config = module_config(server.port, start_on_use=True)
+    config["modules"]["enabled"] = []  # off at launch
+    app = App([HtmlViewerModule], config)
     await app.start()
     try:
-        app.bus.publish(AgentActivity(agent_id="main_assistant", text=f"Done.\n<<SHOW: {page}>>"))
-        async with asyncio.timeout(5):
-            while not server.tabs()["tabs"]:
-                await asyncio.sleep(0.02)
+        result = await app.router.send(InvokeTool(name="viewer.open", args={"path": str(page)}))
+        assert result.is_ok, result.error
+        assert "html_viewer" in app._lifecycle._active
         assert server.tabs()["tabs"][0]["path"] == str(page.resolve())
     finally:
         await app.stop()
@@ -522,11 +532,9 @@ async def test_highlight_tool_and_show_tag(tmp_path):
         bad = await app.router.send(InvokeTool(name="viewer.highlight", args={"path": str(page)}))
         assert bad.status == "invalid_arguments"
 
-        # The Main Assistant's tag form.
-        app.bus.publish(AgentActivity(agent_id="main_assistant", text=f'See:\n<<SHOW: {page} | "Agent Hub" | Parts>>'))
-        async with asyncio.timeout(5):
-            while len(server.tabs()["tabs"][0]["highlights"]) < 2:
-                await asyncio.sleep(0.02)
+        second = await app.router.send(InvokeTool(name="viewer.highlight", args={
+            "path": str(page), "text": "Agent Hub", "heading": "Parts"}))
+        assert second.is_ok, second.error
         async with asyncio.timeout(5):
             change = await changes.get()
             while len(change.highlights) < 2:
@@ -606,6 +614,116 @@ async def test_temp_ui_shows_snips_until_you_send(tmp_path):
         app.bus.publish(InputReceived(text="what is this?", source="test"))
         await asyncio.sleep(0.05)
         assert ui._snips_item()["snips"] == []
+        you = [i for c in ui._chats.values() for i in c if i["kind"] == "you"][-1]  # the sent bubble carries the snip
+        assert [s["id"] for s in you["snips"]] == ["s1"]
+        reader, writer = await request(ui_port(app), b"GET /snip/s1 HTTP/1.1\r\n\r\n")
+        assert (await reader.read()).endswith(b"png")  # still served for the bubble
+        writer.close()
+    finally:
+        await app.stop()
+
+
+async def say(app, text: str) -> None:
+    body = json.dumps({"text": text}).encode()
+    reader, writer = await request(ui_port(app), b"POST /say HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
+    await reader.read()
+    writer.close()
+
+
+async def test_temp_ui_sends_a_snip_alone_and_logs_each_step(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    image = write(tmp_path / "snip.png", "png")
+    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule], config)
+    inputs: asyncio.Queue[InputReceived] = asyncio.Queue()
+    app.bus.subscribe(InputReceived, inputs.put)
+    await app.start()
+    try:
+        await say(app, "")  # nothing typed, no snip: nothing goes out
+        await asyncio.sleep(0.05)
+        assert inputs.empty()
+        app.bus.publish(ViewerClip(id="s0", image_path=str(image), file="C:/a.html"))
+        await asyncio.sleep(0.05)
+        await say(app, "  ")
+        sent = await asyncio.wait_for(inputs.get(), 5)
+        assert sent.text == "(snip)"
+        await asyncio.sleep(0.05)
+        assert "Snip s0 shown" in caplog.text and "Snips ['s0'] moved into sent message" in caplog.text
+    finally:
+        await app.stop()
+
+
+async def paste(app, data: bytes, size: int | None = None) -> dict:
+    head = b"POST /paste-image HTTP/1.1\r\nContent-Length: %d\r\n\r\n" % (len(data) if size is None else size)
+    reader, writer = await request(ui_port(app), head + data)
+    answer = json.loads((await reader.read()).split(b"\r\n\r\n", 1)[1])
+    writer.close()
+    return answer
+
+
+async def test_temp_ui_turns_a_pasted_image_into_a_snip(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    logs = tmp_path / "logs" / "session"
+    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule], config, logs=LogSession(logs))
+    clips: asyncio.Queue[ViewerClip] = asyncio.Queue()
+    app.bus.subscribe(ViewerClip, clips.put)
+    inputs: asyncio.Queue[InputReceived] = asyncio.Queue()
+    app.bus.subscribe(InputReceived, inputs.put)
+    await app.start()
+    try:
+        ui = app._lifecycle._active["temp_ui"][0]
+        assert (await paste(app, b"GIF89a not a png"))["ok"] is False
+        assert (await paste(app, b"", size=11 * 1024 * 1024))["error"].startswith("too big")
+        assert clips.empty()
+        answer = await paste(app, PNG)
+        clip = await asyncio.wait_for(clips.get(), 5)
+        assert answer == {"ok": True, "id": clip.id} and clip.file == "(pasted)" and clip.heading is None
+        assert Path(clip.image_path) == logs / "snips" / f"{clip.id}.png" and Path(clip.image_path).read_bytes() == PNG
+        await asyncio.sleep(0.05)
+        assert [s["id"] for s in ui._snips_item()["snips"]] == [clip.id]  # a thumbnail, like a viewer snip
+        await say(app, "")
+        assert (await asyncio.wait_for(inputs.get(), 5)).text == "(snip)"
+        assert "Paste refused: not a PNG" in caplog.text and "Paste refused: 11534336 bytes" in caplog.text
+        assert f"Image pasted as snip {clip.id}" in caplog.text
+    finally:
+        await app.stop()
+
+
+async def test_talker_labels_a_pasted_image(tmp_path):
+    image = write(tmp_path / "paste.png", "png")
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
+    app = App([TalkerModule], config)
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        app.bus.publish(ViewerClip(id="paste-1", image_path=str(image), file="(pasted)"))
+        await asyncio.sleep(0.05)
+        app.bus.publish(InputReceived(text="see the bar?", source="test"))
+        reply = (await asyncio.wait_for(replies.get(), 10)).text
+        assert reply.startswith(f"[1 image(s)] [Pasted] image (image attached; file: {image})")
+    finally:
+        await app.stop()
+
+
+async def test_talker_logs_each_snip_step(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    image = write(tmp_path / "snip.png", "png")
+    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
+    app = App([TalkerModule], config)
+    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
+    app.bus.subscribe(ResponseReady, replies.put)
+    await app.start()
+    try:
+        for n in range(2):
+            app.bus.publish(ViewerClip(id=f"s{n}", image_path=str(image), file="C:/a.html"))
+        app.bus.publish(ViewerClipDropped(id="s0"))
+        await asyncio.sleep(0.05)
+        app.bus.publish(InputReceived(text="(snip)", source="temp_ui"))
+        await asyncio.wait_for(replies.get(), 10)
+        assert "Snip s1 received" in caplog.text and "Snip s0 dropped: the x on its thumbnail" in caplog.text
+        assert "1 snip(s) attached ['s1']" in caplog.text
     finally:
         await app.stop()
 
@@ -676,3 +794,20 @@ async def test_talker_hears_the_open_tabs_with_your_next_message():
         assert (await asyncio.wait_for(replies.get(), 10)).text == "Again"
     finally:
         await app.stop()
+
+
+# --- the viewer's own config (load_layered), flags over it ---
+
+
+def test_the_viewer_reads_its_config_and_flags_win(tmp_path):
+    from html_viewer.viewer import DEFAULT_PROFILE, load_viewer_config, viewer_settings
+
+    config = tmp_path / "html_viewer.toml"
+    config.write_text('port = 9001\nwindow = "none"\ngenerated = ["docs/html"]\n', encoding="utf-8")
+    (tmp_path / "html_viewer.local.toml").write_text("port = 9002\n", encoding="utf-8")
+    assert load_viewer_config(config)["port"] == 9002  # the .local override
+    settings, files = viewer_settings(["--config", str(config), "--window", "browser", "a.html"])
+    assert settings["port"] == 9002 and settings["window"] == "browser" and files == [Path("a.html")]
+    assert settings["generated"] == [Path("docs/html")] and settings["profile"] == DEFAULT_PROFILE
+    with pytest.raises(FileNotFoundError):
+        load_viewer_config(tmp_path / "missing.toml")

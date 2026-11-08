@@ -153,10 +153,23 @@ async def test_start_partials_stop_final_and_the_talker_gets_it(service):
         assert result.value["text"] == TEXT and result.value["latency_ms"] >= 0
         await rec.wait(lambda r: r.of(InputReceived) and r.states()[-1] == "idle")
         assert rec.states() == ["starting", "listening", "idle"]
-        assert [(i.text, i.source) for i in rec.of(InputReceived)] == [(TEXT, "voice")]
+        assert [(i.text, i.source, i.agent_id) for i in rec.of(InputReceived)] == [(TEXT, "voice", None)]  # None: the focus
         final = rec.of(VoiceTranscript)[-1]
         assert (final.text, final.final, final.session_id) == (TEXT, True, command.id)
         assert {e.correlation_id for e in rec.of(VoiceState) + rec.of(VoiceTranscript)} == {command.id}
+    finally:
+        await app.stop()
+
+
+async def test_the_final_goes_to_the_tab_the_stop_was_pressed_in(service):
+    svc = service(source=[CHUNK] * 6)
+    app, rec = await start_app(svc.port)
+    try:
+        await app.router.send(StartListening())
+        await rec.wait(has_text(TEXT))
+        assert (await app.router.send(StopListening(agent_id="helper"))).value["text"] == TEXT
+        await rec.wait(lambda r: r.of(InputReceived))
+        assert [(i.text, i.agent_id) for i in rec.of(InputReceived)] == [(TEXT, "helper")]
     finally:
         await app.stop()
 
@@ -536,42 +549,43 @@ async def test_a_service_that_dies_mid_session(service):
 
 
 class StubService:
-    """Stands in for CompanionApp, to see which calls the health check makes."""
+    """Stands in for CompanionApp: its one ping (`/health`) answers `health`, or fails with it."""
 
     def __init__(self, launched: bool, health) -> None:
         self.launched_now, self.health, self.calls, self.url = launched, health, [], "http://stub"
+        self.last_answer: dict = {}
 
     async def ensure_running(self) -> bool:
         self.calls.append("ensure_running")
+        if isinstance(self.health, Exception):
+            raise self.health  # not answering and not starting
+        self.last_answer = self.health
         return self.launched_now
 
     async def call(self, method, path, body=None, *, timeout=10):
         self.calls.append(f"{method} {path}")
-        if isinstance(self.health, Exception):
-            raise self.health
-        return self.health
+        return {}
 
     async def stop(self) -> None:
         pass
 
 
 @pytest.mark.parametrize(
-    ("launched", "health", "calls", "reason"),
+    ("launched", "health", "reason"),
     [
-        (True, {}, ["ensure_running"], "service_unavailable"),  # just launched: no extra /health
-        (False, {"app": "voice_service", "ready": False, "error": "no model"}, ["ensure_running", "GET /health"],
-         "engine_failed"),  # fmt: skip
-        (False, OSError("gone"), ["ensure_running", "GET /health", "ensure_running"], "service_unavailable"),
+        (True, {"app": "voice_service", "ready": True}, "service_unavailable"),  # launched now; no socket
+        (False, {"app": "voice_service", "ready": False, "error": "no model"}, "engine_failed"),
+        (False, OSError("gone"), "service_unavailable"),
     ],
 )
-async def test_the_health_check_runs_only_when_reusing_a_service(launched, health, calls, reason):
+async def test_the_one_ping_decides_and_health_is_not_called_twice(launched, health, reason):
     app, rec = await start_app(free_port())
     try:
         stub = StubService(launched, health)
         Probe.last._app = stub
         Probe.last._url = f"ws://127.0.0.1:{free_port()}/ws/listen"  # nothing listens: connecting fails
         result = await app.router.send(StartListening())
-        assert not result.is_ok and stub.calls == calls and last_state(rec).reason == reason
+        assert not result.is_ok and stub.calls == ["ensure_running"] and last_state(rec).reason == reason
     finally:
         await app.stop()
 

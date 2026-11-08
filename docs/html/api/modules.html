@@ -88,20 +88,24 @@
 </thead>
 <tbody>
 <tr>
-<td><code>item(name, description, properties=None, required=())</code></td>
-<td>Decorator for an async method taking the item's arguments as keywords and returning a <code>Result</code> (a plain value becomes <code>Result.ok</code>). <code>properties</code>: a JSON Schema per argument. Raises at import for a duplicate name, a description that isn't one line, or a <code>required</code> name not in <code>properties</code></td>
+<td><code>item(name, description, properties=None, required=(), callers=())</code></td>
+<td>Decorator for an async method taking the item's arguments as keywords and returning a <code>Result</code> (a plain value becomes <code>Result.ok</code>). <code>properties</code>: a JSON Schema per argument. <code>callers</code>: the only module or agent ids allowed to use it (empty: anyone). A method with a <code>caller</code> parameter is passed the caller's id (<code>MenuItem.takes_caller</code>), so it can decide per caller itself; <code>caller</code> can't be one of the item's properties. Raises at import for a duplicate name, a description that isn't one line, or a <code>required</code> name not in <code>properties</code></td>
 </tr>
 <tr>
 <td><code>specs()</code> / <code>names()</code> / <code>items()</code></td>
-<td>The items as <code>ToolSpec</code>s, names, or <code>MenuItem</code>s, in declaration order</td>
+<td>The items as <code>ToolSpec</code>s, names, or <code>MenuItem</code>s (<code>spec</code>, <code>method</code>, <code>callers</code>, <code>takes_caller</code>), in declaration order</td>
 </tr>
 <tr>
 <td><code>check(name, args)</code></td>
 <td>What's wrong with <code>args</code>, or <code>None</code>: a missing required argument, an unknown one, a wrong <code>type</code> (bool is not an integer), a value outside <code>enum</code>, a string shorter than <code>minLength</code> once trimmed</td>
 </tr>
 <tr>
-<td><code>async call(module, name, args)</code></td>
-<td><code>check</code>, then run the item on <code>module</code>; <code>invalid_arguments</code> when the check fails</td>
+<td><code>allowed(name, caller) -&gt; bool</code></td>
+<td>Whether <code>caller</code> may use the item</td>
+</tr>
+<tr>
+<td><code>async call(module, name, args, caller="")</code></td>
+<td><code>not_available</code> for a caller the item doesn't allow, then <code>check</code>, then run the item on <code>module</code> (with <code>caller=</code> if it takes it); <code>invalid_arguments</code> when the check fails. The caller comes from <a href="tools.html#invoketool"><code>InvokeTool.caller</code></a></td>
 </tr>
 </tbody>
 </table>
@@ -120,8 +124,8 @@ class HtmlViewerModule(ModuleProtocol):
 <strong>See also:</strong> <a href="core.html#menutools"><code>MenuTools</code></a>, <a href="tools.html#tools-offered-today">tools offered today</a>, <a href="../architecture/module-library.html">the module library</a></p>
 <h2 id="manifest"><code>Manifest</code></h2>
 <p><strong>Reusable</strong> · Used by: every module</p>
-<p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())</code></p>
-<p>Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated <a href="../architecture/module-library.html">module library</a>). Dependencies are on contracts, never on other modules. <code>permissions</code> and <code>optional_permissions</code> are declarations only until the permissions handler runs; the <a href="#modulecontextpermissions"><code>ctx.permissions</code></a> stand-in allows everything.</p>
+<p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())</code></p>
+<p>Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated <a href="../architecture/module-library.html">module library</a>). Dependencies are on contracts, never on other modules. <code>permissions</code> and <code>optional_permissions</code> are declarations: single names aren't checked yet (<a href="#modulecontextpermissions"><code>ctx.permissions</code></a> allows and logs them). <code>agent.access</code> says the module asks for its config's access list with <code>request_set</code> when turned on.</p>
 <p><strong>Fields</strong></p>
 <table>
 <thead>
@@ -156,6 +160,12 @@ class HtmlViewerModule(ModuleProtocol):
 <td><code>tuple[type[Contract], ...]</code></td>
 <td>no</td>
 <td>Contracts used if present; only affects start order</td>
+</tr>
+<tr>
+<td><code>uses</code></td>
+<td><code>tuple[type[Contract], ...]</code></td>
+<td>no</td>
+<td>Contracts looked up at each call that may be missing, with <strong>no</strong> start order: for a provider that itself uses this module (the Hub's <code>IModuleDoor</code> and <code>IAgentNames</code>, used by the agents the Hub lists as optional), where <code>optional</code> would make a cycle (built 2026-11-08)</td>
 </tr>
 <tr>
 <td><code>permissions</code></td>
@@ -201,7 +211,7 @@ class HtmlViewerModule(ModuleProtocol):
 </tr>
 </tbody>
 </table>
-<p>Every type in <code>provides</code>, <code>requires</code> and <code>optional</code> must be a <a href="#contract"><code>Contract</code></a> from <code>assistant.contracts</code>, or startup fails.</p>
+<p>Every type in <code>provides</code>, <code>requires</code>, <code>optional</code> and <code>uses</code> must be a <a href="#contract"><code>Contract</code></a> from <code>assistant.contracts</code>, or startup fails. A subscription or lookup the manifest doesn't declare is logged once (<a href="core.html#scopedcontext"><code>ScopedContext</code></a>).</p>
 <p><strong>Raises</strong> (when the manifest is made): <code>ValueError</code> if <code>id</code> isn't a Python identifier or <code>description</code> has a line break; <code>TypeError</code> if <code>handles</code> / <code>sends</code> hold anything but <code>Command</code> types, or <code>publishes</code> / <code>listens</code> anything but <code>Event</code> types.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code></p>
 <h2 id="modulecontext"><code>ModuleContext</code></h2>
@@ -276,7 +286,7 @@ class HtmlViewerModule(ModuleProtocol):
 transcript = ctx.logs.sink(name) if name else None
 </code></pre>
 <h3 id="modulecontextpermissions"><code>ModuleContext.permissions</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (<code>microphone</code>, built 2026-11-03); every module that needs a permission · built 2026-11-02 (stand-in)</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (<code>microphone</code>, built 2026-11-03); <code>job_search</code>, <code>task_agents</code> (<code>request_set</code>, through <a href="infra.html#agent_access"><code>request_access</code></a>); the core's <code>CoreMenu</code>; every module that needs a permission · built 2026-11-02, backed by the core's handler since 2026-11-05</p>
 <p><code>class ModulePermissions(ABC)</code>, in <code>assistant.contracts</code>.</p>
 <table>
 <thead>
@@ -294,11 +304,20 @@ transcript = ctx.logs.sink(name) if name else None
 <td><code>async request(name, reason) -&gt; bool</code></td>
 <td>Ask in the moment; <code>reason</code> is shown to you</td>
 </tr>
+<tr>
+<td><code>own_agent(agent_id, subject)</code></td>
+<td>Say that this module's agent <code>agent_id</code> holds <code>subject</code>'s grant, so that agent may ask for more with <code>permissions.request</code> (called by <a href="infra.html#profileagent"><code>ProfileAgent.start</code></a> when given a <code>subject</code>). Non-abstract; does nothing by default</td>
+</tr>
+<tr>
+<td><code>async request_set(items, reason="", subject="", wait=False) -&gt; tuple[AccessItem, ...]</code></td>
+<td>Ask for a whole access list (<a href="messaging.html#accessitem"><code>AccessItem</code></a>s) in one request, for <code>subject</code> (its agent's kind; default: the module). Returns the items you allowed: the saved grant if the list is unchanged, else your answer on one card. Raises <a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code></a> on Deny. With <code>wait=False</code> (a module's <code>start</code>), raises <a href="messaging.html#accessdenied-accesspending"><code>AccessPending</code></a> while the card is open, and the handler turns the module on after your Allow; with <code>wait=True</code> (inside an approved run) it waits for your answer</td>
+</tr>
 </tbody>
 </table>
-<p>The caller's id is filled in by the core; a module never passes it. Until the <a href="../architecture/permissions.html">permissions handler</a> runs, the stand-in (<a href="core.html#allowallpermissions"><code>AllowAllPermissions</code></a>) allows everything and logs a warning the first time each module uses each permission ("no permissions handler: allowing voice_in microphone (You clicked the mic)"), then debug lines. Required permissions aren't checked at start yet. The handler later plugs in behind the same calls.</p>
+<p>The caller's id is filled in by the core; a module never passes it. Every module's <code>ctx.permissions</code> is a <a href="core.html#permissionsport"><code>PermissionsPort</code></a> forwarding to the core's <a href="../architecture/permissions.html">permissions handler</a>. <code>request_set</code> is checked: a module that uses it declares <code>agent.access</code> in its manifest. <code>has</code> and <code>request</code> aren't checked yet: they allow, and log a warning the first time each module uses each name ("not checked yet: allowing voice_in microphone (You clicked the mic)"), then debug lines. Required permissions aren't checked at start yet.</p>
 <pre><code>if not await ctx.permissions.request("microphone", reason="You clicked the mic"):
     return Result.failed("microphone not allowed")
+granted = await ctx.permissions.request_set(access_items(config), "its folders", subject="job_search_agent")
 </code></pre>
 <h3 id="modulecontextsubscribe"><code>ModuleContext.subscribe</code></h3>
 <p><code>subscribe(event_type: type[E], handler: Callable[[E], Awaitable[None]]) -&gt; None</code></p>
@@ -350,6 +369,10 @@ if result.is_ok:
 <p><code>provide(contract: type[C], impl: C) -&gt; None</code></p>
 <p>Offer <code>impl</code> as a provider of <code>contract</code>.</p>
 <p><strong>Raises:</strong> <code>ValueError</code> if <code>contract</code> isn't in <code>manifest.provides</code>, or if it is a single-provider contract that already has a provider. <code>TypeError</code> if <code>impl</code> doesn't implement <code>contract</code>.</p>
+<h3 id="modulecontextwithdraw"><code>ModuleContext.withdraw</code></h3>
+<p><strong>Reusable</strong> · Used by: <code>task_agents</code> (<code>agents.close</code>, and a launch that failed after providing its helper) · built 2026-11-05</p>
+<p><code>withdraw(contract: type[C], impl: C) -&gt; None</code></p>
+<p>Stop offering one <code>impl</code> this module provided, without stopping the module (one helper of several). Does nothing if it isn't offered, or after the context is closed. Not abstract: the base raises <code>NotImplementedError</code>; the core's <a href="core.html#scopedcontext"><code>ScopedContext</code></a> implements it.</p>
 <h3 id="modulecontextget_all"><code>ModuleContext.get_all</code></h3>
 <p><code>get_all(contract: type[C]) -&gt; list[C]</code></p>
 <p>All current providers of <code>contract</code>, possibly empty. Call it when needed rather than caching, since providers can change.</p>

@@ -157,7 +157,7 @@
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="inputreceived"><code>InputReceived</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>console_io</code>, <code>temp_ui</code>, <code>voice_in</code> (<code>source="voice"</code>) publish; <code>talker</code>, <code>echo_orchestrator</code> subscribe</p>
-<p><code>InputReceived(text: str, source: str, conversation_id: str | None = None)</code> (event)</p>
+<p><code>InputReceived(text: str, source: str, conversation_id: str | None = None, agent_id: str | None = None)</code> (event)</p>
 <p>User input from any source.</p>
 <p><strong>Fields</strong></p>
 <table>
@@ -184,13 +184,18 @@
 <td><code>str | None</code></td>
 <td>Groups inputs into a conversation, if the source tracks one</td>
 </tr>
+<tr>
+<td><code>agent_id</code></td>
+<td><code>str | None</code></td>
+<td>The agent tab it was typed in (the temp UI's chat box sets it). <code>None</code> (voice, terminal 1): the focused tab. Added 2026-11-05 (agent talkers)</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="responseready"><code>ResponseReady</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>talker</code>, <code>echo_orchestrator</code> publish; <code>console_io</code>, <code>temp_ui</code> subscribe</p>
-<p><code>ResponseReady(text: str, conversation_id: str | None = None, correlation_id=...)</code> (event)</p>
-<p>A reply to present. Set <code>correlation_id</code> to the <code>id</code> of the <code>InputReceived</code> it answers, so the source can tell which replies are its own. Leave it <code>None</code> when the assistant speaks first (e.g. "the task is done"); <code>console_io</code> prints those too.</p>
+<p><code>ResponseReady(text: str, conversation_id: str | None = None, agent_id: str | None = None, correlation_id=...)</code> (event)</p>
+<p>A reply to present. Set <code>correlation_id</code> to the <code>id</code> of the <code>InputReceived</code> it answers, so the source can tell which replies are its own. Leave it <code>None</code> when the assistant speaks first (e.g. "the task is done"); <code>console_io</code> prints those too. <code>agent_id</code>: the agent tab whose chat it belongs in (the Talker sets it); <code>None</code> means the focused tab.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="shutdownrequested"><code>ShutdownRequested</code></h2>
 <p><code>ShutdownRequested(reason: str = "", restart: bool = False)</code> (event)</p>
@@ -206,12 +211,62 @@
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="viewerclip"><code>ViewerClip</code></h2>
 <p><code>ViewerClip(id: str, image_path: str, file: str, heading: str | None = None)</code> (event)</p>
-<p>You snipped part of a page in the <a href="../architecture/html-viewer.html">HTML viewer</a>. <code>image_path</code> is the PNG, kept in the launch's log folder (<code>snips/</code>); <code>file</code> is the page; <code>heading</code> the nearest heading above the box. The <code>html_viewer</code> module publishes it. The Talker keeps up to 3 and sends them as images with your next message; the temp UI shows them as thumbnails until then.</p>
+<p><strong>Shared limits</strong> (in <code>assistant.contracts</code>, one owner, principle 19): <code>MAX_SNIPS = 3</code>, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); <code>PASTED_FILE = "(pasted)"</code>, a pasted image's <code>file</code>. Used by <code>talker</code>, <code>temp_ui</code>.</p>
+<p>You snipped part of a page in the <a href="../architecture/html-viewer.html">HTML viewer</a>. <code>image_path</code> is the PNG, kept in the launch's log folder (<code>snips/</code>); <code>file</code> is the page; <code>heading</code> the nearest heading above the box. The <code>html_viewer</code> module publishes it; so does <code>temp_ui</code> for an image pasted into its chat box (<code>file=PASTED_FILE</code>, <code>"(pasted)"</code>, no heading; the Talker labels it <code>[Pasted] image</code>). The type's docstring still says "from the HTML viewer": widen it at the next restart. The Talker keeps up to <code>MAX_SNIPS</code> (3) and sends them as images with your next message; the temp UI shows them as thumbnails until then.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="viewerclipdropped"><code>ViewerClipDropped</code></h2>
 <p><code>ViewerClipDropped(id: str)</code> (event)</p>
 <p>You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by <code>temp_ui</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="access-and-permissions">Access and permissions</h2>
+<p>Access lists and the messages of the core's <a href="../architecture/permissions.html#access-lists-built">permissions handler</a> (its first piece). A task-agent module asks for its whole list with <a href="modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a>; the handler answers from a saved grant, or asks you on one card: <code>PermissionRequested</code> → <code>AnswerPermissionRequest</code> → <code>PermissionChanged</code>. Built 2026-11-05.</p>
+<p><strong>Reusable</strong> · Used by: <code>job_search</code>, <code>task_agents</code> (lists, through <a href="infra.html#agent_access"><code>request_access</code></a>); the core's handler (sends the cards); <code>talker</code>, <code>temp_ui</code> (show and answer them)</p>
+<h3 id="accesskind"><code>AccessKind</code></h3>
+<p><code>class AccessKind(StrEnum)</code>: <code>workspace</code> (its working folder, read and write; always kept when the list is allowed), <code>read</code> (a folder), <code>write</code> (a folder), <code>python</code> (a Python, with any arguments), <code>command</code> (a shell command, with any arguments), <code>chrome</code> (the Claude in Chrome tools).</p>
+<h3 id="accessitem"><code>AccessItem</code></h3>
+<p><code>AccessItem(kind: AccessKind, target: str = "")</code> (frozen)</p>
+<p>One line of an access list. <code>target</code>: the resolved folder, the Python's path or the command; empty for Chrome.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td><code>kind:target</code> (or <code>chrome</code>): names the item in answers and saved grants</td>
+</tr>
+<tr>
+<td><code>from_key(key)</code></td>
+<td>The item a key names. <code>ValueError</code> for an unknown kind</td>
+</tr>
+<tr>
+<td><code>trimmable</code></td>
+<td>Whether the card gives it a tick box (not the workspace)</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td>The line on the card: "read C:\Chang\Jobs", "run … (any arguments)", "use Chrome"</td>
+</tr>
+</tbody>
+</table>
+<h3 id="accessnote"><code>AccessNote</code></h3>
+<p><code>AccessNote(text: str, items: tuple[str, ...] = (), source: "rule" | "review" | "refused" = "rule")</code> (frozen)</p>
+<p>A line on the card about some items (their keys): a fixed rule warning, the Main Assistant's review note, or an item taken off the list.</p>
+<h3 id="accessdenied-accesspending"><code>AccessDenied</code>, <code>AccessPending</code></h3>
+<p>Exceptions from <code>request_set</code>. <code>AccessDenied</code>: you denied the list, didn't answer in time, or the workspace was refused. <code>AccessPending</code>: the list waits on a card (<code>wait=False</code>); a module's <code>start</code> lets it through, so the start ends at once with this reason, and the handler turns the module on after your Allow.</p>
+<h3 id="permissionrequested"><code>PermissionRequested</code></h3>
+<p><code>PermissionRequested(request_id, module_id, subject="", action="access", reason="", items=(), notes=(), reviewed=None, rules=(), caller="")</code> (event)</p>
+<p>A card for you. <code>action</code>: <code>access</code> (a module's list), or <code>grant</code> / <code>revoke</code> (an agent's call, <code>caller</code>, waiting for your yes). <code>items</code>: the lines offered. <code>notes</code>: refused items, rule warnings, then the review's notes. <code>reviewed</code>: <code>True</code> or <code>False</code> for an access list (<code>False</code> shows "not reviewed"), <code>None</code> for no review step. <code>rules</code>: the fixed rules. Published by the handler; <code>temp_ui</code> shows it with tick boxes, the Talker says it.</p>
+<h3 id="answerpermissionrequest"><code>AnswerPermissionRequest</code></h3>
+<p><code>AnswerPermissionRequest(request_id: str, allow: bool, keep: tuple[str, ...] | None = None)</code> (command)</p>
+<p>Your answer to a card. <code>keep</code>: the keys of the ticked items (<code>None</code>: all of them); ignored on Deny. Handled by the core. <code>invalid_arguments</code> if the card isn't open or a key isn't on it.</p>
+<h3 id="permissionchanged"><code>PermissionChanged</code></h3>
+<p><code>PermissionChanged(module_id, subject="", granted=(), request_id="", text="")</code> (event)</p>
+<p>A grant was saved, denied, widened or revoked. <code>request_id</code>: the card it closes, if any (UIs drop it). <code>granted</code>: what the module or subject holds now. <code>text</code>: what happened, for you.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/permissions.py</code> · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_access_cards.py</code></p>
 <h2 id="voice">Voice</h2>
 <p>Voice input (<a href="../architecture/voice.html#the-voice_in-module">design</a>). A module that needs the mic requires the voice contract <a href="#ivoice"><code>IVoice</code></a>; a UI button may send the commands instead. <code>voice_in</code> provides the one and handles the other, with the same sessions, and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id, or the id given to <code>IVoice.listen</code>), so each caller follows only its own session. Built 2026-11-03; <code>IVoice</code> built 2026-11-05.</p>
 <h3 id="ivoice"><code>IVoice</code></h3>
@@ -247,8 +302,8 @@ text = (await voice.finish(session)).value["text"]
 <p>Turn the mic on. With <code>send_as_input=False</code> (dictating into a text box, say) the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker. <strong>Result:</strong> <code>ok</code> once the service says <code>started</code>, value <code>{"session_id"}</code>. <strong>The second press wins</strong> (added 2026-11-04): a start while a session is open ends that session the way <code>discard=True</code> does, with <code>VoiceState(idle, reason="taken_over")</code> and an empty final for it, so its text never reaches the Talker; a <code>StopListening</code> it was waiting on gets <code>ok</code>, value <code>{"text": "", "taken_over": true}</code>. Each UI follows only the sessions it started (by this command's id). <code>not_available</code> (retryable) if the service couldn't start or the mic or engine failed; <code>failed</code> for <code>busy</code> or a denied <code>microphone</code> permission. A running service that <code>voice_in</code> reuses gets a quick <code>/health</code> check first, so a failed model fails at once with <code>engine_failed</code>.</p>
 <h3 id="stoplistening"><code>StopListening</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>temp_ui</code> and <code>voice_notes</code> send; <code>voice_in</code> handles</p>
-<p><code>StopListening(discard: bool = False)</code> (command)</p>
-<p>Turn the mic off. <strong>Result:</strong> <code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>; nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (its text is dropped), the service stopped, or no final came within <code>reply_timeout</code>.</p>
+<p><code>StopListening(discard: bool = False, agent_id: str | None = None)</code> (command)</p>
+<p>Turn the mic off. <strong><code>agent_id</code></strong> (added 2026-11-06): the agent tab the stop was pressed in. <code>voice_in</code> keeps it on the session and publishes the final as <code>InputReceived(source="voice", agent_id=...)</code>, so the text reaches that tab's Talker even if you switch tabs while whisper finishes. <code>None</code> (another UI, or a stop by a long silence): the tab in focus when the text arrives. <strong>Result:</strong> <code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>; nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (its text is dropped), the service stopped, or no final came within <code>reply_timeout</code>.</p>
 <p><strong><code>discard=True</code></strong> (a clear button; added 2026-11-03): throw the session away instead. <code>voice_in</code> closes the socket (the service aborts and sends no final), publishes an empty final <code>VoiceTranscript</code> (clears the line) and <code>VoiceState(idle, reason="cleared")</code>, and sends nothing to the Talker; a final that still arrives is ignored. <strong>Result:</strong> <code>ok</code>, value <code>{"text": "", "discarded": true}</code>; nothing listening: <code>ok</code> with <code>None</code>. To carry on, the UI sends <code>StartListening</code> next; a <code>busy</code> answer within 2 s of a clear is retried once.</p>
 <h3 id="listeningstate"><code>ListeningState</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>VoiceState</code></p>

@@ -88,7 +88,8 @@ async def test_the_core_menu_controls_modules():
     await app.start()
     try:
         names = [s.name for s in (await app.router.send(GetMenu(module_id="core"))).value]
-        assert names == ["modules.list", "modules.menu", "modules.on", "modules.off", "modules.reload", "modules.add"]
+        assert names == ["modules.list", "modules.menu", "modules.docs", "modules.on", "modules.off", "modules.reload", "modules.add",
+                         "permissions.grants", "permissions.grant", "permissions.request", "permissions.revoke"]
 
         listed = await app.router.send(InvokeTool(name="modules.list"))
         assert [m.id for m in listed.value] == ["counter", "speaker", "needs_speaker"]

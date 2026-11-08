@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The restart note says everything the next launch needs</title>
+<!-- Generated from docs/next-steps/restart-note-complete.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="restart-note-complete.html"></nav>
+<main>
+<h1 id="the-restart-note-says-everything-the-next-launch-needs">The restart note says everything the next launch needs</h1>
+<blockquote>
+<p><strong>Status: built, waiting on the batched restart (2026-11-08).</strong> Tests pass. Changes the <code>talker</code> module only, so a <code>RELOAD: talker</code> would also load it; it waits for the restart with the others.</p>
+</blockquote>
+<p><strong>Asked:</strong> update the restart note (the reset instructions the app writes when it restarts, the <code>[Restart]</code> message the Talker sees first after a relaunch) so it's accurate and complete, for example which helpers were running and which hand checks are due.</p>
+<h2 id="what-was-missing">What was missing</h2>
+<p>The note was only the Main Assistant's reply: what it was working on, what's done, what's left, which notes to read. Since then the app gained helper tabs, agent names, per-tab Auto/Manual, usage tallies and batched restarts, and none of that reached the next launch:</p>
+<table>
+<thead>
+<tr>
+<th>Missing</th>
+<th>What the next session got wrong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Which helpers were open, and their tasks</td>
+<td>It didn't know <code>cv_agent</code> and the others had been there. Launched helpers don't come back after a restart, and every task ends with it</td>
+</tr>
+<tr>
+<td>Questions waiting behind a tab's <strong>!</strong></td>
+<td>Lost without a word</td>
+</tr>
+<tr>
+<td>Each agent's mode</td>
+<td>Every agent starts in Manual again; the note didn't say who had been in Auto</td>
+</tr>
+<tr>
+<td>The tab you were in</td>
+<td>Not said; the next launch opens on the Main Assistant's tab</td>
+</tr>
+<tr>
+<td>Changes built and waiting on this restart</td>
+<td>Not asked for, so the hand checks now due weren't listed</td>
+</tr>
+<tr>
+<td>Usage</td>
+<td>The counts start again from zero after a restart, which wasn't said</td>
+</tr>
+<tr>
+<td>The fallback note (no answer from the worker)</td>
+<td>Only the Talker's last exchanges, with none of the above</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-changed">What changed</h2>
+<ol>
+<li><strong>The app writes a state section itself</strong> (<code>TalkerModule._app_state</code>) under the worker's instructions, or under the fallback note. It's facts, not the worker's memory: the tab you were in, then every agent (<code>ListAgents</code>) with its description (a helper's kind), its mode and whether it was working, then each open task (<code>hub.status</code>) with its state, its text, and any question waiting on you (and whether it waited behind the <strong>!</strong>). Then a fixed paragraph says what a restart does: every agent back in Manual, no task carried over, launched helpers gone (reopen by name) while autostart ones are back idle, usage from zero, and the waiting changes now loaded with their hand checks due.</li>
+<li><strong>The worker is asked for the waiting changes</strong> (<code>WRITE_RESET_NOTE</code>): every row of the Pending changes table in <a href="index.html">README</a> that is built and waiting on a restart, each with its note's path and the hand checks now due, plus which helpers it started and what for.</li>
+<li><strong>The Talker's prompt</strong> (<code>_RESTART_NOTE</code>) says what the note holds and what to tell you: where the work stands, the hand checks now due, which helpers were open and that launched ones can be reopened by name, that everyone is back in Manual, and any lost question. It still waits for your go before starting anything.</li>
+</ol>
+<p><code>_restart</code> is now async (it reads the agents and tasks before writing). The state section can never stop a restart: if reading fails, the note says so and the restart goes on.</p>
+<p><a href="restart-keep-agents.html">Restarts that keep the agents running</a> (proposed) would change the "no task carries over" paragraph once it's built.</p>
+<h2 id="your-checks-after-the-restart">Your checks (after the restart)</h2>
+<ol>
+<li>With a helper tab open (and ideally one in Auto, one with a question behind its <strong>!</strong>), ask for a restart.</li>
+<li>After the relaunch, the Talker's first message should say where the work stands, list the hand checks now due from the batched changes, name the helpers that were open (and offer to reopen the launched ones), say everyone is back in Manual, and mention the waiting question.</li>
+<li>Before the next launch reads it, the note is at <code>.claude/state/reset-instructions.md</code> if you want to see it whole. It's deleted once the Talker has it.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/restart-note-complete.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

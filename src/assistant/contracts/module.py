@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
@@ -13,6 +13,7 @@ from assistant.contracts.messages import Command, Event, Result
 
 if TYPE_CHECKING:
     from assistant.contracts.menu import Menu
+    from assistant.contracts.permissions import AccessItem
 
 
 class Contract(ABC):
@@ -43,6 +44,10 @@ class Manifest:
     provides: tuple[type[Contract], ...] = ()
     requires: tuple[type[Contract], ...] = ()
     optional: tuple[type[Contract], ...] = ()
+    #: Contracts looked up at each call (`get_one` / `get_all`) that may be missing, with no
+    #: start order: for providers that themselves use this module (the Hub's door and names,
+    #: used by the agents the Hub uses), where `optional` would make a cycle.
+    uses: tuple[type[Contract], ...] = ()
     #: Permission names the module can't run without (checked once a permissions handler exists).
     permissions: tuple[str, ...] = ()
     #: Permissions asked for in the moment; without them a feature is off.
@@ -85,6 +90,21 @@ class ModulePermissions(ABC):
     @abstractmethod
     async def request(self, name: str, reason: str = "") -> bool:
         """Ask for `name` in the moment; `reason` is shown to the user. True if allowed."""
+
+    async def request_set(
+        self, items: Sequence[AccessItem], reason: str = "", subject: str = "", wait: bool = False
+    ) -> tuple[AccessItem, ...]:
+        """Ask for a whole access list in one request (a task agent's folders, Python, Chrome),
+        for `subject` (its agent, or a kind of helper; default: the module). Returns the items
+        you allowed: the saved grant if the list is unchanged, else your answer on one card.
+        Raises `AccessDenied` on Deny; with `wait=False`, raises `AccessPending` while the card
+        is open (the handler turns the module on once you allow)."""
+        raise NotImplementedError
+
+    def own_agent(self, agent_id: str, subject: str) -> None:
+        """Say that this module's agent `agent_id` holds `subject`'s grant (its kind), so the
+        agent can ask for more access itself (`permissions.request` on the core's menu) and the
+        answer widens that grant. Call it when the agent starts; does nothing by default."""
 
 
 class ModuleLogs(ABC):
@@ -145,6 +165,11 @@ class ModuleContext(ABC):
     @abstractmethod
     def provide(self, contract: type[C], impl: C) -> None:
         """Offer `impl` as a provider of `contract`. Must be declared in `manifest.provides`."""
+
+    def withdraw(self, contract: type[C], impl: C) -> None:
+        """Stop offering one `impl` this module provided (e.g. one helper of several), without
+        stopping the module. Does nothing if it isn't offered."""
+        raise NotImplementedError
 
     @abstractmethod
     def get_all(self, contract: type[C]) -> list[C]:

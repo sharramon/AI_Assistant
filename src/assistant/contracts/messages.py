@@ -81,18 +81,22 @@ class Result(BaseModel):
 
 
 class InputReceived(Event):
-    """User input from any source (console, voice, remote client)."""
+    """User input from any source (console, voice, remote client). `agent_id`: the agent tab it
+    was typed in; None (voice, terminal 1) means the tab in focus."""
 
     text: str
     source: str
     conversation_id: str | None = None
+    agent_id: str | None = None
 
 
 class ResponseReady(Event):
-    """A reply to present. `correlation_id` is the id of the input it answers."""
+    """A reply to present. `correlation_id` is the id of the input it answers. `agent_id`: the
+    agent tab whose chat it belongs to; None means the tab in focus."""
 
     text: str
     conversation_id: str | None = None
+    agent_id: str | None = None
 
 
 class ShutdownRequested(Event):
@@ -118,6 +122,10 @@ class ViewerTabsChanged(Event):
     tabs: tuple[str, ...] = ()
     active: str | None = None
     highlights: tuple[tuple[str, str], ...] = ()
+
+
+MAX_SNIPS = 3  # snips sent with one message: the Talker keeps and the temp UI shows at most this many
+PASTED_FILE = "(pasted)"  # ViewerClip.file of an image pasted into a chat box, not snipped from a page
 
 
 class ViewerClip(Event):

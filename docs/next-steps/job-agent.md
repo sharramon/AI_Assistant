@@ -1,6 +1,8 @@
 # Job agent: run the job project from the assistant
 
-> **Status: proposed (2026-11-04).** A plan only; nothing is built. How the job project works today is on the [Job project](../job-project/README.md) page. Building it changes a contract (`StartTask`) and shared infra, so it will need an app restart.
+> **Status: built (waiting on you), 2026-11-05.** Built with the [multi-agent](multi-agent.md) build as the `job_search` module ([page](../modules/job_search.md)): the job agent `job_search_agent` (renamed by [agent-names](agent-names.md); a `ProfileAgent` in `C:\Chang\Jobs\CV`, Chrome tools, Manual) and its `job.search` menu item, a **stub** that answers through `AgentNotice`. Question 1 is settled by [agent-permissions](agent-permissions.md) (built 2026-11-05): the access list is config keys, asked for on one card. Still open: the real search runner (`sweep.py` with JobRadar's Python). Needs an app restart. How the job project works today is on the [Job project](../job-project/README.md) page.
+>
+> **Tested by hand (2026-11-05, after the restart):** `modules.on job_search` showed the access card ("not reviewed": `main_assistant` was busy). You allowed all 5 items, and `job_search` turned on. `job_search_agent` is in the Hub (Manual, free) and took the focus. Its tab opened in the temp UI: the log shows tab clicks moving the focus between it and `main_assistant`. The grant is saved in `data/permissions.toml`, and `permissions.grants` lists it with `matches: true`. `job.search` (the stub) answered "Search started". Not yet tried: giving the agent a real task, and the revoke from the Grants screen.
 
 ## What you decided
 
@@ -35,7 +37,7 @@
 
 ## Permissions outside this project
 
-The job agent works outside this repo, so it gets its own access list (built with `path_rule`), not the Main Assistant's. Anything outside the list comes to you as an Allow / Deny card through the Hub, as today. It starts in Manual mode. The list itself is question 1.
+The job agent works outside this repo, so it gets its own access list (built with `path_rule`), not the Main Assistant's. Since 2026-11-05 the list is config keys in `[modules.job_search]`: `workspace`, `read_dirs`, `python` (added: JobRadar's Python, any arguments), `allowed_commands` and `chrome`. When the module is turned on, the whole list is asked for on one card, and the grant is saved for `job_search_agent` ([permissions](../architecture/permissions.md#access-lists-built)). Anything outside the list comes to you as an Allow / Deny card through the Hub, as before. It always starts in Manual mode.
 
 ## Later: cloud agents
 
@@ -43,5 +45,5 @@ A cloud agent can't see `C:\Chang\Jobs\CV` (not a git repo), the `.odt` CVs, Job
 
 ## Open questions for you
 
-1. **The job agent's permissions.** Proposed: read and write `C:\Chang\Jobs\CV`; read `C:\Chang\Jobs` and JobRadar (`C:\Chang\Git_projects\Resume`); run JobRadar's Python; use Chrome; Manual mode; never submit or send anything.
+1. **The job agent's permissions.** Proposed: read and write `C:\Chang\Jobs\CV`; read `C:\Chang\Jobs` and JobRadar (`C:\Chang\Git_projects\Resume`); run JobRadar's Python; use Chrome; Manual mode; never submit or send anything. **Settled (built 2026-11-05):** the list is in config, with the `python` key added, and is asked for on one card when the module is turned on ([note](agent-permissions.md)).
 2. **May the Main Assistant start or question the job agent itself**, or only you through the Talker for now? Recommended: only you, for now.

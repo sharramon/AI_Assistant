@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>usage: every agent&#x27;s tokens since launch</title>
+<!-- Generated from docs/modules/usage.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="modules/usage.html"></nav>
+<main>
+<h1 id="usage-every-agents-tokens-since-launch">usage: every agent's tokens since launch</h1>
+<h2 id="purpose">Purpose</h2>
+<p>Keeps the usage tally of the whole app: every agent's tokens since the app started (tokens only: the <code>claude</code> tool's dollar estimate is at pay-as-you-go API prices, not what a subscription bills, so it isn't kept), with each agent's sub-agents and wrapped tools nested under it, and the Talker as its own row. It listens to <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a> from every sender and keeps one <a href="../api/infra.html#usageledger"><code>UsageLedger</code></a>. Kept in memory only: nothing is written to disk, and the tally ends with the app. No time buckets, no history, no spend alerts. On at launch.</p>
+<h2 id="wrapper">Wrapper</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td><code>usage</code></td>
+</tr>
+<tr>
+<td>provides</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>requires / optional</td>
+<td>none</td>
+</tr>
+<tr>
+<td>permissions</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td><code>usage.total</code> (every agent together: tokens by kind, <code>used_tokens</code>, how many agents), <code>usage.agents</code> (one row per agent, its sub-agents and tools in <code>children</code>, each with its own numbers, a <code>total</code> with its children, and <code>closed</code>), <code>usage.mine(agent_id?)</code> (the caller's own row with its children; the door knows the caller, so an agent asks with no arguments)</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td><a href="../api/agents.html#listagents"><code>ListAgents</code></a> (which agents are still there)</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>; <a href="../api/agents.html#agentstatechanged"><code>AgentStateChanged</code></a> and <a href="../api/control.html#modulestatechanged"><code>ModuleStateChanged</code></a>, to note the agents it has seen</td>
+</tr>
+</tbody>
+</table>
+<h2 id="shown">Shown</h2>
+<p>The temp UI's header shows the selected tab's worker and Talker contexts and the tokens that pair used, plus the total; a dropdown lists each agent, its sub-agents nested under it, and the Talker as its own row (a throwaway stand-in; see <a href="temp_ui.html">temp_ui</a>). A closed agent's rows are greyed and read "· closed"; the temp UI asks for the tally again when an agent leaves its tabs. The Talker's <code>[Usage]</code> line uses <code>usage.total</code>.</p>
+<h2 id="inner-workings">Inner workings</h2>
+<ul>
+<li>Each <code>SessionUsage</code> is a running total, so the ledger keeps each agent's latest numbers: a lost event costs nothing. Each event carries its <code>session</code> id, new for each fresh <code>ClaudeSession</code>: when the id changes (a reload, a new session), what the agent had is kept and the new numbers add to it, even if the new session's first numbers are already bigger. Without an id, falling numbers mean the same.</li>
+<li>A sub-agent comes from its parent's <code>claude</code> stream: the tool_result of an Agent call names it (<code>agentId</code>, <code>agentType</code>). Its tokens come from each turn's <code>result</code>: the turn's model usage (sub-agents included) less the parent's own calls, so every call the sub-agent made counts, not just its last one. Several sub-agents in one turn share it by their last-call sizes; with none named, it goes under <code>unnamed</code>. <a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a> keeps this per sub-agent, and <a href="../api/infra.html#session_usage"><code>subagent_usage</code></a> publishes it with <code>parent</code> set and <code>kind = "subagent"</code>.</li>
+<li>A sub-agent's tokens are not in the parent's own numbers, so the parent's <code>total</code> adds them once.</li>
+<li>A reload hands the ledger to the new copy (<code>export_state</code>, with the agents seen), so the tally survives it.</li>
+<li><strong>A closed agent stays in the totals.</strong> An agent <code>ListAgents</code> listed before and doesn't now (its tab's ×, <code>agents.close</code>, its module turned off) is <em>closed</em>: in <code>usage.agents</code> its row and every row nested under it (its tab's Talker <code>talker:&lt;agent&gt;</code>, its sub-agents) get <code>"closed": true</code>. The numbers don't change, since the tokens were used. If the name comes back, the mark clears and its numbers carry on. The mark is worked out on each ask, in this module; <code>UsageLedger</code> stays plain.</li>
+</ul>
+<pre><code class="language-mermaid">flowchart LR
+    Agents[&quot;every agent&lt;br/&gt;SessionUsage&quot;] --&gt; Mod[&quot;usage&lt;br/&gt;UsageLedger&quot;]
+    Mod -- &quot;ListAgents (closed?)&quot; --&gt; Hub[&quot;agent_hub&quot;]
+    Ask[&quot;usage.total · agents · mine&quot;] --&gt; Mod
+</code></pre>
+<h2 id="config">Config</h2>
+<p>None.</p>
+<h2 id="code-and-tests">Code and tests</h2>
+<ul>
+<li><code>src/assistant/modules/usage/module.py</code></li>
+<li><code>tests/test_usage.py</code>: the menu, <code>ClaudeSession</code>'s sub-agent tally, <code>UsageLedger</code>, closed agents (with <code>agent_hub</code>), the temp UI's total and the Talker's <code>[Usage]</code> line</li>
+</ul>
+<h2 id="planned">Planned</h2>
+<p>Nothing specific. A central module: part of the main app and its window, so its docs stay here.</p>
+<footer>Generated from <code>docs/modules/usage.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

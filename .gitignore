@@ -8,6 +8,9 @@ config/*.local.toml
 spikes/workspace/
 workspace/
 .claude/state/
+# Personal, machine-specific: your own Claude Code settings and your saved permission grants.
+.claude/settings.local.json
+data/permissions.toml
 # Speech models are downloaded (python -m voice_service download zipformer), never committed.
 # The default place is %LOCALAPPDATA%\AI_Assistant\voice_models, outside the repo; this covers a models_dir inside it.
 voice_models/

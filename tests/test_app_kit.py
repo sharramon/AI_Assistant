@@ -41,6 +41,24 @@ def test_load_layered_needs_the_base_file(tmp_path):
         load_layered(tmp_path / "missing.toml")
 
 
+def test_local_guard_refuses_other_hosts_and_other_origins():
+    from app_kit import local_request, require_loopback
+
+    assert require_loopback("127.0.0.1") == "127.0.0.1"
+    with pytest.raises(ValueError):
+        require_loopback("0.0.0.0")
+    # A program (no Origin) addressing this machine: served.
+    assert local_request("127.0.0.1:8765", None) and local_request("localhost:8766", None)
+    assert local_request("[::1]:8765", None)
+    # DNS rebinding (a foreign Host), no Host at all: refused.
+    assert not local_request("evil.example:8765", None) and not local_request(None, None)
+    # A browser: only a page of the same app (same host and port).
+    assert local_request("127.0.0.1:8766", "http://127.0.0.1:8766")
+    assert not local_request("127.0.0.1:8765", "https://evil.example")
+    assert not local_request("127.0.0.1:8765", "http://127.0.0.1:8770")  # another local app's page
+    assert not local_request("127.0.0.1:8765", "null")
+
+
 def test_devtools_port(tmp_path):
     assert devtools_port(tmp_path) is None
     (tmp_path / "DevToolsActivePort").write_text("51234\n/devtools/browser/x\n")
@@ -147,3 +165,39 @@ async def test_companion_app_fails_early_when_the_process_exits():
     assert app.launched
     await app.stop()
     assert not app.launched
+
+
+async def test_companion_app_keeps_the_last_ping_answer(fake_app):
+    app = CompanionApp("fake", "127.0.0.1", fake_app, ping="/ping")
+    assert app.last_answer == {}
+    await app.ensure_running()
+    assert app.last_answer.get("app") == "fake"
+    assert not await CompanionApp("other", "127.0.0.1", fake_app, ping="/ping").ping()
+
+
+async def test_companion_handover_keeps_the_app_across_a_reload(fake_app):
+    first = app_kit.CompanionHandover(None, "fake", "127.0.0.1", fake_app, ping="/ping")
+    await first.app.ensure_running()
+    handed = first.export()
+    assert handed is not None
+    await first.stop()  # handed over: not quit
+    second = app_kit.CompanionHandover(handed, "fake", "127.0.0.1", fake_app, ping="/ping")
+    assert second.app is first.app and not QUIT.is_set()
+    other = app_kit.CompanionHandover(handed, "fake", "127.0.0.1", fake_app, args=["--x"], ping="/ping")
+    assert other.app is not first.app  # launched another way: its own app
+
+
+async def test_companion_handover_quits_the_app_when_its_code_changed(fake_app, monkeypatch):
+    first = app_kit.CompanionHandover({}, "fake", "127.0.0.1", fake_app, ping="/ping")
+    await first.app.ensure_running()
+    monkeypatch.setattr(first.app, "code_changed", lambda: True)
+    assert first.export() is None
+    await first.stop()  # quits even the app it found running
+    assert QUIT.is_set()
+
+
+def test_window_profile_is_under_local_app_data(monkeypatch, tmp_path):
+    from app_kit.window import window_profile
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert window_profile("temp_ui") == tmp_path / "AI_Assistant" / "temp_ui_window"

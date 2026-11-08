@@ -94,13 +94,16 @@ Purple: planned. Dashed grey: an example for later. Agents, other modules and UI
 | Hot swap (hand over state, wait while busy) | Kept; the agent's three tools never change | Each door just stops and starts; the agent's tool list changes |
 | The agent calls mid-reply | Yes | Yes |
 
-### Why one door and not an MCP server per module
+### Why not plain MCP?
 
-- **Modules talk through the core.** To each other and to the UI, modules use commands, events and contracts. That's how voice notes uses `voice_in`, and how the mic button reaches it.
+Plain MCP here means an MCP server per module, each offering its tools to the agents directly. We chose one door for control. It wasn't because MCP can't change its tools: our test on Claude Code 2.1.318 showed that a running session follows tools added or removed when the server sends `list_changed`.
+
 - **Per-module servers would go around the core.** Each would face only the agent. It would skip the permission check, the module directory, the links between modules (`requires`, events), and hot swap in one process (handing over state, waiting while busy).
-- **Swapping would depend on every server behaving.** Our experiment (2026-11-05, Claude Code 2.1.318): a running session follows tool changes only when the server announces them (`list_changed`). A tool added without a notice is never seen, and a removed one stays listed until a call fails. A crashed server restarts on the next call. With one door, the three tools never change, so none of that matters.
-- **MCP stays a door at the agents' edge.** Modules are never MCP servers and never import MCP. The door only reads the directory and passes calls to the core.
-- **An outside tool that already speaks MCP, such as Unity, becomes a module.** The module is an MCP client of that tool and offers its own menu, so the agents reach it through the same door, with the same permissions. A dedicated agent can sit on top of it if it's worth one.
+- **Callers that aren't agents need the same checks.** The mic button, the viewer and other modules reach a module through commands, events and contracts. That's how voice notes uses `voice_in`. An MCP server would serve only the agents, so these callers would need a second path.
+- **The agent's context stays small.** The door has three fixed tools (list modules, show a menu, use an item), so it doesn't grow with every module that's on. They never change on a swap, so no `list_changed` notice is needed. In the test, a tool added without a notice was never seen, and a removed one stayed listed until a call failed.
+- **MCP is still used.** The door is an MCP server (`assistant.infra.mcp_door`). An outside tool that already speaks MCP, such as Resi or Unity, gets a thin module that is an MCP client of it. That module offers the tool's list as its own menu and refreshes the menu when the tool sends `list_changed`. Modules are never MCP servers themselves and never import MCP.
+
+**What plain MCP would replace:** only the list, menu and call steps; the agent would see each tool directly. **What it wouldn't:** events, commands and contracts between modules; callers that aren't agents; hot swap inside the app; one permission check for every caller; the module directory; and the Agent Hub (focus, held questions, milestones).
 
 ## Chaining modules
 

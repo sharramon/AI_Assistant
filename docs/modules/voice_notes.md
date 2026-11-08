@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A small page in its own window: Record / Stop, a notes area you can edit, a status line, and Copy. What you say goes only to this page, never to the Talker. v1, built 2026-11-04; on by default.
+A small page in its own window: Record / Stop, a notes area you can edit, a status line, and Copy. What you say goes only to this page, never to the Talker. v1, built 2026-11-04; off by default (turn it on with the core's `modules.on`, which turns `voice_in` on first if needed).
 ## Wrapper
 
 | Field | Value |

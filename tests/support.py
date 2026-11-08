@@ -38,3 +38,21 @@ class Calculator(ModuleProtocol, IToolProvider):
             return Result.ok(args["a"] + args["b"])
         except KeyError as exc:
             return Result.invalid_arguments(f"missing argument {exc}")
+
+
+def pre_grant(app: Any, module_id: str, subject: str, config: dict[str, Any]) -> None:
+    """Save a grant for `config`'s whole access list, so `module_id` turns on with no card."""
+    from assistant.core.permissions.store import Grant, fingerprint
+    from assistant.infra import access_items
+
+    items = access_items(config)
+    keys = tuple(i.key for i in items)
+    app.permissions.store.put(Grant(module_id, subject, fingerprint(items), keys).with_granted(keys))
+
+
+def pre_grant_kinds(app: Any, module_config: dict[str, Any], module_id: str = "task_agents") -> None:
+    """Pre-grant every kind of the task_agents config (autostart or launched)."""
+    from assistant.modules.task_agents.module import kind_configs
+
+    for kind, config in kind_configs(module_config).items():
+        pre_grant(app, module_id, kind, config)

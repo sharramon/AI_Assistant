@@ -25,7 +25,8 @@ where = ["src"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
-testpaths = ["tests"]
+# Each module carries its own tests in its folder (src/assistant/modules/<id>/tests/).
+testpaths = ["tests", "src/assistant/modules"]
 # Tests that run a real `claude` process are skipped by default (and in CI).
 # Run them on your own machine with: pytest -m claude
 addopts = "-m 'not claude'"

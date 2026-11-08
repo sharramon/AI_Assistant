@@ -94,7 +94,8 @@ sequenceDiagram
     T->>T: "[Viewer] open: ..." added before your next message
 ```
 
-- **The Main Assistant** can't call tools in the app. It writes `<<SHOW: path>>` on its own line, or `<<SHOW: path | "quoted text" | heading>>` to highlight; the `html_viewer` module sees it in the agent's activity (`AgentActivity`) and calls `viewer.open` or `viewer.highlight`. The Talker uses the same tag. Both prompts say HTML files never open in the default browser.
+- **The Main Assistant** writes `<<SHOW: path>>` on its own line, or `<<SHOW: path | "quoted text" | heading>>` to highlight; its `SessionTaskAgent` reads the tag and sends `viewer.open` or `viewer.highlight` as `InvokeTool` (it can also call them through the door). The Talker uses the same tag.
+- **Off at launch, on when used:** `html_viewer` isn't in `enabled`; it has `start_on_use = true`, so the first page opened (SHOW, Open in viewer, any `viewer.*` call) turns it on through the core ([start on use](../api/core.md#dispatch_tool)), even if you turned it off. Both prompts say HTML files never open in the default browser.
 - **To the front:** your click on Open in viewer sends `front: true`. The viewer finds its Edge window (`raise_window` in [`app_kit.window`](../api/app_kit.md#window), Windows only, ctypes), restores it if minimized, and brings it to the front, borrowing the input of the window in front (`AttachThreadInput`) because Windows keeps a background process from doing that. If the window is gone, it opens a new one at once. Pages an agent opens with SHOW don't take focus.
 - **Full paths:** the Talker always writes an HTML file's full absolute path. The button can't find a bare file name: it would look for it in the app's folder.
 - **The viewer app:** a stdlib HTTP server on `127.0.0.1:8766` in its own process. It opens in an Edge app-mode window on its own profile. Each tab is an `<iframe>` served from the viewer's own address (same origin), so the edit tool and highlights can reach into the page.
@@ -117,7 +118,7 @@ No existing viewer combines tabs, an open-tabs list the app can read, and the ha
 
 - **Any file, anywhere** (decided 2026-10-27): the viewer may read and save any file, with no per-folder restriction. Saving is your own action in the viewer, so it doesn't go through the [permissions handler](permissions.md).
 - **Real paths in URLs:** a file is served at `/fs/<its full path>`, so a page's relative links, CSS, images, and scripts work as they do from disk. (The plan had short tokens per file; with "any file, anywhere" decided they protected nothing, and they broke links between pages.)
-- Listens on `127.0.0.1` only, and answers only requests addressed to it (the `Host` header), so a web page can't reach it by DNS tricks. Every POST must be JSON, which a web page can't send to it without the browser asking first.
+- Listens on `127.0.0.1` only (a non-local host is refused at start), and refuses other hosts and other origins with [`app_kit.local_guard`](../api/app_kit.md#local_guard): it answers only requests addressed to it (the `Host` header), so a web page can't reach it by DNS tricks, and refuses a browser request from another site's page (its `Origin`); its own pages still work. Every POST must be JSON, which a web page can't send to it without the browser asking first.
 - Pages run their own scripts (the docs load Mermaid from a CDN), and same-origin tabs can reach the viewer's address. That's acceptable for your own files. Recommend keeping it that way and not opening web pages from the internet in it.
 - **Snip's DevTools port:** the viewer's Edge window listens for DevTools on `127.0.0.1` (a port Edge picks). Any program on this PC could control that window through it, as with any local debugging port. It only ever shows the viewer.
 
@@ -131,7 +132,7 @@ No existing viewer combines tabs, an open-tabs list the app can read, and the ha
 6. **Generated pages:** editable; saving into `docs/html` or `docs/html-next-steps` writes text edits back to the Markdown source, matched by text, and warns about edits it can't place (2026-10-27; first a warning only). The viewer doesn't rebuild the docs.
 7. **Undo:** in memory only, one stack per tab; no permanent backups; one temporary copy of the original per open tab, deleted when the tab closes. Redo comes later.
 8. **Window code:** first shared in `assistant.infra`, then copied into the viewer when it became its own app (`html_viewer/window.py`, which also opens Edge's DevTools port for snip). **Replaced 2026-11-02 ([build it once](principles.md)):** one shared copy in [`app_kit.window`](../api/app_kit.md#window), used by the viewer and `temp_ui`. The thin `html_viewer` module launches the viewer with [`CompanionApp`](../api/app_kit.md#companionapp) and reads SHOW tags with [`agent_tags`](../api/infra.md#agent_tags). All three are built (2026-11-02).
-9. **HTML opened through the chat goes to the viewer**, never the default browser. The Talker writes the file's path and the chat shows an Open in viewer button; the Main Assistant, which can't call app tools, writes `<<SHOW: path>>`, and the `html_viewer` module opens the file, starting the viewer if needed.
+9. **HTML opened through the chat goes to the viewer**, never the default browser. The Talker writes the file's path and the chat shows an Open in viewer button; the Main Assistant writes `<<SHOW: path>>`, and its `SessionTaskAgent` sends `viewer.open`, which turns the module on and starts the viewer if needed.
 10. **Focus** (2026-10-28): only your click on Open in viewer brings the viewer to the front. Pages an agent opens on its own stay in the background. Agents write full absolute paths, never bare names.
 10. **Highlights** (2026-10-27): the assistant quotes the page's words (plus an optional heading); several can be on a page and stay until you clear them; no labels; page text only, not inside diagrams.
 11. **Snip** (2026-10-27): Edge's own screenshot of the box (DevTools), so diagrams come out exactly; up to 3 snips wait for your next message; thumbnails above the chat input, each with an × to drop it.
@@ -153,7 +154,6 @@ classDiagram
         starts / stops the viewer
         relays tabs → ViewerTabsChanged
         relays snips → ViewerClip
-        reads <<SHOW: ...>> in AgentActivity
     }
     class ViewerServer {
         <<viewer app>>

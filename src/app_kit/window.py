@@ -23,6 +23,12 @@ EDGE = [
 log = logging.getLogger(__name__)
 
 
+def window_profile(name: str) -> Path:
+    """The default Edge profile folder for `name`'s own window:
+    `%LOCALAPPDATA%\\AI_Assistant\\<name>_window` (the home folder if there's no LOCALAPPDATA)."""
+    return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "AI_Assistant" / f"{name}_window"
+
+
 def open_app_window(
     url: str, profile: Path, *, size: str = "1400,850", devtools: bool = False, log: Any = log
 ) -> subprocess.Popen | None:

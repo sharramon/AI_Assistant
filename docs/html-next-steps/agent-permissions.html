@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task agents ask for their access when turned on</title>
+<!-- Generated from docs/next-steps/agent-permissions.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="agent-permissions.html"></nav>
+<main>
+<h1 id="task-agents-ask-for-their-access-when-turned-on">Task agents ask for their access when turned on</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-05.</strong> All 8 steps are in the code and 474 tests pass. The handler is part of the core (<code>src/assistant/core/permissions/</code>); the design now lives in <a href="../html/architecture/permissions.html#access-lists-built">Permissions</a>. Left: an app restart, then try the job_search card, Allow turning it on, and the rough Grants screen. Replaces the job agent's hardcoded access list (<a href="job-agent.html#open-questions-for-you">question 1</a>). Builds the first real piece of the planned <a href="permissions-handler.html">permissions handler</a>, including grant management.</p>
+</blockquote>
+<h2 id="what-you-decided">What you decided</h2>
+<ol>
+<li><strong>Each task-agent module lists what it needs in its own config:</strong> the folders it reads, the folders it writes, whether it may run Python, whether it may use Chrome.</li>
+<li><strong>When the module is turned on, it asks for the whole list in one request</strong> through <code>ctx.permissions</code>. One card shows the full list. You allow all of it, trim it, or deny it.</li>
+<li><strong>Before the card shows, the Main Assistant reviews the list</strong> and adds warnings for risky combinations. A few fixed rules give predictable warnings, and the Main Assistant adds anything else it notices.</li>
+<li><strong>The grant is saved per module</strong> and lasts until the module's list changes. If the list changes, you're asked again. Nothing is asked on a normal launch.</li>
+<li><strong>After the grant, the agent works inside it.</strong> Anything outside it still gets a normal Manual-mode card. "Never submit or send anything" stays a fixed rule.</li>
+<li><strong>Build the real handler's first piece now</strong>, not a card bolted onto the allow-everything stand-in. (Built: the handler is always on, so the stand-in was removed; decision 14.)</li>
+<li><strong>If the Main Assistant is busy</strong>, the card shows right away with the rule warnings only, marked "not reviewed".</li>
+<li><strong>A list can't start an agent in Auto.</strong> Every session starts in Manual; Auto stays your button.</li>
+<li><strong>The Main Assistant's own access is not moved</strong> to this system in this change.</li>
+<li><strong>Several helpers (<code>task_agents</code>): one card and one saved grant per helper.</strong></li>
+<li><strong>Grants are managed through calls, not by editing the file.</strong> The handler has list / grant / revoke calls, independent of any UI, offered as a menu on the module door. Agents can call it, but only your card can widen or narrow a grant. The only screen is a rough, throwaway one in the temp UI.</li>
+<li><strong>Revoking while the agent is running turns the module off right away</strong> and stops its running task (like Esc); the result says so. The task isn't left to finish, since its session would keep the old access.</li>
+<li><strong>An agent can't take access away on its own.</strong> An agent's revoke call shows your card, the same as its grant call; only your Allow applies it.</li>
+<li><strong>The permissions handler is part of the core, not a module</strong> (decided 2026-11-05, during the build; replaces "as a module" below). It's always on, and no module or agent can turn it off or reload it. <code>ctx.permissions</code> is a <code>PermissionsPort</code> forwarding to the core's <code>PermissionsHandler</code>; <code>AllowAllPermissions</code> and <code>IPermissions</code> are gone, and so is the registry's start order for <code>IPermissions</code>. The grant calls <code>permissions.grants / grant / revoke</code> are on the core's menu (id <code>core</code>), beside <code>modules.*</code>. It uses only the core's generic parts (the router's <code>send</code>, the bus's <code>publish</code>, the container's <code>get_one</code> for <code>IAgentNames</code>) and shared contracts. The Main Assistant's review is a normal task (<code>StartTask</code> / <code>TaskUpdated</code> / <code>CancelTask</code>). It imports no module and has no module-specific logic: a new module only declares <code>agent.access</code> and lists its access in config. Only two defaults name agents, the reviewer <code>main_assistant</code> and you = <code>temp_ui</code>, both overridable in <code>[core.permissions]</code>.</li>
+<li><strong>Grants are saved per kind of agent</strong> (decided 2026-11-05; refines 4 and 10). One grant per module and subject: <code>helper_2</code> shares <code>helper</code>'s grant, and the job agent's subject is <code>job_search_agent</code>.</li>
+</ol>
+<h2 id="how-it-fits-whats-there">How it fits what's there</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Today</th>
+<th>With this change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Config (<code>[modules.job_search]</code>, <code>[modules.task_agents.agents.&lt;id&gt;]</code>)</td>
+<td><code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>, <code>chrome</code>, <code>permission_mode</code>, read by <code>AgentProfile.from_config</code></td>
+<td>Stays the source of the list, with one key added: <code>python</code> (the Python it may run, or none). <code>permission_mode</code> no longer starts a session in Auto</td>
+</tr>
+<tr>
+<td><code>Manifest.permissions</code></td>
+<td>Fixed names in code (<code>microphone</code>, <code>files.write:docs</code>)</td>
+<td>Unchanged. A task-agent module adds one name, <code>agent.access</code>, saying "I ask for a config list when turned on". The list itself lives in config, because it differs per agent</td>
+</tr>
+<tr>
+<td><code>ctx.permissions</code></td>
+<td><code>has</code> / <code>request</code> one name; the stand-in allows and logs</td>
+<td>Gains <code>request_set(items, reason) -&gt; granted items</code>: one request for a whole list, answered with what you allowed. Built: it forwards to the core's handler (decision 14); there's no stand-in</td>
+</tr>
+<tr>
+<td><a href="../html/architecture/permissions.html">Permissions handler</a></td>
+<td>Designed, not built</td>
+<td>Its first piece is built in the core (decision 14): saved grants, the one-card list request, the review step, and the grant menu. Single permissions (<code>location</code>, etc.) and permission sources come later, as designed</td>
+</tr>
+<tr>
+<td><code>AgentProfile</code> / <code>ProfileAgent</code></td>
+<td>Built straight from config</td>
+<td>Built from the <strong>granted</strong> list. A trimmed folder never becomes a rule, so <code>claude</code> asks for it with a normal card</td>
+</tr>
+<tr>
+<td>Permission mode</td>
+<td>Manual every launch; Auto only by your button</td>
+<td>Unchanged</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-the-grant-is-stored">Where the grant is stored</h2>
+<p><code>data/permissions.toml</code>, the file the handler design already names. It's in the <a href="../html/architecture/permissions.html#repo-zones">protected zone</a>, so no agent can write it, and you don't edit it by hand either: it changes only through the handler's calls. One section per module (and per helper, for <code>task_agents</code>) holds:</p>
+<ul>
+<li>what you granted: the folders, Python and Chrome you kept;</li>
+<li>the fingerprint of the list it asked for;</li>
+<li>the date.</li>
+</ul>
+<h2 id="how-a-changed-list-is-noticed">How a changed list is noticed</h2>
+<p>Each time the module is turned on, it builds its list from config: paths resolved, sorted, and the flags. A hash of that list is the fingerprint. If it matches the saved one, the saved grant is used and nothing is asked. If it differs, or there's no saved grant, the card shows again. Any change asks again, including a narrower list, so the rule stays simple.</p>
+<h2 id="what-the-card-shows">What the card shows</h2>
+<ul>
+<li><strong>Who:</strong> the module and agent (<code>job_search</code> → <code>job_search_agent</code>, renamed by <a href="agent-names.html">agent-names</a>) and its one-line description.</li>
+<li><strong>The list</strong>, one line per item, each with a tick box: read <code>C:\Chang\Jobs</code>, write <code>C:\Chang\Jobs\CV</code>, run <code>&lt;JobRadar's python.exe&gt;</code>, use Chrome.</li>
+<li><strong>Warnings</strong>, each next to the items it's about. The rule warnings come first, then the Main Assistant's notes, marked as its own, or "not reviewed" if it was busy.</li>
+<li><strong>The fixed rules</strong>, in one line: never submit or send anything; protected paths are never granted; sessions start in Manual.</li>
+<li><strong>Buttons:</strong> Allow (the ticked items), Deny. A denied or unanswered card leaves the module off, with the reason shown.</li>
+</ul>
+<p>The same card works through the Talker ("job search wants these; allow?") using the existing <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> tags.</p>
+<h2 id="the-warning-rules">The warning rules</h2>
+<p>Simple and predictable, checked in code before the Main Assistant sees the list:</p>
+<table>
+<thead>
+<tr>
+<th>If the list has</th>
+<th>Warning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Write to any folder <strong>and</strong> Chrome</td>
+<td>It can change files there and put them on a website (for example your CV)</td>
+</tr>
+<tr>
+<td>Read outside its workspace <strong>and</strong> Chrome</td>
+<td>It can read those folders and paste what it reads into a website</td>
+</tr>
+<tr>
+<td>Run Python</td>
+<td>Python with any arguments can run any code, so it can do anything your account can</td>
+</tr>
+<tr>
+<td>A folder in the protected zone</td>
+<td>Refused, not just warned; it's taken off the list</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-main-assistants-review">The Main Assistant's review</h2>
+<p>The handler sends the list and the rule warnings to the Main Assistant as a short review task through the Hub, and puts its reply on the card under the rule warnings. If the Main Assistant is busy or doesn't answer within a short time, the card shows right away with the rule warnings only, marked "not reviewed by the Main Assistant".</p>
+<h2 id="managing-grants">Managing grants</h2>
+<p>The calls live in the handler itself, with no UI in them, so any later UI and any agent use the same ones. They're offered as a <code>permissions.*</code> menu on the module door. Each call knows its caller (<code>InvokeTool.caller</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Call</th>
+<th>Does</th>
+<th>Who</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>permissions.grants</code></td>
+<td>Lists the saved grants per module (and helper): what was granted, the date, and whether the module's current list still matches</td>
+<td>Anyone</td>
+</tr>
+<tr>
+<td><code>permissions.grant</code></td>
+<td>Grants items to a module, then it turns on with them</td>
+<td>From you: applied. From an agent: shows the same card, and only your Allow widens it</td>
+</tr>
+<tr>
+<td><code>permissions.revoke</code></td>
+<td>Takes back a module's grant (all, or some items). The module asks again the next time it's turned on</td>
+<td>From you: applied. From an agent: shows the same card first, and only your Allow applies it; an agent can't take access away on its own (decision 13)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>A running agent on revoke:</strong> its rules are fixed when its <code>claude</code> session starts, so a running session would keep the old access. So revoke turns the module off right away: a running task is stopped (like Esc), and the result says so ("job_search turned off; its running task was stopped"). The task isn't left to finish (decision 12).</p>
+<p><strong>You</strong> means the caller is a UI you click in: today only <code>temp_ui</code>.</p>
+<p><strong>The screen:</strong> a deliberately rough grants screen in the temp UI: the list of grants with a Revoke button per module or item. It only calls the menu above and holds no logic. It sits in its own file (for example <code>temp_ui/static/grants.js</code> and one marked section in the page), labelled throwaway, so it goes away with the temp UI when the <a href="../html/architecture/decisions.html#open-decisions">UI handler</a> is designed. This is an exception to "build nothing on the temp UI", which you asked for.</p>
+<h2 id="never-submit-or-send-anything">"Never submit or send anything"</h2>
+<p>It stays in the agent's prompt as a fixed rule, shown on the card, and you can't trim it. Chrome can't be limited to some actions, so this rule depends on the model following it. It isn't enforced in code. The card says so.</p>
+<h2 id="reused-parts">Reused parts</h2>
+<p>From the <a href="../html/api/reusable.html">reusable parts index</a>:</p>
+<ul>
+<li><code>ctx.permissions</code> (<code>ModulePermissions</code>), extended with <code>request_set</code> (the stand-in <code>AllowAllPermissions</code> was replaced by the core's <code>PermissionsPort</code> in the build);</li>
+<li><code>Manifest.permissions</code>;</li>
+<li><code>Menu</code> with <code>callers</code>, and <code>InvokeTool.caller</code>, for the grant menu and telling you from an agent;</li>
+<li>the module door (<code>IModuleDoor</code>), so agents reach the grant menu with no new code;</li>
+<li>the core's <code>modules.off</code> (<code>DeactivateModule</code>) and the Hub's <code>CancelTask</code>, for revoke;</li>
+<li><code>AgentProfile.from_config</code>, <code>ProfileAgent</code>, <code>path_rule</code>, <code>command_rules</code> and <code>claude_command</code> (with <code>chrome</code>), which turn the granted list into rules;</li>
+<li>the Allow / Deny card in the temp UI and the Talker's <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> tags;</li>
+<li>the Hub's <code>StartTask</code> for the review.</li>
+</ul>
+<h2 id="what-has-to-be-built">What has to be built</h2>
+<ol>
+<li><strong>Contract:</strong> <code>ModulePermissions.request_set</code>, and the <code>PermissionRequested</code> / <code>AnswerPermissionRequest</code> messages from the handler design, extended to carry a list, warnings and the kept items. This is a contract change, so it needs an app restart.</li>
+<li><strong>The handler's first piece</strong> (planned as <code>src/assistant/modules/permissions/</code>; built in the core as <code>src/assistant/core/permissions/</code>, decision 14): saved grants in <code>data/permissions.toml</code>, fingerprints, the warning rules, the review request (with the busy fallback), and the protected-zone check.</li>
+<li><strong>The grant menu</strong> in the handler: <code>permissions.grants / grant / revoke</code>, with the caller rules (an agent's grant or revoke waits for your card), and revoke turning the module off and stopping its running task.</li>
+<li><strong><code>AgentProfile</code>:</strong> build from a granted list. Add the <code>python</code> key; sessions always start in Manual.</li>
+<li><strong><code>job_search</code> and <code>task_agents</code>:</strong> call <code>request_set</code> on start (one per helper), and stay off when denied.</li>
+<li><strong>The cards:</strong> a list card with tick boxes and warnings in the temp UI, plus the Talker's wording.</li>
+<li><strong>The throwaway grants screen</strong> in the temp UI, in its own labelled file.</li>
+<li><strong>Config:</strong> move the job agent's list into the new keys. Tests for each step, then update the docs: permissions, the API pages, the module library and the job-agent note.</li>
+</ol>
+<h2 id="open-questions-for-you">Open questions for you</h2>
+<p>None left. The token-usage check below is for later.</p>
+<h2 id="later-check-token-usage-for-a-wrapped-tool-not-decided">Later check: token usage for a wrapped tool (not decided)</h2>
+<p>You asked whether a module that wraps a tool, like <code>job_search</code>, can report the tokens of its own session <strong>plus</strong> the sub-agents it starts, as one number. Not part of this change. Its own session already reports through <code>SessionUsage</code>. What's unknown is whether a <code>claude</code> session's output includes its sub-agents' usage. To check later: run a session that starts a sub-agent and inspect its stream-json output (the <code>result</code> and usage fields) for the sub-agent's tokens. Plain code a module runs (like JobRadar's API sweep) burns no tokens. If it works, a module-level usage report that rolls up sub-agents would be settled once in the module architecture, not only for the job agent.</p>
+<footer>Generated from <code>docs/next-steps/agent-permissions.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

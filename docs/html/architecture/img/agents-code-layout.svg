@@ -1,0 +1,211 @@
+<svg viewBox="0 0 1300 930" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The agent code in layers: contracts at the top, the core's ports below, the modules below that, infra at the bottom; every arrow points up toward the core and contracts. The talker module keeps one TalkerSession per agent tab, and the temp UI a chat per tab">
+  <style>
+    text { font-family: "Segoe UI", system-ui, sans-serif; }
+    rect.pkg { fill: #f7f6f2; stroke: #c9c4b6; stroke-width: 1.5; stroke-dasharray: 6 4; }
+    text.pk { font-size: 13px; font-weight: 800; fill: #5f5e58; }
+    text.pkd { font-size: 12px; fill: #6f6d66; }
+    rect.n { fill: #ffffff; stroke: #2f6f9f; stroke-width: 2; }
+    rect.in { fill: #eef4f9; stroke: #2f6f9f; stroke-width: 1.5; }
+    text.nm { font-size: 13px; font-weight: 800; fill: #1d1d1b; }
+    text.ds { font-size: 11.5px; fill: #3d3c38; }
+    circle.bd { fill: #3d3c38; }
+    text.bt { font-size: 9.5px; font-weight: 800; fill: #fff; text-anchor: middle; }
+    text.pl { font-size: 11.5px; fill: #0b5c51; }
+    text.note { font-size: 12px; fill: #5f5e58; }
+    .own { stroke: #6f6d66; stroke-width: 2; fill: none; }
+    .port { stroke: #0f7b6c; stroke-width: 2.5; fill: none; }
+    .imp { stroke: #3d3c38; stroke-width: 2; stroke-dasharray: 7 4; fill: none; }
+    .door { stroke: #a8327e; stroke-width: 2.5; stroke-dasharray: 2 5; stroke-linecap: round; fill: none; }
+  </style>
+  <defs>
+    <marker id="mO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6f6d66"/></marker>
+    <marker id="mP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7b6c"/></marker>
+    <marker id="mI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3d3c38"/></marker>
+    <marker id="mM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#a8327e"/></marker>
+  </defs>
+  <rect width="1300" height="930" fill="#ffffff"/>
+
+  <!-- ============ contracts ============ -->
+  <rect class="pkg" x="20" y="20" width="1260" height="150" rx="12"/>
+  <text class="pk" x="36" y="42">contracts</text>
+  <text class="pkd" x="116" y="42">interfaces and plain message types · imports nothing of ours</text>
+
+  <g transform="translate(36,52)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">ModuleContext</text><text class="ds" x="10" y="35">a module's ports (ctx)</text></g>
+  <g transform="translate(204,52)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">ITaskAgent</text><text class="ds" x="10" y="35">assign · message · note</text>
+    <circle class="bd" cx="132" cy="11" r="7"/><text class="bt" x="132" y="14.5">F</text><circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">R</text></g>
+  <g transform="translate(372,52)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">IAgentNames</text><text class="ds" x="10" y="35">one claim per agent id</text></g>
+  <g transform="translate(540,52)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">IModuleDoor</text><text class="ds" x="10" y="35">mcp_config(caller)</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">D</text></g>
+  <g transform="translate(708,52)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">Menu</text><text class="ds" x="10" y="35">items · their callers</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">D</text></g>
+  <g transform="translate(876,52)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">ListModules</text><text class="ds" x="10" y="35">· GetMenu · commands</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">D</text></g>
+  <text class="note" x="1050" y="70">Every arrow ends here</text>
+  <text class="note" x="1050" y="86">or at the core. No arrow</text>
+  <text class="note" x="1050" y="102">runs module to module.</text>
+
+  <g transform="translate(36,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">ReportTask</text><text class="ds" x="10" y="35">command · milestone…</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">R</text></g>
+  <g transform="translate(204,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">TaskUpdated</text><text class="ds" x="10" y="35">event · agent_id · held</text>
+    <circle class="bd" cx="132" cy="11" r="7"/><text class="bt" x="132" y="14.5">F</text><circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">R</text></g>
+  <g transform="translate(372,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">SetFocus</text><text class="ds" x="10" y="35">command</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">F</text></g>
+  <g transform="translate(540,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">FocusChanged</text><text class="ds" x="10" y="35">event · released</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">F</text></g>
+  <g transform="translate(708,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">FocusSuggested</text><text class="ds" x="10" y="35">event</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">F</text></g>
+  <g transform="translate(876,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">InvokeTool</text><text class="ds" x="10" y="35">command · caller</text>
+    <circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">D</text></g>
+  <g transform="translate(1044,110)"><rect class="n" width="160" height="50" rx="7"/><text class="nm" x="10" y="19">AgentNotice</text><text class="ds" x="10" y="35">event · for one agent</text>
+    <circle class="bd" cx="132" cy="11" r="7"/><text class="bt" x="132" y="14.5">R</text><circle class="bd" cx="148" cy="11" r="7"/><text class="bt" x="148" y="14.5">D</text></g>
+
+  <!-- core implements contracts -->
+  <line class="imp" x1="108" y1="218" x2="108" y2="173" marker-end="url(#mI)"/>
+  <text class="ds" x="118" y="200">implements ModuleContext · routes the message types</text>
+
+  <!-- ============ core ============ -->
+  <rect class="pkg" x="20" y="220" width="1160" height="100" rx="12"/>
+  <text class="pk" x="36" y="242">core</text>
+  <text class="pkd" x="76" y="242">the ports every module plugs into · knows no agent</text>
+
+  <g transform="translate(30,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">ScopedContext</text><text class="ds" x="10" y="35">stamps InvokeTool's caller</text>
+    <circle class="bd" cx="144" cy="11" r="7"/><text class="bt" x="144" y="14.5">D</text></g>
+  <g transform="translate(194,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">CommandRouter</text><text class="ds" x="10" y="35">one handler each</text></g>
+  <g transform="translate(358,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">EventBus</text><text class="ds" x="10" y="35">any listeners</text></g>
+  <g transform="translate(522,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">Container</text><text class="ds" x="10" y="35">resolves contracts</text></g>
+  <g transform="translate(686,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">Directory</text><text class="ds" x="10" y="35">list · menu</text>
+    <circle class="bd" cx="144" cy="11" r="7"/><text class="bt" x="144" y="14.5">D</text></g>
+  <g transform="translate(850,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">dispatch_tool</text><text class="ds" x="10" y="35">passes the caller on</text>
+    <circle class="bd" cx="144" cy="11" r="7"/><text class="bt" x="144" y="14.5">D</text></g>
+  <g transform="translate(1014,256)"><rect class="n" width="156" height="50" rx="7"/><text class="nm" x="10" y="19">MenuTools</text><text class="ds" x="10" y="35">invoke_as(…, caller)</text>
+    <circle class="bd" cx="144" cy="11" r="7"/><text class="bt" x="144" y="14.5">D</text></g>
+
+  <!-- ============ port stubs: modules up into the core ============ -->
+  <line class="port" x1="36" y1="418" x2="36" y2="324" marker-end="url(#mP)"/>
+  <text class="pl" x="44" y="352">sends SetFocus</text>
+  <text class="pl" x="44" y="367">hears FocusChanged,</text>
+  <text class="pl" x="44" y="382">TaskUpdated</text>
+
+  <line class="port" x1="216" y1="418" x2="216" y2="324" marker-end="url(#mP)"/>
+  <text class="pl" x="224" y="337">provides IModuleDoor, IAgentNames · uses every ITaskAgent</text>
+  <text class="pl" x="224" y="351">handles StartTask, SendToTask, ReportTask, SetFocus…</text>
+  <text class="pl" x="224" y="365">publishes TaskUpdated, FocusChanged, FocusSuggested</text>
+  <text class="pl" x="224" y="379">hears AgentNotice, AgentActivity</text>
+  <text class="pl" x="224" y="393">sends ListModules, GetMenu, InvokeTool (the door)</text>
+  <text class="pl" x="224" y="407">offers its menu, hub.*</text>
+
+  <line class="port" x1="656" y1="418" x2="656" y2="324" marker-end="url(#mP)"/>
+  <text class="pl" x="664" y="342">uses IModuleDoor</text>
+  <text class="pl" x="664" y="356">sends InvokeTool (hub.*)</text>
+  <text class="pl" x="664" y="370">hears InputReceived (tab),</text>
+  <text class="pl" x="664" y="384">TaskUpdated, FocusChanged,</text>
+  <text class="pl" x="664" y="398">FocusSuggested</text>
+
+  <line class="port" x1="836" y1="418" x2="836" y2="324" marker-end="url(#mP)"/>
+  <text class="pl" x="844" y="352">provides ITaskAgent</text>
+  <text class="pl" x="844" y="367">uses IModuleDoor</text>
+  <text class="pl" x="844" y="382">sends ReportTask</text>
+
+  <line class="port" x1="1016" y1="418" x2="1016" y2="324" marker-end="url(#mP)"/>
+  <text class="pl" x="1024" y="342">provide ITaskAgent</text>
+  <text class="pl" x="1024" y="356">use IModuleDoor</text>
+  <text class="pl" x="1024" y="370">send ReportTask</text>
+  <text class="pl" x="1024" y="384">offer agents.*, job.*</text>
+  <text class="pl" x="1024" y="398">job: publishes AgentNotice</text>
+
+  <!-- ============ modules ============ -->
+  <!-- temp_ui -->
+  <rect class="pkg" x="20" y="420" width="160" height="230" rx="12"/>
+  <text class="pk" x="32" y="440" font-size="12">temp_ui</text>
+  <g transform="translate(30,448)"><rect class="n" width="140" height="58" rx="7"/><text class="nm" x="10" y="19">TempUIModule</text><text class="ds" x="10" y="35">tabs · the ! · click</text>
+    <circle class="bd" cx="128" cy="47" r="7"/><text class="bt" x="128" y="50.5">F</text></g>
+  <text class="ds" x="34" y="524">a chat per tab</text>
+
+  <!-- agent_hub -->
+  <rect class="pkg" x="200" y="420" width="420" height="230" rx="12"/>
+  <text class="pk" x="212" y="440" font-size="12">agent_hub</text>
+  <g transform="translate(210,448)"><rect class="n" width="400" height="192" rx="9"/>
+    <text class="nm" x="12" y="20">AgentHubModule</text><text class="ds" x="12" y="37">the switchboard: holds the focus (_focus), routes your words to it</text>
+    <circle class="bd" cx="356" cy="17" r="7"/><text class="bt" x="356" y="20.5">F</text><circle class="bd" cx="372" cy="17" r="7"/><text class="bt" x="372" y="20.5">R</text><circle class="bd" cx="388" cy="17" r="7"/><text class="bt" x="388" y="20.5">D</text></g>
+  <g transform="translate(220,498)"><rect class="in" width="122" height="58" rx="7"/><text class="nm" x="10" y="19">_TaskRecord</text><text class="ds" x="10" y="35">one task · question</text><text class="ds" x="10" y="49">held behind the !</text>
+    <circle class="bd" cx="110" cy="13" r="7"/><text class="bt" x="110" y="16.5">F</text></g>
+  <g transform="translate(349,498)"><rect class="in" width="122" height="58" rx="7"/><text class="nm" x="10" y="19">menu · hub.*</text><text class="ds" x="10" y="35">send · focus ·</text><text class="ds" x="10" y="49">suggest_focus …</text>
+    <circle class="bd" cx="94" cy="13" r="7"/><text class="bt" x="94" y="16.5">F</text><circle class="bd" cx="110" cy="13" r="7"/><text class="bt" x="110" y="16.5">D</text></g>
+  <g transform="translate(478,498)"><rect class="in" width="122" height="58" rx="7"/><text class="nm" x="10" y="19">_Door</text><text class="ds" x="10" y="35">the IModuleDoor</text>
+    <circle class="bd" cx="110" cy="47" r="7"/><text class="bt" x="110" y="50.5">D</text></g>
+  <g transform="translate(220,568)"><rect class="in" width="122" height="58" rx="7"/><text class="nm" x="10" y="19">_Names</text><text class="ds" x="10" y="35">the IAgentNames</text></g>
+  <text class="ds" x="352" y="590">milestones and ends go to the</text>
+  <text class="ds" x="352" y="605">coordinator as ITaskAgent.note</text>
+  <text class="ds" x="352" y="620">(_feed: never wakes it)</text>
+
+  <!-- talker -->
+  <rect class="pkg" x="640" y="420" width="160" height="230" rx="12"/>
+  <text class="pk" x="652" y="440" font-size="12">talker</text>
+  <g transform="translate(650,448)"><rect class="n" width="140" height="58" rx="7"/><text class="nm" x="10" y="19">TalkerModule</text><text class="ds" x="10" y="35">tags → hub.* items</text>
+    <circle class="bd" cx="112" cy="47" r="7"/><text class="bt" x="112" y="50.5">F</text><circle class="bd" cx="128" cy="47" r="7"/><text class="bt" x="128" y="50.5">D</text></g>
+  <text class="ds" x="660" y="520">the router</text>
+  <line class="own" x1="720" y1="526" x2="720" y2="538" marker-end="url(#mO)"/>
+  <g transform="translate(650,540)"><rect class="in" width="140" height="70" rx="7"/><text class="nm" x="10" y="19">TalkerSession ×N</text><text class="ds" x="10" y="35">one per agent tab</text><text class="ds" x="10" y="50">its partner, chat,</text><text class="ds" x="10" y="64">turns</text></g>
+
+  <!-- main_assistant -->
+  <rect class="pkg" x="820" y="420" width="160" height="230" rx="12"/>
+  <text class="pk" x="832" y="440" font-size="12">main_assistant</text>
+  <g transform="translate(826,448)"><rect class="n" width="148" height="58" rx="7"/><text class="nm" x="9" y="19" font-size="12">MainAssistantModule</text><text class="ds" x="9" y="35">the coordinator</text>
+    <circle class="bd" cx="104" cy="47" r="7"/><text class="bt" x="104" y="50.5">F</text><circle class="bd" cx="120" cy="47" r="7"/><text class="bt" x="120" y="50.5">R</text><circle class="bd" cx="136" cy="47" r="7"/><text class="bt" x="136" y="50.5">D</text></g>
+
+  <!-- task_agents · job_search -->
+  <rect class="pkg" x="1000" y="420" width="180" height="230" rx="12"/>
+  <text class="pk" x="1012" y="440" font-size="12">task_agents · job_search</text>
+  <g transform="translate(1010,448)"><rect class="n" width="160" height="86" rx="9"/>
+    <text class="nm" x="10" y="19">JobSearchModule</text><text class="ds" x="10" y="35">its agent bundled</text>
+    <circle class="bd" cx="132" cy="15" r="7"/><text class="bt" x="132" y="18.5">R</text><circle class="bd" cx="148" cy="15" r="7"/><text class="bt" x="148" y="18.5">D</text></g>
+  <g transform="translate(1018,492)"><rect class="in" width="144" height="32" rx="6"/><text class="nm" x="9" y="21" font-size="12">menu</text><text class="ds" x="52" y="21">job.search</text></g>
+  <g transform="translate(1010,544)"><rect class="n" width="160" height="96" rx="9"/>
+    <text class="nm" x="10" y="19">TaskAgentsModule</text><text class="ds" x="10" y="35">helpers from kinds</text>
+    <circle class="bd" cx="148" cy="15" r="7"/><text class="bt" x="148" y="18.5">R</text></g>
+  <g transform="translate(1018,588)"><rect class="in" width="144" height="44" rx="6"/><text class="nm" x="9" y="19" font-size="12">menu</text><text class="ds" x="52" y="19">agents.kinds ·</text><text class="ds" x="52" y="34">launch · close</text></g>
+
+  <!-- ============ owns: modules down into infra ============ -->
+  <line class="own" x1="539" y1="628" x2="360" y2="737" marker-end="url(#mO)"/>
+  <line class="own" x1="720" y1="612" x2="560" y2="737" marker-end="url(#mO)"/>
+  <line class="own" x1="900" y1="508" x2="960" y2="737" marker-end="url(#mO)"/>
+  <line class="own" x1="1060" y1="652" x2="1020" y2="737" marker-end="url(#mO)"/>
+  <line class="own" x1="1120" y1="652" x2="1060" y2="737" marker-end="url(#mO)"/>
+  <text class="ds" x="1090" y="700">one per agent</text>
+  <text class="ds" x="660" y="640" fill="#5f5e58">owns</text>
+
+  <!-- ============ infra ============ -->
+  <rect class="pkg" x="20" y="700" width="1160" height="210" rx="12"/>
+  <text class="pk" x="36" y="722">infra</text>
+  <text class="pkd" x="80" y="722">shared helpers · import only contracts</text>
+
+  <g transform="translate(40,740)"><rect class="n" width="170" height="58" rx="7"/><text class="nm" x="10" y="19">relay</text><text class="ds" x="10" y="35">stdio MCP · one per claude</text>
+    <circle class="bd" cx="158" cy="47" r="7"/><text class="bt" x="158" y="50.5">D</text></g>
+  <line class="door" x1="214" y1="769" x2="256" y2="769" marker-end="url(#mM)"/>
+  <text class="ds" x="235" y="760" text-anchor="middle" fill="#8a2766">HTTP</text>
+  <g transform="translate(260,740)"><rect class="n" width="180" height="58" rx="7"/><text class="nm" x="10" y="19">DoorServer</text><text class="ds" x="10" y="35">token → caller</text>
+    <circle class="bd" cx="168" cy="47" r="7"/><text class="bt" x="168" y="50.5">D</text></g>
+  <g transform="translate(480,740)"><rect class="n" width="150" height="58" rx="7"/><text class="nm" x="10" y="19">ClaudeSession</text><text class="ds" x="10" y="35">one claude process</text></g>
+  <line class="own" x1="658" y1="769" x2="634" y2="769" marker-end="url(#mI)"/>
+  <text class="ds" x="636" y="760">drives</text>
+  <g transform="translate(660,740)"><rect class="n" width="180" height="58" rx="7"/><text class="nm" x="10" y="19">SessionTaskAgent</text><text class="ds" x="10" y="35">an ITaskAgent on a session</text>
+    <circle class="bd" cx="168" cy="47" r="7"/><text class="bt" x="168" y="50.5">R</text></g>
+  <line class="own" x1="898" y1="769" x2="844" y2="769" marker-end="url(#mO)"/>
+  <g transform="translate(900,740)"><rect class="n" width="180" height="58" rx="7"/><text class="nm" x="10" y="19">ProfileAgent</text><text class="ds" x="10" y="35">one big agent from config</text>
+    <circle class="bd" cx="168" cy="47" r="7"/><text class="bt" x="168" y="50.5">R</text></g>
+  <path class="own" d="M960,740 V728 H555 V737" marker-end="url(#mO)"/>
+
+  <line class="own" x1="750" y1="800" x2="750" y2="837" marker-end="url(#mO)"/>
+  <g transform="translate(660,840)"><rect class="n" width="180" height="58" rx="7"/><text class="nm" x="10" y="19">MilestoneFeed</text><text class="ds" x="10" y="35">note() lines → next message</text>
+    <circle class="bd" cx="168" cy="47" r="7"/><text class="bt" x="168" y="50.5">R</text></g>
+  <line class="imp" x1="690" y1="800" x2="610" y2="837" marker-end="url(#mI)"/>
+  <g transform="translate(460,840)"><rect class="n" width="170" height="58" rx="7"/><text class="nm" x="10" y="19">agent_tags</text><text class="ds" x="10" y="35">status_lines · last_line</text>
+    <circle class="bd" cx="158" cy="47" r="7"/><text class="bt" x="158" y="50.5">R</text></g>
+  <line class="own" x1="990" y1="800" x2="990" y2="837" marker-end="url(#mO)"/>
+  <g transform="translate(900,840)"><rect class="n" width="180" height="58" rx="7"/><text class="nm" x="10" y="19">AgentProfile</text><text class="ds" x="10" y="35">prompt + access rules</text>
+    <circle class="bd" cx="168" cy="47" r="7"/><text class="bt" x="168" y="50.5">R</text></g>
+
+  <!-- infra imports contracts: along the right margin -->
+  <path class="imp" d="M1182,800 H1240 V173" marker-end="url(#mI)"/>
+  <text class="ds" transform="translate(1258,650) rotate(-90)">infra imports only contracts · SessionTaskAgent implements ITaskAgent</text>
+</svg>

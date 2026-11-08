@@ -119,7 +119,8 @@ One long-lived `claude -p` stream-json process. Knows nothing about tasks or age
 | `working: bool` | From `send` until the turn's `result` |
 | `context_tokens: int` | The latest call's input size, cached or not (from each assistant line's `usage`): what every further call resends. 0 after `start` |
 | `used: dict[str, int]` | Tokens by kind (`input`, `cache_write`, `cache_read`, `output`), every call since construction, across restarts. Input counts each call once (by message id). Output comes from each turn's `result`: the streamed lines undercount it (2.5k against 129k in one real session) and only stand in while a turn runs |
-| `cost_usd: float` | `claude`'s estimate (`total_cost_usd`, which counts per process) added up across restarts |
+| `id: str` | A new id per `ClaudeSession` object (kept across process restarts inside it), sent as `SessionUsage.session` |
+| `subagents` | Each sub-agent's tokens, by `agentId`, with its type. Taken per turn from the `result`: its `model_usage_since_last_result` (or the cumulative `modelUsage`) less the session's own calls since the last result. Shared among the sub-agents that returned that turn, by last-call size; with none, under `unnamed`. Without per-turn numbers, each sub-agent's last-call numbers are used. Rows with no tokens yet are left out |
 | `on_event` | Settable callback. Also gets `{"type": "exit", "returncode": n}` if the process ends on its own |
 
 **Example**
@@ -134,9 +135,9 @@ One long-lived `claude -p` stream-json process. Knows nothing about tasks or age
 
 **Reusable** · Used by: `talker`, `main_assistant` (`disallowed` for Auto's `git push` block)
 
-`claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, allowed: Sequence[str] = (), disallowed: Sequence[str] = (), permission_prompts: bool = False, system_prompt: str | None = None, program: Sequence[str] = ("claude",)) -> list[str]`
+`claude_command(*, model: str | None = None, tools: str = "", permission_mode: str | None = None, allowed: Sequence[str] = (), disallowed: Sequence[str] = (), permission_prompts: bool = False, system_prompt: str | None = None, program: Sequence[str] = ("claude",), chrome: bool = False) -> list[str]`
 
-The command line for a stream-json `claude -p` session. Always adds `--strict-mcp-config` (otherwise your claude.ai MCP connectors load). `tools=""` means no tools; `allowed` are permission rules passed as `--allowedTools` (build path rules with [`path_rule`](#path_rule)); `disallowed` rules (e.g. `PowerShell(git push *)`) go in as `--disallowedTools`, one argument each, and are refused outright, even under `bypassPermissions` (checked against the real `claude`, 2026-11-02); `permission_prompts` adds `--permission-prompt-tool stdio`, so anything the rules don't allow arrives as a `can_use_tool` control request instead of being refused; `system_prompt` goes in as `--append-system-prompt`. `program` is replaceable so tests can run a fake.
+The command line for a stream-json `claude -p` session. `chrome` adds `--chrome`, the Claude in Chrome tools on your logged-in browser (the job agent; whether it loads under `--strict-mcp-config` is to be checked in the real app). Always adds `--strict-mcp-config` (otherwise your claude.ai MCP connectors load). `tools=""` means no tools; `allowed` are permission rules passed as `--allowedTools` (build path rules with [`path_rule`](#path_rule)); `disallowed` rules (e.g. `PowerShell(git push *)`) go in as `--disallowedTools`, one argument each, and are refused outright, even under `bypassPermissions` (checked against the real `claude`, 2026-11-02); `permission_prompts` adds `--permission-prompt-tool stdio`, so anything the rules don't allow arrives as a `can_use_tool` control request instead of being refused; `system_prompt` goes in as `--append-system-prompt`. `program` is replaceable so tests can run a fake.
 
 **Defined in:** `src/assistant/infra/claude_session.py`
 
@@ -152,9 +153,11 @@ A permission rule for everything under `folder`: `path_rule("Edit", "docs")` →
 
 ## `SessionTaskAgent`
 
-**Reusable** · Used by: `main_assistant`; every task agent later (the decided pattern)
+**Reusable** · Used by: `main_assistant`, `task_agents`, `job_search` (through [`ProfileAgent`](#profileagent))
 
-`SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits", context_reminder: int = 0, edit_note: bool = False, task_file: str | Path | None = None)`
+`SessionTaskAgent(session: ClaudeSession, ctx: ModuleContext, agent_id: str, description: str, capabilities: tuple[str, ...] = (), cancel_timeout: float = 5.0, permission_timeout: float = 600.0, fresh_sessions: bool = True, max_handoffs: int = 3, manual_claude_mode: str = "acceptEdits", context_reminder: int = 0, edit_note: bool = False, task_file: str | Path | None = None, write_folders: Iterable[str] = ())`
+
+**Working with other agents** (built 2026-11-05). `write_folders` goes into `info()` for the Hub's folder-clash check (pass [`AgentProfile.write_folders()`](#agentprofile)). Each `STATUS: <line>` in the agent's text ([`status_lines`](#agent_tags)) is reported as a `milestone`. [`note(text)`](agents.md#itaskagentnote) adds the line to a [`MilestoneFeed`](#milestonefeed), whose block goes at the end of the next message the agent writes to its session: a new task, a message (either kind), and every message it sends itself (handoffs, continues, reminders). Never an interrupt, never a turn of its own.
 
 An [`ITaskAgent`](agents.md#itaskagent) backed by one `ClaudeSession`: the shared part every task agent is built from. Turns `assign`, `message`, and `cancel` into session messages, and the session's events into [`ReportTask`](agents.md#reporttask), [`AgentActivity`](agents.md#agentactivity), [`AgentStateChanged`](agents.md#agentstatechanged), and [`SessionUsage`](agents.md#sessionusage). Sets itself as the session's `on_event`. Every method returns once its message or interrupt is written. A turn whose last line is `NEED: <question>` is reported as `need`. If a cancel's interrupt doesn't end the turn within `cancel_timeout`, the session is closed and the next task starts a fresh one. A `can_use_tool` request is reported as `permission` and held until [`answer_permission`](agents.md#itaskagentanswer_permission); after `permission_timeout` seconds it's denied. Behavior: [The Main Assistant on its own](../agents/runtime.md#the-main-assistant-on-its-own).
 
@@ -164,18 +167,138 @@ An [`ITaskAgent`](agents.md#itaskagent) backed by one `ClaudeSession`: the share
 
 **Edit note.** With `edit_note`, the second edit to a file in a task (`Edit`, `Write`, `MultiEdit` or `NotebookEdit`, paths compared lowercase with `/`, counted across handoffs) is logged (`batching note for task … : <path> edited twice`) and published as `AgentActivity` (`batching note: a.md`), once per file. It only reports and never sends the agent anything: the note the agent reads comes from the edit hook, with the tool call. With `task_file`, the current task's id is written there at each `assign`, so the hook can count by task across sessions.
 
-**Permission mode.** It holds the [`PermissionMode`](agents.md#permissionmode) in memory, Manual at every launch. The owning module builds each session's command for `permission_mode` (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Mid-task, a switch to Manual sends `ClaudeSession.set_permission_mode(manual_claude_mode)` when the running session is in Auto. Every switch is logged, published as `AgentActivity`, and published as [`PermissionModeChanged`](agents.md#permissionmodechanged).
+**SHOW tags.** Every `<<SHOW: path>>` or `<<SHOW: path | "quote" | heading>>` in the agent's text (read with [`agent_tags`](#agent_tags)) is sent as `InvokeTool viewer.open` or `viewer.highlight` through [`show_page`](#show_page), in the background; the core turns the viewer on first if it's off ([start on use](core.md#dispatch_tool)). A failure is logged and published as `AgentActivity` (`couldn't show <path>: <error>`). Built 2026-11-05; it was the `html_viewer` module's job before.
+
+**Permission mode.** It holds the [`PermissionMode`](agents.md#permissionmode) in memory, Manual at every launch. The owning module builds each session's command for `permission_mode` (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Every switch applies at once. Mid-task, a switch to Manual sends `ClaudeSession.set_permission_mode(manual_claude_mode)` when the running process is in Auto. A switch to Auto mid-task leaves the process in its Manual mode (the `git push` block is a launch flag) and the agent answers each `can_use_tool` itself: allowed, logged as `allowed in Auto: …`, or, for a PowerShell or Bash command containing `git push`, refused (`refused in Auto: …`). An open tool request is answered the same way at the switch. The session gets the new mode's rules (`AUTO_ACCESS` / `MANUAL_ACCESS`) at the end of its next message; to Auto mid-turn it's interrupted for them (the usual message path), then carries on. Every switch is logged, published as `AgentActivity`, and published as [`PermissionModeChanged`](agents.md#permissionmodechanged).
 
 | Member | Does |
 |--------|------|
 | `permission_mode: PermissionMode` | (property) The mode the next session starts in |
-| `async set_permission_mode(mode) -> Result` | Set it. No task: `now`. Mid-task: Manual applies at once (`now`; `next_task` if the control request fails), Auto from the next task or handoff session (`next_task`). Always `ok` |
+| `async set_permission_mode(mode) -> Result` | Set it; applies at once (`now`; `next_task` only if a live switch to Manual fails). Always `ok`; the value is `True` when it answered an open permission request (the Hub then closes that card) |
 | `async reset() -> Result` | Start fresh. Idle: close the session now; the next task starts a new one. With a task: ask it (as a message) to write a handoff note, which continues it in a fresh session. `not_available` while a cancelled turn is still stopping |
+| `async restart_session() -> bool` | Close the session and start a new one at once, so it re-reads its command (e.g. the module door, now up). Only when idle: `False` if a task has it. Holds the session lock that every session start takes, so a task assigned meanwhile waits for the new session instead of racing it. Used by `ProfileAgent` (built 2026-11-05) |
+| `async request_approval(action, run) -> Result` | [`ITaskAgent.request_approval`](agents.md#itaskagentrequest_approval): ask you on the current task, even in Auto. `not_available` with no task or with a question already open |
 | `async close()` | Stop its background tasks. The owning module closes the session itself |
+
+**Approvals** (built 2026-11-05). One path asks you to allow an app action on the task: `request_approval` (a helper launch from `task_agents`) and a turn whose last line is `RELOAD: <module id> [now]` or `ADD_MODULE: <package>`. It puts a `permission` report on the task, so you get the same card and answer with [`AnswerPermission`](agents.md#answerpermission). On Allow, `run()` runs and its outcome becomes the task's next message: `[App] <action>: <outcome> Continue the task...`. While the approval is open, a turn that ends doesn't finish the task; if you answer mid-turn, the outcome is sent when the turn ends. A tool's permission request that comes while an approval is open is refused (one question to you at a time).
+
+**Its parts** (split 2026-11-08, principle 18). `SessionTaskAgent` keeps the task state machine and wires these together: a [`PermissionGate`](#permissiongate) (the one open question: tool requests, approvals, the timer, the Auto policy and the `git push` block), a [`HandoffKeeper`](#handoffkeeper) (handoff count, reminders, reset requests), and a [`LastLineTags`](#lastlinetags) table for the turn's last line (`NEED`, `RELOAD`, `ADD_MODULE`, `HANDOFF`). Its usage comes from the session's [`UsageMeter`](#usagemeter).
 
 **Example:** see [`ITaskAgent`](agents.md#itaskagent).
 
-**Defined in:** `src/assistant/infra/session_agent.py`
+**Defined in:** `src/assistant/infra/session_agent.py` · parts in `permission_gate.py`, `handoff_keeper.py`, `agent_tags.py`
+
+## `AgentProfile`
+
+**Reusable** · Used by: `main_assistant` (its command line, prompt and `write_folders`), `task_agents`, `job_search` (through `ProfileAgent`) · built 2026-11-05
+
+`AgentProfile(agent_id, workspace, read_dirs=(), write_dirs=(), allowed_commands=(), tools="Read,Write,Edit,Glob,Grep", model=None, claude_mode="acceptEdits", permission_prompts=True, program=("claude",), role_block=HELPER_BLOCK, chrome=False, python=None)` (frozen dataclass) · `from assistant.infra import AgentProfile, prompt_block`
+
+What makes one `claude` task agent: everything but its own prompt comes from config, so the folder, access and command code lives here once (it moved out of `main_assistant`).
+
+| Member | Does |
+|--------|------|
+| `from_config(agent_id, config, role_block=HELPER_BLOCK)` | From a config section: `workspace`, `read_dirs`, `write_dirs`, `allowed_commands`, `python` (a Python it may run, with any arguments: a rule and a line in its access section), `tools`, `model`, `permission_mode` (a Manual claude mode only, through `manual_claude_mode`), `permission_prompts`, `program`, `chrome` (passed to `claude_command`). A task-agent module passes the granted config ([`granted_config`](#agent_access)) |
+| `write_folders() -> tuple[str, ...]` | Its workspace and `write_dirs`, resolved, for [`AgentInfo.write_folders`](agents.md#agentinfo) |
+| `command(prompt, mode, door=None) -> list[str]` | The session's command line for a [`PermissionMode`](agents.md#permissionmode): `prompt`, then the shared block, the access section and, with a door config, the door's note. Auto adds `bypassPermissions`, the `git push` block (`AUTO_BLOCKED`) and the risky-step rule; with the door, its two read-only tools are allowed |
+| `access(mode) -> str` | The access section of the prompt |
+
+| Function or constant | Does |
+|----------------------|------|
+| `prompt_block(role_block=HELPER_BLOCK) -> str` | **The shared prompt block.** It starts with `BASICS_BLOCK` (what every agent is told: its access is listed at the end, a line before each step, a summary at the end), then the role's half. A helper's half (`HELPER_BLOCK`): `STATUS: <one line>` for big milestones, for the coordinator; `NEED:` (or a tool that asks) for questions for you, which may wait until you turn to it, so each must stand on its own; never mix the two. The coordinator's half (`COORDINATOR_BLOCK`) names the Hub's and `task_agents`' menus, so it lives in `main_assistant` and is passed in as `role_block` (principle 21: shared code names no module) |
+| `command_rules(command)`, `hook_env(agent_id, task_file, edit_note)` | Permission rules for a shell command with any arguments; the edit hook's environment |
+| `DOOR_PROMPT`, `MANUAL_ACCESS`, `AUTO_ACCESS`, `AUTO_BLOCKED`, `AUTO_CLAUDE_MODE` | The prompt's door note and access texts; Auto's hard block and claude mode |
+| `manual_claude_mode(value) -> str`, `MANUAL_CLAUDE_MODES` | **♻ Reusable.** The claude mode a session starts in from config's `permission_mode`: one of `MANUAL_CLAUDE_MODES` (`default`, `acceptEdits`, `plan`), else `acceptEdits` with a warning, so no config starts a session in Auto. Used by: `AgentProfile.from_config` (every task agent). `from assistant.infra.agent_profile import manual_claude_mode` |
+
+**Example**
+
+    profile = AgentProfile.from_config("main_assistant", ctx.config, role_block=COORDINATOR_BLOCK)
+    session = ClaudeSession(lambda: profile.command(WORKER_PROMPT, agent.permission_mode, door()), ...)
+    agent = SessionTaskAgent(session, ctx, ..., write_folders=profile.write_folders())
+
+**Defined in:** `src/assistant/infra/agent_profile.py` · **Tests:** `tests/test_multi_agent.py`, `tests/test_agents.py`, `tests/test_mcp_door.py`
+
+## `ProfileAgent`
+
+**Reusable** · Used by: `main_assistant`, `task_agents` (the autostarted and the launched helpers), `job_search` (the job agent, bundled with its menu) · built 2026-11-05
+
+`ProfileAgent(ctx, agent_id, config, prompt, role_block=HELPER_BLOCK, start_session=False, subject=None, session_factory=ClaudeSession)` · `from assistant.infra import ProfileAgent`
+
+`session_factory` builds its session (with `ClaudeSession`'s arguments): pass a fake to test or swap it without patching (principle 22). A module that owns ProfileAgents declares what they use from [`AGENT_USES` and the rest](#agentkit).
+
+One big agent put together from its config section, the same way for every agent: an [`AgentProfile`](#agentprofile), a [`ClaudeSession`](#claudesession) whose command is read at each session start (the mode of that moment, and the module door under the agent's own name), and a [`SessionTaskAgent`](#sessiontaskagent) with the profile's `write_folders`. The owning module provides `agent` as `ITaskAgent`. It claims its id from the Hub ([`IAgentNames`](agents.md#iagentnames)) on `start` and releases it on `stop`, so every agent built this way gets the duplicate check with no code of its own.
+
+| Member | Does |
+|--------|------|
+| `agent`, `session`, `profile`, `workspace` | The parts, for the module to provide and use |
+| `door() -> dict` | `IModuleDoor.mcp_config(agent_id)`, or `{}` when `door = false` or no door is up |
+| `snips() -> str` | This launch's snips folder (`ctx.logs.folder()/snips`), read at each session start; the command gets a `Read` rule and an access line for it, with no card |
+| `set_access(config)` | A grant changed: rebuild `profile` from the new granted config and hand `agent` its new `write_folders` (a setter on `SessionTaskAgent`). An idle open session restarts once in the background; a busy one takes it at its next session. The workspace stays as it started. `stop` cancels a pending restart |
+| `subject` | The grant it holds (its own id, or its kind). Given, `start` calls `ctx.permissions.own_agent`, and its prompt tells it to ask for more access with `permissions.request` (config `permission_requests`) |
+| `busy() -> str \| None` | Why a reload should wait (it has a task) |
+| `start()`, `stop()` | `start` claims the agent's id with `IAgentNames.claim(agent_id, ctx.module_id)` when the Hub runs (a refusal raises `RuntimeError` with the reason, so at launch its module fails to start and the log says why), then makes the workspace (and, with `start_session`, starts `claude`). At launch such an agent starts before the Hub, whose door has no address until the Hub starts; it then logs a warning, and when a module turns on (`ModuleStateChanged` `active`) and the door is up, an idle session restarts once to pick it up (`agent.restart_session()`; a busy one is left alone and gets the door at its next session start). `stop` closes the agent and session, then releases the id through the Hub of that moment (it may have been reloaded) |
+
+Config keys besides `AgentProfile.from_config`'s: `description`, `capabilities`, `permission_timeout`, `fresh_sessions`, `max_handoffs`, `context_reminder`, `edit_note`, `transcript`, `door`.
+
+**Defined in:** `src/assistant/infra/profile_agent.py` · **Tests:** `tests/test_task_agents.py`, `tests/test_agents.py`, `tests/test_agent_names.py`
+
+## `agent_access`
+
+**Reusable** · Used by: `job_search` (the job agent, subject `job_search_agent`), `task_agents` (each autostart kind on start, a launched helper's kind with `wait=True`) · built 2026-11-05
+
+`from assistant.infra import access_items, granted_config, request_access, watch_grant`
+
+A task agent's access list, from its config section, asked for in one request. A module that uses it declares `agent.access` in its manifest. Design: [access lists](../architecture/permissions.md#access-lists-built).
+
+| Function | Does |
+|----------|------|
+| `access_items(config) -> tuple[AccessItem, ...]` | The [`AccessItem`](messaging.md#accessitem)s of a config section: `workspace` (resolved, always first), `read_dirs`, `write_dirs` (resolved), `python`, `allowed_commands`, `chrome` |
+| `granted_config(config, granted) -> dict` | The config cut down to the `granted` items: trimmed folders, Python, commands and Chrome dropped; paths resolved. Granted items beyond the config's list (added by the agent's own `permissions.request`) are added. Raises [`AccessDenied`](messaging.md#accessdenied-accesspending) when the workspace wasn't granted, since an agent can't run without it |
+| `async request_access(ctx, config, subject="", reason="", wait=False) -> dict` | Both: asks with [`ctx.permissions.request_set`](modules.md#modulecontextpermissions) and returns the granted config. Raises `AccessPending` (with `wait=False`, while its card is open) or `AccessDenied`, as `request_set` does |
+| `watch_grant(ctx, on_grant, subject=None)` | Call `async on_grant(subject, granted)` whenever one of this module's grants is saved with items (`PermissionChanged`); `subject=None`: every subject (a kind each in `task_agents`). A denied or removed grant is skipped (a revoke turns the module off). Subscribe in `init`; list `PermissionChanged` in `listens` |
+
+A trimmed folder or command never becomes a rule, so `claude` asks for it with a normal card. The config keys it reads, including `python` (a Python it may run, with any arguments), are [`AgentProfile.from_config`](#agentprofile)'s.
+
+**Example**
+
+    config = await request_access(ctx, ctx.config, subject="job_search_agent", reason="the job agent's folders")
+    agent = ProfileAgent(ctx, "job_search_agent", config, PROMPT, subject="job_search_agent")
+    # in init: watch_grant(ctx, on_grant, subject="job_search_agent"); on_grant calls
+    # agent.set_access(granted_config(ctx.config, granted))
+
+**Defined in:** `src/assistant/infra/agent_access.py` · **Tests:** `tests/test_permissions_handler.py`, `tests/test_access_cards.py`
+
+## `agent_names`
+
+**Reusable** · Used by: `agent_hub` (`AgentNames`, its [`IAgentNames`](agents.md#iagentnames)), `task_agents` (the autostarted ids, and the launch check when no Hub runs) · built 2026-11-05
+
+`from assistant.infra import check_agent_id, free_agent_id`
+
+The rules for agent ids, in one place. The Hub applies them when an agent claims its id; anything naming an agent can check a name early with the same rules. The shared rules reserve no id (principle 21): the caller passes the ones it reserves. The Hub reserves `core`, `hub`, `talker` and its coordinator (`RESERVED_AGENT_IDS` in `agent_hub`); `task_agents` passes the callers its menu trusts. Design: [agent names](../architecture/agents.md#agent-names).
+
+| Item | Does |
+|------|------|
+| `check_agent_id(agent_id, owner="", module_ids=(), reserved=()) -> str \| None` | Why an agent of module `owner` can't use `agent_id`, or None. The form: lowercase letters, digits and `_`, starting with a letter, at most 32 characters (`^[a-z][a-z0-9_]{0,31}$`). `reserved` ids and module ids are refused, except when `agent_id == owner` (a module's own agent may carry its module's id) |
+| `free_agent_id(base, taken) -> str` | `base` if it's not in `taken`, else the first free of `base_2`, `base_3`, ... |
+
+**Example**
+
+    check_agent_id("Flight-Search")                       # "`Flight-Search` isn't a valid agent id: ..."
+    check_agent_id("voice_in", "task_agents", ["voice_in"])  # "`voice_in` is a module's id"
+    check_agent_id("main_assistant", "main_assistant")    # None: its module's own id
+    free_agent_id("helper", {"helper", "helper_2"})        # "helper_3"
+
+**Defined in:** `src/assistant/infra/agent_names.py` · **Tests:** `tests/test_agent_names.py`
+
+## `MilestoneFeed`
+
+**Reusable** · Used by: `SessionTaskAgent` (`note`) · built 2026-11-05
+
+`MilestoneFeed()` · `from assistant.infra import MilestoneFeed`
+
+Lines waiting for an agent's next message to its session. `add(line)` keeps it (the last 50; older ones only count). `take(max_lines=5) -> str` empties the feed into one block under `HEADER` ("[Updates from the other agents (background: …)]"), one `- line` each, newest last, the oldest merged as `(+N earlier)`; `""` when nothing waits. So lines never pile up in a prompt and never interrupt.
+
+**Defined in:** `src/assistant/infra/milestone_feed.py` · **Tests:** `tests/test_multi_agent.py`
 
 ## `session_usage`
 
@@ -183,13 +306,34 @@ An [`ITaskAgent`](agents.md#itaskagent) backed by one `ClaudeSession`: the share
 
 `session_usage(agent_id: str, session: ClaudeSession) -> SessionUsage`
 
-`session`'s usage so far ([`ClaudeSession`](#claudesession) `context_tokens`, `used`, `cost_usd`) as a [`SessionUsage`](agents.md#sessionusage) event; context 0 when the session isn't running. Used by `SessionTaskAgent` and the Talker.
+`session`'s usage so far ([`ClaudeSession`](#claudesession) `context_tokens`, `used`, `id` as `session`) as a [`SessionUsage`](agents.md#sessionusage) event; context 0 when the session isn't running. Used by `SessionTaskAgent` and the Talker.
 
 **Example**
 
     ctx.publish(session_usage("talker", self._session))
 
+`subagent_usage(agent_id, session) -> list[SessionUsage]`: one per sub-agent the session ran (from [`ClaudeSession.subagents`](#claudesession): each turn's sub-agent tokens, by `agentId`), with `parent = agent_id`, `kind = "subagent"`, its tokens and the parent session's `session` id. `SessionTaskAgent` publishes each one when its tally grows.
+
 **Defined in:** `src/assistant/infra/session_agent.py`
+
+## `UsageLedger`
+
+**Reusable** · Used by: `usage`
+
+`UsageLedger()`
+
+Every agent's usage since the app started, from their running totals. Plain Python, no app imports.
+
+| Method | Description |
+|--------|-------------|
+| `add(usage)` | Take one `SessionUsage` (or anything with its fields). Replaces that agent's numbers (they are totals); when its `session` id changes (or, with no id, when they go down), what it had is kept and the new numbers add to it |
+| `total() -> dict` | Every agent together: the four token counts, `used_tokens`, and `agents` (top-level rows). Tokens only |
+| `by_agent() -> list[dict]` | One row per top-level agent, in the order they first reported; sub-agents and tools in `children`; each row has its own numbers and a `total` with its children |
+| `mine(agent_id) -> dict` | One agent's row with its children; zeros if it hasn't reported |
+
+A row with a `parent` is listed under it and rolled into the parent's `total`. A sub-agent's tokens aren't in its parent's own numbers, so nothing is counted twice.
+
+**Defined in:** `src/assistant/infra/usage_ledger.py` · **Tests:** `tests/test_usage.py`
 
 ## `ContextWatch`
 
@@ -209,9 +353,9 @@ Says when a session's context first passes `limit` tokens, once per crossing. `c
 
 ## `agent_tags`
 
-**Reusable** · Used by: `talker` (`find_tags`, `parse_show`), `html_viewer` module (`find_tags`, `parse_show`), `SessionTaskAgent` (`last_line`), `talker` (`last_line` for `RESTART_READY`) · built 2026-11-02
+**Reusable** · Used by: `talker` (`find_tags`, `parse_show`), `html_viewer` module (`find_tags`, `parse_show`), `SessionTaskAgent` (`last_line`, `status_lines`), `talker` (`last_line` for `RESTART_READY`) · built 2026-11-02
 
-`from assistant.infra import find_tags, last_line, parse_show, Tag, ShowTag`
+`from assistant.infra import find_tags, last_line, parse_show, status_lines, Tag, ShowTag`
 
 Reads the tags agents write in their text, the same way everywhere. Replaced the two SHOW parsers (Talker, `html_viewer` module), which handled quotes differently, and `SessionTaskAgent`'s own last-line reader.
 
@@ -220,6 +364,7 @@ Reads the tags agents write in their text, the same way everywhere. Replaced the
 | `find_tags(text, names) -> list[Tag]` | Every `<<NAME>>` or `<<NAME: argument>>` in `text` whose name is in `names`, in order. `Tag(name, argument, start, end)`: the argument stripped (empty if none), `start`/`end` to slice it out of a reply. Names are case-sensitive; an unclosed tag, or an argument without a colon, isn't a tag |
 | `last_line(text, prefix) -> str \| None` | The rest of the last non-empty line if it starts with `prefix` (`"NEED:"`, `"HANDOFF:"`, any case; `*` and backticks around it ignored), else `None` |
 | `parse_show(argument) -> ShowTag` | A SHOW argument, `path \| "quote" \| heading`, as `ShowTag(path, quote, heading)`; empty parts are `None` |
+| `status_lines(text, max_len=160) -> list[str]` | What follows `STATUS:` on every line that starts with it (any case; `*` and backticks ignored), in order: an agent's milestones. A longer line is cut and ends with `…`. Built 2026-11-05 |
 
 **Quotes:** every quote mark around the path goes (paths never contain them). Around the quote and the heading only **one matching pair** goes (`"…"`, `'…'`, `“…”`, `‘…’`), so the page's own apostrophes and quote marks stay: `"the users' files"` → `the users' files`. An unclosed double quote mark at one end is dropped; a lone apostrophe is kept.
 
@@ -231,16 +376,95 @@ Reads the tags agents write in their text, the same way everywhere. Replaced the
 
 **Defined in:** `src/assistant/infra/agent_tags.py` · **Tests:** `tests/test_agent_tags.py`
 
+## `show_page`
+
+**Reusable** · Used by: `SessionTaskAgent` (`_show`), `talker` (its `SHOW` tag) · built 2026-11-08
+
+`async show_page(ctx: ModuleContext, argument: str) -> ShowOutcome` · `from assistant.infra import show_page, show_command, ShowOutcome` (the tool names: `from assistant.infra.show_pages import VIEWER_OPEN, VIEWER_HIGHLIGHT`)
+
+The one place that turns a SHOW tag's argument (`path`, or `path | "quote" | heading`) into the viewer's tool call, sent through `ctx.send` as `InvokeTool`, so the core starts the viewer if it's off. Each caller words its own messages from the outcome.
+
+| Name | Does |
+|------|------|
+| `show_page(ctx, argument)` | Parse the argument ([`parse_show`](#agent_tags)) and send the call; returns `ShowOutcome(show, result)` |
+| `ShowOutcome.quote_missing` | The page opened but the quote isn't on it (`result.value["found"] is False`) |
+| `show_command(show) -> InvokeTool` | The call for a parsed `ShowTag`: `viewer.highlight` with `path`, `text` (and `heading`) when there's a quote, else `viewer.open` with `path` |
+| `VIEWER_OPEN`, `VIEWER_HIGHLIGHT` | The viewer's tool names, written only here |
+
+**Example**
+
+    outcome = await show_page(ctx, 'C:\\docs\\page.html | "exact words"')
+    if not outcome.result.is_ok: ...
+    elif outcome.quote_missing: ...
+
+**Defined in:** `src/assistant/infra/show_pages.py` · **Tests:** `tests/test_show_pages.py`
+
+## `PermissionGate`
+
+**Reusable** · Used by: `SessionTaskAgent` · built 2026-11-08
+
+`from assistant.infra import PermissionGate` · `src/assistant/infra/permission_gate.py`
+
+A task agent's one open question to you: a tool's permission request or an app action's approval (`request_approval`, `RELOAD`, `ADD_MODULE`), the answer timer (`permission_timeout`), the Auto policy (allow and log; refuse a shell command with `git push`), and an approval's outcome delivered after the turn ends. Helpers `describe_request`, `is_git_push`, `summarize`; the texts `CODE_LOADED`, `APPROVAL_PENDING`, `GIT_PUSH_BLOCKED`, `NO_TASK`, `TIMED_OUT`. **Tests:** `tests/test_worker_parts.py`
+
+## `HandoffKeeper`
+
+**Reusable** · Used by: `SessionTaskAgent` · built 2026-11-08
+
+`from assistant.infra import HandoffKeeper` · `src/assistant/infra/handoff_keeper.py`
+
+A task's handoffs: counts them against `max_handoffs` (`take`, `too_many`), the progress line, the message that starts the fresh session, the reset request and the context reminder. Texts `HANDED_OFF`, `RESET_NOW`, `CONTEXT_REMINDER`, `TOO_MANY_HANDOFFS`. **Tests:** `tests/test_worker_parts.py`
+
+## `LastLineTags`
+
+**Reusable** · Used by: `SessionTaskAgent` (`NEED`, `RELOAD`, `ADD_MODULE`, `HANDOFF`) · built 2026-11-08
+
+`from assistant.infra import LastLineTags` · `src/assistant/infra/agent_tags.py`
+
+A table of last-line prefixes to handlers (principle 20): `add(prefix, handler)`, then one lookup per turn instead of an if-chain. Adding a tag is adding an entry. **Tests:** `tests/test_worker_parts.py`
+
+## `UsageMeter`
+
+**Reusable** · Used by: `ClaudeSession` (`meter`), `UsageLedger` (`EVENT_FIELDS`), `session_usage` / `subagent_usage` (`event_fields`) · built 2026-11-08
+
+`from assistant.infra.usage_meter import UsageMeter, TOKEN_KINDS, USAGE_FIELDS, EVENT_FIELDS, event_fields`
+
+All the token counting of one session, out of `ClaudeSession`: `line(event)` takes each stream-json line, `restarted()` keeps the totals across a new process; `context_tokens`, `used` and `subagents` read it. `TokenKind` / `TOKEN_KINDS` is the one token-field map (the API usage field, the per-model field, the event field), so the three copies became one. **Tests:** `tests/test_usage_meter.py`, `tests/test_usage.py`
+
+## `AgentKit`
+
+**Reusable** · Used by: `main_assistant`, `job_search`, `cv`, `task_agents` · built 2026-11-08
+
+`AgentKit(ctx)` · `from assistant.infra import AgentKit, AGENT_USES, AGENT_SENDS, AGENT_PUBLISHES, AGENT_LISTENS` · `src/assistant/infra/agent_kit.py`
+
+What every agent module used to repeat: it provides each [`ProfileAgent`](#profileagent) as `ITaskAgent`, resets the one a `ResetRequested` names, and hands a changed grant to the agent that holds it. Build it in the module's `init`.
+
+| Member | Does |
+|--------|------|
+| `add(agent) -> ProfileAgent` | Provide it as `ITaskAgent` and keep it |
+| `get(agent_id)`, `agents()` | The agents it holds |
+| `async open(agent_id, config, prompt, *, subject, reason, wait=False, **kwargs)` | The start sequence: `request_access` → `ProfileAgent` → provide → start; a failed start is taken back and raised again |
+| `async take_back(agent)` | Stop it (releasing its name) and withdraw it |
+| `follow_grant(agent_id, config)` | The agent takes its grant live when it changes (`granted_config` → `set_access`) |
+| `busy()`, `async stop()` | For the module's `busy` and `stop` |
+
+**The declarations, named once** (principle 17): `AGENT_USES` (`IModuleDoor`, `IAgentNames`, in [`Manifest.uses`](modules.md#manifest): looked up at each call, no start order), `AGENT_SENDS` (`ReportTask`, `InvokeTool`), `AGENT_PUBLISHES` (`AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged`), `AGENT_LISTENS` (`ResetRequested`, `ModuleStateChanged`). A module adds `PermissionChanged` when it follows grants.
+
+    manifest = Manifest(id="job_search", provides=(ITaskAgent,), uses=AGENT_USES, sends=AGENT_SENDS,
+                        publishes=(*AGENT_PUBLISHES, AgentNotice), listens=(*AGENT_LISTENS, PermissionChanged))
+
+**Tests:** `tests/test_agent_kit.py`, `tests/test_honest_manifests.py`
+
 ## `mcp_door`
 
-**Reusable** · Used by: `agent_hub` (hosts the `DoorServer`), `main_assistant` (its sessions run the relay) · built 2026-11-05
+**Reusable** · Used by: `agent_hub` (hosts the `DoorServer`), `main_assistant` and `talker` (their sessions run the relay) · built 2026-11-05
 
 The agents' one MCP door to the module menus ([design](../architecture/modules.md#how-the-agents-reach-the-menus-one-door)). `from assistant.infra.mcp_door import ...`
 
 | Item | Does |
 |------|------|
-| relay: `python -m assistant.infra.mcp_door` | A stdio MCP server `claude` starts from its `--mcp-config` (standard library only). Three fixed tools, `list_modules`, `show_menu(module_id)`, `use_item(name, args)`; each call is passed to the app over local HTTP with a token (env `ASSISTANT_DOOR_URL`, `ASSISTANT_DOOR_TOKEN`). If the app doesn't answer (a restart), the call returns an error and the next one tries again |
-| `DoorServer(send, commands, host="127.0.0.1", port=0, token=None, core_line=None)` | The app-side endpoint, `POST /tool` with `{"tool", "arguments"}` and the `x-door-token` header (403 without it). `commands` maps `list` / `menu` / `call` to `ListModules` / `GetMenu` / `InvokeTool`, sent with `send` (a module's `ctx.send`). `async start()` / `stop()`, `url`, `token`, `mcp_config()` (the relay's config, `{}` while down), `async call(tool, arguments)` |
+| relay: `python -m assistant.infra.mcp_door` | A stdio MCP server `claude` starts from its `--mcp-config` (standard library only). Three fixed tools, `list_modules`, `show_menu(module_id)`, `use_item(name, args)`; each call is passed to the app over local HTTP with its caller and that caller's token (env `ASSISTANT_DOOR_URL`, `ASSISTANT_DOOR_TOKEN`, `ASSISTANT_DOOR_CALLER`; headers `x-door-token`, `x-door-caller`). If the app doesn't answer (a restart), the call returns an error and the next one tries again |
+| `DoorServer(send, commands, host="127.0.0.1", port=0, token=None, core_line=None)` | The app-side endpoint, `POST /tool` with `{"tool", "arguments"}`. 403 unless `x-door-token` is `token_for(x-door-caller)` (compared in constant time), so one caller's token can't speak as another. `commands` maps `list` / `menu` / `call` to `ListModules` / `GetMenu` / `InvokeTool` (with `caller`), sent with `send` (a module's `ctx.send`). `async start()` / `stop()`, `url`, `token` (the secret, kept across a Hub reload), `token_for(caller)` (an HMAC-SHA256 of the secret and the name), `mcp_config(caller)` (the relay's config, `{}` while down), `async call(tool, arguments, caller="")` |
 | `TOOLS`, `TOOL_NAMES`, `READ_ONLY` | The tools' MCP specs; their names as claude sees them (`mcp__modules__list_modules`, …); the two that only read |
 | `plain(value)` | A result as plain JSON data (pydantic models, dataclasses, enums) |
 

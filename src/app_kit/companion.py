@@ -71,6 +71,7 @@ class CompanionApp:
         self._proc: asyncio.subprocess.Process | None = None  # set only when we launched it
         self._starting = asyncio.Lock()
         self._stamp: tuple[int, int] | None = None  # its source when we launched or first used it
+        self.last_answer: dict[str, Any] = {}  # the last ping's answer ({} if it didn't answer)
 
     @property
     def launched(self) -> bool:
@@ -83,16 +84,21 @@ class CompanionApp:
         return self._proc
 
     async def ping(self) -> bool:
-        """Whether the app answers its ping with its own name."""
+        """Whether the app answers its ping with its own name. Its answer stays in `last_answer`
+        (a ping path that reports more, like the voice service's `/health`, needs no second call)."""
         try:
-            return (await self.call("GET", self._ping_path, timeout=1)).get("app") == self.name
+            answer = await self.call("GET", self._ping_path, timeout=1)
         except (OSError, ValueError, TimeoutError):
-            return False
+            answer = {}
+        ok = answer.get("app") == self.name
+        self.last_answer = answer if ok else {}
+        return ok
 
     async def ensure_running(self) -> bool:
         """Launch the app unless it already answers; wait until it does.
 
-        Returns whether it launched it now. Raises `OSError` if the process exits early,
+        Returns whether it launched it now; `last_answer` holds its ping's answer either way.
+        Raises `OSError` if the process exits early,
         `TimeoutError` if it doesn't answer within `start_timeout`.
         """
         async with self._starting:
@@ -176,3 +182,46 @@ class CompanionApp:
         except (OSError, ValueError, TimeoutError):
             proc.kill()
             await proc.wait()
+
+
+class CompanionHandover:
+    """A thin module's companion app, kept across the module's reload.
+
+    The old copy's `export()` hands the running `CompanionApp` to the new copy (its window, tabs
+    or loaded model stay), unless the app's own code changed: then it returns None and `stop()`
+    quits the app (even one it found running), so the new copy launches the new code. The new
+    copy takes it over only if it would launch it the same way (same module, host, port, args);
+    otherwise it makes its own. `app` is the `CompanionApp` to use.
+    """
+
+    def __init__(
+        self, handover: Any, module: str, host: str, port: int, *, args: Sequence[str] = (),
+        label: str | None = None, log: logging.Logger | Any | None = None, **app_kwargs: Any,
+    ) -> None:  # fmt: skip
+        """`handover`: the module's `ctx.handover`; `label`: how the logs name the app;
+        `app_kwargs`: the rest of `CompanionApp`'s arguments (`ping`, `quit`, `start_timeout`)."""
+        self._log = log or logging.getLogger(__name__)
+        self._label = label or module
+        self.key = (module, host, port, tuple(args))
+        self._handed_over = False
+        self._restart = False  # the app's code changed: quit it at stop
+        given = handover if isinstance(handover, dict) else {}
+        if given.get("app_key") == self.key and given.get("app") is not None:
+            self.app: CompanionApp = given["app"]
+            self._log.info("Kept the running %s from before the reload", self._label)
+        else:
+            self.app = CompanionApp(module, host, port, args=args, log=log, **app_kwargs)
+
+    def export(self) -> dict[str, Any] | None:
+        """For the module's `export_state`: the app for the new copy, or None if its code changed."""
+        if self.app.code_changed():
+            self._log.info("The %s's code changed; it restarts with the new code", self._label)
+            self._restart = True
+            return None
+        self._handed_over = True
+        return {"app": self.app, "app_key": self.key}
+
+    async def stop(self) -> None:
+        """For the module's `stop`: quit the app unless it was handed over (`CompanionApp.stop`)."""
+        if not self._handed_over:
+            await self.app.stop(adopted=self._restart)

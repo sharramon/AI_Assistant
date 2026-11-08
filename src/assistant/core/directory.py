@@ -34,9 +34,16 @@ class CoreMenu:
 
     menu = menu
 
-    def __init__(self, send: Callable[[Command], Awaitable[Result]], permissions: ModulePermissions) -> None:
+    def __init__(
+        self,
+        send: Callable[[Command], Awaitable[Result]],
+        permissions: ModulePermissions,
+        docs: Callable[[str], Awaitable[Result]] | None = None,
+    ) -> None:
+        """`docs` answers `modules.docs` (the App reads the module's own docs folder)."""
         self._send = send
         self.permissions = permissions
+        self._docs = docs
 
     @menu.item("modules.list", "Every module: its id, one line on what it does, and whether it's on")
     async def list_modules(self) -> Result:
@@ -46,6 +53,13 @@ class CoreMenu:
                required=["module_id"])
     async def get_menu(self, module_id: str) -> Result:
         return await self._send(GetMenu(module_id=module_id))
+
+    @menu.item("modules.docs", "A module's own docs, to learn what it does and how to use it: each page's "
+               "title and path (empty if it ships none)", _ID, required=["module_id"])
+    async def docs(self, module_id: str) -> Result:
+        if self._docs is None:
+            return Result.not_available("Module docs aren't available here")
+        return await self._docs(module_id)
 
     @menu.item("modules.on", "Turn a module on, with the modules it requires", _ID, required=["module_id"])
     async def on(self, module_id: str) -> Result:

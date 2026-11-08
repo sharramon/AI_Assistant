@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-contained modules, like downloadable extensions</title>
+<!-- Generated from docs/next-steps/module-self-contained.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-self-contained.html"></nav>
+<main>
+<h1 id="self-contained-modules-like-downloadable-extensions">Self-contained modules, like downloadable extensions</h1>
+<blockquote>
+<p><strong>Status: building (2026-11-06).</strong> Approved with the user's answers (<a href="#decisions-2026-11-06">Decisions</a>); steps 0 to 2 are built, the <a href="#the-standard-docs-layout-decided-2026-11-06">standard layout</a> is built, and the eight central modules stay in the main docs (decision 8: <code>usage</code>, <code>console_io</code> and <code>assistant_view</code> were moved back) (<a href="#build-progress-and-next">Build progress</a>). Umbrellas (roles) are designed only, not to be built yet.</p>
+</blockquote>
+<p><strong>Asked:</strong> "the module rules should be acting almost like independent apps where they can have all of their own documentation, their launches … put them into their own folders, so that later we can build them out as apps … download that on the fly, like extensions." The main system should only query a module through the directory and its menu (the tools). It should not hold or need every module's docs, because later there may be a library of modules by other people, so the core can't know what exists.</p>
+<p><strong>Why:</strong> today a module is self-contained only in its code. Its doc page, its config, its tests and its doc tab all live in central places, and some core and shared code names specific modules. A module can't be lifted out or dropped in.</p>
+<p><strong>Touches:</strong> every module folder, <code>docs/modules/</code>, <code>docs/architecture/module-library.md</code>, <code>config/default.toml</code>, <code>tests/</code>, <code>scripts/build_docs.py</code>, <code>tests/test_module_docs.py</code>, a few lines in <code>core/</code>, <code>infra/</code> and <code>contracts/</code>, and the independent apps <code>src/html_viewer/</code> and <code>src/voice_service/</code>.</p>
+<h2 id="step-1-the-audit-what-lives-outside-each-modules-folder">Step 1: the audit (what lives outside each module's folder)</h2>
+<p><strong>The same for every module:</strong></p>
+<ul>
+<li><strong>Docs:</strong> <code>docs/modules/&lt;id&gt;.md</code>, which must be linked from <code>docs/modules/README.md</code> (checked by <code>tests/test_module_docs.py</code>).</li>
+<li><strong>Library row:</strong> a row in the generated library (<code>docs/architecture/module-library.md</code>). That part is already discovered: <code>build_docs.py</code> imports each module folder and reads its manifest and menu.</li>
+<li><strong>Config:</strong> a <code>[modules.&lt;id&gt;]</code> section in <code>config/default.toml</code>. <code>ctx.config</code> is exactly that section (<code>core/app.py:195</code>).</li>
+<li><strong>Doc tab:</strong> a hand-written entry in <code>MODULE_TABS</code> (<code>build_docs.py:62-114</code>). The build fails if a module page has no tab.</li>
+<li><strong>HTML:</strong> the build only converts <code>.md</code>. It finds pages through fixed sections (<code>SECTIONS</code>, line 45) and copies only <code>img/</code> folders. <strong>A module can't ship its own HTML pages.</strong> That blocks the CV module, which has to design and write its own pages.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Inside its folder</th>
+<th>Outside its folder</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>console_io</code></td>
+<td>code</td>
+<td>page; tab "Stand-ins"; <code>default.toml:13-14</code>, and <code>:188</code> (logging.stderr kept false for it); tests in <code>test_control</code>, <code>test_find_modules</code>, <code>test_module_docs</code> (expects it first)</td>
+</tr>
+<tr>
+<td><code>talker</code></td>
+<td>code, prompt, session</td>
+<td>page; tab "Agents"; <code>agents/runtime.md</code> sections; <code>default.toml:16-24</code>; ~10 test files</td>
+</tr>
+<tr>
+<td><code>main_assistant</code></td>
+<td>code</td>
+<td>page; <code>runtime.md</code>; <code>default.toml:26-58</code>; named as the default coordinator (<code>:61</code>) and reviewer (<code>:167</code>); <code>scripts/hooks/edit_tracker.py</code>; <code>.claude/state/main_assistant-task.txt</code></td>
+</tr>
+<tr>
+<td><code>agent_hub</code></td>
+<td>code</td>
+<td>page; the Hub's menu in <code>api/agents.md</code>; <code>default.toml:60-63</code>; owns <code>IModuleDoor</code>, <code>IAgentNames</code> and the Hub commands in <code>contracts/</code></td>
+</tr>
+<tr>
+<td><code>task_agents</code></td>
+<td>code</td>
+<td>page; <code>default.toml:65-94</code> (the helper kinds); <code>test_task_agents</code>, <code>test_agent_tabs</code>; <code>tests/support.py</code> imports it</td>
+</tr>
+<tr>
+<td><code>job_search</code></td>
+<td>code</td>
+<td>page; <code>default.toml:96-110</code>; its grant in <code>data/permissions.toml</code>; 5 test files</td>
+</tr>
+<tr>
+<td><code>temp_ui</code></td>
+<td>code, <code>page.html</code>, <code>static/</code></td>
+<td>page; <code>runtime.md:52-85</code>; <code>default.toml:116-120</code>; named as "you" (<code>:170</code>); <code>scripts/restart_app.ps1</code></td>
+</tr>
+<tr>
+<td><code>voice_in</code></td>
+<td>code, cleanup, line</td>
+<td>page; its tab also holds <code>architecture/voice.md</code> (647 lines); <code>api/messaging.md</code> voice section; <code>default.toml:134-148</code> and command timeouts (<code>:175</code>); the <code>voice</code> extra; owns all of <code>contracts/voice.py</code></td>
+</tr>
+<tr>
+<td><code>voice_notes</code></td>
+<td>code, <code>page.html</code></td>
+<td>page; tab; <code>default.toml:150-155</code>; <code>test_voice_notes</code></td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td>code</td>
+<td>page; tab; <code>UsageLedger</code> in <code>infra/</code>; <code>default.toml:112-114</code></td>
+</tr>
+<tr>
+<td><code>html_viewer</code></td>
+<td>code</td>
+<td>page; its tab also holds <code>architecture/html-viewer.md</code>; <code>default.toml:122-132</code>; owns <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code> in <code>contracts/messages.py</code>; <code>test_html_viewer</code>, <code>test_menu</code>, <code>test_swap_every_module</code></td>
+</tr>
+<tr>
+<td><code>assistant_view</code>, <code>echo_orchestrator</code></td>
+<td>code</td>
+<td>pages; tab "Stand-ins"; <code>echo.say</code> in <code>api/tools.md</code>; <code>restart_app.ps1</code> (assistant_view)</td>
+</tr>
+<tr>
+<td>app <code>src/html_viewer/</code></td>
+<td>the whole app</td>
+<td><code>pyproject.toml</code> entry point; <code>architecture/html-viewer.md</code>; <code>restart_app.ps1</code>; tests in <code>tests/</code></td>
+</tr>
+<tr>
+<td>app <code>src/voice_service/</code></td>
+<td>the whole app</td>
+<td><code>config/voice_service.toml</code>; entry point and <code>voice</code> extra; <code>architecture/voice.md</code>, <code>api/messaging.md</code>, <code>api/reusable.md</code>; <code>scripts/voice_two_pass_check.py</code>; 4 test files; CI installs <code>.[dev,voice]</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Core and shared code that names a module</strong> (the core should name none):</p>
+<ul>
+<li><code>core/permissions/handler.py:55,117-150</code>: <code>REVIEWER = "main_assistant"</code>, <code>you=("temp_ui",)</code>.</li>
+<li><code>infra/agent_names.py:13</code>: <code>RESERVED_AGENT_IDS</code> = main_assistant, talker, core, hub.</li>
+<li><code>infra/session_agent.py:421-423</code>: the <code>&lt;&lt;SHOW:&gt;&gt;</code> tag calls <code>viewer.open</code> / <code>viewer.highlight</code> by name.</li>
+<li><code>infra/agent_profile.py:70</code>: the prompt names the <code>task_agents</code> menu.</li>
+<li><code>contracts/voice.py:22</code>: <code>TALKER = "talker"</code>. <code>contracts/door.py</code>: "Provided by <code>agent_hub</code>" (docstring).</li>
+<li><code>app/__main__</code> and <code>modules/__init__</code> name none. That part is already good.</li>
+</ul>
+<p><strong>Between modules:</strong> no module imports another module's package. They are coupled by ids and tool names: <code>temp_ui</code> uses <code>voice_in</code>, <code>usage</code>, <code>task_agents</code>, <code>main_assistant</code> and <code>viewer.open</code>. <code>talker</code> uses <code>hub.*</code>, <code>usage.*</code> and <code>viewer.*</code>. <code>agent_hub</code> and <code>task_agents</code> both have <code>TALKER = "talker"</code>.</p>
+<p><strong>Packaging:</strong> one distribution holds <code>assistant</code>, <code>app_kit</code>, <code>html_viewer</code> and <code>voice_service</code>. There is no packaging per module.</p>
+<h2 id="step-2-the-target-layout">Step 2: the target layout</h2>
+<pre><code>src/assistant/modules/&lt;id&gt;/
+  __init__.py, module.py      manifest + menu (as today)
+  module.toml                 its config defaults ([modules.&lt;id&gt;] moves here)
+  docs/
+    README.md                 the module's page (was docs/modules/&lt;id&gt;.md)
+    *.md                      more pages (e.g. voice.md for voice_in)
+    *.html                    pages the module wrote itself, shipped as they are
+    img/
+    docs.toml                 tab title, order, which pages go in the nav
+  tests/                      its own tests (shared fakes stay in tests/)
+  app/ or a companion entry   for a module with its own app: how it launches
+</code></pre>
+<ul>
+<li><strong>Config:</strong> each module ships its defaults in <code>module.toml</code>. The app's <code>config/default.toml</code> keeps only <code>enabled</code>, the core's own settings, and overrides. The loader merges defaults → <code>default.toml</code> → <code>local.toml</code>, so <code>ctx.config</code> stays the same section it is today.</li>
+<li><strong>Docs build:</strong> <code>build_docs.py</code> discovers <code>src/assistant/modules/*/docs/</code>. It also accepts a folder with only <code>docs/</code> and no code yet, like <code>cv</code>. Markdown is converted as today. <strong>HTML pages are copied as they are</strong> into <code>docs/html/modules/&lt;id&gt;/</code> and listed in the nav, without being rewritten. The tab comes from <code>docs.toml</code>, so <code>MODULE_TABS</code> and <code>docs/modules/&lt;id&gt;.md</code> go away. <code>docs/modules/README.md</code> becomes a generated index.</li>
+<li><strong>Module library:</strong> already generated from the manifests. Each row also links to the module's own docs folder. The directory (<code>ListModules</code>) can give that link too, so agents find a module's docs through the directory rather than a central folder.</li>
+<li><strong>Tests:</strong> <code>pytest</code> also collects <code>src/assistant/modules/*/tests/</code>. Shared fakes (<code>tests/support.py</code>, <code>fake_claude.py</code>) stay central, as a test kit.</li>
+<li><strong>The core names no module:</strong> the ids it needs become <strong>roles</strong> set in config (<code>[roles] coordinator = "main_assistant"</code>, <code>talker = "talker"</code>, <code>you = ["temp_ui"]</code>, <code>page_viewer = "viewer"</code>). The permissions handler, <code>RESERVED_AGENT_IDS</code>, the SHOW tag and the <code>TALKER</code> constants read those roles. A missing role means "not available", not a crash.</li>
+<li><strong>Independent apps:</strong> <code>src/html_viewer/</code> and <code>src/voice_service/</code> each get their own <code>docs/</code>, <code>tests/</code> and config defaults (<code>voice_service/voice_service.toml</code>) in their own folder, the same way.</li>
+</ul>
+<h2 id="migration-order-tests-and-ruff-pass-after-each">Migration order (tests and ruff pass after each)</h2>
+<ol start="0">
+<li><strong>Support both layouts</strong> (no module moves yet). The loader merges <code>module.toml</code> when it exists. The build discovers <code>modules/*/docs/</code> (Markdown and HTML) and falls back to <code>MODULE_TABS</code> and <code>docs/modules/</code> for modules that haven't moved. Pytest collects module test folders. <em>Needs an app restart</em> (core loader). The build is a script, so no restart for it.</li>
+<li><strong>Pilot <code>echo_orchestrator</code></strong>, the smallest: page, tests and a <code>docs.toml</code> into its folder (it has no config).</li>
+<li><strong><code>cv</code></strong> (docs only, no code yet): its HTML page is picked up by the new build.</li>
+<li><strong>One at a time, the self-contained features:</strong> <code>voice_notes</code>, <code>html_viewer</code>, <code>job_search</code>, and <code>voice_in</code> (with <code>voice.md</code>) unless it's made central. Not the eight <a href="#decisions-2026-11-06">central modules</a> (decision 8): their docs stay in the main docs. Moving docs and tests needs no reload. Moving config defaults needs a <code>RELOAD: &lt;id&gt;</code>.</li>
+<li><strong>Roles instead of ids</strong> in <code>core/permissions</code>, <code>infra/agent_names</code>, <code>infra/session_agent</code> (SHOW), <code>infra/agent_profile</code>, <code>contracts/voice.py</code>. <em>Needs a restart</em> (core, infra, contracts).</li>
+<li><strong>The independent apps' docs, tests and config</strong> into their own folders.</li>
+<li><strong>Remove the fallbacks:</strong> <code>MODULE_TABS</code>, the <code>docs/modules/&lt;id&gt;.md</code> pages, and the per-module sections of <code>default.toml</code>. Update <code>test_module_docs.py</code>, the docs-html skill and the architecture pages (modules, reusable parts, the overview's Parts table).</li>
+</ol>
+<p><strong>Still needs a restart after all this:</strong> changes to the core, <code>contracts</code>, <code>infra</code> and <code>app_kit</code>, and a module that brings a new contract. A module's code, docs, tests and config defaults then reload or rebuild without one.</p>
+<h2 id="the-cv-modules-first-page-done-now-at-the-users-request">The CV module's first page (done now, at the user's request)</h2>
+<p><code>cv_module_workflow.html</code> (written by Rezi, 2026-11-06) goes word for word into <code>src/assistant/modules/cv/docs/</code>. The folder has no <code>__init__.py</code>, so the loader skips it (<code>loader.find_modules</code>), and nothing in <code>docs/html/</code> or <code>docs/modules/</code> changes. Until step 0 is built, the build doesn't publish it, so it's read from that folder directly. Its wording is older than Rezi's notes (<code>rezi-mcp-findings.md</code> v4) on three points: Chrome only inside the rezi module, no Rezi AI writer in v1, and tasks through the Hub rather than <code>rezi.tailor_cv</code>. It is left unchanged until the user says otherwise.</p>
+<h2 id="decisions-2026-11-06">Decisions (2026-11-06)</h2>
+<p><strong>Principle:</strong> the main AI learns what a module does by querying the module itself (its menu, its tool descriptions, and its own docs through the directory: <code>modules.docs</code>), not from the project's dev notes or central docs. This goes into the architecture docs (<a href="../html/architecture/modules.html">modules</a>, <a href="../html/architecture/principles.html">principles</a>) with step 6.</p>
+<ol>
+<li><strong>Config defaults in <code>module.toml</code>, <code>default.toml</code> only for <code>enabled</code> and overrides:</strong> yes.</li>
+<li><strong>Module-only design pages</strong> (<code>voice.md</code>, <code>html-viewer.md</code>) <strong>move into the module's <code>docs/</code>:</strong> yes. Cross-cutting pages stay central.</li>
+<li><strong>A module's own HTML pages: the standard frame, always</strong> (answered 2026-11-06). Every module's docs follow one standard layout, so you know where things are whatever the module: see <a href="#the-standard-docs-layout-decided-2026-11-06">the standard docs layout</a>. The frame is the standard, not an opt-in: the <code>frame</code> setting is gone.</li>
+<li><strong>Contracts owned by one module stay in <code>assistant.contracts</code></strong> for now: yes.</li>
+<li><strong>Umbrellas (roles): designed, not built yet.</strong> See below. Until then the core keeps naming the modules it names today (step 4 is on hold).</li>
+<li><strong>No package per module yet,</strong> but the folder layout is designed as if each module could become its own downloadable package, developed in isolation: its code, <code>module.toml</code>, <code>docs/</code> and <code>tests/</code> in its folder, with no imports of another module's package. Its tests use only the shared test kit (<code>tests/support.py</code>, the root <code>conftest.py</code>).</li>
+<li><strong>Change notes about one module stay in <code>docs/next-steps/</code>:</strong> yes.</li>
+<li><strong>Central modules stay in the main docs</strong> (answered 2026-11-06). <strong>The rule:</strong> a module that's part of the main app and its window stays central; a self-contained feature (<code>html_viewer</code>, <code>cv</code>, <code>job_search</code>, <code>voice_notes</code> and the like) gets its own folder and the three standard pages. <strong>Central (eight):</strong> <code>agent_hub</code>, <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code> (the agent runtime: every message goes through the Hub, and every helper runs through <code>task_agents</code>), <code>usage</code> (the app's tally, shown in its window), <code>console_io</code>, <code>assistant_view</code> (the terminals) and <code>temp_ui</code> (the window). <strong>Why:</strong> they're how the app itself works, so their docs belong with the app's docs, not in a folder as if they were a downloadable extension. They keep <code>docs/modules/&lt;id&gt;.md</code>, their <code>MODULE_TABS</code> entries ("Agents", "usage", "Stand-ins and terminals") and their <code>default.toml</code> sections, and they're exempt from the move and the three standard pages. <code>usage</code>, <code>console_io</code> and <code>assistant_view</code> had been moved and were moved back (their central pages restored, <code>console_io</code>'s <code>module.toml</code> back into <code>[modules.console_io]</code>, <code>usage</code>'s menu test back in <code>tests/test_usage.py</code>). The build names them in <code>CENTRAL_MODULES</code> (<code>scripts/build_docs.py</code>) and refuses a central module that has its own docs folder or no central page. <strong>Open:</strong> where <code>echo_orchestrator</code> and <code>voice_in</code> go.</li>
+</ol>
+<h3 id="the-standard-docs-layout-decided-2026-11-06">The standard docs layout (decided 2026-11-06)</h3>
+<ul>
+<li><strong>One layout for every module:</strong> the same tabs across the top and the same sidebar down the side. Each module with its own docs gets its own sidebar group, then Related (only if it names any) and App-wide. A group with nothing in it is left out, so a small module shows less in the same layout.</li>
+<li><strong>Three standard pages, required, always first and in this order:</strong></li>
+<li><strong>Overview</strong> (<code>docs/README.md</code>): purpose, wrapper, config, code and tests.</li>
+<li><strong>Architecture</strong> (<code>docs/architecture.md</code>): interface, what it owns and launches, inner workings, planned.</li>
+<li><strong>Tools</strong> (<code>docs/tools.md</code>): generated by the build from the module's own menu (<code>app_kit.module_docs.tools_page</code>), so it's always right. It's written into the module's folder, so the core's <code>modules.docs</code> lists it and the main AI reads it by asking the module (and <code>modules.menu</code> gives the same items live). Hand-written text before the <code>tools:start</code> marker and after <code>tools:end</code> is kept; the part between is regenerated. A module with no code yet (<code>cv</code>) gets "No menu yet" there, and its planned menu goes in the notes.</li>
+<li><strong>Other pages are optional</strong> (<code>docs.toml</code> <code>pages</code> orders them after the standard three). An HTML page a module wrote opens inside the standard frame (<code>frame.html?src=&lt;page&gt;</code>), so it needs no tabs or menu of its own.</li>
+<li><strong>Who needs them:</strong> every module except the eight central modules (decision 8), which are exempt and keep their central page.</li>
+<li><strong>Kept true by tests:</strong> the build refuses a moved module that lacks one of the three pages. <code>test_every_module_has_the_three_standard_pages</code> fails for any module that has no own folder with all three, except the central modules and those in <code>NOT_MOVED_YET</code>, a list in that test that only shrinks: a moved module must leave it, it may not name a module that doesn't exist, and it never holds a central module. <code>test_central_modules_keep_their_central_page</code> checks the central ones keep <code>docs/modules/&lt;id&gt;.md</code> and have no own folder. <code>test_every_modules_tools_page_is_current</code> fails when a tools page is out of date with its menu.</li>
+</ul>
+<h3 id="umbrellas-modules-that-do-the-same-job-the-users-design-not-built-yet">Umbrellas: modules that do the same job (the user's design, not built yet)</h3>
+<ul>
+<li><strong>An umbrella</strong> is one kind of job: voice input, page viewer, coordinator, chat UI. Modules by different people that do that job all sit under one umbrella.</li>
+<li><strong>Every umbrella has a standard set of tools</strong>, a menu every module under it must expose (e.g. the page viewer's <code>open</code>, <code>highlight</code>, <code>tabs</code>). The main AI uses any module under it the same way without knowing which one it is. The core checks a module's menu against its umbrella's tool set when the module loads, and refuses the module if it doesn't match.</li>
+<li><strong>A default per umbrella</strong>, picked by the user in settings (<code>[umbrellas] page_viewer = "html_viewer"</code>). Calls to the umbrella's tools (and the core's own needs, e.g. the SHOW tag, the permissions reviewer, "you") go to the default.</li>
+<li><strong>Asking and switching:</strong> core menu items, for example <code>umbrellas.list</code> (each umbrella, its tool set, its modules, its default) and <code>umbrellas.set_default(umbrella, module_id)</code>, so the user or an agent can switch while the app runs, with no restart. Switching turns on the new default if needed. It is saved like a grant.</li>
+<li><strong>How it relates to the contracts:</strong> an umbrella's tool set is the menu side of a contract. Where a contract exists (<code>IVoice</code> for voice input, <code>IModuleDoor</code>), the umbrella is that contract plus its standard menu, and its default is the provider <code>requires</code> resolves to when several modules provide it (today two providers of a required contract is an error). Where there's no contract (the page viewer), the umbrella's tool set is its whole definition. The umbrella definitions (name, tool set, optional contract) live with the contracts in <code>assistant.contracts</code>, so a new umbrella needs a restart and a new module under an existing one doesn't.</li>
+<li><strong>To discuss before building:</strong> tool names inside an umbrella (shared names like <code>page_viewer.open</code>, or each module's own names mapped), and what happens to a call while the default is switching.</li>
+</ul>
+<h2 id="build-progress-and-next">Build progress and next</h2>
+<p><strong>Done (2026-11-06; 520 tests pass, ruff clean, docs rebuilt):</strong></p>
+<ul>
+<li><strong>Step 0, both layouts supported.</strong> Core: <code>loader.module_folder</code>, <code>loader.module_defaults</code> (<code>module.toml</code>, read fresh on each context, so a reload picks it up), <code>LifecycleManager.module_class</code>, <code>App._config_of</code> (defaults with the <code>[modules.&lt;id&gt;]</code> section merged over them, for <code>ctx.config</code> and <code>start_on_use</code>), the core menu's <code>modules.docs</code>. <code>app_kit.merge</code> and <code>app_kit/module_docs.py</code>. Build (<code>scripts/build_docs.py</code>): <code>module_doc_folders()</code> finds every <code>src/assistant/modules/*/docs/</code> (a docs-only folder too); its pages go to <code>docs/html/modules/&lt;id&gt;/</code> (Markdown rendered, HTML and images copied as written); <code>module_tabs()</code> adds each to the tab its <code>docs.toml</code> names; <code>check_module_tabs</code> refuses both layouts at once, a moved module still in <code>MODULE_TABS</code>, unknown <code>docs.toml</code> keys and missing pages; <code>frame.html</code> and <code>frame = ...</code> are built (the frame refuses <code>..</code>, schemes and absolute paths); the library row links to the module's own README. Tests: <code>testpaths</code> includes <code>src/assistant/modules</code>, and the autouse fixture moved to a root <code>conftest.py</code>. New <code>tests/test_module_layout.py</code>; <code>tests/test_module_docs.py</code> accepts either layout.</li>
+<li><strong>Step 1, pilot <code>echo_orchestrator</code>:</strong> its page is <code>src/assistant/modules/echo_orchestrator/docs/README.md</code> (with <code>docs.toml</code>: <code>tab = "Stand-ins and terminals"</code>), its own tests are <code>tests/test_echo.py</code> in its folder (the echo test moved out of <code>tests/test_menu.py</code>), and <code>docs/modules/echo_orchestrator.md</code> is gone. Its use as a stand-in in the core's tests stays in <code>tests/</code>.</li>
+<li><strong>Step 2, <code>cv</code>:</strong> its page now publishes as written to <code>docs/html/modules/cv/cv_module_workflow.html</code>, in a new "cv" tab (no <code>docs.toml</code>, so it isn't framed). It opens outside the docs' menu until decision 3 is answered.</li>
+<li>API docs: <code>app_kit.md</code> (<code>merge</code>, <code>module_docs</code>), <code>control.md</code> (<code>modules.docs</code>), <code>core.md</code> (<code>module_class</code>, <code>module_folder</code>, <code>module_defaults</code>, <code>App</code>'s config), <code>reusable.md</code> and the API index.</li>
+</ul>
+<p><strong>Architecture check (after step 0 and the pilot):</strong> modular. The build and the core find a module's docs and defaults through its folder and know no module by name; <code>MODULE_TABS</code> and <code>docs/modules/</code> now hold only the modules that haven't moved. Reuse: one reader (<code>app_kit.module_docs</code>) for the core and the build, and one <code>merge</code>. Two things to watch:</p>
+<ul>
+<li>A moved module's page links into the app's docs by relative path (<code>../../../../../docs/api/...</code>). That works in this repo but breaks if the module is downloaded alone. <strong>Proposed:</strong> a module links to the app's docs only through <code>[related]</code> in its <code>docs.toml</code>, and its README keeps those links few. Decide this before moving the big modules.</li>
+<li>Not updated yet: the architecture pages (modules, reusable parts, the overview's Parts table), the page template in <code>docs/modules/README.md</code>, and the docs-html skill. They change with step 6.</li>
+</ul>
+<p><strong>Done (2026-11-06, second session; 526 tests pass, ruff clean, docs rebuilt):</strong></p>
+<ul>
+<li><strong>The standard layout</strong> (above): <code>app_kit.module_docs</code> (<code>STANDARD_PAGES</code>, the standard order in <code>doc_pages</code>, <code>tools_page</code>, <code>tools_intro</code>, <code>tools_notes</code>; <code>frame</code> dropped from <code>SETTINGS_KEYS</code>); <code>build_docs.py</code> (<code>write_tools_pages</code> before the checks, the three-pages check, a sidebar group per moved module with the standard names, every HTML page framed). Tests in <code>tests/test_module_layout.py</code>.</li>
+<li><strong>Step 3: <code>usage</code>, <code>console_io</code>, <code>assistant_view</code> moved</strong> (moved back the same day: they're central, decision 8). Each had <code>docs/README.md</code>, <code>architecture.md</code>, <code>tools.md</code> (generated) and <code>docs.toml</code>; their <code>docs/modules/&lt;id&gt;.md</code> pages, their <code>MODULE_TABS</code> entries and their <code>default.toml</code> sections are gone. <code>console_io</code>'s <code>prompt</code> default is in its <code>module.toml</code>. <code>usage</code>'s menu test moved to <code>usage/tests/test_usage.py</code>; the cross-part usage tests stay in <code>tests/</code>. <code>echo_orchestrator</code> was split into the three pages too.</li>
+<li><strong><code>cv</code>:</strong> rezi wrote its three pages and <code>docs.toml</code>; <code>cv_module_workflow.html</code> was removed (its content is in those pages).</li>
+<li><strong>Not yet in the permanent docs:</strong> the standard layout goes into <code>architecture/modules.md</code>, the page template in <code>docs/modules/README.md</code> and the docs-html skill with step 6.</li>
+</ul>
+<p><strong>Standard pages, every module (2026-11-06):</strong> all three for <code>echo_orchestrator</code> and <code>cv</code>. Four still have one central page and get the three as they move, in step 3 (<code>NOT_MOVED_YET</code>): <code>job_search</code>, <code>voice_in</code>, <code>voice_notes</code>, <code>html_viewer</code>. The eight central modules keep their central page for good (decision 8).</p>
+<p><strong>App:</strong> step 0 and this session changed <code>app_kit</code> (the core's <code>modules.docs</code> uses it), so the running app needs a restart to list pages in the standard order. <code>console_io</code>'s default went back into <code>default.toml</code> with the same value, so it needs no reload.</p>
+<p><strong>Next (one session per few modules):</strong></p>
+<ol>
+<li>Step 3, one module at a time: <code>voice_notes</code>, <code>html_viewer</code>, <code>voice_in</code> (with <code>voice.md</code>, unless it's made central), <code>job_search</code>. The central modules' tabs stay. For each: <code>docs/README.md</code> from <code>docs/modules/&lt;id&gt;.md</code> (links rewritten), <code>docs/docs.toml</code> (<code>tab</code>, and <code>related</code> from its <code>MODULE_TABS</code> entry), drop it from <code>MODULE_TABS</code> (a tab whose modules have all moved goes away, and its <code>related</code> moves to one of its modules' <code>docs.toml</code>), point <code>docs/modules/README.md</code> at the new page, move tests that test only this module into <code>&lt;id&gt;/tests/</code>, and move its <code>[modules.&lt;id&gt;]</code> defaults into <code>module.toml</code> (keep only overrides in <code>default.toml</code>; then <code>RELOAD: &lt;id&gt;</code>). Rebuild, run tests and ruff after each.</li>
+<li>Then step 5 (the independent apps) and step 6 (remove the fallbacks, update the architecture pages). Step 4 (roles) waits for the umbrella build.</li>
+</ol>
+<p><strong>Restart:</strong> step 0 changed the core and <code>app_kit</code>, so the running app needs a restart to get <code>modules.docs</code> and <code>module.toml</code>. The echo pilot moved only docs and tests, so nothing to reload.</p>
+<footer>Generated from <code>docs/next-steps/module-self-contained.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

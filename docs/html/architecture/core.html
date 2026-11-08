@@ -21,6 +21,7 @@
         DI[DI Container]
         Router[Command Router]
         Bus[Event Bus]
+        Perms[&quot;Permissions handler&lt;br/&gt;always on&quot;]
     end
 
     subgraph Contracts[&quot;Contracts (stable)&quot;]
@@ -52,6 +53,7 @@
 <p>Dependency direction: the core and modules both depend on contracts; contracts depend on nothing. The core never references a concrete module, and modules never reference each other.</p>
 <h2 id="responsibility">Responsibility</h2>
 <p>The core controls communication and lifecycle: it validates which modules can run together, starts and stops them in dependency order, routes commands, delivers events, and resolves contracts.</p>
+<p>It also holds the <strong>permissions handler</strong> (<code>core/permissions/</code>), so it's always on and no module or agent can turn it off or reload it. The handler uses only the core's generic parts (the router's <code>send</code>, the bus's <code>publish</code>, the container's <code>get_one</code>) and the shared contracts, and knows no module by code; only its defaults name agents. Each module's <code>ctx.permissions</code> is a <code>PermissionsPort</code> bound to its id. Design: <a href="permissions.html#part-of-the-core">permissions</a>.</p>
 <p>It is <strong>not</strong> responsible for any capability. It contains no input, output, AI, or tool logic, and never imports anything from <code>assistant.modules</code>. The only place that names concrete modules is the composition root, <code>src/assistant/__main__.py</code>.</p>
 <h2 id="structure">Structure</h2>
 <pre><code class="language-mermaid">classDiagram
@@ -163,6 +165,10 @@
 <tr>
 <td><code>tools.py</code></td>
 <td><code>dispatch_tool</code>: the <code>InvokeTool</code> handler</td>
+</tr>
+<tr>
+<td><code>permissions/</code></td>
+<td>The permissions handler: <code>PermissionsHandler</code> (<code>handler.py</code>), <code>PermissionsPort</code> (<code>port.py</code>, each module's <code>ctx.permissions</code>), <code>PermissionsMenu</code> (<code>menu.py</code>, <code>permissions.*</code>), the saved grants (<code>store.py</code>) and the guardrails (<code>rules.py</code>). In the protected zone</td>
 </tr>
 </tbody>
 </table>
@@ -277,9 +283,10 @@
 <li>Handles <code>InvokeTool</code> by asking every <code>IToolProvider</code> for its tools <em>at call time</em>, nothing cached, so tools can appear and disappear while running (e.g. a remote client connecting).</li>
 <li>Links each module's <a href="../api/modules.html#menu"><code>Menu</code></a> right after its <code>init</code>: a <a href="../api/core.html#menutools"><code>MenuTools</code></a> adapter provided in the module's name, removed when its context closes, so a reloaded module's menu runs its new code.</li>
 <li>Unknown name → <code>NotAvailable</code>; a name offered by more than one provider → <code>Failed</code>.</li>
+<li><strong>Start on use:</strong> a tool nobody offers, but on the menu of a module that is off and has <code>start_on_use = true</code> in its config, turns that module on first (as <code>ActivateModule</code> does), then runs. A failed start returns its error; calls during the start wait for it. Only <code>html_viewer</code> uses it today (<a href="../api/core.html#dispatch_tool"><code>dispatch_tool</code></a>).</li>
 <li>A future <code>ToolsChanged</code> event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.</li>
 <li>The <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a>: <code>ListModules</code> gives one line per module, <code>GetMenu(id)</code> one module's <code>ToolSpec</code>s (read from its class, on or off). Calling stays <code>InvokeTool</code>.</li>
-<li>The core's own menu (<code>core/directory.py</code>, id <code>core</code>): <code>modules.list / menu / on / off / reload / add</code>, each sending the matching control command. Provided as an <code>IToolProvider</code> in the name <code>core</code> while the app runs. <code>modules.off</code> with dependents and <code>modules.add</code> ask <code>ctx.permissions</code>-style first (today the allow-all stand-in, which logs).</li>
+<li>The core's own menu (<code>core/directory.py</code>, id <code>core</code>): <code>modules.list / menu / on / off / reload / add</code>, each sending the matching control command. Provided as an <code>IToolProvider</code> in the name <code>core</code> while the app runs. <code>modules.off</code> with dependents and <code>modules.add</code> ask the core's <code>PermissionsPort("core")</code> first (single names aren't checked yet: allowed and logged). The grant calls <code>permissions.grants / grant / request / revoke</code> are on the same <code>core</code> menu (<a href="permissions.html#managing-grants">permissions</a>).</li>
 </ul>
 <h2 id="configuration">Configuration</h2>
 <table>
@@ -325,6 +332,26 @@
 <td><code>core.event_handler_timeout</code></td>
 <td><code>10.0</code></td>
 <td>Seconds before a stuck event handler is cancelled</td>
+</tr>
+<tr>
+<td><code>core.permissions.grants_file</code></td>
+<td><code>"data/permissions.toml"</code></td>
+<td>The saved grants (relative to the repo; in the protected zone)</td>
+</tr>
+<tr>
+<td><code>core.permissions.reviewer</code></td>
+<td><code>"main_assistant"</code> (in <code>default.toml</code>; <code>""</code> in code)</td>
+<td>The agent that reviews an access list before its card shows; <code>""</code> for none</td>
+</tr>
+<tr>
+<td><code>core.permissions.review_timeout</code> / <code>answer_timeout</code></td>
+<td><code>90.0</code> / <code>600.0</code></td>
+<td>Seconds for the review (then "not reviewed") and for your answer (then Deny)</td>
+</tr>
+<tr>
+<td><code>core.permissions.you</code></td>
+<td><code>["temp_ui"]</code> (in <code>default.toml</code>; none in code)</td>
+<td>Callers that are you clicking; an agent's grant or revoke shows you a card</td>
 </tr>
 <tr>
 <td><code>logging.dir</code></td>

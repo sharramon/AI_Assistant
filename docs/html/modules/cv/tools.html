@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv: tools</title>
+<!-- Generated from src/assistant/modules/cv/docs/tools.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/cv/tools.html"></nav>
+<main>
+<h1 id="cv-tools">cv: tools</h1>
+<p>The <code>cv</code> module's menu. What it is: <a href="index.html">Overview</a>. How the items fit together: <a href="architecture.html">Architecture</a>.</p>
+<!-- tools:start (generated from the module's menu by scripts/build_docs.py; don't edit) -->
+
+<p>Its menu, as the main AI sees it (<code>modules.menu</code>). Every item is called with <code>modules.use_item</code>.</p>
+<h2 id="rezisign_in"><code>rezi.sign_in</code></h2>
+<p>Signs in to Rezi in the browser (OAuth) and keeps the 30-day token; lists Rezi's tools</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>force</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Sign in again even with a valid token (default false)</td>
+</tr>
+<tr>
+<td><code>timeout</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Seconds to wait for the browser (default 300)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rezistatus"><code>rezi.status</code></h2>
+<p>Signed in to Rezi or not, the token's days left, the resumes made here (never connects)</p>
+<p>No arguments.</p>
+<h2 id="rezilist_resumes"><code>rezi.list_resumes</code></h2>
+<p>Your Rezi resumes, most recently changed first</p>
+<p>No arguments.</p>
+<h2 id="reziread_resume"><code>rezi.read_resume</code></h2>
+<p>One Rezi resume's content, also as the CV's sections</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resume_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The resume's id (from rezi.list_resumes)</td>
+</tr>
+<tr>
+<td><code>extra</code></td>
+<td>object</td>
+<td>no</td>
+<td>More arguments for Rezi's tool, passed as they are (if its live schema needs them: see rezi.sign_in's <code>check</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reziget_resume_format"><code>rezi.get_resume_format</code></h2>
+<p>The sections and fields Rezi's resume format has, for a write</p>
+<p>No arguments.</p>
+<h2 id="reziwrite_resume"><code>rezi.write_resume</code></h2>
+<p>Makes a new Rezi resume, or updates one this module made; every other is refused</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sections</code></td>
+<td>object</td>
+<td>no</td>
+<td>The CV as sections (cv.read's), written into Rezi's format here; or give resume</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>no</td>
+<td>With sections: the resume's name, e.g. "<Company> – <Role>"</td>
+</tr>
+<tr>
+<td><code>job_title</code></td>
+<td>string</td>
+<td>no</td>
+<td>With sections: the job's title (Rezi's jobTitle)</td>
+</tr>
+<tr>
+<td><code>job_company</code></td>
+<td>string</td>
+<td>no</td>
+<td>With sections: the job's company (Rezi's jobCompany)</td>
+</tr>
+<tr>
+<td><code>jd_text</code></td>
+<td>string</td>
+<td>no</td>
+<td>With sections: the job description (Rezi's jobDescription)</td>
+</tr>
+<tr>
+<td><code>resume</code></td>
+<td>object</td>
+<td>no</td>
+<td>Or the whole resume object in Rezi's format (name, jobTitle, jobCompany, jobDescription, data: see rezi.get_resume_format); no id in here</td>
+</tr>
+<tr>
+<td><code>resume_id</code></td>
+<td>string</td>
+<td>no</td>
+<td>Only to update a resume this module made; leave out to make a new one</td>
+</tr>
+<tr>
+<td><code>verify</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Read the resume back after the write (default true)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rezigenerate_keywords"><code>rezi.generate_keywords</code></h2>
+<p>Rezi's keywords for the job description saved on a resume this module made</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resume_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>A resume made here, written with the JD (jd_text)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rezisearch_jobs"><code>rezi.search_jobs</code></h2>
+<p>Searches Rezi's job listings by role and location</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>role</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job title to search for</td>
+</tr>
+<tr>
+<td><code>location</code></td>
+<td>string</td>
+<td>no</td>
+<td>Where</td>
+</tr>
+<tr>
+<td><code>extra</code></td>
+<td>object</td>
+<td>no</td>
+<td>More arguments for Rezi's tool, passed as they are (if its live schema needs them: see rezi.sign_in's <code>check</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reziget_job_details"><code>rezi.get_job_details</code></h2>
+<p>One job's full details from rezi.search_jobs</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>A job's id from rezi.search_jobs</td>
+</tr>
+<tr>
+<td><code>extra</code></td>
+<td>object</td>
+<td>no</td>
+<td>More arguments for Rezi's tool, passed as they are (if its live schema needs them: see rezi.sign_in's <code>check</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvtask"><code>cv.task</code></h2>
+<p>Checks one job and gives the text to send to cv_agent with hub.start (the job agent's hand-off)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>company</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job's company</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job's title</td>
+</tr>
+<tr>
+<td><code>jd_text</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job description as text; or give jd_file</td>
+</tr>
+<tr>
+<td><code>jd_file</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job description as a .txt, .md or .html file in cv_dir or output_dir</td>
+</tr>
+<tr>
+<td><code>base_cv</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV_Test_*.odt you recommend, in cv_dir (read only)</td>
+</tr>
+<tr>
+<td><code>jd_url</code></td>
+<td>string</td>
+<td>no</td>
+<td>The posting</td>
+</tr>
+<tr>
+<td><code>degree_first</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Education under Skills (unset: the worker decides from the JD)</td>
+</tr>
+<tr>
+<td><code>target_score</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Overrides the config's target</td>
+</tr>
+<tr>
+<td><code>notes</code></td>
+<td>string</td>
+<td>no</td>
+<td>Anything else for the worker</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvread_result"><code>cv.read_result</code></h2>
+<p>Reads and checks the CV_RESULT line at the end of a cv_agent task's result</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The task's result text</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvread"><code>cv.read</code></h2>
+<p>Reads a CV .odt (in the CV folder or the output folder) as its sections, for the worker</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>odt</code></td>
+<td>string</td>
+<td>yes</td>
+<td>A CV_Test_*.odt in cv_dir or output_dir</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvbuild"><code>cv.build</code></h2>
+<p>Builds the one-page .odt and PDF of a CV in the output folder, fitted and checked</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>company</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job's company; names the folder and the files</td>
+</tr>
+<tr>
+<td><code>base_cv</code></td>
+<td>string</td>
+<td>no</td>
+<td>A CV_Test_*.odt to build from (read only); or give <code>sections</code></td>
+</tr>
+<tr>
+<td><code>sections</code></td>
+<td>object</td>
+<td>no</td>
+<td>The CV as section -&gt; list of lines (contact, summary, skills, experience, projects, education, awards, publications); <code>•</code> starts a bullet, <code>left | dates</code> an entry line; the first contact line is the name</td>
+</tr>
+<tr>
+<td><code>jd_text</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job description: a master's in it puts Education under Skills</td>
+</tr>
+<tr>
+<td><code>degree_first</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Education under Skills (overrides the guess from jd_text)</td>
+</tr>
+<tr>
+<td><code>drop</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Sections of the drop list (Publications, then Awards) left out from the start</td>
+</tr>
+<tr>
+<td><code>auto_drop</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Leave out more of the drop list if it's still over a page (default true)</td>
+</tr>
+<tr>
+<td><code>paper</code></td>
+<td>string</td>
+<td>no</td>
+<td>Overrides the config's paper</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvcompare"><code>cv.compare</code></h2>
+<p>Compares what Rezi read from the PDF with the edited CV: same content or the issues</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>edited_odt</code></td>
+<td>string</td>
+<td>no</td>
+<td>The edited CV as an .odt (the one cv.build made); or give <code>edited</code></td>
+</tr>
+<tr>
+<td><code>edited</code></td>
+<td>object</td>
+<td>no</td>
+<td>The edited CV as section -&gt; list of lines, as for cv.build</td>
+</tr>
+<tr>
+<td><code>parsed</code></td>
+<td>object</td>
+<td>no</td>
+<td>What Rezi read from the imported PDF, as section -&gt; list of lines, as for cv.build; or give <code>parsed_text</code></td>
+</tr>
+<tr>
+<td><code>parsed_text</code></td>
+<td>string</td>
+<td>no</td>
+<td>What was read as one text (cv.build's <code>text</code>, or copied from Rezi): checks only for missing lines</td>
+</tr>
+<tr>
+<td><code>parsed_resume</code></td>
+<td>object</td>
+<td>no</td>
+<td>What was read as Rezi's resume JSON (rezi.read_resume's <code>data</code> for the check copy), read into sections here</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvreport"><code>cv.report</code></h2>
+<p>Writes report.md next to the job's PDF: result, score rounds, keywords left out, the compare</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>company</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job's company</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job's title</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td>object</td>
+<td>yes</td>
+<td>The job's CvResult: status, stop_reason, pdf_path, odt_path, report_path, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user</td>
+</tr>
+<tr>
+<td><code>rounds</code></td>
+<td>array</td>
+<td>no</td>
+<td>Each score round: score, added (keywords added), missing (still missing), note; else the result's rounds</td>
+</tr>
+<tr>
+<td><code>compare</code></td>
+<td>object</td>
+<td>no</td>
+<td>cv.compare's value from step 6; else the result's compare</td>
+</tr>
+<tr>
+<td><code>notes</code></td>
+<td>string</td>
+<td>no</td>
+<td>Anything else for the job agent</td>
+</tr>
+<tr>
+<td><code>target_score</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Overrides the config's target</td>
+</tr>
+</tbody>
+</table>
+<!-- tools:end -->
+
+<h2 id="notes">Notes</h2>
+<p>Everything above is built: the hand-off (<code>cv.task</code>, <code>cv.read_result</code>), the nine <code>rezi.*</code> items over the Rezi connection (<code>mcp.py</code>), and <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code> and <code>cv.report</code>. The worker <code>cv_agent</code> uses them through the door, like any caller. They're tested against a fake Rezi and a fake <code>claude</code>; the sign-in, the live tool list and the reads have also run against the real Rezi (chunk 9). How the connection and the guard work: <a href="architecture.html#the-rezi-connection-mcppy">Architecture</a>.</p>
+<p>Keyword Targeting, the Rezi Score and the PDF import aren't items: the worker does them in Chrome. A job isn't an item either: it's a task sent to <code>cv_agent</code> through the Hub (<code>hub.start</code>). <code>cv.task</code> gives that task's text, and <code>cv.read_result</code> checks its answer.</p>
+<h3 id="the-hand-off-cvtask-and-cvread_result">The hand-off: <code>cv.task</code> and <code>cv.read_result</code></h3>
+<p>The module stands alone: any caller (later the job agent) reaches the worker in three calls. Nothing else in the app has to change.</p>
+<ol>
+<li><strong><code>cv.task</code></strong> with the job: <code>company</code>, <code>role</code>, the CV file <code>base_cv</code> (an existing <code>.odt</code> in <code>cv_dir</code>), and the job description as <strong>either</strong> <code>jd_text</code> (text) <strong>or</strong> <code>jd_file</code> (a <code>.txt</code>, <code>.md</code> or <code>.html</code> file in <code>cv_dir</code> or <code>output_dir</code>; HTML is read as its visible text). Optional: <code>jd_url</code>, <code>degree_first</code>, <code>target_score</code> (1 to 100) and <code>notes</code>, as in <code>CvRequest</code> below.
+   - It returns <code>agent_id</code> (<code>cv_agent</code>), <code>text</code> and <code>next</code>, a reminder of steps 2 and 3. The text is a first line saying what to do, then <code>CV_REQUEST: &lt;json&gt;</code> on one line, with the JD text read from the file and <code>jd_file</code> naming it.
+   - Refused (<code>invalid_arguments</code>): both or neither of <code>jd_text</code> and <code>jd_file</code>, a JD file of another kind, missing, empty or outside those folders, a <code>base_cv</code> that isn't an existing <code>.odt</code> in <code>cv_dir</code>, or a bad field. With the worker off: <code>not_available</code>.</li>
+<li><strong><code>hub.start</code></strong> with that <code>text</code> and <code>agent_id</code>. The worker runs the 8 steps and ends its task with the line <code>CV_RESULT: &lt;json&gt;</code>, a <code>CvResult</code>.</li>
+<li><strong><code>cv.read_result</code></strong> with the task's result text (from <code>hub.status</code>). It returns the new CV and PDF with their metadata:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What's in it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code>, <code>stop_reason</code>, <code>approved_by_user</code></td>
+<td><code>approved</code> (your yes) or <code>stopped</code>, and why</td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td><code>odt_path</code>, <code>pdf_path</code>, <code>report_path</code>, each with <code>…_exists</code> (the file is there now)</td>
+</tr>
+<tr>
+<td><code>rezi</code></td>
+<td><code>resume</code> and <code>check_copy</code>: the new Rezi resume and its check copy, name and id each</td>
+</tr>
+<tr>
+<td><code>score</code></td>
+<td><code>target</code> (the job's, else the config's), <code>last</code>, <code>reached</code>, and <code>rounds</code>: each <code>{round, score, vs_target, added, missing, note}</code></td>
+</tr>
+<tr>
+<td><code>keywords</code></td>
+<td><code>missing</code>: Rezi's missing keywords at the end; <code>left_out</code>: JD terms that aren't on your CVs, so not added</td>
+</tr>
+<tr>
+<td><code>recommendations</code></td>
+<td>What Rezi or the worker suggests that wasn't done, for example a fact to confirm</td>
+</tr>
+<tr>
+<td><code>page</code></td>
+<td><code>one_page</code>, <code>section_order</code>, <code>order_reason</code></td>
+</tr>
+<tr>
+<td><code>compare</code></td>
+<td><code>cv.compare</code>'s value from step 6: <code>match_ok</code>, <code>mode</code>, <code>checked</code>, <code>summary</code>, <code>issues</code> (just <code>match_ok</code> if the worker sent none)</td>
+</tr>
+</tbody>
+</table>
+<p><code>cv.read_result</code> refuses (<code>invalid_arguments</code>) a text with no line starting <code>CV_RESULT:</code>, or one whose line isn't a JSON object or a valid <code>CvResult</code>. A result that contradicts itself is not valid: <code>approved</code> without your yes, one page, Rezi's match and the PDF; scores that aren't the rounds' scores; or <code>match_ok</code> with a compare that found issues.</p>
+<p><strong>Tested end to end through the real Hub</strong> (<code>tests/test_handoff.py</code>), with a fake <code>claude</code> standing in for the worker. The caller sends <code>cv.task</code> with a JD file and the CV's path, then <code>hub.start</code> to <code>cv_agent</code>. The job arrives intact, and <code>cv.read_result</code> on the task's result gives the files, the rounds against the target, the keywords, the recommendations, the one-page check and the compare. The real run with Rezi comes in chunk 9, with your yes.</p>
+<h3 id="the-rezi-items">The <code>rezi.*</code> items</h3>
+<ul>
+<li><strong>Errors, for every item:</strong> not signed in, or the token ran out → <code>not_available</code> (use <code>rezi.sign_in</code>); a write the guard refuses → <code>invalid_arguments</code>; Rezi's error → <code>failed</code>; no answer → <code>failed</code> (retryable).</li>
+<li><strong>Answers:</strong> Rezi's answer comes back as <code>data</code> when it's data, else as <code>text</code>.</li>
+<li><strong><code>extra</code>:</strong> <code>rezi.read_resume</code>, <code>rezi.search_jobs</code> and <code>rezi.get_job_details</code> pass any <code>extra</code> arguments through, for whatever the live tool needs beyond the ones named.</li>
+<li><strong><code>rezi.sign_in</code>:</strong> opens the browser for Rezi's sign-in (OAuth with PKCE) and keeps the 30-day token. With a valid token no browser opens, unless <code>force</code>. <code>timeout</code> is 30 to 900 seconds (default 300). It then lists Rezi's live tools, returning <code>tools</code>, <code>schemas</code> (the live arguments of the tools the items use) and <code>check</code>: <code>{ok, missing, new, arguments}</code> against the seven tools and arguments the items use. If the tool list fails after the sign-in, the sign-in still counts (<code>tools_error</code>). A sign-in that waits on the browser goes on in the background: after 20 seconds the item answers <code>signing_in</code> with <code>sign_in: {state: waiting}</code>, and <code>rezi.status</code> reports how it ends. A second call waits on the same sign-in; no second browser opens.</li>
+<li><strong><code>rezi.status</code>:</strong> signed in or not, the token's days left, <code>created</code> (the resumes made here) and <code>sign_in</code> (none, waiting, done or failed). It never connects.</li>
+<li><strong><code>rezi.list_resumes</code>:</strong> Rezi's list, plus <code>created</code>. It always asks for up to 200 resumes, so the guard sees them all.</li>
+<li><strong><code>rezi.read_resume</code>:</strong> the resume, <code>created_here</code>, and <code>sections</code> (the CV's eight sections) with <code>skipped</code> (keys it couldn't place). If it can't read any section: <code>sections: null</code> and <code>sections_error</code>.</li>
+<li><strong><code>rezi.get_resume_format</code>:</strong> the format Rezi expects for <code>rezi.write_resume</code>.</li>
+<li><strong><code>rezi.write_resume</code>:</strong></li>
+<li>Give either <code>sections</code> (<code>cv.read</code>'s form, with <code>name</code>, <code>job_title</code>, <code>job_company</code> and <code>jd_text</code>), which the module writes into Rezi's format, or a whole <code>resume</code> object. With <code>sections</code> it also returns <code>left_out</code>: lines Rezi's format has no place for (the contact headline).</li>
+<li>With no <code>resume_id</code>, it makes a new resume. Its id comes from Rezi's answer, or else the one new id in the resume list, and the guard remembers it.</li>
+<li>With a <code>resume_id</code>, it updates that resume only if this module made it. Every other resume is refused, and so is an id hidden in the fields.</li>
+<li>It returns <code>created</code>, <code>resume_id</code>, <code>answer</code>, a <code>warning</code> when the new id wasn't found or was an existing resume, and <code>read_back</code> (unless <code>verify</code> is false), which is <code>rezi.read_resume</code>'s answer, with <code>sections</code>.</li>
+<li>Writes run one at a time.</li>
+<li><strong><code>rezi.generate_keywords</code></strong> (<code>resume_id</code>): Rezi's keywords for the job description saved on the resume. Only for a resume this module made, since Rezi may save on it.</li>
+<li><strong>Rezi's real format</strong> (seen live): a resume is <code>{name, jobTitle, jobCompany, jobDescription, data}</code>. In <code>data</code>, <code>contact</code> and <code>summary</code> are plain, and each list section (<code>experience</code>, <code>education</code>, <code>skills</code>, …) is keyed by an id, with <code>index</code> for the order and <code>hide</code>. The module reads it exactly: in <code>index</code> order, hidden entries skipped, military, research, involvement and teaching read as experience, certifications as awards, coursework as education. An update reuses the resume's ids in order and hides the extra old entries.</li>
+<li><strong>Never used:</strong> Rezi's <code>auto_apply_job</code>, <code>duplicate_resume</code> and the cover-letter tools.</li>
+<li><strong><code>rezi.search_jobs</code></strong> (<code>role</code>, optional <code>location</code>) and <strong><code>rezi.get_job_details</code></strong> (<code>job_id</code>): Rezi's job listings.</li>
+</ul>
+<h3 id="cvread-an-odt-as-sections"><code>cv.read</code>: an <code>.odt</code> as sections</h3>
+<ul>
+<li><strong>Input:</strong> <code>odt</code>, a CV <code>.odt</code> in <code>cv_dir</code> (your CVs) or <code>output_dir</code>; any other folder is refused. This is how the worker reads the base CV (step 1) and checks the facts on your other CVs (the truth gate), since its own tools can't read an <code>.odt</code>.</li>
+<li><strong>Returns:</strong> <code>odt</code>, <code>sections</code> (section → lines, in the <code>cv.build</code> form) and <code>names</code> (the sections the CV has).</li>
+<li><strong>Errors:</strong> outside those folders, not an <code>.odt</code>, not found, or an unknown heading → <code>invalid_arguments</code>.</li>
+</ul>
+<h3 id="cvbuild-what-it-does-and-returns"><code>cv.build</code>: what it does and returns</h3>
+<ul>
+<li><strong>Input:</strong> the base <code>CV_Test_*.odt</code> (read only, never changed) or the CV as <code>sections</code>. Headings on the CVs map to the eight sections ("Introduction" is Summary, "Additional Experience" joins Experience, "Accomplishments &amp; Publications" is Awards); an unknown heading is refused by name.</li>
+<li><strong>Output:</strong> <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\CV_Test_&lt;Company&gt;.odt</code> and the <code>.pdf</code> next to it, exported with headless LibreOffice. A second build the same day replaces them.</li>
+<li><strong>The fit:</strong> the roomiest layout that gives one page (10.5 pt and 0.6 in margins, down to 9.5 pt and 0.45 in), then, unless <code>auto_drop</code> is false, Publications and then Awards are left out. If it's still over a page, the tightest try comes back with <code>one_page: false</code>, and the worker tightens older bullets and builds again.</li>
+<li><strong>Returns:</strong> <code>odt_path</code>, <code>pdf_path</code>, <code>pages</code>, <code>one_page</code>, <code>problems</code> (wrong page size, no text, unreadable characters, a heading or the name not found in the PDF's text), <code>paper</code>, <code>layout</code>, <code>tries</code>, <code>section_order</code>, <code>order_reason</code>, <code>dropped</code>, and <code>text</code> (the PDF's text, for the compare later).</li>
+<li><strong>Errors:</strong> bad arguments → <code>invalid_arguments</code>; LibreOffice not found → <code>not_available</code>; LibreOffice gave no PDF → <code>failed</code> (retryable).</li>
+</ul>
+<h3 id="cvcompare-step-6-what-rezi-read-against-the-edited-cv"><code>cv.compare</code>: step 6, what Rezi read against the edited CV</h3>
+<ul>
+<li><strong>Input:</strong> the edited CV as <code>edited_odt</code> (the <code>.odt</code> <code>cv.build</code> made) or <code>edited</code> (sections), and what Rezi read from the imported PDF as <code>parsed_resume</code> (<code>rezi.read_resume</code>'s <code>data</code> for the check copy), <code>parsed</code> (sections) or <code>parsed_text</code> (one text: Rezi's, or <code>cv.build</code>'s <code>text</code> as a self-check). One of each.</li>
+<li><strong>How:</strong> each line is split at <code>|</code> and each part checked: found when 90% of its words are there (any order; dashes, quotes, case and punctuation don't count) and every number is.</li>
+<li><strong>Returns:</strong> <code>match_ok</code>, <code>mode</code> (<code>sections</code> or <code>text</code>), <code>checked</code> (lines), <code>summary</code>, and <code>issues</code>, each <code>{kind, section, line, found_in}</code>: <code>missing_section</code>, <code>missing</code>, <code>moved</code> (with <code>found_in</code>), <code>extra</code> (sections only). Every issue is a parse problem: back to step 5.</li>
+</ul>
+<h3 id="cvreport-step-8-reportmd"><code>cv.report</code>: step 8, <code>report.md</code></h3>
+<ul>
+<li><strong>Input:</strong> <code>company</code>, <code>result</code> (the job's <code>CvResult</code>, below), and optionally <code>role</code>, <code>rounds</code> (each <code>{score, added, missing, note}</code>), <code>compare</code> (<code>cv.compare</code>'s value), <code>notes</code>, <code>target_score</code> (1 to 100, else the config's).</li>
+<li><strong>Output:</strong> <code>report.md</code> in the folder of <code>result.pdf_path</code> (or <code>odt_path</code>; with neither, today's job folder), replacing an older one. <code>rounds</code> and <code>compare</code> default to the result's own, and the target to the result's, else the config's. Sections: Files, Rezi Score (last, target, rounds table), Keywords (still missing, left out), Recommendations, The page (one page, Rezi's match, the compare's issues, section order, your yes), Notes.</li>
+<li><strong>Returns:</strong> <code>report_path</code> and <code>text</code> (the report).</li>
+<li><strong>Refused</strong> (<code>invalid_arguments</code>): a result that isn't a valid <code>CvResult</code>, a folder outside <code>output_dir</code>, scores that aren't the rounds' scores, or <code>match_ok</code> with a compare that found issues.</li>
+</ul>
+<h3 id="request-one-per-job-cvrequest-in-datapy">Request (one per job): <code>CvRequest</code> in <code>data.py</code></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>company</code>, <code>role</code></td>
+<td>The job</td>
+</tr>
+<tr>
+<td><code>jd_text</code></td>
+<td>The job description (from <code>cv.task</code>'s <code>jd_text</code>, or read from its <code>jd_file</code>)</td>
+</tr>
+<tr>
+<td><code>jd_file</code></td>
+<td>Optional: the file the JD was read from</td>
+</tr>
+<tr>
+<td><code>base_cv</code></td>
+<td>Path to the <code>CV_Test_*.odt</code> to start from, in <code>cv_dir</code> (read only; must be an <code>.odt</code>)</td>
+</tr>
+<tr>
+<td><code>jd_url</code></td>
+<td>Optional: the posting</td>
+</tr>
+<tr>
+<td><code>degree_first</code></td>
+<td>Optional: put Education under Skills. Unset: a first guess from the JD (<code>order.wants_masters</code>), which the worker may change</td>
+</tr>
+<tr>
+<td><code>target_score</code></td>
+<td>Optional, 1 to 100: overrides the config's 90</td>
+</tr>
+<tr>
+<td><code>notes</code></td>
+<td>Optional: anything from the caller</td>
+</tr>
+</tbody>
+</table>
+<h3 id="result-cvresult-in-datapy">Result: <code>CvResult</code> in <code>data.py</code></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code>, <code>stop_reason</code></td>
+<td><code>approved</code> or <code>stopped</code>, and why it stopped (required when stopped)</td>
+</tr>
+<tr>
+<td><code>pdf_path</code></td>
+<td>The exact PDF that passed Rezi's check</td>
+</tr>
+<tr>
+<td><code>odt_path</code></td>
+<td>The <code>.odt</code> it came from</td>
+</tr>
+<tr>
+<td><code>report_path</code></td>
+<td><code>cv.report</code>'s <code>report.md</code></td>
+</tr>
+<tr>
+<td><code>rezi_resume</code>, <code>check_copy</code></td>
+<td>The new Rezi resume and its check copy: name and id each</td>
+</tr>
+<tr>
+<td><code>target_score</code></td>
+<td>The score aimed at (1 to 100); unset: the config's</td>
+</tr>
+<tr>
+<td><code>rounds</code></td>
+<td>Each score round: <code>score</code>, <code>added</code> (true keywords added), <code>missing</code> (still missing), <code>note</code></td>
+</tr>
+<tr>
+<td><code>scores</code></td>
+<td>The Rezi Score after each round (0 to 100), filled from <code>rounds</code> when left out; <code>score</code> is the last one</td>
+</tr>
+<tr>
+<td><code>missing_keywords</code></td>
+<td>Rezi's missing keywords at the end (unset: the last round's <code>missing</code>)</td>
+</tr>
+<tr>
+<td><code>keywords_left_out</code></td>
+<td>Terms you don't have, so not added</td>
+</tr>
+<tr>
+<td><code>recommendations</code></td>
+<td>Suggestions not acted on</td>
+</tr>
+<tr>
+<td><code>match_ok</code>, <code>compare</code></td>
+<td>Rezi read the same content; <code>cv.compare</code>'s value from step 6</td>
+</tr>
+<tr>
+<td><code>one_page</code></td>
+<td>It's one page</td>
+</tr>
+<tr>
+<td><code>section_order</code>, <code>order_reason</code></td>
+<td>The order used, and why</td>
+</tr>
+<tr>
+<td><code>approved_by_user</code></td>
+<td>Your yes at step 7</td>
+</tr>
+</tbody>
+</table>
+<p>Scores that aren't the rounds' scores, and <code>match_ok</code> with a compare that found issues, are refused. <code>approved</code> is refused unless <code>approved_by_user</code>, <code>one_page</code>, <code>match_ok</code> and <code>pdf_path</code> are all set.</p>
+<footer>Generated from <code>src/assistant/modules/cv/docs/tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

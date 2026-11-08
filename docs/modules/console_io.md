@@ -44,4 +44,4 @@ flowchart LR
 
 ## Planned
 
-Nothing specific.
+Nothing specific. A central module: part of the main app, so its docs stay here.

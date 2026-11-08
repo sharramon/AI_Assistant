@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temp UI: switching tabs lands at the bottom, unless you&#x27;d scrolled up</title>
+<!-- Generated from docs/next-steps/temp-ui-tab-scroll.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="temp-ui-tab-scroll.html"></nav>
+<main>
+<h1 id="temp-ui-switching-tabs-lands-at-the-bottom-unless-youd-scrolled-up">Temp UI: switching tabs lands at the bottom, unless you'd scrolled up</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-06).</strong> Approved with both recommendations; follow-up: a scrolled-up pane keeps its <em>line</em> in view, not its pixel offset. <code>RELOAD: temp_ui</code>, then the hand checks below.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Why does clicking away and into a task agent always have its worker window scrolled to somewhere in the middle, and not to the bottom where the most recent tasks are shown?"</p>
+<p><strong>Why (the cause):</strong> both panes are one shared list for all tabs; a tab switch only hides the other agents' lines (<code>showAgents</code> in <code>src/assistant/modules/temp_ui/page.html</code>, the <code>el.hidden = !shown(el)</code> loop). The worker pane is never scrolled after that, so it keeps the previous tab's <code>scrollTop</code>, which in the new tab's (different height) content lands somewhere in the middle. The Talker pane is always forced to the bottom, and that runs on <em>every</em> <code>agents</code> item (module, agent, task and focus changes), not only on a switch, so a Talker you'd scrolled up in jumps down whenever any agent changes state.</p>
+<p><strong>Even from the very bottom (the user's detail):</strong> it happens even when you were at the very bottom before clicking away. The cause is the same: the pane's <code>scrollTop</code> is a pixel offset, and nothing scrolls it again after the switch. It stays at the old tab's bottom offset, the browser clamps it to the new tab's lines, and that offset is the middle of a longer tab. So the fix remembers per tab whether you were <em>at the bottom</em> (not just the offset), and scrolls to the true bottom only once the new tab's lines are shown and laid out: right after re-filtering, then again in the next two animation frames. While those run, the page's own scroll events don't count as yours. Lines and images that arrive later (a replay on reconnect, a snip thumbnail loading) scroll it down again while the pane is following the bottom.</p>
+<p><strong>Touches:</strong> <code>src/assistant/modules/temp_ui/page.html</code> only (page JS); <code>docs/modules/temp_ui.md</code> (one line). No server, contract or config change; a <code>RELOAD: temp_ui</code> is enough.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>Keep a small per-tab memory for each pane: <code>{ pinned, top }</code>, where <code>pinned</code> means "was at the bottom" (the page's existing <code>atBottom</code>, 40 px slack).</li>
+<li>In <code>showAgents</code>, before re-filtering: note the old tab, and save each pane's <code>pinned</code> / <code>scrollTop</code> under it.</li>
+<li>After re-filtering:</li>
+<li><strong>Tab changed:</strong> for each pane, if the new tab has a saved entry with <code>pinned = false</code> (you'd scrolled up there on purpose), restore its <code>top</code>; otherwise (first visit, or you were at the bottom) scroll to the bottom.</li>
+<li><strong>Same tab</strong> (an <code>agents</code> refresh with no switch): scroll to the bottom only if that pane was at the bottom before; leave it alone otherwise. This replaces the unconditional Talker scroll.</li>
+<li>New lines keep following as today (<code>add</code>: follow only when at the bottom).</li>
+<li>No new helper: <code>atBottom</code> is already in the page; nothing in <code>docs/api/reusable.md</code> covers page scrolling, and this is throwaway temp-UI code, so it isn't added to the index.</li>
+</ul>
+<p><strong>Decided (2026-11-06, the user, both recommendations):</strong></p>
+<ol>
+<li>A tab you'd scrolled up in keeps your position even when new lines arrive there while you're away; scroll to the bottom yourself to follow again.</li>
+<li>Closing a tab forgets its saved positions, so a reopened tab with the same name starts at the bottom.</li>
+</ol>
+<p><strong>Built (2026-11-06):</strong> in <code>page.html</code>: <code>scrollMemory</code> (per tab, per pane: <code>pinned</code>, <code>top</code>), <code>stuck</code> (the shown tab's panes following the bottom, kept up to date by your scroll events), <code>saveScroll</code> before the re-filter in <code>showAgents</code>, <code>restoreScroll</code> after it (now, then two frames later), a capture <code>load</code> listener for late images, and <code>add</code> follows when <code>stuck</code> or at the bottom. The unconditional Talker scroll is gone.</p>
+<p><strong>Follow-up (2026-11-06, the user):</strong> "If I was at the bottom, stay at the bottom. If I was looking at something in the middle, keep that line in view." The first build saved only a pixel <code>scrollTop</code> for a pane you'd scrolled up in, so the same line came back only if nothing above it changed size. Now, for a pane not at the bottom, <code>saveScroll</code> keeps the <strong>anchor</strong>: one block (a message, card or activity row, a child of the pane), and how far its top sat from the pane's top. <code>restoreScroll</code> scrolls so that same block sits at the same place again, now and in the next two frames, whatever the pane's height or the lines added meanwhile. If that block is gone (the panes were rebuilt on a reconnect), it falls back to the old pixel offset. The at-the-bottom rule is unchanged: true bottom after layout.</p>
+<p><strong>Which block (the user asked for the one in view, 2026-11-06):</strong> the shown block <strong>nearest the middle of the view</strong> (<code>middleLine</code>: the one spanning the middle line, else the closest one). Not the top visible one, because that's often only half showing: the tail of something you've already read, scrolled mostly off the top. The block in the middle is the one you're most likely reading. It goes back at the same height in the view, so it stays in frame even if the window grew.</p>
+<p><strong>Your checks (after <code>RELOAD: temp_ui</code>; refresh the window first):</strong></p>
+<ol>
+<li>In a busy tab, scroll the worker pane to the very bottom, click another tab, wait for new lines in the first one, click back: it's at the bottom, newest line showing.</li>
+<li>The same with the Talker pane.</li>
+<li>
+<p>Scroll up in a tab's worker pane so a line you can recognise sits in the middle of the pane, switch away and back: that same line is in the middle again, even if lines came in meanwhile. Try it once after resizing the window while away, too.
+3b. The same with the Talker pane: the message you were reading (in the middle) is back in the same place.</p>
+</li>
+<li>
+<p>Scrolled up in the Talker pane, wait for another agent to change state (a tab's dot changes): the Talker pane doesn't jump.</p>
+</li>
+<li>At the bottom of the Talker pane, send a snip: once its thumbnail loads, the pane is still at the bottom.</li>
+<li>Scroll up in a helper's tab, close it with ×, open one with the same name: it starts at the bottom.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/temp-ui-tab-scroll.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

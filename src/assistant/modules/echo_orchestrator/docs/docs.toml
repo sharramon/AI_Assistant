@@ -1,0 +1,2 @@
+# This module's docs tab (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+tab = "Stand-ins and terminals"

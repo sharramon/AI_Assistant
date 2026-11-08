@@ -2,7 +2,7 @@
 
 ## Purpose
 
-View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin module; the **viewer app** (`src/html_viewer`) is its own program that doesn't import the assistant. On by default. Full design: [HTML viewer](../architecture/html-viewer.md).
+View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin module; the **viewer app** (`src/html_viewer`) is its own program that doesn't import the assistant. Off at launch, **on when used**: with `start_on_use = true`, the first page opened (a SHOW tag, the temp UI's Open in viewer button, any `viewer.*` call) turns it on through the core, even if you turned it off ([start on use](../api/core.md#dispatch_tool)). `modules.on` / `modules.off` still work. Full design: [HTML viewer](../architecture/html-viewer.md).
 
 ## Wrapper
 
@@ -21,7 +21,7 @@ View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin mod
 | Handles | nothing |
 | Calls | nothing |
 | Publishes | [`ViewerTabsChanged`](../api/messaging.md#viewertabschanged), [`ViewerClip`](../api/messaging.md#viewerclip) (a snip, image copied into the launch's log folder) |
-| Listens to | [`AgentActivity`](../api/agents.md#agentactivity): the Main Assistant's `<<SHOW: ...>>` lines, which it opens or highlights |
+| Listens to | nothing |
 | To the app | the viewer's local HTTP API (module → app) and its event stream (app → module) |
 
 ## Owns and launches
@@ -34,11 +34,11 @@ View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin mod
 ```mermaid
 flowchart LR
     Talker["<b>Talker</b><br/>SHOW tags"]
-    Main["<b>Main Assistant</b><br/>SHOW lines"]
+    Main["<b>Main Assistant</b><br/>SHOW lines (SessionTaskAgent)"]
     UI["temp UI<br/>Open in viewer"]
+    Core["<b>core</b><br/>InvokeTool · start on use"]
     subgraph HV["html_viewer (thin module)"]
         Tools["tools<br/>open · highlight · tabs"]
-        Watch["SHOW watcher"]
         Relay["event relay"]
     end
     subgraph App["viewer app (own program, port 8766)"]
@@ -48,11 +48,11 @@ flowchart LR
         Stream["event stream"]
     end
 
-    Talker -- InvokeTool --> Tools
-    UI -- InvokeTool --> Tools
-    Main -- AgentActivity --> Watch
+    Talker -- InvokeTool --> Core
+    UI -- InvokeTool --> Core
+    Main -- InvokeTool --> Core
+    Core -- "turns it on if off,<br/>then calls" --> Tools
     Tools -- "launch (CompanionApp)<br/>calls" --> Api
-    Watch --> Api
     Api --> State --> View
     State --> Stream --> Relay
     Relay -- "ViewerTabsChanged · ViewerClip" --> Talker
@@ -62,14 +62,10 @@ The app is built as state, commands and a view ([architecture](../architecture/h
 
 ## Config
 
-`[modules.html_viewer]`: `host`, `port` (8766), `window`, `generated` (folders built from Markdown), `start_timeout`.
+`[modules.html_viewer]`: `host`, `port` (8766), `window`, `generated` (folders built from Markdown), `start_timeout`, `start_on_use` (true: opening a page turns the module on).
 
 ## Code and tests
 
 - Module: `src/assistant/modules/html_viewer/module.py`
 - App: `src/html_viewer/`
-- Tests: `tests/test_html_viewer.py`
-
-## Planned
-
-From the module-shape refactor: its menu is found through the **directory** by both assistants, so the Talker's hardcoded SHOW tags and the SHOW watcher go away.
+- Tests: `tests/test_html_viewer.py`, `tests/test_start_on_use.py`

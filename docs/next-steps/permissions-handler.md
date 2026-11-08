@@ -1,6 +1,6 @@
 # Permissions handler
 
-> **Status: proposed (2026-10-26).** Design: [Permissions](../architecture/permissions.md). Since 2026-11-02 ([reusable parts](archive/reusable-parts.md#decided)) the `ctx.permissions` stand-in comes first (allow and log; built 2026-11-02, [note](archive/permissions-stand-in.md)); this handler later plugs in behind it, with no module changes.
+> **Status: proposed (2026-10-26).** Design: [Permissions](../architecture/permissions.md). Since 2026-11-02 ([reusable parts](archive/reusable-parts.md#decided)) the `ctx.permissions` stand-in comes first (allow and log; built 2026-11-02, [note](archive/permissions-stand-in.md)); this handler later plugs in behind it, with no module changes. **Update (2026-11-05):** its first piece is built by [agent-permissions](agent-permissions.md), as part of the core rather than a module: there is no `IPermissions` contract and no `permissions` module, so the "Touches" list below is history.
 
 **Asked:** "Should permissions work through its own permissions handler? Since different sub-apps / functionality will need different permissions?" Each module should get only what it needs (a map feature gets location, nothing else does), and a missing permission should only affect the module that needs it.
 

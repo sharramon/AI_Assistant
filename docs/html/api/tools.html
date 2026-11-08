@@ -25,6 +25,9 @@
 <p><code>async invoke(self, name: str, args: dict[str, Any]) -&gt; Result</code></p>
 <p>Abstract. Run tool <code>name</code>. Called by the core when an <a href="#invoketool"><code>InvokeTool</code></a> command arrives for one of this provider's tools, with the command's timeout and cancellation applying.</p>
 <p><strong>Returns:</strong> a <a href="messaging.html#result"><code>Result</code></a>. Use <code>Result.invalid_arguments</code> for bad <code>args</code>.</p>
+<h3 id="itoolproviderinvoke_as"><code>IToolProvider.invoke_as</code></h3>
+<p><code>async invoke_as(self, name: str, args: dict[str, Any], caller: str) -&gt; Result</code></p>
+<p>Not abstract. <code>invoke</code> with the caller (<a href="#invoketool"><code>InvokeTool.caller</code></a>); the core's <code>dispatch_tool</code> calls this. The default ignores <code>caller</code> and calls <code>invoke</code>. <a href="core.html#menutools"><code>MenuTools</code></a> overrides it to pass the caller to <a href="modules.html#menu"><code>Menu.call</code></a>. Built 2026-11-05.</p>
 <p><strong>Example</strong></p>
 <pre><code>class Calculator(ModuleProtocol, IToolProvider):
     manifest = Manifest(id="calculator", provides=(IToolProvider,))
@@ -83,15 +86,16 @@
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/tools.py</code></p>
 <h2 id="invoketool"><code>InvokeTool</code></h2>
-<p><code>InvokeTool(name: str, args: dict[str, Any] = {})</code> (command)</p>
-<p>Run the tool called <code>name</code>. Handled by the core, which routes it to the provider currently offering that tool.</p>
+<p><code>InvokeTool(name: str, args: dict[str, Any] = {}, caller: str = "")</code> (command)</p>
+<p>Run the tool called <code>name</code>. Handled by the core, which routes it to the provider currently offering that tool (<code>invoke_as</code>, with <code>caller</code>).</p>
+<p><strong>Who sets <code>caller</code>:</strong> the sender's context does. <code>ScopedContext.send</code> overwrites it with the sending module's id, so a module can't pass itself off as another. The one exception is the module that provides <a href="#imoduledoor"><code>IModuleDoor</code></a> (<code>agent_hub</code>): it passes on the caller its door proved with that session's token (an agent's id, e.g. <code>talker</code> or <code>main_assistant</code>). Menu items use it to decide who may call them (<a href="modules.html#menu"><code>Menu</code></a> <code>callers</code>).</p>
 <p><strong>Returns:</strong> the provider's <code>Result</code>, or <code>not_available</code> if no provider offers <code>name</code>, or <code>failed</code> if more than one does.</p>
 <p><strong>Example</strong></p>
 <pre><code>result = await ctx.send(InvokeTool(name="add", args={"a": 1, "b": 2}), timeout=10)
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/tools.py</code></p>
 <h2 id="imoduledoor"><code>IModuleDoor</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> provides; <code>main_assistant</code> reads it at each session start · built 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> provides; <code>main_assistant</code> and <code>talker</code> read it at each session start · built 2026-11-05</p>
 <p><code>class IModuleDoor(Contract)</code>, single provider, in <code>assistant.contracts</code>.</p>
 <table>
 <thead>
@@ -102,8 +106,8 @@
 </thead>
 <tbody>
 <tr>
-<td><code>mcp_config() -&gt; dict</code></td>
-<td>The <code>--mcp-config</code> for one <code>claude</code> session: the door's stdio relay (<a href="infra.html#mcp_door"><code>mcp_door</code></a>), or <code>{}</code> while it's down. Pass it to <a href="infra.html#claude_command"><code>claude_command(mcp_config=...)</code></a></td>
+<td><code>mcp_config(caller: str) -&gt; dict</code></td>
+<td>The <code>--mcp-config</code> for one <code>claude</code> session of <code>caller</code> (the agent's id): the door's stdio relay (<a href="infra.html#mcp_door"><code>mcp_door</code></a>) with a token made for that caller, or <code>{}</code> while it's down. Pass it to <a href="infra.html#claude_command"><code>claude_command(mcp_config=...)</code></a>. Every <code>use_item</code> the session makes reaches the menus as an <code>InvokeTool</code> with that caller; a session can't claim another name</td>
 </tr>
 </tbody>
 </table>
@@ -143,6 +147,12 @@
 <td>the core (id <code>core</code>)</td>
 <td>see <a href="control.html#the-cores-menu">the core's menu</a></td>
 <td>the matching control command's result</td>
+</tr>
+<tr>
+<td><code>hub.agents</code>, <code>hub.status</code>, <code>hub.start</code>, <code>hub.send</code>, <code>hub.cancel</code>, <code>hub.focus</code>, <code>hub.suggest_focus</code>, <code>hub.answer</code>, <code>hub.mode</code></td>
+<td><code>agent_hub</code></td>
+<td>see <a href="agents.html#the-hubs-menu">the Hub's menu</a></td>
+<td>some items are for one caller only</td>
 </tr>
 <tr>
 <td><code>viewer.tabs</code></td>

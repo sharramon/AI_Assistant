@@ -14,7 +14,9 @@ from array import array
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
+from tests.voice_client import LocalClient
 from voice_service.audio import FakeSource, FileSource
 from voice_service.config import DEFAULT_CONFIG, ServiceConfig, load_service_config, models_dir
 from voice_service.download import download_model
@@ -47,7 +49,7 @@ def make_config(**audio) -> ServiceConfig:
 def make_client(engine=None, source=None, config=None) -> TestClient:
     engine = engine or FakeEngine("hello big world")
     factory = source if callable(source) else (lambda: FakeSource(source or []))
-    return TestClient(create_app(config or make_config(), engine, factory))
+    return LocalClient(create_app(config or make_config(), engine, factory))
 
 
 def recv(ws):
@@ -105,6 +107,31 @@ def test_quit_aborts_the_session_and_ends_the_server():
             assert quit_called.is_set()
             with client.websocket_connect("/ws/listen") as other:
                 assert start(other) == Started()  # the slot was freed
+
+
+def test_refuses_other_hosts_and_other_origins():
+    """A web page you visit can't open the mic or quit the service (app_kit.local_guard)."""
+    quit_called = threading.Event()
+    with make_client() as client:
+        client.app.state.on_quit = quit_called.set
+        # Another site's page: a cross-site WebSocket, or a POST to /quit.
+        with pytest.raises(WebSocketDisconnect) as refused:
+            with client.websocket_connect("/ws/listen", headers={"origin": "https://evil.example"}) as ws:
+                ws.receive_text()
+        assert refused.value.code == 1008
+        assert client.post("/quit", json={}, headers={"origin": "https://evil.example"}).status_code == 403
+        # DNS rebinding: a foreign Host.
+        assert TestClient(client.app).get("/health").status_code == 403  # Host: testserver
+        # A plain form (not JSON) can't quit it either.
+        assert client.post("/quit", content=b"x", headers={"content-type": "text/plain"}).status_code == 415
+        assert not quit_called.is_set()
+        assert client.get("/health").status_code == 200  # its real clients: a local Host, no Origin
+
+
+def test_main_refuses_a_non_local_host():
+    from voice_service.__main__ import main
+
+    assert main(["--host", "0.0.0.0"]) == 2
 
 
 # --- /ws/listen: the main path ---
@@ -644,7 +671,7 @@ def _swap_client(path, quit_event):
     app = create_app(make_config(), FakeEngine("hello big world"), lambda: FakeSource([CHUNK] * 6),
                       config_path=path, watch_seconds=0.05)  # fmt: skip
     app.state.on_quit = quit_event.set
-    return TestClient(app)
+    return LocalClient(app)
 
 
 def _write(path, text: str, bump: int) -> None:

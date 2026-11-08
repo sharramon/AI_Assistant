@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>talker: the agent that talks with you</title>
+<title>talker: the agents&#x27; Talkers, one per agent tab</title>
 <!-- Generated from docs/modules/talker.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
 <link rel="stylesheet" href="../site.css">
 </head>
@@ -11,9 +11,9 @@
 <div class="layout">
 <nav data-root="../" data-page="modules/talker.html"></nav>
 <main>
-<h1 id="talker-the-agent-that-talks-with-you">talker: the agent that talks with you</h1>
+<h1 id="talker-the-agents-talkers-one-per-agent-tab">talker: the agents' Talkers, one per agent tab</h1>
 <h2 id="purpose">Purpose</h2>
-<p>A fast <code>claude</code> session that talks with you and hands work to the Agent Hub. Tags in its replies become Hub commands and viewer tools. On by default. Design: <a href="../architecture/agents.html">agents</a>, <a href="../agents/runtime.html#the-talker-on-its-own">the Talker on its own</a>.</p>
+<p>Fast <code>claude</code> sessions that talk with you and hand work to the Agent Hub, <strong>one per agent tab</strong> (built 2026-11-05): each tab is a pair, its Talker and its agent (its partner), with its own chat. Tags in its replies become Hub commands and viewer tools. On by default. Design: <a href="../architecture/agents.html">agents</a>, <a href="../agents/runtime.html#the-talker-on-its-own">the Talker on its own</a>.</p>
 <h2 id="wrapper">Wrapper</h2>
 <table>
 <thead>
@@ -29,7 +29,7 @@
 </tr>
 <tr>
 <td>provides / requires / optional</td>
-<td>nothing (it reaches the Hub by commands)</td>
+<td>optional <code>IModuleDoor</code> (the module door, from the Agent Hub)</td>
 </tr>
 <tr>
 <td>permissions</td>
@@ -56,49 +56,70 @@
 </tr>
 <tr>
 <td>Calls</td>
-<td><a href="../api/agents.html#starttask"><code>StartTask</code></a>, <a href="../api/agents.html#gettaskstatus"><code>GetTaskStatus</code></a>, <a href="../api/agents.html#sendtotask"><code>SendToTask</code></a>, <a href="../api/agents.html#canceltask"><code>CancelTask</code></a>, <a href="../api/agents.html#answerpermission"><code>AnswerPermission</code></a>, <a href="../api/agents.html#setpermissionmode"><code>SetPermissionMode</code></a> (Manual only), <a href="../api/tools.html#invoketool"><code>InvokeTool</code></a> <code>viewer.open</code> / <code>viewer.highlight</code></td>
+<td><a href="../api/tools.html#invoketool"><code>InvokeTool</code></a>: the <a href="../api/agents.html#the-hubs-menu">Hub's menu</a> (<code>hub.start</code>, <code>hub.send</code>, <code>hub.status</code>, <code>hub.cancel</code>, <code>hub.agents</code>, <code>hub.focus</code>, <code>hub.answer</code> (a task's permission card), <code>hub.mode</code> (Manual only); the core fills in the caller <code>talker</code>) and <code>viewer.open</code> / <code>viewer.highlight</code>; <a href="../api/messaging.html#answerpermissionrequest"><code>AnswerPermissionRequest</code></a> (an access card, whole), <a href="../api/agents.html#listagents"><code>ListAgents</code></a> (which tabs still have their agent)</td>
 </tr>
 <tr>
 <td>Publishes</td>
-<td><a href="../api/messaging.html#responseready"><code>ResponseReady</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/messaging.html#sessiontheme"><code>SessionTheme</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/messaging.html#shutdownrequested"><code>ShutdownRequested</code></a> (<code>restart=True</code>)</td>
+<td><a href="../api/messaging.html#responseready"><code>ResponseReady</code></a> (with its tab, <code>agent_id</code>), <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/messaging.html#sessiontheme"><code>SessionTheme</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/messaging.html#shutdownrequested"><code>ShutdownRequested</code></a> (<code>restart=True</code>)</td>
 </tr>
 <tr>
 <td>Listens to</td>
-<td><a href="../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../api/agents.html#taskupdated"><code>TaskUpdated</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>, <a href="../api/messaging.html#viewertabschanged"><code>ViewerTabsChanged</code></a>, <a href="../api/messaging.html#viewerclip"><code>ViewerClip</code></a>, <a href="../api/messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a></td>
+<td><a href="../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../api/agents.html#taskupdated"><code>TaskUpdated</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>, <a href="../api/messaging.html#viewertabschanged"><code>ViewerTabsChanged</code></a>, <a href="../api/messaging.html#viewerclip"><code>ViewerClip</code></a>, <a href="../api/messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a>, <a href="../api/agents.html#focuschanged"><code>FocusChanged</code></a>, <a href="../api/agents.html#focussuggested"><code>FocusSuggested</code></a>, <a href="../api/messaging.html#permissionrequested"><code>PermissionRequested</code></a>, <a href="../api/messaging.html#permissionchanged"><code>PermissionChanged</code></a>, <a href="../api/agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, <a href="../api/control.html#modulestatechanged"><code>ModuleStateChanged</code></a></td>
 </tr>
 </tbody>
 </table>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
-<li><strong>One <code>claude -p</code> process</strong> (<a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>), restarted on a <code>ResetRequested</code> for <code>talker</code>.</li>
-<li><strong>Its transcript</strong> in the launch's log folder, and the <strong>restart note</strong> kept across a <code>&lt;&lt;RESTART&gt;&gt;</code>.</li>
-<li><strong>The module door</strong> (built 2026-11-05): its command line is read at each session start, with <code>IModuleDoor.mcp_config()</code> from the Agent Hub as <code>--mcp-config</code> and all three door tools (<code>list_modules</code>, <code>show_menu</code>, <code>use_item</code>) allowed, since it has no permission cards. The core's risky items still ask the permissions first. Its prompt says to use them for quick things and to hand real work to the worker. SHOW tags stay a shorthand for <code>viewer.open</code> / <code>viewer.highlight</code>. <code>door = false</code> in its config turns it off.</li>
+<li><strong>One <code>claude -p</code> process per open tab</strong> (<a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>), each restarted on a <code>ResetRequested</code> for its id (<code>talker</code> for the main tab, <code>talker:&lt;agent&gt;</code> for a helper's). The main tab's starts with the module and is kept warm; a helper's starts on its first turn (its tab opened with something to say, a message for it) and closes when its agent leaves <code>ListAgents</code> (the tab's ×, <code>agents.close</code>, its module turned off). No idle timeout.</li>
+<li><strong>A transcript per tab</strong> in the launch's log folder (<code>talker.jsonl</code>, <code>talker-&lt;agent&gt;.jsonl</code>), and the <strong>restart note</strong> kept across a <code>&lt;&lt;RESTART&gt;&gt;</code>.</li>
+<li><strong>The module door</strong> (built 2026-11-05): each session's command line is read at its start, with <code>IModuleDoor.mcp_config()</code> from the Agent Hub as <code>--mcp-config</code> and all three door tools (<code>list_modules</code>, <code>show_menu</code>, <code>use_item</code>) allowed, since it has no permission cards. The core's risky items still ask the permissions first. Its prompt says to use them for quick things and to hand real work to its agent. SHOW tags stay a shorthand for <code>viewer.open</code> / <code>viewer.highlight</code>. <code>door = false</code> in its config turns it off.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
 <pre><code class="language-mermaid">flowchart LR
-    In[&quot;InputReceived · TaskUpdated ·&lt;br/&gt;usage · mode · viewer events&quot;]
-    Inbox[&quot;one inbox&lt;br/&gt;one turn at a time&quot;]
-    Claude[&quot;claude session&quot;]
-    Tags[&quot;reply tags&lt;br/&gt;TASK · ASK · CANCEL · ALLOW · SHOW · RESTART&quot;]
-    Hub[&quot;Agent Hub commands&quot;]
+    In[&quot;InputReceived (its tab) · TaskUpdated ·&lt;br/&gt;FocusChanged · cards · usage&quot;]
+    Router[&quot;TalkerModule: the router&lt;br/&gt;picks the session by agent_id or focus&lt;br/&gt;open tasks · focus · snips · viewer note&quot;]
+    subgraph Sessions[&quot;TalkerSession ×N · one per agent tab&quot;]
+        Inbox[&quot;its inbox&lt;br/&gt;one turn at a time&quot;]
+        Claude[&quot;its claude session&lt;br/&gt;prompt for its partner&quot;]
+        Tags[&quot;reply tags on its partner&lt;br/&gt;WORK · ASK · LOOK · CANCEL · AGENTS ·&lt;br/&gt;FOCUS · PASS · ALLOW · SHOW · RESTART (main tab)&quot;]
+        Cards[&quot;its open cards&quot;]
+    end
+    Hub[&quot;the Hub's menu&lt;br/&gt;InvokeTool, caller talker&quot;]
+    Perm[&quot;AnswerPermission&lt;br/&gt;per task&quot;]
     Viewer[&quot;viewer tools&quot;]
-    Out[&quot;ResponseReady&quot;]
+    Out[&quot;ResponseReady(agent_id)&quot;]
+    Agents[&quot;ListAgents&lt;br/&gt;a gone agent closes its tab's Talker&quot;]
 
-    In --&gt; Inbox --&gt; Claude --&gt; Tags
+    In --&gt; Router --&gt; Inbox --&gt; Claude --&gt; Tags
+    Router --&gt; Cards
     Tags --&gt; Hub
+    Tags --&gt; Perm
+    Cards -. &quot;which card&quot; .-&gt; Perm
     Tags --&gt; Viewer
     Tags --&gt; Out
+    Router --&gt; Agents
 </code></pre>
-<p>Everything that should make it speak goes into one inbox, so it never talks over itself and event handlers return at once.</p>
+<p><code>TalkerModule</code> (<code>module.py</code>) is the router and keeps what the tabs share; each tab's conversation is a <code>TalkerSession</code> (<code>session.py</code>) with its prompt from <code>talker_prompt</code> (<code>prompt.py</code>). Everything that should make a tab's Talker speak goes into that session's inbox, so it never talks over itself and event handlers return at once.</p>
+<ul>
+<li><strong>Routing:</strong> your input goes to the session of <code>InputReceived.agent_id</code> (the temp UI's chat box sets it), else the focused tab's (voice, terminal 1). A <code>TaskUpdated</code> goes to its agent's session, and its updates there carry no name (<code>[Task update: reply]</code>). Access cards, suggestions and snips go to the focused tab. Every reply carries its tab (<code>ResponseReady.agent_id</code>).</li>
+<li><strong>One road to the Hub:</strong> its tags are a shorthand (like SHOW for <code>viewer.open</code>); every Hub tag runs through the Hub's menu with <code>InvokeTool</code>, with no MCP round-trip. They act on the session's partner: WORK starts a task on it (the main tab's partner is the coordinator); ASK / PAUSE send to its task; LOOK and CANCEL take an agent (its partner by default); AGENTS lists names and marks; FOCUS: agent moves the focus; PASS sends your own words to its partner word for word (<code>hub.send(agent_id=partner)</code>); MODE sets its partner's mode.</li>
+<li><strong>Only the main tab:</strong> <code>&lt;&lt;RESTART&gt;&gt;</code>, the session theme, the reset of the worker by name. A RESTART in a helper's tab is refused with "ask in the Main Assistant's tab".</li>
+<li><strong>Open cards per tab:</strong> ALLOW / DENY [agent] picks a card from the session's own cards, so a bare yes answers that tab's card; with more than one open there, it's refused with a question asking which.</li>
+<li><strong>Access cards:</strong> a <code>PermissionRequested</code> from the core's permissions handler becomes an <code>[Access card]</code> in the focused tab's inbox, in words from <code>access_card_text(event)</code>: who asks and why, the items, the warnings, and "not reviewed" when the review didn't run. It's kept among that tab's open cards (key <code>access:&lt;request_id&gt;</code>), so <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> answer it whole with <code>AnswerPermissionRequest</code>; to untick single items you use the card in the app. The matching <code>PermissionChanged</code> closes it.</li>
+<li><strong>Snips:</strong> each <code>ViewerClip</code> waits in the router's list (up to 3, oldest dropped beyond) until your next message in any tab, which takes them as images with a <code>[Viewer] snip</code> note each (<code>[Pasted] image</code> for one pasted into the temp UI's chat box, <code>file="(pasted)"</code>); <code>ViewerClipDropped</code> (the × in the temp UI) removes one. A snip sent alone comes as the text <code>(snip)</code>. Each step is logged at info level: received, dropped (by × or the limit), and per message how many were attached (0 included). The viewer note and mode notes are told once per tab with your next message there.</li>
+<li><strong>Who speaks:</strong> the Hub holds an out-of-focus agent's questions, replies and ends behind its tab's <strong>!</strong>; milestones are never said. Opening a tab releases them (<code>FocusChanged.released</code>) into that tab's session as <code>[Focus] the user opened this tab.</code> plus the lines; nothing is said when nothing was released. A <code>FocusSuggested</code> becomes a yes / no question to you in the tab you're in.</li>
+<li><strong>Usage and context:</strong> each session publishes its own <code>SessionUsage</code> (<code>talker</code>, or <code>talker:&lt;agent&gt;</code> with <code>parent=&lt;agent&gt;</code>, so the usage dropdown nests it under its agent). The <code>[Usage]</code> line before your message shows that tab's worker and that tab's Talker. Each session is warned once when its own context or its partner's passes <code>context_warning</code>.</li>
+<li><strong>Reload:</strong> <code>export_state</code> hands every tab's history, the focus and the open tasks to the new copy, which reopens the tabs; a closed tab's history is kept and comes back if its agent does.</li>
+</ul>
 <h2 id="config">Config</h2>
-<p><code>[modules.talker]</code>: <code>model</code>, <code>turn_timeout</code>, <code>context_exchanges</code>, <code>context_warning</code>, <code>transcript</code>, <code>restart_note</code>, <code>restart_timeout</code>.</p>
+<p><code>[modules.talker]</code>: <code>model</code> (every tab's), <code>turn_timeout</code>, <code>context_exchanges</code>, <code>context_warning</code>, <code>transcript</code> (the main tab's name; a helper's gets <code>-&lt;agent&gt;</code>), <code>restart_note</code>, <code>restart_timeout</code>, <code>door</code>.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/talker/module.py</code></li>
-<li><code>tests/test_agents.py</code>, <code>test_agent_tags.py</code>, <code>test_restart.py</code></li>
+<li><code>src/assistant/modules/talker/module.py</code> (the router), <code>session.py</code> (<code>TalkerSession</code>), <code>prompt.py</code> (<code>talker_prompt</code>)</li>
+<li><code>tests/test_agents.py</code>, <code>test_agent_tags.py</code>, <code>test_restart.py</code>, <code>test_talker_agents.py</code>, and the snip tests in <code>test_html_viewer.py</code></li>
 </ul>
 <h2 id="planned">Planned</h2>
-<p>From the module-shape refactor: it finds modules through the <strong>directory and menu</strong> instead of hardcoded viewer tags, and can ask the core to turn modules on and off.</p>
+<p>From the module-shape refactor: it finds modules through the <strong>directory and menu</strong> (the door, built) beside its tag shorthands, and can ask the core to turn modules on and off.</p>
 <footer>Generated from <code>docs/modules/talker.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

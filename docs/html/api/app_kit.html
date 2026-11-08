@@ -44,6 +44,10 @@
 <td><code>devtools_port(profile) -&gt; int | None</code></td>
 <td>The DevTools port Edge picked for that profile</td>
 </tr>
+<tr>
+<td><code>window_profile(name) -&gt; Path</code></td>
+<td><strong>♻</strong> The window's own profile folder, <code>%LOCALAPPDATA%\AI_Assistant\&lt;name&gt;_window</code>, built once (it was built four times). Used by: <code>temp_ui</code>, <code>voice_notes</code>, the <code>html_viewer</code> module and app (built 2026-11-08)</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Example</strong></p>
@@ -61,6 +65,76 @@
 <p><code>local_path(base: str | Path) -&gt; Path</code></p>
 <p>The local override's path for <code>base</code>: <code>.local</code> before the suffix (<code>voice_service.toml</code> → <code>voice_service.local.toml</code>). Added 2026-11-03.</p>
 <p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
+<h2 id="merge"><code>merge</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>load_layered</code> (the <code>.local</code> override), the core's <code>App</code> (a module's <code>module.toml</code> defaults under its <code>[modules.&lt;id&gt;]</code> section)</p>
+<p><code>merge(base: dict[str, Any], override: dict[str, Any]) -&gt; dict[str, Any]</code></p>
+<p><code>override</code> deep-merged over <code>base</code>, as a new dict: tables merge key by key; other values, lists included, are replaced. Neither input is changed. Added 2026-11-06.</p>
+<p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
+<h2 id="module_docs"><code>module_docs</code></h2>
+<p><strong>Reusable</strong> · Used by: the core's <code>App</code> (<code>modules.docs</code>), <code>scripts/build_docs.py</code> (publishes each module's own docs)</p>
+<p>A module's (or an app's) own docs folder, <code>&lt;its folder&gt;/docs/</code>: the three standard pages (<code>README.md</code> overview, <code>architecture.md</code>, <code>tools.md</code> generated from its menu), optional Markdown and HTML pages, images, and an optional <code>docs.toml</code>. Every page shows in the docs' standard layout; an HTML page opens inside <code>frame.html</code>. Standard library only. Added 2026-11-06. <code>from app_kit.module_docs import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docs_settings(docs) -&gt; dict</code></td>
+<td>The folder's <code>docs.toml</code>, <code>{}</code> if it has none. Raises <code>tomllib.TOMLDecodeError</code> for invalid TOML</td>
+</tr>
+<tr>
+<td><code>doc_pages(docs) -&gt; list[Path]</code></td>
+<td>Its pages (<code>.md</code>, <code>.html</code>, top level): the standard pages first in their order, then those <code>docs.toml</code> lists under <code>pages</code>, then the rest by name. <code>[]</code> if there's no folder</td>
+</tr>
+<tr>
+<td><code>page_title(page) -&gt; str</code></td>
+<td>A Markdown page's first <code>#</code> heading, an HTML page's <code>&lt;title&gt;</code>, else the file name</td>
+</tr>
+<tr>
+<td><code>tools_page(title, specs, notes="", intro="") -&gt; str</code></td>
+<td>The tools page's text from the menu's specs (<code>ToolSpec.model_dump()</code> dicts): one section per item with its arguments table; <code>specs=None</code> for a module with no code. <code>intro</code> and <code>notes</code> are kept before and after the generated part</td>
+</tr>
+<tr>
+<td><code>tools_intro(text)</code>, <code>tools_notes(text) -&gt; str</code></td>
+<td>The hand-written text before the <code>tools:start</code> marker and after <code>tools:end</code></td>
+</tr>
+<tr>
+<td><code>STANDARD_PAGES</code></td>
+<td><code>{"README.md": "Overview", "architecture.md": "Architecture", "tools.md": "Tools"}</code>: the required pages and their sidebar names</td>
+</tr>
+<tr>
+<td><code>DOCS_DIR</code>, <code>SETTINGS_FILE</code>, <code>SETTINGS_KEYS</code>, <code>TOOLS_FILE</code>, <code>TOOLS_START</code>, <code>TOOLS_END</code></td>
+<td><code>"docs"</code>, <code>"docs.toml"</code>, its keys, <code>"tools.md"</code>, and the tools page's markers</td>
+</tr>
+</tbody>
+</table>
+<p><code>docs.toml</code> keys, all optional:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tab</code></td>
+<td>The docs tab it goes in (default: the module's id)</td>
+</tr>
+<tr>
+<td><code>pages</code></td>
+<td>The order of its optional pages, after the standard three</td>
+</tr>
+<tr>
+<td><code>[related]</code></td>
+<td>Name = a page of the app's docs (<code>api/tools.md#anchor</code>), shown as links in its tab</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/app_kit/module_docs.py</code></p>
 <h2 id="companionapp"><code>CompanionApp</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it, handover or restart on reload); any app that launches <code>voice_service</code></p>
 <p><code>CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)</code></p>
@@ -102,13 +176,17 @@
 <td>Whether this object started the process (and hasn't stopped it)</td>
 </tr>
 <tr>
+<td><code>last_answer: dict</code></td>
+<td>The last ping's answer (<code>{}</code> if none), so a caller needn't ping again (<code>voice_in</code> reads the service's state from it; built 2026-11-08)</td>
+</tr>
+<tr>
 <td><code>process</code></td>
 <td>The process it launched, or <code>None</code></td>
 </tr>
 </tbody>
 </table>
 <p><code>source_stamp(module) -&gt; (int, int) | None</code> (in <code>app_kit.companion</code>): the fingerprint <code>code_changed</code> compares, the newest <code>.py</code> mtime and the file count, found without importing the package.</p>
-<p><strong>Reload with new code</strong> (<code>voice_in</code>, <code>html_viewer</code>): in <code>export_state</code>, hand the <code>CompanionApp</code> over unless <code>code_changed()</code>; if it changed, return nothing and <code>stop(adopted=True)</code>, so the new copy launches the new code.</p>
+<p><strong>Reload with new code: <code>CompanionHandover</code></strong> (♻ Used by: <code>voice_in</code>, <code>html_viewer</code>; built 2026-11-08). <code>CompanionHandover(handover, module, host, port, *, args=(), label="", log=..., **app_kwargs)</code> takes the <code>CompanionApp</code> the module's last copy handed over (<code>ctx.handover</code>), or makes a new one. <code>app</code> is that <code>CompanionApp</code>; <code>export()</code> (the module's <code>export_state</code>) hands it over unless <code>code_changed()</code>, and if it changed returns nothing and marks it to quit; <code>stop()</code> (the module's <code>stop</code>) quits it unless it was handed over. It's its own class, not methods on <code>CompanionApp</code>, because the handed-over and restart flags belong to each module copy while the <code>CompanionApp</code> object moves between copies.</p>
 <p><strong>Example</strong></p>
 <pre><code>app = CompanionApp("voice_service", "127.0.0.1", 8767, ping="/health", log=ctx.log)
 await app.ensure_running()
@@ -116,6 +194,38 @@ info = await app.call("GET", "/health")
 await app.stop()
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/app_kit/companion.py</code></p>
+<h2 id="local_guard"><code>local_guard</code></h2>
+<p><strong>Reusable</strong> · Used by: <code>voice_service</code> (<code>server.py</code>: the <code>LocalOnly</code> guard on every request and WebSocket; <code>__main__.py</code>: refuses a non-local <code>--host</code>), HTML viewer app (<code>viewer.py</code>: every request; <code>ViewerServer</code> refuses a non-local host) · built 2026-11-08</p>
+<p><code>from app_kit import LOOPBACK_HOSTS, require_loopback, local_request</code></p>
+<p>Refuse other hosts and other origins: the check every local <a href="../architecture/reusable-parts.html#companion-app-checklist">companion app</a> uses. A web page you visit can reach a local app by DNS rebinding (its own name pointing at <code>127.0.0.1</code>, so the <code>Host</code> header names another site) or as a cross-site request or WebSocket (the browser sends its <code>Origin</code>); these refuse both. Programs that aren't browsers send no <code>Origin</code>, so they pass with a local <code>Host</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LOOPBACK_HOSTS</code></td>
+<td><code>{"127.0.0.1", "localhost", "::1"}</code></td>
+</tr>
+<tr>
+<td><code>require_loopback(host) -&gt; str</code></td>
+<td><code>host</code> if it's this machine's own address; <code>ValueError</code> for any other. Call it before listening</td>
+</tr>
+<tr>
+<td><code>local_request(host, origin) -&gt; bool</code></td>
+<td>Whether to serve a request: its <code>Host</code> header names this machine and, if it has an <code>Origin</code>, that origin is the same app's own host and port (<code>http</code> or <code>https</code>). A missing or foreign <code>Host</code>, an <code>Origin</code> of <code>null</code> or another site: <code>False</code></td>
+</tr>
+</tbody>
+</table>
+<p>Pair it with JSON-only POSTs (a web page can't send JSON cross-site without the browser asking first): the voice service's <code>POST /quit</code> answers 415 to anything else.</p>
+<p><strong>Example</strong></p>
+<pre><code>if not local_request(headers.get("host"), headers.get("origin")):
+    return 403  # or close the WebSocket with 1008
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/app_kit/local_guard.py</code> · <strong>Tests:</strong> <code>tests/test_app_kit.py</code>, <code>tests/test_voice_service.py</code>, <code>tests/test_html_viewer.py</code></p>
 <footer>Generated from <code>docs/api/app_kit.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

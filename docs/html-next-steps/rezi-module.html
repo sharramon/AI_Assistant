@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rezi: a module for Rezi&#x27;s MCP, the job agent tailoring through it, and a PDF viewer</title>
+<!-- Generated from docs/next-steps/rezi-module.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="rezi-module.html"></nav>
+<main>
+<h1 id="rezi-a-module-for-rezis-mcp-the-job-agent-tailoring-through-it-and-a-pdf-viewer">Rezi: a module for Rezi's MCP, the job agent tailoring through it, and a PDF viewer</h1>
+<p><strong>Status:</strong> approved (2026-11-06), building. Replaced by one module, <code>cv</code>; see <a href="#decided-2026-11-06-one-cv-module-with-its-worker">"Decided 2026-11-06"</a> below. Its docs pages are in; no code yet.</p>
+<p>You plan to buy Rezi's lifetime plan and asked for three pieces, built in this order:</p>
+<ol>
+<li><strong>A <code>rezi</code> module:</strong> a thin module that is an MCP client of Rezi's remote server (<code>https://api.rezi.ai/mcp</code>). It builds its menu from the server's tool list, refreshes it on <code>list_changed</code>, and handles the browser sign-in.</li>
+<li><strong>The chain:</strong> when the job agent picks a job, it tailors the resume through the <code>rezi</code> module instead of editing files itself.</li>
+<li><strong>A <code>pdf_viewer</code> module:</strong> a thin module that opens a PDF.</li>
+</ol>
+<h2 id="checked-first-2026-11-05">Checked first (2026-11-05)</h2>
+<h3 id="does-the-lifetime-plan-include-mcp">Does the lifetime plan include MCP?</h3>
+<p><strong>Not confirmed.</strong> Rezi's MCP setup page says the feature is for "any Rezi user with a Rezi <strong>Pro</strong> subscription" and doesn't mention Lifetime. Rezi's pricing FAQ says Lifetime ($149, one payment) gives all of Pro's features except the free monthly expert review. So it probably includes MCP, but no page says so. <strong>Before you buy, ask Rezi support</strong> whether Lifetime includes the Resume MCP server. The $149 price is on Rezi's own MCP page, so that part is confirmed.</p>
+<h3 id="how-does-a-finished-resume-get-out-as-a-pdf">How does a finished resume get out as a PDF?</h3>
+<p><strong>Not through MCP.</strong> The tools in Rezi's docs (GitHub <code>rezi-io/rezi-mcp</code>, the Rezi docs page) are <code>list_resumes</code>, <code>read_resume</code>, <code>get_resume_format</code>, <code>write_resume</code>, <code>search_jobs</code>, <code>get_job_details</code>. None of them exports, downloads or gives a share link. PDF and Word downloads are a web-app feature (Lifetime: unlimited downloads).</p>
+<p>If the server really has no export tool, we have three options:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>How</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. You download it (recommended for v1)</strong></td>
+<td>The tailored resume shows up in Rezi's web app. You click Download PDF and save it into the job's folder. The job agent then opens it with <code>pdf.open</code></td>
+<td>One click per job. Nothing fragile</td>
+</tr>
+<tr>
+<td>B. The job agent clicks Download</td>
+<td>Its session already runs with <code>--chrome</code>: it opens the Rezi editor and presses Download. In Manual mode, each step asks you first</td>
+<td>Breaks when Rezi changes its page. Its first try needs you watching</td>
+</tr>
+<tr>
+<td>C. We make the PDF ourselves</td>
+<td>Turn <code>read_resume</code>'s JSON into a PDF with our own template</td>
+<td>Loses Rezi's templates, the main reason to pay</td>
+</tr>
+</tbody>
+</table>
+<p>Because the menu is built from the server's list, an export tool Rezi adds later shows up as a menu item with no code change. After you sign in, the first thing we do is list the live tools to check for one.</p>
+<h3 id="two-more-findings-that-change-what-you-might-expect">Two more findings that change what you might expect</h3>
+<ul>
+<li><strong>Rezi's MCP doesn't tailor on its own.</strong> Its tools read and write resume data. The tailoring is done by the AI that calls them (here, the job agent): it reads the base resume and the posting, writes a new version, and saves it in Rezi's format. Rezi adds the templates, the editor, the score and the PDF, all in its web app. So the wording still comes from our agent, and Rezi stores and formats it.</li>
+<li><strong><code>write_resume</code> with a <code>resume_id</code> changes that resume in place.</strong> Only the fields sent change. Without an id it makes a new resume. <strong>Rule:</strong> the job agent never writes to the base resume. Each job gets a new resume, named for the company and role.</li>
+</ul>
+<p>Sign-in, from Rezi's GitHub docs: OAuth in the browser (dynamic client registration, PKCE). The client keeps the access token. <strong>It lasts 30 days, with no refresh token,</strong> so you sign in again when it runs out.</p>
+<h2 id="decided-2026-11-06-one-cv-module-with-its-worker">Decided 2026-11-06: one <code>cv</code> module with its worker</h2>
+<p>The user approved a new plan that replaces the three pieces below. The rest of this note is the earlier proposal, kept for its findings.</p>
+<ul>
+<li><strong>One module, id <code>cv</code></strong>, in <code>src/assistant/modules/cv/</code>, in the self-contained layout (<a href="module-self-contained.html">module-self-contained.md</a>): its docs in <code>cv/docs/</code> with the three standard pages (<a href="../html/modules/cv/index.html">overview</a>, <a href="../html/modules/cv/architecture.html">architecture</a>, <a href="../html/modules/cv/tools.html">tools</a>) and <code>docs.toml</code>, defaults in <code>cv/module.toml</code> (<code>[modules.cv]</code> in <code>config/default.toml</code> only overrides), its own tests in <code>cv/tests/</code>, a link in <code>docs/modules/README.md</code>, and a library row generated by the build.</li>
+<li><strong>Its worker inside it</strong>: <code>cv_agent</code>, a <code>ProfileAgent</code> like <code>job_search</code>'s agent. It runs the 8 steps, is the truth gate, formats the one page, and is the only part that uses Chrome (only app.rezi.ai, with the user's login): Keyword Targeting, the Rezi Score and the PDF import happen there, not as menu items.</li>
+<li><strong>The Rezi MCP client lives inside the module</strong>, not as a shared part. A fixed menu (<code>rezi.*</code>, <code>cv.*</code>), not the server's tool list. No restart needed.</li>
+<li><strong>Jobs sent through the Hub</strong>: the job agent sends one job to <code>cv_agent</code> with <code>hub.start</code>; no <code>rezi.tailor_cv</code> item.</li>
+<li><strong>No Rezi AI writer for now.</strong></li>
+<li><strong>No fixed base Rezi resume</strong>: the base is always the <code>CV_Test_*.odt</code> and the JD the job agent passes in. The guard refuses writes to any Rezi resume not created in the run.</li>
+<li><strong>US Letter by default</strong> (<code>paper</code> in <code>module.toml</code>), A4 later.</li>
+<li><strong>The PDF viewer</strong> (piece 3): try <code>viewer.open</code> on the PDF first; a separate <code>pdf_viewer</code> module only if that fails.</li>
+<li><strong>The CV workflow page</strong> (<code>cv_module_workflow.html</code>) is folded into the three pages (the 8 steps and who does what in the overview, the loops in the architecture page) and removed from <code>cv/docs/</code>; the original stays in <code>C:\Chang\Jobs\CV\Recruiters\docs\</code>.</li>
+<li><strong>The separate Rezi helper agent</strong> (the <code>rezi</code> kind in <code>task_agents</code>) is retired once the worker runs.</li>
+</ul>
+<p><strong>Build order</strong> (tests, ruff and the architecture check after each): 0 the docs pages; 1 skeleton, <code>module.toml</code>, CV content and section order; 2 <code>.odt</code>, PDF export, page check → <code>cv.build</code>; 3 <code>cv.compare</code>, <code>cv.report</code>; 4 the MCP client and token store against a fake server; 5 the <code>rezi.*</code> items and guard, live tool list after the user's Rezi sign-in; 6 the worker with Chrome; 7 the job agent's hand-off, one real job end to end; 8 the modules-page note on the MCP exception, final docs check; 9 the end-to-end test: a random job-radar job plus one <code>CV_Test_*.odt</code> go through the whole workflow, and a CV is output.</p>
+<h3 id="progress-2026-11-06-task-fb5181fb-session-reset">Progress (2026-11-06, task fb5181fb, session reset)</h3>
+<ul>
+<li><strong>Done:</strong> chunk 0 (the docs pages in <code>cv/docs/</code>). Chunk 1 is started, but only the reading is done; <strong>no chunk 1 files are written yet</strong>. Read so far: rezi's handoff note (<code>C:\Chang\Jobs\rezi\rezi\handoff-d21df25f.md</code>), the plan page (<code>C:\Chang\Jobs\rezi\rezi\cv_module_plan.html</code>), the three cv pages, <code>docs/api/reusable.md</code>, the <code>usage</code> module (<code>module.py</code>, <code>__init__.py</code>, <code>tests/test_usage.py</code>), and the architecture-first and architecture-check skills.</li>
+<li><strong>Pattern found:</strong> <code>__init__.py</code> re-exports the module class. <code>module.py</code> has a module-level <code>menu = Menu()</code> and a class with <code>manifest = Manifest(id=..., description=...)</code> and <code>menu = menu</code>, plus async <code>init(ctx)</code> / <code>start()</code> and an optional <code>export_state()</code> for the reload handover. Tests build <code>App([CvModule], {"modules": {"enabled": [...]}, "core": {}})</code> and use <code>tests.support.wait_until</code>. The only module with a <code>module.toml</code> so far is <code>console_io</code>, so copy its shape. <code>App</code> merges a module's <code>module.toml</code> under its config section.</li>
+<li><strong>Next (chunk 1, write only inside <code>src/assistant/modules/cv/</code>):</strong>
+  1. Read <code>console_io/module.toml</code>, <code>principles.md</code>, and the swap and reload tests (<code>tests/test_swap_every_module.py</code>, <code>tests/test_reload.py</code>, <code>tests/test_module_layout.py</code>) to see how load, on/off and swap in place are tested.
+  2. Write <code>__init__.py</code> and <code>module.py</code> (<code>CvModule</code>, an empty menu, reading <code>ctx.config</code>).
+  3. Write <code>module.toml</code> with these defaults: <code>section_order</code>, <code>degree_first_order</code>, <code>drop_first = ["publications", "awards"]</code>, <code>target_score = 90</code>, <code>max_rounds = 5</code>, <code>paper = "letter"</code>, <code>output_dir</code>, <code>soffice</code>.
+  4. Write <code>content.py</code> (<code>CvContent</code>, plain sections; <code>from_odt</code> and <code>from_rezi</code> can come later) and <code>order.py</code> (<code>SectionOrder</code>). The default order is Contact, Summary, Skills, Experience, Projects, Education, Awards, Publications. Education moves under Skills only when the JD requires or prefers a master's. When space is tight, Publications drops first, then Awards.
+  5. Write <code>types.py</code> with the request and result data types (fields as on the tools page).
+  6. Write <code>tests/__init__.py</code> and <code>tests/test_cv.py</code>: order rules, data types, and that the module loads, turns on and off, and swaps in place.
+  7. Do the architecture check by reading. Then the Main Assistant runs <code>pytest src/assistant/modules/cv/tests</code>, the full <code>pytest</code>, <code>ruff check</code>, and <code>scripts/build_docs.py</code>. The tools page then shows the empty menu. After that comes <code>modules.add assistant.modules.cv</code>.</li>
+<li><strong>Don't touch:</strong> <code>config/default.toml</code>, <code>scripts/build_docs.py</code>, or other modules. Never <code>git push</code>. Rezi still has no shell tool, so the Main Assistant runs the tests.</li>
+</ul>
+<h2 id="use-case">Use-case</h2>
+<ul>
+<li><strong>Who calls:</strong> the job agent (and the Main Assistant or Talker) through the module door (<code>use_item rezi.*</code>, <code>use_item pdf.open</code>), and you through the temp UI.</li>
+<li><strong>Problem:</strong> tailor one resume per job with Rezi's templates instead of the agent editing files, then look at the PDF.</li>
+<li><strong>In:</strong> the posting (from the job project, or <code>rezi.search_jobs</code> / <code>rezi.get_job_details</code>), the base resume's id. <strong>Out:</strong> a new Rezi resume per job, and its PDF in the job's folder.</li>
+<li><strong>Edge cases:</strong> signed out or token expired; Rezi down; the tool list changes; Rezi called while the module is off; the base resume overwritten by mistake.</li>
+</ul>
+<h2 id="where-it-fits">Where it fits</h2>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;sign in · download PDF&quot;])
+    subgraph JS[&quot;job_search module&quot;]
+        JA[&quot;&lt;b&gt;job agent&lt;/b&gt;&lt;br/&gt;claude session&quot;]
+    end
+    Door[&quot;&lt;b&gt;module door&lt;/b&gt;&lt;br/&gt;3 fixed tools&quot;]
+    Core[&quot;&lt;b&gt;core&lt;/b&gt;&lt;br/&gt;InvokeTool · permission check&lt;br/&gt;start on use&quot;]
+    subgraph RZ[&quot;rezi module (new)&quot;]
+        Menu[&quot;menu: rezi.sign_in · rezi.status&lt;br/&gt;+ the server's tools&quot;]
+        Client[&quot;MCP client&lt;br/&gt;(infra.mcp_client, new)&quot;]
+    end
+    Rezi[&quot;&lt;b&gt;Rezi MCP server&lt;/b&gt;&lt;br/&gt;api.rezi.ai/mcp&quot;]
+    Web[&quot;Rezi web app&lt;br/&gt;Download PDF&quot;]
+    PDF[&quot;&lt;b&gt;pdf_viewer module (new)&lt;/b&gt;&lt;br/&gt;pdf.open&quot;]
+
+    JA -- &quot;use_item rezi.*&quot; --&gt; Door --&gt; Core --&gt; Menu
+    Menu --&gt; Client -- &quot;MCP over HTTPS + token&quot; --&gt; Rezi
+    You -- &quot;browser sign-in&quot; --&gt; Rezi
+    You --&gt; Web -- &quot;PDF into the job folder&quot; --&gt; JA
+    JA -- &quot;use_item pdf.open&quot; --&gt; Door
+    Core --&gt; PDF
+
+    classDef new fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+    class RZ,Menu,Client,PDF new
+</code></pre>
+<p>Purple: new. Every call goes through the door and the core, so there's one permission check (in Manual, each <code>use_item</code> asks with the card). The door keeps its three fixed tools. Neither new module is an MCP server.</p>
+<h2 id="piece-1-the-rezi-module">Piece 1: the <code>rezi</code> module</h2>
+<h3 id="the-menu-comes-from-the-server-a-change-to-menu-needs-a-restart">The menu comes from the server: a change to <code>Menu</code> (needs a restart)</h3>
+<p>Today a <code>Menu</code> is fixed when the module's file is imported (<code>src/assistant/contracts/menu.py</code>). The core reads it for the directory, <code>GetMenu</code>, the argument check and start-on-use. A menu filled from a server's list needs one addition to that contract:</p>
+<ul>
+<li><strong>New on <code>Menu</code>:</strong> <code>menu.remote(prefix, method)</code> declares a part of the menu that is filled while the app runs, and the module method that runs its items as <code>(name, args)</code>. <code>menu.set_remote(prefix, specs)</code> replaces that part's items. The fixed items (<code>rezi.sign_in</code>, <code>rezi.status</code>) stay ordinary <code>@menu.item</code>s.</li>
+<li><strong>The core needs no other change:</strong> <code>specs()</code>, <code>check()</code>, <code>allowed()</code> and <code>call()</code> already go through the <code>Menu</code>, so the directory, <code>GetMenu</code>, the argument check and start-on-use see the new items.</li>
+<li><strong>When the module is off:</strong> the last list is cached in a file, so the menu still shows and start-on-use still finds <code>rezi.read_resume</code>. Before the first sign-in, the menu has only <code>sign_in</code> and <code>status</code>.</li>
+<li><strong><code>list_changed</code>:</strong> the module asks for the list again and calls <code>set_remote</code>. Agents always ask with <code>show_menu</code>, so no notice to them is needed. Unity's future module would reuse the same thing.</li>
+</ul>
+<p>This changes <code>contracts</code>, so <strong>the app needs a restart once</strong>. Server tools appear as <code>rezi.&lt;tool&gt;</code> (for example <code>rezi.write_resume</code>), with the server's <code>inputSchema</code>. <code>Menu.check</code> checks the top-level types, and Rezi checks the rest.</p>
+<h3 id="a-shared-mcp-client-new-reusable-part">A shared MCP client (new reusable part)</h3>
+<p><code>assistant.infra.mcp_client</code>: one client for a remote MCP server. It handles streamable HTTP, the OAuth sign-in (dynamic registration, PKCE, a loopback redirect on <code>127.0.0.1</code>), <code>tools/list</code>, <code>tools/call</code>, and <code>list_changed</code>. Modules use this part and never import an MCP library themselves. That keeps the rule in <a href="../html/architecture/modules.html#why-not-plain-mcp">modules</a>; that page's wording changes to "never import an MCP library directly". It's built on the official <code>mcp</code> Python SDK, as an optional extra (<code>pip install -e .[mcp]</code>). <strong>Installing it is your step, or your yes.</strong> Writing OAuth and streamable HTTP ourselves would be about 300 lines to maintain. It goes into the <a href="../html/api/reusable.html">reusable index</a>, used by <code>rezi</code> and later Unity.</p>
+<h3 id="sign-in-and-the-30-days">Sign-in and the 30 days</h3>
+<ul>
+<li><code>rezi.sign_in</code>: opens Rezi's consent page in your browser (a Rezi web page, not one of our HTML files), waits for the redirect, and saves the token and its date. The token is a secret, so it's saved outside the repo in the app's user data folder, never in <code>config/</code>. The path is set in config. It asks <code>ctx.permissions</code> for <code>account.rezi</code> first.</li>
+<li><code>rezi.status</code>: signed in or not, and the days left.</li>
+<li><strong>When the token expires</strong> (or Rezi revokes it): calls return <code>not_available: "Rezi sign-in expired; run rezi.sign_in"</code>, so the job agent asks you through <code>NEED:</code>. Within 3 days of the end, <code>rezi.status</code> and the first call of each day say how many days are left. Nothing else breaks: the cached menu stays, and calls work again once you sign in.</li>
+<li><strong>Rezi down:</strong> <code>failed</code> with Rezi's error. No retry loop.</li>
+</ul>
+<h3 id="the-rezi-module-page-docsmodulesrezimd-the-standard-template">The <code>rezi</code> module page (<code>docs/modules/rezi.md</code>, the standard template)</h3>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Purpose</td>
+<td>Rezi's resume tools as a menu, through its MCP server. Off at launch, <code>start_on_use = true</code></td>
+</tr>
+<tr>
+<td>Wrapper</td>
+<td>id <code>rezi</code>. Provides / requires / optional: none. Permissions: <code>account.rezi</code></td>
+</tr>
+<tr>
+<td>Interface: actions (menu)</td>
+<td><code>rezi.sign_in</code>, <code>rezi.status</code>, plus the server's tools: <code>rezi.list_resumes</code>, <code>rezi.read_resume</code>, <code>rezi.get_resume_format</code>, <code>rezi.write_resume</code>, <code>rezi.search_jobs</code>, <code>rezi.get_job_details</code></td>
+</tr>
+<tr>
+<td>Inputs</td>
+<td>Each tool's arguments, from the server's schema (for example <code>resume_id</code>, the resume JSON, <code>role</code> and <code>location</code>)</td>
+</tr>
+<tr>
+<td>Outputs</td>
+<td>A <code>Result</code> with the tool's content (JSON or text). <code>not_available</code> when signed out</td>
+</tr>
+<tr>
+<td>Handles / calls / publishes / listens</td>
+<td>nothing / <code>ctx.permissions</code> / nothing / nothing</td>
+</tr>
+<tr>
+<td>Rules</td>
+<td>Never an MCP server. All calls go through the core (one check). The menu follows the server's list. Never writes to the configured <code>base_resume_id</code> (refused in the module, not only in the prompt)</td>
+</tr>
+<tr>
+<td>Needs</td>
+<td>Your Rezi plan with MCP, your sign-in every 30 days, the <code>mcp</code> extra installed</td>
+</tr>
+<tr>
+<td>Owns</td>
+<td>The MCP connection (opened on first use, closed on stop), the token file, the cached tool list</td>
+</tr>
+<tr>
+<td>Config</td>
+<td><code>[modules.rezi]</code>: <code>url</code>, <code>token_file</code>, <code>base_resume_id</code>, <code>start_on_use = true</code>, <code>timeout</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-rezi-helper-agent-added-2026-11-05-at-your-request">The Rezi helper agent (added 2026-11-05, at your request)</h2>
+<p>You asked for a helper agent of its own for Rezi, like the job agent, so the Main Assistant doesn't drive Rezi itself. It's <strong>created now</strong> and opened with your yes on the cards.</p>
+<ul>
+<li><strong>What it is:</strong> a helper <em>kind</em> <code>rezi</code> in <code>config/default.toml</code> (<code>[modules.task_agents.agents.rezi]</code>), launched by name through <code>task_agents</code> as <strong><code>rezi_agent</code></strong>. A launched helper ends with the app, so after a restart it's opened again with <code>agents.launch</code> or the temp UI's <strong>+</strong>. It has no code of its own. If it later needs a menu or workers, it moves into its own module, as the job agent did.</li>
+<li><strong>Working folder:</strong> <code>C:/Chang/Jobs/rezi</code>, and the helper's own folder is <code>C:/Chang/Jobs/rezi/rezi_agent</code>. It's not inside <code>C:/Chang/Jobs/CV</code>, because the job agent writes all of that folder and the Hub won't run two agents whose write folders overlap. That would block the hand-off while the job agent has a task.</li>
+<li><strong>Access list (one card, saved for the <code>rezi</code> kind):</strong></li>
+<li>Write: its own folder.</li>
+<li>Read: <code>C:/Chang/Jobs/CV</code> (postings, the job folders) and this repo's <code>docs/</code>.</li>
+<li>Tools: <code>Read, Write, Edit, Glob, Grep, WebSearch, WebFetch</code>. No Chrome, Python or shell.</li>
+<li><strong>Instructions:</strong> tailor one posting per task. Reach Rezi <strong>only</strong> through the <code>rezi.*</code> items on the module door, never any other way. Until the <code>rezi</code> module exists, read this note and research. Never change the base resume: each job gets a new one, and it reports the new resume's name.</li>
+<li><strong>How it relates to the <code>rezi</code> module:</strong> the module stays the thin MCP client wrapper (piece 1). The helper is one caller of its menu, through the door → core → <code>rezi</code>, with the same single permission check. The job agent and the Main Assistant could call the same menu, but by design only the helper writes resumes.</li>
+</ul>
+<h2 id="piece-2-the-chain-from-the-job-agent-to-rezi">Piece 2: the chain from the job agent to Rezi</h2>
+<p><strong>Proposed: the job agent hands the posting to the Rezi helper through the Agent Hub. The helper calls the <code>rezi</code> module through the door. No new contract.</strong></p>
+<ul>
+<li><strong>The hand-off:</strong> when you pick a job, the job agent saves the posting in that job's folder under <code>C:/Chang/Jobs/CV</code> (which the helper can read). It then calls <code>hub.start(text, agent_id="rezi_agent")</code>, where the text has the posting's path, the company and role, and anything it wants stressed. That becomes the job agent's child task. It can follow it with <code>hub.status</code>, <code>hub.send</code> or <code>hub.cancel</code>, and gets the outcome (the new resume's name) when the child task ends. If <code>rezi_agent</code> isn't open, the job agent asks you through <code>NEED:</code> to open it. It doesn't launch helpers itself.</li>
+<li><strong>The helper's steps:</strong> <code>rezi.get_resume_format</code>, then <code>rezi.read_resume(base)</code>, then <code>rezi.write_resume</code> <strong>with no id</strong> (a new resume named "Company – Role"). It reports the name. The job agent no longer edits resume files itself. The cover letter stays in the job project for now.</li>
+<li><strong>Linking:</strong> <code>rezi</code> has <code>start_on_use = true</code>, so the helper's first <code>rezi.*</code> call turns it on. That's the same as the HTML viewer and needs no <code>requires</code>.</li>
+<li><strong>Where each part sits:</strong> <code>job_search</code> (the module) owns the job agent (a <code>ProfileAgent</code>). <code>task_agents</code> owns <code>rezi_agent</code>. The two talk only through the Hub. The helper calls <code>rezi</code> through the door → core → <code>rezi</code>. Neither module imports or requires <code>rezi</code>.</li>
+<li><strong>Restart:</strong> this piece needs none. It's a prompt change to <code>job_search</code> (the hand-off) plus <code>RELOAD: job_search</code>. The helper's kind is already in config.</li>
+</ul>
+<p><strong>Considered: a contract <code>IResumeService</code></strong> (read, write, format, export), provided by <code>rezi</code> and optionally required by <code>job_search</code>, which would offer <code>job.tailor</code>. It would let another resume service replace Rezi without changing the agent's prompt. (Reactive Resume, for example, has a PDF download tool in its MCP.) The cost is a new contract (<strong>an app restart</strong>) and code in <code>job_search</code> for something the agent already does through the door. <strong>Proposal: not now.</strong> Add it if a second resume service or a code-only caller appears.</p>
+<h2 id="piece-3-the-pdf_viewer-module">Piece 3: the <code>pdf_viewer</code> module</h2>
+<ul>
+<li><strong>Menu:</strong> <code>pdf.open(path)</code> (an absolute <code>.pdf</code> path that exists) and <code>pdf.close()</code>. Off at launch, <code>start_on_use = true</code>.</li>
+<li><strong>How it shows the PDF (proposed):</strong> in an Edge app window with Edge's own PDF viewer, using <a href="../html/api/app_kit.html#window"><code>app_kit.window</code></a>: <code>open_app_window("file:///…pdf", profile)</code>, and <code>close_app_windows</code> on stop. No companion app, no new package, no contract. It's added with <code>ADD_MODULE</code>, with no restart.</li>
+<li><strong>Alternatives:</strong> the system's default PDF app (<code>os.startfile</code>), where we can't close or track the window; or a PDF tab in the HTML viewer app, which changes that app.</li>
+<li><strong>Page:</strong> <code>docs/modules/pdf_viewer.md</code> with the same template (actions <code>pdf.open</code> / <code>pdf.close</code>; input a path; output <code>ok</code> or the reason; rule: opens only existing <code>.pdf</code> files and reads no folders outside your grant list; needs nothing from you).</li>
+</ul>
+<h2 id="api-changes">API changes</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Group</th>
+<th>Change</th>
+<th>Restart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Menu.remote</code>, <code>Menu.set_remote</code></td>
+<td><a href="../html/api/modules.html#menu">Modules</a></td>
+<td>new</td>
+<td>yes (contracts)</td>
+</tr>
+<tr>
+<td><code>mcp_client</code> (<code>McpClient</code>, sign-in, token file)</td>
+<td><a href="../html/api/infra.html">Infrastructure</a></td>
+<td>new, reusable</td>
+<td>yes (infra)</td>
+</tr>
+<tr>
+<td><code>rezi</code> module, menu <code>rezi.*</code></td>
+<td><a href="../html/architecture/module-library.html">module library</a>, <a href="../html/api/tools.html#tools-offered-today">tools</a></td>
+<td>new</td>
+<td>no (<code>ADD_MODULE</code>)</td>
+</tr>
+<tr>
+<td><code>pdf_viewer</code> module, menu <code>pdf.*</code></td>
+<td>same</td>
+<td>new</td>
+<td>no (<code>ADD_MODULE</code>)</td>
+</tr>
+<tr>
+<td><code>job_search</code> prompt and config</td>
+<td><a href="../html/modules/job_search.html">job_search</a></td>
+<td>changed</td>
+<td>no (<code>RELOAD</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Docs updated when built: the two module pages, the module library, <code>modules.md</code> (the MCP-client wording), the overview's Parts row for modules, <code>api/modules.md</code>, <code>api/infra.md</code>, <code>api/reusable.md</code>, <code>api/tools.md</code>, <code>job_search.md</code>.</p>
+<h2 id="order-and-what-each-piece-needs-from-you">Order and what each piece needs from you</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Piece</th>
+<th>Built by us</th>
+<th>Your steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Before anything</td>
+<td>—</td>
+<td>Ask Rezi whether Lifetime includes MCP, then buy. OK the <code>mcp</code> package install</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>rezi</code> module + <code>Menu</code> change + <code>mcp_client</code></td>
+<td>Code, tests against a fake MCP server (no Rezi in CI), docs</td>
+<td>App restart. Run <code>rezi.sign_in</code> and approve in the browser. Tell us your base resume (we list them)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>The chain</td>
+<td><code>job_search</code> prompt and config, test</td>
+<td><code>RELOAD: job_search</code>. Try one job: check the new resume in Rezi, then download its PDF</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>pdf_viewer</code></td>
+<td>Module, test, docs</td>
+<td><code>ADD_MODULE</code>, then open one PDF</td>
+</tr>
+</tbody>
+</table>
+<p>Piece 3 doesn't depend on Rezi, so it could be built first while you wait on Rezi's answer.</p>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>MCP on Lifetime:</strong> waiting on Rezi's answer (above).</li>
+<li><strong>PDF out:</strong> A (you download) for v1, B later? And where the PDFs go: the job's folder under <code>C:/Chang/Jobs/CV</code>?</li>
+<li><strong>The <code>mcp</code> package:</strong> OK to add it as an optional extra? The other way is our own client, which is more code.</li>
+<li><strong>Token file location:</strong> the app's user data folder (proposed) or Windows Credential Manager (needs <code>keyring</code>, another package)?</li>
+<li><strong>PDF viewer:</strong> an Edge app window (proposed), the system viewer, or a tab in the HTML viewer?</li>
+<li><strong>Search:</strong> use <code>rezi.search_jobs</code> alongside the job project's own search, or ignore it for now?</li>
+</ol>
+<h2 id="recommendation">Recommendation</h2>
+<p>Ask Rezi about MCP on Lifetime before paying. Build in the order above, with the chain through the door (no new contract), a <code>Menu</code> that can be filled at runtime, and one shared MCP client. That means one restart for piece 1, and none for pieces 2 and 3. For v1, you click Download PDF in Rezi and the job agent opens the file with <code>pdf.open</code>. If Rezi adds an export tool later, it shows up in the menu on its own.</p>
+<p><strong>Sources:</strong> <a href="https://github.com/rezi-io/rezi-mcp">Rezi MCP docs (GitHub)</a> · <a href="https://www.rezi.ai/rezi-docs/resume-mcp-server">Rezi docs: Resume MCP server</a> · <a href="https://www.rezi.ai/resume-mcp">Rezi Resume MCP page and pricing FAQ</a></p>
+<footer>Generated from <code>docs/next-steps/rezi-module.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+"""cv's own tests (chunk 1): its defaults, the section order rules, the CV content, the request and
+result data, and that the module loads, turns off and on, and swaps in place. No Rezi, Chrome or LibreOffice."""
+
+import tomllib
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from assistant.contracts import ActivateModule, DeactivateModule, ListModules, ModuleState, ReloadModule
+from assistant.core import App
+from assistant.modules.cv import CvModule
+from assistant.modules.cv.content import SECTIONS, CvContent
+from assistant.modules.cv.data import CvRequest, CvResult, ResumeRef
+from assistant.modules.cv.module import settings, with_defaults
+from assistant.modules.cv.order import SectionOrder, wants_masters
+
+DEFAULTS = tomllib.loads((Path(__file__).parents[1] / "module.toml").read_text(encoding="utf-8"))
+ORDER = SectionOrder.from_config(DEFAULTS)
+FULL = CvContent(sections={name: (f"{name} line",) for name in SECTIONS})
+
+
+# --- defaults ---------------------------------------------------------------------------------------------
+
+def test_the_defaults_are_the_workflows():
+    assert ORDER.usual == SECTIONS == (
+        "contact", "summary", "skills", "experience", "projects", "education", "awards", "publications")
+    assert ORDER.degree_first == (
+        "contact", "summary", "skills", "education", "experience", "projects", "awards", "publications")
+    assert ORDER.drop_first == ("publications", "awards")
+    checked = settings(DEFAULTS)
+    assert (checked["paper"], checked["target_score"], checked["max_rounds"]) == ("letter", 90, 5)
+    assert checked["soffice"].endswith("soffice.exe") and checked["output_dir"]
+
+
+def test_cv_fills_in_its_own_defaults_when_the_app_passes_only_its_section():
+    # An app started before the core merged module.toml passes only [modules.cv] (first real run).
+    assert with_defaults({}) == DEFAULTS
+    assert with_defaults(DEFAULTS) == DEFAULTS
+    merged = with_defaults({"target_score": 95, "agent": {"enabled": False}})
+    assert merged["target_score"] == 95 and merged["degree_first_order"] == DEFAULTS["degree_first_order"]
+    assert merged["agent"] == {**DEFAULTS["agent"], "enabled": False}
+    assert settings(with_defaults({}))["order"] == ORDER
+
+
+@pytest.mark.parametrize("change, problem", [
+    ({"section_order": list(SECTIONS[:-1])}, "must list each"),
+    ({"section_order": [*SECTIONS, "contact"]}, "listed twice"),
+    ({"degree_first_order": [*SECTIONS[:-1], "hobbies"]}, "unknown sections"),
+    ({"drop_first": ["certificates"]}, "unknown sections"),
+    ({"drop_first": ["contact"]}, "never dropped"),
+    ({"paper": "legal"}, "paper"),
+    ({"target_score": 0}, "target_score"),
+    ({"max_rounds": 0}, "max_rounds"),
+])
+def test_a_bad_config_is_refused_with_the_reason(change, problem):
+    with pytest.raises(ValueError, match=problem):
+        settings(DEFAULTS | change)
+
+
+# --- section order ----------------------------------------------------------------------------------------
+
+def test_education_moves_under_skills_only_for_a_masters():
+    assert ORDER.choose(FULL, degree_first=False).order == ORDER.usual
+    choice = ORDER.choose(FULL, degree_first=True)
+    assert choice.order.index("education") == choice.order.index("skills") + 1
+    assert "master's" in choice.reason
+
+
+def test_publications_then_awards_drop_first():
+    assert ORDER.choose(FULL, False, drop=1).dropped == ("publications",)
+    two = ORDER.choose(FULL, False, drop=2)
+    assert two.dropped == ("awards", "publications") and "awards" not in two.order and "left out" in two.reason
+    assert ORDER.choose(FULL, False, drop=9).order == ORDER.usual[:-2]  # nothing else is ever dropped
+    with pytest.raises(ValueError):
+        ORDER.drop(ORDER.usual, -1)
+
+
+def test_a_cv_without_publications_loses_awards_first_and_keeps_its_own_sections_only():
+    cv = CvContent(sections={"skills": ("Python",), "contact": ("me",), "awards": ("prize",), "summary": ("",)})
+    assert cv.names() == ["skills", "contact", "awards"]  # an empty section counts as missing
+    assert ORDER.choose(cv, False).order == ("contact", "skills", "awards")
+    assert ORDER.choose(cv, False, drop=1).order == ("contact", "skills")
+
+
+@pytest.mark.parametrize("jd, wanted", [
+    ("Master's degree in Computer Science preferred.", True),
+    ("Masters in Robotics required", True),
+    ("MS in Mechanical Engineering or equivalent", True),
+    ("BS/MS in a related field", True),
+    ("M.S. or Ph.D. in Electrical Engineering", True),
+    ("MSc in Data Science a plus", True),
+    ("Master of Science in Physics", True),
+    ("Bachelor's degree required.", False),
+    ("Proficient in MS Office and MS Excel", False),
+    ("Keep latency under 10 ms", False),
+    ("Certified Scrum Master", False),
+    ("", False),
+])
+def test_wants_masters_reads_the_jd(jd, wanted):
+    assert wants_masters(jd) is wanted
+
+
+# --- content and data -------------------------------------------------------------------------------------
+
+def test_cv_content_knows_only_the_standard_sections():
+    with pytest.raises(ValidationError, match="unknown sections"):
+        CvContent(sections={"hobbies": ("chess",)})
+    assert [name for name, _ in FULL.ordered(ORDER.degree_first)] == list(ORDER.degree_first)
+    assert FULL.lines("skills") == ("skills line",) and CvContent(sections={}).lines("skills") == ()
+
+
+def request(**change) -> dict:
+    return {"company": "Acme", "role": "Engineer", "jd_text": "Build robots.",
+            "base_cv": r"C:\Chang\Jobs\CV\CV_Test_Acme.odt"} | change
+
+
+def test_a_request_needs_the_job_and_an_odt_base_cv():
+    req = CvRequest(**request(target_score=95))
+    assert req.degree_first is None and CvRequest.model_validate_json(req.model_dump_json()) == req
+    for bad in (request(base_cv="cv.pdf"), request(company=""), request(target_score=101), request(extra=1)):
+        with pytest.raises(ValidationError):
+            CvRequest(**bad)
+
+
+def test_a_result_is_approved_only_with_your_yes_one_page_and_rezis_match():
+    ok = CvResult(status="approved", pdf_path="out/CV.pdf", odt_path="out/CV.odt", approved_by_user=True,
+                  one_page=True, match_ok=True, scores=[78, 91], section_order=list(ORDER.usual),
+                  rezi_resume=ResumeRef(name="Acme – Engineer", id="r1"))
+    assert ok.score == 91 and CvResult.model_validate_json(ok.model_dump_json()) == ok
+    with pytest.raises(ValidationError, match="your yes"):
+        CvResult(status="approved", pdf_path="x.pdf", one_page=True, match_ok=True)
+    with pytest.raises(ValidationError, match="stop_reason"):
+        CvResult(status="stopped")
+    with pytest.raises(ValidationError):
+        CvResult(status="stopped", stop_reason="rounds used up", scores=[101])
+    with pytest.raises(ValidationError, match="unknown sections"):
+        CvResult(status="stopped", stop_reason="x", section_order=["hobbies"])
+    assert CvResult(status="stopped", stop_reason="rounds used up").score is None
+
+
+# --- the module in the app --------------------------------------------------------------------------------
+
+def config(section: dict | None = None) -> dict:
+    return {"modules": {"enabled": ["cv"], "cv": (section or {}) | {"agent": {"enabled": False}}}, "core": {}}
+
+
+async def state(app: App) -> ModuleState:
+    return {m.id: m.state for m in (await app.router.send(ListModules())).value}["cv"]
+
+
+async def test_it_loads_turns_off_and_on_and_swaps_in_place():
+    assert CvModule.manifest.id == "cv" and "cv.build" in CvModule.menu.names()
+    app = App([CvModule], config())
+    await app.start()
+    try:
+        assert await state(app) is ModuleState.ACTIVE
+        assert (await app.router.send(DeactivateModule(module_id="cv"))).is_ok
+        assert await state(app) is not ModuleState.ACTIVE
+        assert (await app.router.send(ActivateModule(module_id="cv"))).is_ok
+        assert await state(app) is ModuleState.ACTIVE
+        reloaded = await app.router.send(ReloadModule(module_id="cv", now=True))
+        assert reloaded.is_ok, reloaded.error
+        assert await state(app) is ModuleState.ACTIVE
+    finally:
+        await app.stop()
+
+
+async def test_a_bad_override_keeps_it_off():
+    app = App([CvModule], config({"paper": "legal"}))
+    await app.start()
+    try:
+        assert await state(app) is not ModuleState.ACTIVE
+    finally:
+        await app.stop()

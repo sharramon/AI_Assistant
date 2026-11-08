@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closing the tab you&#x27;re in moves you to the Main Assistant&#x27;s tab</title>
+<!-- Generated from docs/next-steps/closed-tab-moves-focus.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="closed-tab-moves-focus.html"></nav>
+<main>
+<h1 id="closing-the-tab-youre-in-moves-you-to-the-main-assistants-tab">Closing the tab you're in moves you to the Main Assistant's tab</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-06.</strong> Approved as written. Built: the Hub's <code>_focused()</code> publishes <code>FocusChanged</code> when it falls back, and the Hub calls it on <code>AgentStateChanged</code> / <code>ModuleStateChanged</code>; <code>_set_focus</code> counts a gone agent as <code>previous</code>; the temp UI's own <code>SetFocus</code> after a close is gone. Test: <code>test_agent_tabs.py::test_when_the_tab_youre_on_goes_you_land_on_the_main_assistants</code> (× close, module off, an unfocused agent going moves nothing). <strong>2026-11-06: the app is being restarted, which loads both, so no reload is needed after it; only the hand check is left.</strong> (Without a restart: reload <code>agent_hub</code> and <code>temp_ui</code> <strong>once no task is open</strong> (<code>modules.reload agent_hub</code>, then <code>modules.reload temp_ui</code>, from the Talker), then the hand check below.) <strong>Don't reload <code>agent_hub</code> from inside a task:</strong> a <code>RELOAD: agent_hub</code> at the end of the Main Assistant's task waits for the Hub to go idle, the Hub counts that same task as open, so it waits the full <code>reload_idle_timeout</code> (300 s) and fails with nothing changed (seen 2026-11-06). <code>now</code> would cut in but drops the Hub's task records (no handover of tasks yet). Worth its own fix later: the Hub handing its open tasks over on reload.</p>
+</blockquote>
+<p><strong>Asked:</strong> found while redoing hand check 6 (<a href="close-tab-ends-talker.html">close-tab-ends-talker</a>, <a href="agent-talkers.html">agent-talkers</a>). "When I close the window, I don't get kicked off it while I'm in it. I need to get kicked off into the Main Assistant's window, because that one never dies." Check the same for every other way a tab can go away.</p>
+<p><strong>Why:</strong> you stay on a dead tab. What you type goes to an agent that no longer exists, and the page shows nothing selected you can use.</p>
+<h2 id="cause">Cause</h2>
+<p>The Agent Hub owns the focus. Its <code>_focused()</code> helper checks whether the focused agent still exists and, if not, <strong>quietly</strong> sets the focus back to the Main Assistant, without telling anyone (no <code>FocusChanged</code>).</p>
+<ul>
+<li><strong>Closing with ×:</strong> the temp UI does send <code>SetFocus(main_assistant)</code> after <code>agents.close</code>. But the Hub's <code>_set_focus</code> reads "previous" through <code>_focused()</code>, which has already reset it to <code>main_assistant</code>. So target equals previous, the Hub sees "no change" and publishes no <code>FocusChanged</code>. The temp UI (and the page) keep showing the closed helper's tab as focused.</li>
+<li><strong>Every other way</strong> (the job agent turned off, <code>task_agents</code> turned off, a helper's module failing): the temp UI only re-reads the tab list. Nobody sends <code>SetFocus</code> and nobody publishes <code>FocusChanged</code>, so you stay on the dead tab there too.</li>
+</ul>
+<h2 id="fix">Fix</h2>
+<p>Put it in one place, the Hub, since it owns the focus:</p>
+<ol>
+<li><strong><code>_focused()</code> says so when it falls back.</strong> When the focused agent is gone, it sets the focus to the coordinator <em>and</em> publishes <code>FocusChanged(agent_id=main_assistant, previous=&lt;gone agent&gt;)</code>, logs "Focus: main_assistant (<agent> is gone)", and feeds the usual <code>[focus]</code> line.</li>
+<li><strong>The Hub checks at once when an agent may have gone.</strong> It listens to <code>AgentStateChanged</code> and <code>ModuleStateChanged</code> (the events every removal path already sends: <code>agents.close</code> since the last fix, <code>modules.off</code>, a module failing) and calls <code>_focused()</code>. That covers all three paths without each sender having to remember.</li>
+<li><strong>The temp UI's own <code>SetFocus</code> after a close is dropped</strong>: the Hub now does it, so there's one rule, not two.</li>
+</ol>
+<p>The temp UI already moves the page when <code>FocusChanged</code> arrives, so no page change is needed. No new part, no new event.</p>
+<p><strong>Tests</strong> (in <code>test_agent_hub*.py</code> / the temp UI's tests): focused on a helper, then <code>agents.close</code> → <code>FocusChanged</code> to <code>main_assistant</code>; the same for <code>DeactivateModule</code> of the helper's module; and no <code>FocusChanged</code> when an agent you're <em>not</em> on goes away.</p>
+<p><strong>Touches:</strong> <code>agent_hub</code> (fixes 1 and 2), <code>temp_ui</code> (fix 3). Docs: <a href="../html/modules/agent_hub.html">agent_hub</a> and the <code>FocusChanged</code> / <code>SetFocus</code> entries in <a href="../html/api/agents.html">API: agents</a> ("the focus falls back to the coordinator when its agent goes, with a <code>FocusChanged</code>").</p>
+<p><strong>Open questions:</strong> none. (A helper whose <code>claude</code> process crashes but stays listed keeps its tab, so it isn't a dead tab; that's unchanged.)</p>
+<h2 id="restart">Restart?</h2>
+<p><strong>No restart.</strong> Both are modules: <code>RELOAD: agent_hub</code>, then <code>RELOAD: temp_ui</code>. Then check: open a helper with <strong>+</strong>, stay on its tab, close it with × → you land on the Main Assistant's tab. Optional: the same with <code>modules.off job_search</code> while on the job agent's tab.</p>
+<footer>Generated from <code>docs/next-steps/closed-tab-moves-focus.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

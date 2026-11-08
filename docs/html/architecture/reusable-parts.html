@@ -14,7 +14,7 @@
 <h1 id="reusable-parts">Reusable parts</h1>
 <p>Behavior that two parts need is built once and shared (<a href="principles.html">principle 13</a>). This page says where reusable parts live and why; the list of them is the <a href="../api/reusable.html">reusable parts index</a>. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Status: decided 2026-11-02.</strong> <code>app_kit</code> and <code>agent_tags</code> are built (2026-11-02); the <code>ctx.permissions</code> stand-in is <strong>planned</strong> (not built yet). Everything else in the index exists.</p>
+<p><strong>Status: decided 2026-11-02.</strong> <code>app_kit</code> and <code>agent_tags</code> are built (2026-11-02), and <code>ctx.permissions</code> is built (it forwards to the core's permissions handler). Everything in the index exists unless it says <em>planned</em>.</p>
 </blockquote>
 <h2 id="the-rule">The rule</h2>
 <ul>
@@ -48,7 +48,7 @@
 </tr>
 <tr>
 <td><code>src/app_kit/</code></td>
-<td>Helpers shared by the main app <strong>and</strong> the independent apps: the Edge window, layered config, <code>CompanionApp</code></td>
+<td>Helpers shared by the main app <strong>and</strong> the independent apps: the Edge window, layered config, <code>CompanionApp</code>, the local-only guard (<code>local_guard</code>)</td>
 <td>standard library only</td>
 <td><code>html_viewer</code>, <code>voice_service</code>, <code>temp_ui</code>, thin modules, other apps</td>
 </tr>
@@ -58,15 +58,15 @@
 <h2 id="left-out-on-purpose">Left out on purpose</h2>
 <ul>
 <li><strong>HTTP servers:</strong> the temp UI (raw asyncio), the viewer (stdlib), and voice (FastAPI) each serve differently. The temp UI is throwaway and the viewer works. <strong>New companion apps use FastAPI</strong>; nothing gets migrated.</li>
-<li><strong>Agent prompts:</strong> the SHOW instructions appear in both agent prompts. Modules can't share text without importing each other; this goes away once agents call tools directly.</li>
-<li><strong>SSE writing</strong> (viewer app, temp UI): only one long-lived user.</li>
+<li><strong>Agent prompts:</strong> the SHOW instructions appear in both agent prompts. Modules can't share text without importing each other; this goes away once agents call tools directly. Turning a SHOW tag into the viewer's tool call is shared (<a href="../api/infra.html#show_page"><code>show_page</code></a>).</li>
+<li><strong>SSE writing and the in-app page server</strong> (viewer app, temp UI, voice notes): <code>voice_notes</code> copies the temp UI's page server. Left until the UI handler is designed, since the temp UI is a stand-in; the long-lived user is the viewer app.</li>
 <li><strong>Viewer events</strong> stay in <code>contracts/messages.py</code>.</li>
 </ul>
 <h2 id="companion-app-checklist">Companion app checklist</h2>
 <p>Every independent app the main app launches (the <a href="html-viewer.html">HTML viewer</a>, the <a href="voice.html">voice service</a>) keeps the same shape, so <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a> can launch and call any of them:</p>
 <ol>
 <li>Its own package under <code>src/</code>, run with <code>python -m &lt;app&gt;</code>; never imports <code>assistant</code>.</li>
-<li>Listens on <code>127.0.0.1</code> only.</li>
+<li>Listens on <code>127.0.0.1</code> only, refuses another host, and refuses browser requests from another origin (WebSocket <code>Origin</code>, JSON-only POSTs). One shared check does it: <a href="../api/app_kit.html#local_guard"><code>app_kit.local_guard</code></a>.</li>
 <li>A ping endpoint answering <code>{"app": "&lt;name&gt;", ...}</code>.</li>
 <li>A JSON <code>POST</code> quit endpoint.</li>
 <li>Config with <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a>: its TOML file plus a <code>.local</code> override.</li>
