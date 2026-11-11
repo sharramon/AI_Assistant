@@ -145,7 +145,7 @@ async def start(tmp_path: Path, monkeypatch, transport, opened: list[str] | None
 
 
 async def use(app: App, name: str, **args):
-    return await app.router.send(InvokeTool(name=name, args=args, caller="test"))
+    return await app.router.send(InvokeTool(name=name, args=args, caller="cv_agent"))
 
 
 def never_called(request: httpx2.Request) -> httpx2.Response:

@@ -112,22 +112,28 @@ def test_cv_content_knows_only_the_standard_sections():
 
 def request(**change) -> dict:
     return {"company": "Acme", "role": "Engineer", "jd_text": "Build robots.",
-            "base_cv": r"C:\Chang\Jobs\CV\CV_Test_Acme.odt"} | change
+            "base_cv": r"C:\Chang\Jobs\CV\CV_Test_Acme.pdf"} | change
 
 
-def test_a_request_needs_the_job_and_an_odt_base_cv():
+def test_a_request_needs_the_job_and_a_pdf_base_cv():
     req = CvRequest(**request(target_score=95))
     assert req.degree_first is None and CvRequest.model_validate_json(req.model_dump_json()) == req
+    assert CvRequest(**request(base_cv=r"C:\Chang\Jobs\CV\CV_Test_Acme.PDF")).base_cv.endswith(".PDF")
     for bad in (request(base_cv="cv.pdf"), request(company=""), request(target_score=101), request(extra=1)):
         with pytest.raises(ValidationError):
             CvRequest(**bad)
+    with pytest.raises(ValidationError, match=r"base_cv must be a CV_Test_\*\.pdf, not CV_Test_Acme\.odt"):
+        CvRequest(**request(base_cv=r"C:\Chang\Jobs\CV\CV_Test_Acme.odt"))
 
 
 def test_a_result_is_approved_only_with_your_yes_one_page_and_rezis_match():
-    ok = CvResult(status="approved", pdf_path="out/CV.pdf", odt_path="out/CV.odt", approved_by_user=True,
+    ok = CvResult(status="approved", pdf_path="out/CV.pdf", approved_by_user=True,
                   one_page=True, match_ok=True, scores=[78, 91], section_order=list(ORDER.usual),
                   rezi_resume=ResumeRef(name="Acme – Engineer", id="r1"))
     assert ok.score == 91 and CvResult.model_validate_json(ok.model_dump_json()) == ok
+    assert "odt_path" not in ok.model_dump()
+    with pytest.raises(ValidationError, match="odt_path"):  # dropped: no .odt comes out
+        CvResult(status="stopped", stop_reason="x", odt_path="out/CV.odt")
     with pytest.raises(ValidationError, match="your yes"):
         CvResult(status="approved", pdf_path="x.pdf", one_page=True, match_ok=True)
     with pytest.raises(ValidationError, match="stop_reason"):
@@ -137,6 +143,27 @@ def test_a_result_is_approved_only_with_your_yes_one_page_and_rezis_match():
     with pytest.raises(ValidationError, match="unknown sections"):
         CvResult(status="stopped", stop_reason="x", section_order=["hobbies"])
     assert CvResult(status="stopped", stop_reason="rounds used up").score is None
+
+
+def test_a_ready_result_is_everything_but_the_submit_and_the_job_agent_is_told_so():
+    from assistant.modules.cv.handoff import read_result, result_line, result_view
+    from assistant.modules.cv.reply import reply_text
+    from assistant.modules.cv.report import ReportWriter
+
+    ready = CvResult(status="ready", pdf_path="out/CV.pdf", one_page=True, scores=[80, 92])
+    assert read_result(result_line(ready)) == ready
+    assert result_view(ready, target_score=90)["status"] == "ready"
+    assert "**Ready** for your Submit" in ReportWriter().render(ready, "Acme")
+    with pytest.raises(ValidationError, match="ready needs one page, the PDF"):
+        CvResult(status="ready")
+    with pytest.raises(ValidationError, match="before the user's Submit"):
+        CvResult(status="ready", pdf_path="out/CV.pdf", one_page=True, approved_by_user=True)
+    with pytest.raises(ValidationError):
+        CvResult(status="submitted", stop_reason="x")
+    told = reply_text({"role": "Engineer", "company": "Acme", "submitted_at": "2026-11-10T03:00:00"})
+    assert told.endswith('cv_agent\'s own CV_RESULT line has status "ready" (everything but this Submit); '
+                         "nothing more comes from it.")
+    assert "follows when its task ends" not in told
 
 
 # --- the module in the app --------------------------------------------------------------------------------

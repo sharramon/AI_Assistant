@@ -15,6 +15,7 @@ from assistant.modules.cv.data import CvResult, ResumeRef
 from assistant.modules.cv.module import output_path
 from assistant.modules.cv.odt import OdtWriter
 from assistant.modules.cv.report import REPORT_NAME, ReportWriter, Round
+from assistant.modules.cv.tests.pdf_fixture import write_pdf
 
 EDITED = CvContent(sections={
     "contact": ("Ada Lovelace", "ada@example.com | London"),
@@ -107,7 +108,7 @@ def test_a_comparison_comes_back_from_its_value():
 
 APPROVED = CvResult(
     status="approved", pdf_path="C:/out/2026-11-06_Acme/CV_Test_Acme.pdf",
-    odt_path="C:/out/2026-11-06_Acme/CV_Test_Acme.odt", rezi_resume=ResumeRef(name="Acme – Engineer", id="r1"),
+    rezi_resume=ResumeRef(name="Acme – Engineer", id="r1"),
     check_copy=ResumeRef(name="Acme – check", id="r2"), scores=[78, 91], keywords_left_out=["Kubernetes", "Go"],
     match_ok=True, one_page=True, section_order=["contact", "summary", "skills", "experience", "education"],
     order_reason="usual order", approved_by_user=True,
@@ -119,7 +120,7 @@ def test_the_report_says_what_came_out():
     text = ReportWriter(90).render(APPROVED, "Acme", "Engineer", ROUNDS, FieldCompare().diff(EDITED, PARSED),
                                    notes="Sent back to job_search.", today=date(2026, 11, 6))  # fmt: skip
     assert text.startswith("# CV report: Acme – Engineer\n\n2026-11-06 · **Approved** by you")
-    assert "| PDF | C:/out/2026-11-06_Acme/CV_Test_Acme.pdf |" in text
+    assert "| PDF | C:/out/2026-11-06_Acme/CV_Test_Acme.pdf |" in text and ".odt" not in text
     assert "| Rezi check copy | Acme – check (r2) |" in text
     assert "Last: **91**, target 90 (reached), 2 round(s)." in text
     assert "| 1 | 78 | CI/CD | Kubernetes, Go | – |" in text and "| 2 | 91 | – | – | a \\| b |" in text
@@ -149,10 +150,11 @@ def test_a_report_that_contradicts_itself_is_refused(tmp_path):
 # --- the items --------------------------------------------------------------------------------------------
 
 async def call(tmp_path: Path, name: str, **args):
-    app = App([CvModule], {"modules": {"enabled": ["cv"], "cv": {"output_dir": str(tmp_path / "out"), "agent": {"enabled": False}}}, "core": {}})
+    section = {"output_dir": str(tmp_path / "out"), "work_dir": str(tmp_path / "work"), "agent": {"enabled": False}}
+    app = App([CvModule], {"modules": {"enabled": ["cv"], "cv": section}, "core": {}})
     await app.start()
     try:
-        return await app.router.send(InvokeTool(name=name, args=args, caller="test"))
+        return await app.router.send(InvokeTool(name=name, args=args, caller="cv_agent"))
     finally:
         await app.stop()
 
@@ -161,16 +163,21 @@ def plain(cv: CvContent) -> dict[str, list[str]]:
     return {name: list(lines) for name, lines in cv.sections.items()}
 
 
-async def test_cv_compare_takes_the_built_odt_or_sections(tmp_path):
+async def test_cv_compare_takes_the_built_pdf_or_sections(tmp_path):
     assert CvModule.menu.names()[-3:] == ["cv.build", "cv.compare", "cv.report"]
-    odt = OdtWriter().write(EDITED, EDITED.sections, tmp_path / "CV_Test_Acme.odt")
-    result = await call(tmp_path, "cv.compare", edited_odt=str(odt), parsed=plain(PARSED))
+    pdf = write_pdf(EDITED, list(EDITED.sections), tmp_path / "work" / "job" / "CV_Test_Acme.pdf")
+    result = await call(tmp_path, "cv.compare", edited_pdf=str(pdf), parsed=plain(PARSED))
     assert result.status is Status.OK and result.value["match_ok"], result.value
+    odt = OdtWriter().write(EDITED, EDITED.sections, tmp_path / "work" / "job" / "CV_Test_Acme.odt")
+    stray = write_pdf(EDITED, list(EDITED.sections), tmp_path / "elsewhere" / "CV_Test_Acme.pdf")
+    for edited_pdf, why in ((odt, ".odt isn't read"), (stray, "isn't in the CV, output or work folder")):
+        refused = await call(tmp_path, "cv.compare", edited_pdf=str(edited_pdf), parsed=plain(PARSED))
+        assert refused.status is Status.INVALID_ARGUMENTS and why in refused.error, refused.error
     result = await call(tmp_path, "cv.compare", edited=plain(EDITED), parsed_text="Ada Lovelace")
     assert result.status is Status.OK and result.value["mode"] == "text" and not result.value["match_ok"]
     for args in ({"parsed": plain(PARSED)}, {"edited": plain(EDITED)},
                  {"edited": plain(EDITED), "parsed": plain(PARSED), "parsed_text": "x"},
-                 {"edited_odt": "cv.pdf", "parsed_text": "x"}, {"edited": plain(EDITED), "parsed": {"hobbies": ["chess"]}},
+                 {"edited_pdf": "cv.pdf", "parsed_text": "x"}, {"edited": plain(EDITED), "parsed": {"hobbies": ["chess"]}},
                  {"edited": plain(EDITED), "parsed": {"skills": "x"}}):  # fmt: skip
         result = await call(tmp_path, "cv.compare", **args)
         assert result.status is Status.INVALID_ARGUMENTS, (args, result.error)
@@ -178,8 +185,7 @@ async def test_cv_compare_takes_the_built_odt_or_sections(tmp_path):
 
 async def test_cv_report_writes_report_md_in_the_jobs_folder(tmp_path):
     folder = output_path(tmp_path / "out", "Acme").parent
-    result = APPROVED.model_dump() | {"pdf_path": str(folder / "CV_Test_Acme.pdf"),
-                                      "odt_path": str(folder / "CV_Test_Acme.odt")}  # fmt: skip
+    result = APPROVED.model_dump() | {"pdf_path": str(folder / "CV_Test_Acme.pdf")}
     rounds = [r.model_dump() for r in ROUNDS]
     compare = FieldCompare().diff(EDITED, PARSED).as_value()
     done = await call(tmp_path, "cv.report", company="Acme", role="Engineer", result=result, rounds=rounds,
@@ -190,6 +196,12 @@ async def test_cv_report_writes_report_md_in_the_jobs_folder(tmp_path):
     stopped = {"status": "stopped", "stop_reason": "no yes yet"}
     done = await call(tmp_path, "cv.report", company="Acme Inc", result=stopped)
     assert Path(done.value["report_path"]).parent == output_path(tmp_path / "out", "Acme Inc").parent
+    job = tmp_path / "work" / "2026-11-09_Acme_Engineer"  # the job's folder: report.md beside its PDF
+    in_job = APPROVED.model_dump() | {"pdf_path": str(job / "CV_Test_Acme.pdf")}
+    done = await call(tmp_path, "cv.report", company="Acme", result=in_job, rounds=rounds)
+    assert done.status is Status.OK and Path(done.value["report_path"]) == job / REPORT_NAME, done.error
+    old = await call(tmp_path, "cv.report", company="Acme", result=in_job | {"odt_path": str(job / "CV.odt")})
+    assert old.status is Status.INVALID_ARGUMENTS and "odt_path" in old.error  # dropped from the result
 
 
 async def test_cv_report_refuses_bad_input_and_folders_outside_the_output(tmp_path):

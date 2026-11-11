@@ -25,6 +25,7 @@ from assistant.modules.cv.content import CvContent
 from assistant.modules.cv.module import settings
 from assistant.modules.cv.odt import OdtWriter
 from assistant.modules.cv.order import SectionOrder
+from assistant.modules.cv.tests.pdf_fixture import write_pdf
 from assistant.modules.cv.worker import AGENT_ID, WORKER_PROMPT, worker_config, worker_prompt
 from tests.support import pre_grant, wait_until
 from tests.test_agents import FAKE
@@ -66,29 +67,49 @@ def test_the_prompt_holds_the_steps_the_truth_gate_and_the_config():
     checked = settings(merge(DEFAULTS, {"target_score": 95, "max_rounds": 3}))
     prompt = worker_prompt("cv_agent", checked, "C:/Chang/Jobs/CV")
     assert "{" not in prompt and "}" not in prompt  # every placeholder filled
-    for needed in ("You are cv_agent", "95 or more", "at most 3 rounds", "paper letter", "app.rezi.ai",
-                   "WITHOUT resume_id", "Free Resume formatting review\" OFF", "<Company> – check",
-                   "cv.read", "cv.compare (parsed_resume)", "cv.report", "keywords_left_out",
-                   "Never add a skill", "NEED:", "without the user's yes", "C:/Chang/Jobs/CV",
-                   DEFAULTS["output_dir"]):  # fmt: skip
+    for needed in ("You are cv_agent", "95 or more", "at most 3 rounds", "app.rezi.ai", "WITHOUT resume_id",
+                   "The 5 steps", "Job & CV", "cv.open_tool", "cv.tool_status", "cv.tool_round",
+                   "cv.check_fonts", "pick Internal or Rezi in the CV Tool's tab 2", "First Draft", "ATS Loop",
+                   "the user's review of the First Draft", "Start only when the user tells you to",
+                   "never download Rezi's PDF", "copy the same change into the content", "never shrink the font",
+                   "CV_Test_<Company>_final.pdf", "keywords_left_out", "Never add a skill", "NEED:",
+                   "end your task", 'status "ready"', "[cv] line", 'end as "approved"',
+                   "C:/Chang/Jobs/CV", "CV_JOB:", "base_cv_copy",
+                   "Work only in work_dir", "never run a script or command on a file in C:/Chang/Jobs/CV",
+                   "CV_Test_*.pdf", "the job description (JD) as text", "PDFs only", "confirmed facts"):  # fmt: skip
         assert needed in prompt, needed
+    assert "odt_path" not in prompt and "CV_Test_*.odt" not in prompt
+    # design A: no NEED for the Submit, no cv.tool_result check (the cv module delivers the Submit itself)
+    assert "cv.tool_result" not in prompt and "ready for their Submit." not in prompt
+    assert "Don't ask them to tell you when they've submitted" in prompt
+    assert "cv.build" not in prompt and "<Company> – check" not in prompt  # the old LibreOffice page and import check
     assert WORKER_PROMPT.count("{") == WORKER_PROMPT.count("}")
 
 
 # --- the worker in the app -----------------------------------------------------------------------------
 
 
+SKILL_TEXT = "# Test rules\nNever run a script on a file in the CV folder; copy it first."
+
+
 def section(tmp_path: Path, **agent) -> dict:
+    """cv's config for a test app, all in tmp_path (its one rule file written here)."""
+    rules = tmp_path / "rules" / "SKILL.md"
+    rules.parent.mkdir(parents=True, exist_ok=True)
+    rules.write_text(SKILL_TEXT, encoding="utf-8")
     return {"output_dir": str(tmp_path / "out"), "cv_dir": str(tmp_path / "CV"),
-            "token_file": str(tmp_path / "token.json"),
+            "token_file": str(tmp_path / "token.json"), "job_skills": [str(rules)], "rules_dir": "",
+            "tool": {"data_dir": str(tmp_path / "cv_tool"), "port": 18771},
             "agent": {"program": FAKE, "workspace": str(tmp_path / "cv_agent"),
                       "read_dirs": [str(tmp_path / "CV")]} | agent}  # fmt: skip
 
 
-def app_with(tmp_path: Path, grant: bool = True, **agent) -> App:
+def app_with(tmp_path: Path, grant: bool = True, extra: tuple = (), **agent) -> App:
+    """The Hub and cv, all in tmp_path; `extra`: more module classes, enabled too."""
     own = section(tmp_path, **agent)
-    config = {"modules": {"enabled": ["agent_hub", "cv"], "agent_hub": {"door": False}, "cv": own}, "core": {}}
-    app = App([AgentHubModule, CvModule], config)
+    enabled = ["agent_hub", "cv", *(m.manifest.id for m in extra)]
+    config = {"modules": {"enabled": enabled, "agent_hub": {"door": False, "named_only": ["cv_agent"]}, "cv": own}, "core": {}}
+    app = App([AgentHubModule, CvModule, *extra], config)
     if grant:
         pre_grant(app, "cv", "cv_agent", settings(merge(DEFAULTS, own))["agent"]["config"])
     return app
@@ -168,19 +189,41 @@ async def test_a_reload_brings_the_worker_back_and_keeps_the_guard(tmp_path):
 # --- cv.read -------------------------------------------------------------------------------------------
 
 
-async def test_cv_read_gives_the_sections_of_an_odt_in_the_cv_folder_only(tmp_path):
+async def test_cv_read_gives_the_sections_of_a_pdf_in_its_folders_only_and_refuses_an_odt(tmp_path):
     order = SectionOrder.from_config(DEFAULTS).usual
-    base = OdtWriter().write(CV, order, tmp_path / "CV" / "CV_Test_Base.odt")
-    elsewhere = OdtWriter().write(CV, order, tmp_path / "other" / "CV_Test_Base.odt")
+    base = write_pdf(CV, order, tmp_path / "CV" / "CV_Test_Base.pdf")
+    elsewhere = write_pdf(CV, order, tmp_path / "other" / "CV_Test_Base.pdf")
+    odt = OdtWriter().write(CV, order, tmp_path / "CV" / "CV_Test_Base.odt")  # a real .odt: still refused
+    garbled = tmp_path / "CV" / "CV_Test_Garbled.pdf"
+    garbled.write_bytes(b"not a pdf")
     app = app_with(tmp_path, enabled=False)
     await app.start()
     try:
-        read = await app.router.send(InvokeTool(name="cv.read", args={"odt": str(base)}, caller="cv_agent"))
+        read = await app.router.send(InvokeTool(name="cv.read", args={"pdf": str(base)}, caller="cv_agent"))
         assert read.is_ok, read.error
         assert read.value["sections"]["experience"] == list(CV.lines("experience"))
         assert list(read.value["names"]) == ["contact", "skills", "experience"]
-        for odt in (str(elsewhere), str(tmp_path / "CV" / "missing.odt"), str(tmp_path / "CV" / "notes.txt")):
-            refused = await app.router.send(InvokeTool(name="cv.read", args={"odt": odt}, caller="cv_agent"))
-            assert refused.status is Status.INVALID_ARGUMENTS, odt
+        assert read.value["complete"] is True and read.value["unplaced"] == [] and read.value["pages"] == 1
+        assert "next" not in read.value
+        refused = await app.router.send(InvokeTool(name="cv.read", args={"pdf": str(odt)}, caller="cv_agent"))
+        assert refused.status is Status.INVALID_ARGUMENTS and ".odt isn't read" in refused.error
+        for pdf in (str(elsewhere), str(tmp_path / "CV" / "missing.pdf"), str(tmp_path / "CV" / "notes.txt"), str(garbled)):
+            refused = await app.router.send(InvokeTool(name="cv.read", args={"pdf": pdf}, caller="cv_agent"))
+            assert refused.status is Status.INVALID_ARGUMENTS, pdf
+        old = await app.router.send(InvokeTool(name="cv.read", args={"odt": str(odt)}, caller="cv_agent"))
+        assert old.status is Status.INVALID_ARGUMENTS  # the old argument is gone
+    finally:
+        await app.stop()
+
+
+async def test_cv_read_says_stop_and_ask_when_text_cant_be_placed(tmp_path):
+    base = write_pdf(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.pdf",
+                     extra=((14.0, "Hobbies"), (10.0, "chess")))  # a heading it doesn't know  # fmt: skip
+    app = app_with(tmp_path, enabled=False)
+    await app.start()
+    try:
+        read = await app.router.send(InvokeTool(name="cv.read", args={"pdf": str(base)}, caller="cv_agent"))
+        assert read.is_ok and read.value["complete"] is False and read.value["unplaced"] == ["Hobbies", "chess"]
+        assert "NEED:" in read.value["next"]
     finally:
         await app.stop()

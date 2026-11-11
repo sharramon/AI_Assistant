@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv path: only cv.task / cv.read_result for the job agent, and a return address that survives a relaunch</title>
+<!-- Generated from docs/next-steps/cv-path-hardening.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-path-hardening.html"></nav>
+<main>
+<h1 id="cv-path-only-cvtask-cvread_result-for-the-job-agent-and-a-return-address-that-survives-a-relaunch">cv path: only cv.task / cv.read_result for the job agent, and a return address that survives a relaunch</h1>
+<blockquote>
+<p><strong>Status: approved (2026-11-09).</strong> The user approved the note as written and all four recommendations: (1) only the job agent and the Main Assistant may call <code>cv.task</code>; (2) no check with the user before the Main Assistant's <code>hub.start</code> to cv_agent; (3) archive CV Tool jobs <code>2026-11-09_ExampleCorp</code> and <code>_2</code> and the work folder <code>2026-11-08_ExampleCorp</code>, delete <code>CV/.claude/state/job-task.txt</code>; (4) a Claude Code session in AI_Assistant builds it. Written by job_search_agent; copied here by the Main Assistant. <strong>Built:</strong> part 1 (item 1, the archive) and part 2 (item 2, the cleanup, the round cap), 2026-11-09; the loads wait on the user. See <a href="#build-status">Build status</a>.</p>
+</blockquote>
+<p><strong>Asked (the full question):</strong> "Harden the path from the job search agent to the cv module so the job agent cannot call cv.open_tool, cv.tool_*, cv.build, rezi.write_resume or hub.start for cv_agent itself. Only the job agent's cv.task and cv.read_result, then the Main Assistant's hub.start, should be possible. Propose the simplest enforcement that cannot be bypassed, say whether each part can be done inside a module (reloaded in place) or needs a core change and an app restart, and say who can do each part." Item 2: "Find the cause of the lost task id when cv_agent was relaunched … where the task id and the parent/child link are kept, why a module reload or relaunch drops them, and how a result can reach the right parent afterwards. No zombie IDs left over: list stale task, agent or CV Tool job ids, say which are safe to clean, and propose how stale ones get cleaned automatically."</p>
+<p><strong>Why:</strong> today nothing but item descriptions keeps the job agent off the cv worker's tools, so it can break the one-job sequence. And the finished CV reached the job agent only because the Talker carried it by hand.</p>
+<h2 id="item-1-hardening-priority">Item 1: hardening (priority)</h2>
+<p><strong>Reuse, nothing new:</strong> the <code>Menu</code> part's <code>callers=(...)</code> list (<code>contracts/menu.py:108-138</code>, in the reusable parts index). The core checks it on every call, and the caller can't be faked: <code>ScopedContext.send</code> sets it, and the module door proves an agent's id with its session token (<code>docs/api/tools.md</code>, "Who sets caller"). <code>hub.answer</code>, <code>hub.mode</code> and <code>hub.focus</code> already use it.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Change</th>
+<th>Where</th>
+<th>Load</th>
+<th>Who</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1a</td>
+<td><code>callers=("cv_agent",)</code> on every cv item except <code>cv.task</code>, <code>cv.read_result</code> and <code>rezi.status</code>: <code>cv.open_tool</code>, all <code>cv.tool_*</code>, <code>cv.check_fonts</code>, <code>cv.build</code>, <code>cv.read</code>, <code>cv.compare</code>, <code>cv.report</code>, all <code>rezi.*</code> writes and reads</td>
+<td><code>modules/cv/module.py</code></td>
+<td><code>cv</code> reload</td>
+<td>a Claude Code session in AI_Assistant (I can't write <code>src/</code>)</td>
+</tr>
+<tr>
+<td>1b</td>
+<td><code>callers=("job_search_agent", "main_assistant")</code> on <code>cv.task</code> and <code>cv.read_result</code></td>
+<td>same</td>
+<td>same reload</td>
+<td>same</td>
+</tr>
+<tr>
+<td>1c</td>
+<td><code>hub.start</code> refuses <code>cv_agent</code> unless the caller is in a config list, <code>[modules.agent_hub] start_only_by = { cv_agent = ["main_assistant"] }</code>; the free-agent pick (no <code>agent_id</code>) skips restricted agents. No agent name in code (principle 21)</td>
+<td><code>modules/agent_hub/module.py:185</code>, <code>tasks.py:168</code></td>
+<td><code>agent_hub</code> reload, only with no task open (its <code>busy()</code> waits), or the batched restart</td>
+<td>same</td>
+</tr>
+<tr>
+<td>1d</td>
+<td>A cv-flow block in the Main Assistant's prompt: on the job agent's request (1e), <code>hub.start(agent_id="cv_agent", text)</code>, then pass the result on</td>
+<td><code>modules/main_assistant</code></td>
+<td><code>main_assistant</code> reload</td>
+<td>same</td>
+</tr>
+<tr>
+<td>1e</td>
+<td><code>cv.task</code> also sends the coordinator an <code>AgentNotice</code> ("job_search_agent asks for a CV: …" with the text), so the job agent needs no <code>hub.start</code> and no message route to the Main Assistant</td>
+<td><code>modules/cv/module.py</code> (already publishes <code>AgentNotice</code>)</td>
+<td><code>cv</code> reload</td>
+<td>same</td>
+</tr>
+<tr>
+<td>opt</td>
+<td>The round cap (5) checked in the CV Tool's code, not only in cv_agent's prompt</td>
+<td><code>modules/cv/tool.py</code></td>
+<td><code>cv</code> reload</td>
+<td>same</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No core change and no app restart are needed.</strong> The <code>Task</code> contract has no "started by" field, so the gate (<code>job_start.py:184</code>) can't see who sent a task. 1c closes that hole at the only door that starts tasks, so adding <code>started_by</code> to the contract (a core change plus restart) isn't needed. The Talker's own tab (<code>hub.send</code>, the user typing) stays open: that's you.</p>
+<p><strong>After the build, each of these must be refused:</strong> the job agent calling <code>cv.open_tool</code>, <code>cv.tool_round</code>, <code>cv.build</code>, <code>rezi.write_resume</code>, or <code>hub.start</code> to <code>cv_agent</code> (tests next to <code>tests/test_handoff.py</code>).</p>
+<h2 id="item-2-the-lost-task-id">Item 2: the lost task id</h2>
+<p><strong>Where the id and the link are kept:</strong> only in the Hub's memory, <code>TaskBoard._tasks</code> (<code>agent_hub/tasks.py:109</code>). Each record holds <code>parent_task_id</code> and <code>holder</code>, the agent object that took the task. Copies outside the Hub: <code>CV_Module/.claude/state/cv_agent-task.txt</code> (the latest id, written at each assign, only for the edit hook) and the gate's <code>_ready</code> set (memory).</p>
+<p><strong>Why it was lost:</strong></p>
+<ol>
+<li>The <code>cv</code> reload provides a new agent object under the same id. <code>_close_replaced</code> (<code>tasks.py:120-129</code>) then ends the old task as <strong>failed</strong> ("was reloaded"). That's all dca1005e's "failed" was.</li>
+<li>The relaunched cv_agent session never had the old id. The work went on from its tab: the Talker's <code>hub.send</code> with no task starts a new task <strong>with no parent</strong> (<code>agent_hub/module.py:204</code>), so 5c8ea130 has <code>parent_task_id = None</code>.</li>
+<li>Even with a parent set, <strong>nothing delivers a child's end to its parent agent.</strong> <code>_finish</code> only feeds the coordinator (<code>tasks.py:333</code>), so the parent has to poll <code>hub.status</code>. And the parent, e3241acc, had already ended, because the job agent's own session changed. A return address made of task ids dies when either side changes session.</li>
+</ol>
+<p><strong>Fix (inside the cv module, <code>cv</code> reload):</strong> address the result <strong>by agent id, on disk</strong>. <code>cv.task</code> gets its caller (add the <code>caller</code> argument), so it writes <code>reply_to: job_search_agent</code> (and the coordinator) into the <code>CV_REQUEST</code>. The gate saves that in <code>job_start.json</code>. When <code>cv.tool_result</code> comes back ready (your Submit), the cv module sends <code>AgentNotice(agent_id=reply_to, text=&lt;PDF path + CV_RESULT&gt;)</code>, and the Hub passes it on with <code>note()</code> (<code>agent_hub/module.py:253</code>). This doesn't depend on any task id, cv_agent's memory or a reload. If the job agent isn't running, the Hub logs the dropped notice; <code>result.json</code> stays in the job's folder, and the next apply session reads it.</p>
+<h2 id="leftover-ids-now-nothing-deleted">Leftover ids now (nothing deleted)</h2>
+<table>
+<thead>
+<tr>
+<th>Id / item</th>
+<th>What</th>
+<th>State</th>
+<th>Clean?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>e3241acc</td>
+<td>job agent, ExampleCorp CV hand-off (parent of dca1005e)</td>
+<td>done</td>
+<td>nothing to do: Hub memory, gone at restart</td>
+</tr>
+<tr>
+<td>dca1005e</td>
+<td>cv_agent, ended by the <code>cv</code> reload</td>
+<td>failed</td>
+<td>same</td>
+</tr>
+<tr>
+<td>5c8ea130</td>
+<td>cv_agent, the relaunched ExampleCorp job (no parent)</td>
+<td>done</td>
+<td>same</td>
+</tr>
+<tr>
+<td>7c17fdda, 1ca586e3</td>
+<td>cv_agent: jobs-folder check, humanizer rule</td>
+<td>done</td>
+<td>same</td>
+</tr>
+<tr>
+<td>983e7622</td>
+<td>job agent, ExampleCorp logging</td>
+<td>done</td>
+<td>same</td>
+</tr>
+<tr>
+<td>2b4f1cb1</td>
+<td>this task</td>
+<td>running</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>CV/.claude/state/job-task.txt</code> = c799bbda</td>
+<td>left from the old agent id <code>job</code> (renamed 11-05)</td>
+<td>stale</td>
+<td><strong>safe to delete</strong></td>
+</tr>
+<tr>
+<td><code>CV_Module/.claude/state/cv_agent-task.txt</code> = 1ca586e3</td>
+<td>last cv task</td>
+<td>overwritten at the next assign</td>
+<td>leave</td>
+</tr>
+<tr>
+<td>CV Tool job <code>2026-11-09_ExampleCorp</code></td>
+<td>first start, 2 drafts, not submitted</td>
+<td>abandoned</td>
+<td><strong>safe to archive</strong></td>
+</tr>
+<tr>
+<td>CV Tool job <code>2026-11-09_ExampleCorp_2</code></td>
+<td>second start, 2 drafts, not submitted</td>
+<td>abandoned</td>
+<td><strong>safe to archive</strong></td>
+</tr>
+<tr>
+<td>CV Tool job <code>2026-11-09_ExampleCorp_3</code></td>
+<td>v1-v14, submitted (<code>result.json</code>, <code>ready.flag</code>)</td>
+<td>the real one</td>
+<td>keep</td>
+</tr>
+<tr>
+<td>CV Tool job <code>_4</code></td>
+<td>named in task 7c17fdda</td>
+<td>no longer on disk</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>work <code>2026-11-09_ExampleCorp_StaffEngineerWidgetDesign</code></td>
+<td>the job folder; two set-ups (<code>job_start.json</code>, <code>job_start_2.json</code>): the first for dca1005e, the second after the relaunch</td>
+<td>done</td>
+<td>keep (the extra <code>.py</code> probes could go)</td>
+</tr>
+<tr>
+<td>work <code>2026-11-08_ExampleCorp</code></td>
+<td>pre-module draft (.odt, handoff)</td>
+<td>old</td>
+<td>safe to archive</td>
+</tr>
+<tr>
+<td>Rezi resume 0000c0de</td>
+<td>the ExampleCorp resume</td>
+<td>used</td>
+<td>keep</td>
+</tr>
+</tbody>
+</table>
+<p>No open task is stuck: every agent shows a correct open task or none.</p>
+<p><strong>Automatic cleanup (proposed):</strong></p>
+<ul>
+<li>Hub (<code>agent_hub</code>, reload or the batched restart): clear <code>holder</code> when a task ends (today a failed record keeps the old agent object alive), and keep only the last 20 finished records.</li>
+<li>cv (<code>cv</code> reload): when a job reaches Submit, older unsubmitted CV Tool jobs for the same work folder move to <code>cv_tool/jobs/_archive/</code>. The gate writes one <code>job_start.json</code> per job and reuses it on a second set-up, instead of <code>_2</code>.</li>
+<li>Task files: the profile agent writes <code>&lt;agent_id&gt;-task.txt</code> and removes any <code>*-task.txt</code> for ids that are no longer configured (infra, restart). Optional; only one file is stale today.</li>
+</ul>
+<h2 id="build-hand-off-for-the-claude-code-session-in-ai_assistant">Build hand-off (for the Claude Code session in AI_Assistant)</h2>
+<p>Done by job_search_agent: <code>CV/.claude/state/job-task.txt</code> (c799bbda) deleted on the user's yes. Everything below is outside its write access.</p>
+<ol>
+<li>Copy this note into <code>AI_Assistant/docs/next-steps/cv-path-hardening.md</code>, add its row to Pending changes, run <code>build_docs.py</code>.</li>
+<li>Build 1a-1e, the optional round cap, the item 2 fix (<code>reply_to</code> in <code>cv.task</code> → <code>job_start.json</code> → <code>AgentNotice</code> on Submit), and the automatic cleanup. Add the refusal tests next to <code>tests/test_handoff.py</code> and run the tests.</li>
+<li>Archive (move, don't delete) into <code>CV_Module/cv_tool/jobs/_archive/</code>: <code>2026-11-09_ExampleCorp</code>, <code>2026-11-09_ExampleCorp_2</code>. Move <code>CV_Module/work/2026-11-08_ExampleCorp</code> to <code>CV_Module/work/_archive/</code>. Keep <code>_3</code> and the <code>..._StaffEngineerWidgetDesign</code> work folder.</li>
+<li>Do not reload or restart anything. Report back. The user is asked before the <code>cv</code>, <code>main_assistant</code> and <code>agent_hub</code> reloads (<code>agent_hub</code> only with no task open). Any app restart is the user's.</li>
+</ol>
+<h2 id="open-questions-answered-2026-11-09-all-four-recommendations-approved">Open questions (answered 2026-11-09: all four recommendations approved)</h2>
+<ol>
+<li><strong>Who else may call <code>cv.task</code>?</strong> Recommend the job agent and the Main Assistant only.</li>
+<li><strong>Should the Main Assistant ask you before each <code>hub.start</code> to cv_agent?</strong> Recommend no: the cv worker already waits for your "start".</li>
+<li><strong>Archive or delete the two abandoned CV Tool jobs and the stale task file?</strong> Recommend archive the jobs and delete the one task file, on your yes.</li>
+<li><strong>Who builds it?</strong> I can't write <code>src/</code> or the app's docs. Recommend a Claude Code session in <code>AI_Assistant</code> builds 1a-1e and item 2 in one pass. Then <code>cv</code> and <code>main_assistant</code> reloads, and the <code>agent_hub</code> reload once no task is open (I'll ask before any of them). You do any app restart.</li>
+</ol>
+<h2 id="build-status">Build status</h2>
+<h3 id="part-1-built-2026-11-09-main-assistant">Part 1: built 2026-11-09 (Main Assistant)</h3>
+<ul>
+<li><strong>1a, 1b:</strong> cv's menu is a <code>CallerMenu</code> (<code>modules/cv/module.py</code>): on every call it asks the module's <code>may_call(name, caller)</code> before the core's own checks. <code>cv.task</code> and <code>cv.read_result</code>: only <code>[hand_off] callers</code> (<code>job_search_agent</code>, <code>main_assistant</code>); <code>rezi.status</code>: anyone; every other item: only the worker (<code>agent.agent_id</code>). The ids come from cv's <code>module.toml</code> <code>[hand_off]</code>, not the code (principle 21), so the item-level <code>callers=(...)</code> of <code>Menu</code> wasn't used: it takes fixed ids. <strong>Later:</strong> if a second module needs caller lists from config, move this into <code>Menu</code> (a core change, restart).</li>
+<li><strong>1c:</strong> <code>[modules.agent_hub] start_only_by = { cv_agent = ["main_assistant"] }</code> in <code>config/default.toml</code>. <code>hub.start</code> naming a listed agent is refused to other callers; <strong>the Talker always may</strong> (it speaks for you: its tab's <code>hub.start</code> and <code>hub.send</code> start tasks for the agent you're talking to). A free-agent pick (no <code>agent_id</code>) skips listed agents (<code>TaskBoard(restricted=...)</code>).</li>
+<li><strong>1e, with one change:</strong> a note never wakes an agent (<code>ITaskAgent.note</code>: "never starts work"), so a notice alone would sit until the Main Assistant's next turn. <code>cv.task</code> therefore <strong>starts a task on the coordinator</strong> (<code>StartTask</code>, <code>[hand_off] coordinator</code>) with the request and the exact text; only when the coordinator is busy or off does it send the <code>AgentNotice</code>. Its result says which (<code>asked</code>: <code>task &lt;id&gt;</code> or <code>notice</code>) and tells the job agent it may not call <code>hub.start</code>. When the coordinator itself calls <code>cv.task</code>, it just gets the text.</li>
+<li><strong>1d:</strong> one generic line in the coordinator's prompt (<code>COORDINATOR_BLOCK</code>): a task or notice from a module may ask it to start an agent; do it with <code>hub.start</code> and the exact text, without asking the user. No cv names in it: the request carries them.</li>
+<li><strong>Tests:</strong> <code>modules/cv/tests/test_callers.py</code>: the job agent is refused <code>cv.open_tool</code>, <code>cv.tool_round</code>, <code>cv.tool_status</code>, <code>cv.check_fonts</code>, <code>cv.build</code>, <code>cv.read</code>, <code>rezi.write_resume</code>, <code>rezi.list_resumes</code>, <code>rezi.sign_in</code> and <code>hub.start</code> for <code>cv_agent</code>; a free pick skips <code>cv_agent</code>; the Talker may start it; <code>cv.task</code> asks the coordinator. The cv tests now call the worker's items as <code>cv_agent</code> and <code>hub.start</code> as <code>main_assistant</code>.</li>
+<li><strong>Archived (moved, nothing deleted):</strong> <code>CV_Module/cv_tool/jobs/_archive/2026-11-09_ExampleCorp</code> and <code>_2</code>; <code>CV_Module/work/_archive/2026-11-08_ExampleCorp</code>. <code>_3</code> and the <code>..._StaffEngineerWidgetDesign</code> folder stay.</li>
+<li><strong>Loads needed (ask the user first):</strong> <code>cv</code> reload, <code>main_assistant</code> reload, <code>agent_hub</code> reload (only with no task open) or an app restart; the <code>config/default.toml</code> line is read when <code>agent_hub</code> starts. Until <code>agent_hub</code> reloads, <code>hub.start</code> to <code>cv_agent</code> is still open.</li>
+<li><strong>Not mine, still failing:</strong> <code>modules/cv/tests/test_cv_tool.py::test_every_style_on_the_page_is_9_pt_or_more</code> (the CV Tool's <code>MIN_PT</code> is now 10, the test expects 9).</li>
+</ul>
+<h3 id="part-2-built-2026-11-09-claude-code-session">Part 2: built 2026-11-09 (Claude Code session)</h3>
+<ul>
+<li><strong>Item 2, the return address:</strong> <code>CvRequest.reply_to</code> = <code>cv.task</code>'s caller; the gate saves it in <code>job_start.json</code>. The first <code>cv.tool_result</code> that sees a Submit tells that agent (<code>reply.py</code>, <code>_tell_asker</code>), <strong>with one change from the plan:</strong> like part 1's 1e, a task of its own (<code>StartTask</code>, so it wakes), and an <code>AgentNotice</code> only when it's busy or off (<code>_wake</code>, shared with <code>_ask_coordinator</code>). The text: the PDF, the score, where <code>result.json</code> is (not a <code>CV_RESULT</code> line: <code>result.json</code> isn't a <code>CvResult</code>; cv_agent's own line still comes at its task's end). <code>job_start.json</code> records <code>replied</code> per Submit, so it's told once. The CV Tool's <code>/api/job/result</code> now also gives the job's <code>work_dir</code>. The coordinator's ask says the CV reaches the asker by itself.</li>
+<li><strong>Cleanup:</strong> Hub: an ended record's <code>holder</code> is cleared, and only the last 20 finished records stay (held ones and an open task's parent stay too). cv: one <code>job_start.json</code> per job (replaced at a second set-up, first <code>started</code> kept). CV Tool: at Submit, older unsubmitted jobs of the same work folder move to <code>jobs\_archive\</code> (<code>cvlib.archive_older</code>).</li>
+<li><strong>Round cap in code:</strong> <code>CvTool</code> refuses a score round and <code>cv.tool_internal_round</code> past <code>max_rounds</code> (5); a print without a score and <code>cv.check_fonts</code> still work.</li>
+<li><strong>Not built (optional):</strong> the profile agent removing stale <code>*-task.txt</code> files (an infra change needing a restart; none is stale now).</li>
+<li><strong>Tests:</strong> <code>test_tool.py</code> (told once per Submit, by id; the cap), <code>test_cv_tool.py</code> (the archive), <code>test_job_start.py</code> (one record), <code>agent_hub/tests/test_stale_task.py</code> (holder cleared, records pruned). Full suite: all pass but the known <code>test_every_style_on_the_page_is_9_pt_or_more</code> (<code>MIN_PT</code> 10 vs the test's 9; not from this change).</li>
+<li><strong>Finished (third session, 2026-11-09):</strong> docs HTML rebuilt; full suite 748 passed (the known <code>MIN_PT</code> test deselected), ruff clean. Architecture check: every check lives in its module (cv's <code>CallerMenu</code>, the Hub's <code>start_only_by</code>), ids come from config, no core or contract change, docs match.</li>
+<li><strong>Loads:</strong> the user's app restart (2026-11-09) loads <code>cv</code>, <code>main_assistant</code> and <code>agent_hub</code> together. Nothing else is left to build.</li>
+<li><strong>Hand checks after the restart:</strong> (1) the job agent calling <code>cv.open_tool</code>, <code>cv.build</code> or <code>hub.start</code> for <code>cv_agent</code> is refused; (2) its <code>cv.task</code> starts a task on the Main Assistant, which starts <code>cv_agent</code> with the exact text; (3) after Submit in the CV Tool, the job agent is told once (PDF, score, <code>result.json</code>); (4) a 6th score round is refused. Separately: fix <code>test_every_style_on_the_page_is_9_pt_or_more</code> (expects 9 pt, <code>MIN_PT</code> is 10).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/cv-path-hardening.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

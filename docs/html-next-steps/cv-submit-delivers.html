@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Submit reaches the job agent by itself, and is never refused</title>
+<!-- Generated from docs/next-steps/cv-submit-delivers.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-submit-delivers.html"></nav>
+<main>
+<h1 id="the-submit-reaches-the-job-agent-by-itself-and-is-never-refused">The Submit reaches the job agent by itself, and is never refused</h1>
+<blockquote>
+<p><strong>Status: done, hand check passed (2026-11-10).</strong> Evidence in <a href="#hand-check">Hand check</a> below. The small-text warning wasn't exercised by hand (the draft had none); the automated test covers it. Follow-up: <a href="cv-submit-notice.html">cv-submit-notice</a> (cv_agent hears about the Submit). Code, tests and docs done; <code>cv</code> reloaded with your OK and active. You approved it as recommended: (1) the event stream plus a look on start (changed 2026-11-10: that look only reminds you, see "Missed Submits"); (2) keep the "no PDF yet" and "no score yet" refusals. See Build status at the end. Came from hand check 2 of <a href="agent-talk-and-questions.html">agent-talk-and-questions</a> (<a href="handoff-3720fc90.html">handoff</a>).</p>
+</blockquote>
+<h2 id="what-went-wrong">What went wrong</h2>
+<p>In hand check 2 you pressed Submit in the CV Tool at 01:56:39. The CV Tool saved the result (<code>result.json</code>, <code>ready.flag</code>), but the job agent never heard about it:</p>
+<ol>
+<li><strong>Delivery only happens when someone asks.</strong> The cv module tells the job's <code>reply_to</code> agent only inside <code>cv.tool_result</code> (<code>cv/module.py</code> <code>tool_result</code> → <code>_tell_asker</code> → <code>DeliverMessage</code>). Nothing watches the CV Tool for your Submit. Now that questions are messages, cv_agent is usually idle when you submit, so nobody calls <code>cv.tool_result</code>.</li>
+<li><strong><code>cv.tool_result</code> would have refused anyway.</strong> The PDF had text under 10 pt, and <code>cv.tool_result</code> returns <code>failed</code> on small text before telling anyone. The CV Tool had accepted the same Submit, so the app and the module disagreed.</li>
+<li><strong>Two numbers for the minimum.</strong> <code>cvlib.MIN_PT = 10.0</code> (your 10 pt rule, 2026-11-09), but the module's <code>NINE_PT</code> message, the menu texts, the worker's prompt and <code>test_cv_tool.py</code> still say 9 pt.</li>
+</ol>
+<h2 id="your-rule-decided-2026-11-10">Your rule (decided 2026-11-10)</h2>
+<p><strong>A Submit is never refused, for any reason.</strong> When you press Submit, that is what gets submitted and delivered. A size check, or any other check, can warn you on screen at most. It never blocks the Submit, and <code>cv.tool_result</code> never refuses the delivery because of it.</p>
+<h2 id="the-change">The change</h2>
+<ol>
+<li><strong>The cv module watches for your Submit and delivers it itself.</strong> On each new Submit it runs the same path as today (<code>_tell_asker</code>: <code>pending_reply</code> → <code>DeliverMessage</code> to the job's <code>reply_to</code> → <code>mark_replied</code>). That path doesn't need cv_agent. <code>cv.tool_result</code> stays for cv_agent and still never tells anyone twice: <code>pending_reply</code> already skips a Submit whose <code>submitted_at</code> was told.</li>
+<li><strong>No refusal anywhere.</strong>
+   - <code>cv.tool_result</code> drops its small-text <code>failed</code>. It returns the result with <code>small_text</code> as information.
+   - The CV Tool (<code>cvlib.submit</code>, <code>/api/submit</code>) keeps accepting every Submit. Its existing refusals for "no PDF yet" and "no score yet" are not checks on your CV: without a PDF there is nothing to submit. I'd keep those two, but tell me if you want them gone too.</li>
+<li><strong>A warning only.</strong> If the PDF has text under the minimum, the CV Tool shows a warning next to Submit and in the submitted view, and <code>result.json</code> gets <code>small_text</code>. The message to the job agent says it too ("Note: N text pieces print under 10 pt"), so the job agent knows the facts, but nothing waits on it.</li>
+<li><strong>One number: 10 pt</strong> (<code>cvlib.MIN_PT</code>). <code>NINE_PT</code> becomes <code>MIN_PT_ADVICE</code> with "10 pt" in it. The menu texts (<code>cv.check_fonts</code>, <code>cv.tool_result</code>, <code>cv.tool_round</code>), the worker's prompt, the module's docs pages and the stale tests (<code>test_cv_tool.py:81</code>, <code>test_tool.py:188</code>) all change to 10 pt. The worker still shortens wording instead of shrinking the font while it drafts; that advice is unchanged.</li>
+</ol>
+<h2 id="how-the-module-notices-a-submit">How the module notices a Submit</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>How</th>
+<th>For</th>
+<th>Against</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. Event stream (recommended)</strong></td>
+<td>The CV Tool's server gets <code>GET /api/events</code> (Server-Sent Events) that sends <code>submitted {job_id}</code>. The cv module reads it through <code>CompanionApp.events</code>, like <code>html_viewer</code> does. On start, it also scans <code>cv_tool\jobs\*\ready.flag</code> once for Submits made while it was off or reloading.</td>
+<td>Instant; reuses <code>CompanionApp.events</code>; one pattern with the viewer</td>
+<td>New endpoint in the CV Tool</td>
+</tr>
+<tr>
+<td>B. Poll the folder</td>
+<td>Every few seconds the module looks for new <code>ready.flag</code> files under <code>cv_tool\jobs\</code></td>
+<td>No CV Tool change</td>
+<td>A delay; disk polling forever; a second way of doing what A does</td>
+</tr>
+</tbody>
+</table>
+<p>With either option the start-up scan is harmless, because <code>pending_reply</code> dedups by <code>submitted_at</code>.</p>
+<h2 id="missed-submits-a-reminder-never-a-delivery-your-change-2026-11-10">Missed Submits: a reminder, never a delivery (your change, 2026-11-10)</h2>
+<ul>
+<li><strong>Live Submits</strong> (pressed while cv runs) are delivered to the job agent by themselves, as above.</li>
+<li><strong>A Submit pressed while cv was down</strong> is never sent by itself. On start, the look sends you one plain notice in the chat of the tab in focus (<code>ResponseReady</code>), naming the job and the time: "While the cv module was off, you pressed Submit in the CV Tool on the CV for <role> at <company> at <time>. Nothing was sent to the job agent. To send it, ask for cv.tool_result on CV Tool job <id>; otherwise nothing happens." The decision is yours. Each one is reminded once.</li>
+<li><strong>What's been seen</strong> is kept in <code>&lt;CV Tool data_dir&gt;\submits_seen.json</code>, one <code>job_id@submitted_at</code> key per Submit (<code>SeenSubmits</code> in <code>submit_watch.py</code>). Live Submits and reminded ones are added.</li>
+<li><strong>The first reload:</strong> that file doesn't exist yet, so every Submit already there is marked seen. Nothing old is reminded or sent, including the HandCheckCo test from 01:56:39.</li>
+</ul>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><code>src/cv_tool/server.py</code>: <code>/api/events</code> (SSE), and a push from <code>/api/submit</code> after <code>cvlib.submit</code> returns.</li>
+<li><code>src/cv_tool/cvlib.py</code>: <code>submit</code> puts <code>small_text</code> (from <code>font_sizes</code>) into <code>result.json</code> and <code>ready.flag</code>; no refusal for it.</li>
+<li><code>src/cv_tool/static/app.js</code>: the warning next to Submit and in the submitted view.</li>
+<li><code>src/assistant/modules/cv/module.py</code>: start a watch task on <code>start</code> (stopped on <code>stop</code>/reload), with the start-up scan; <code>tool_result</code> without the refusal; menu texts at 10 pt.</li>
+<li><code>src/assistant/modules/cv/tool.py</code>: <code>CvTool.events()</code> over <code>CompanionApp.events</code>; <code>NINE_PT</code> → <code>MIN_PT_ADVICE</code>.</li>
+<li><code>src/assistant/modules/cv/reply.py</code>: <code>reply_text</code> adds the small-text note.</li>
+<li><code>src/assistant/modules/cv/worker.py</code>: prompt at 10 pt; no "refused" wording; the module delivers, so cv_agent doesn't need to call <code>cv.tool_result</code> for that.</li>
+<li><code>src/assistant/modules/cv/docs/</code> (README, architecture, tools): the Submit flow and 10 pt.</li>
+</ul>
+<p>This is a module change plus the CV Tool app, so <code>RELOAD: cv</code> is enough. The CV Tool restarts on the reload because its code changed. No app restart.</p>
+<h2 id="tests">Tests</h2>
+<ul>
+<li>A Submit with text under 10 pt: accepted, <code>result.json</code> has <code>small_text</code>, and the job agent gets one <code>DeliverMessage</code> with the note, without any <code>cv.tool_result</code> call.</li>
+<li><code>cv.tool_result</code> after that: <code>ok</code>, <code>small_text</code> in the value, nobody told twice.</li>
+<li>The start-up look (changed): on the first start, old Submits are only marked seen; a Submit made while the module was off is reminded once, never delivered; <code>cv.tool_result</code> then sends it.</li>
+<li>A job with no <code>reply_to</code>: nothing sent, no error.</li>
+<li>10 pt everywhere: the fixed <code>test_cv_tool.py</code> and <code>test_tool.py</code>.</li>
+</ul>
+<h2 id="build-status-2026-11-10-handoff">Build status (2026-11-10, handoff)</h2>
+<p><strong>Code done</strong> (all in the files under Touches):</p>
+<ul>
+<li><code>cvlib.submit</code> adds <code>small_text</code> and <code>min_pt</code> to <code>result.json</code> and <code>job["submitted"]</code>; there's a new <code>cvlib.submitted_jobs()</code>.</li>
+<li><code>server.py</code>: <code>/api/events</code> (SSE, <code>Tool.listen</code> / <code>unlisten</code> / <code>publish</code>), <code>/api/submitted</code>, and a <code>submitted</code> push after <code>/api/submit</code>.</li>
+<li><code>app.js</code>: the warning box and the status line.</li>
+<li><code>tool.py</code>: <code>MIN_PT = 10</code>, <code>MIN_PT_ADVICE</code> (replaces <code>NINE_PT</code>), <code>CvTool.running</code> / <code>events</code> / <code>submitted</code>, and the <code>on_running</code> hook in <code>call</code>.</li>
+<li>New <code>cv/submit_watch.py</code> (<code>SubmitWatch</code>: catch-up look, then the stream).</li>
+<li><code>module.py</code>:</li>
+<li><code>init</code> wires the watch and an <code>asyncio.Lock</code> around <code>_tell_asker</code>.</li>
+<li><code>start</code> follows a running CV Tool; <code>stop</code> stops the watch.</li>
+<li><code>tool_result</code> doesn't refuse any more; the menu texts say 10 pt.</li>
+<li><code>reply.py</code>: <code>reply_text</code> carries the small-text note.</li>
+<li><code>worker.py</code>: prompt at 10 pt, "never refused", "the module tells the asker".</li>
+</ul>
+<p><strong>Tests:</strong> the cv tests pass (155), including the new ones:</p>
+<ul>
+<li><code>test_a_submit_with_small_text_goes_through_with_a_warning</code></li>
+<li><code>test_the_server_pushes_each_submit_on_its_event_stream</code></li>
+<li><code>test_the_submit_watch_delivers_with_no_agent_and_catches_up</code></li>
+<li><code>test_the_message_carries_the_small_text_as_a_warning</code></li>
+</ul>
+<p>The 9 pt tests became 10 pt. Full suite: 772 passed, 1 failed (<code>test_every_modules_tools_page_is_current</code>): the generated <code>cv/docs/tools.md</code> is stale until the docs are rebuilt. Ruff: one import-order error in <code>test_tool.py</code>, fixed but not re-run.</p>
+<p><strong>Session 2 (2026-11-10):</strong> steps 1–3 below done (docs updated, rebuilt, full suite and ruff run, architecture check). Then your change to missed Submits (the section above): <code>SubmitWatch</code> takes <code>remind</code> and <code>seen_path</code>, the module publishes <code>ResponseReady</code> (<code>_remind</code>), and the test is now <code>test_the_submit_watch_delivers_live_submits_and_only_reminds_missed_ones</code>. Step 4's warning no longer applies: the first reload marks the HandCheckCo Submit seen and sends nothing. Left: the reload (your OK first) and the hand check.</p>
+<p><strong>Next (as planned in session 1):</strong></p>
+<ol>
+<li>Docs, still saying 9 pt and "refused":
+   - <code>src/assistant/modules/cv/docs/architecture.md</code>: the flowchart node at line 139 (<code>cv.tool_result at Submit</code> becomes "Submit watch / cv.tool_result"), the sequence at 456–461 (T pushes <code>submitted</code> → M's watch → DeliverMessage; no "refused under 10 pt"), the return-address bullet at 464, the Tested line at 473, the server/cvlib rows at 481–482, and the Routes at 486 (<code>/api/events</code>, <code>/api/submitted</code>).
+   - <code>src/assistant/modules/cv/docs/README.md</code>: lines 105, 221, 258, 343, 344.</li>
+<li>Rebuild with <code>.\.venv\Scripts\python scripts\build_docs.py</code> (it regenerates <code>tools.md</code>), then rerun the full pytest and <code>ruff check src tests scripts</code>.</li>
+<li>Architecture check (<code>architecture-check</code> skill). <code>SubmitWatch</code> is module-internal, so it doesn't go in reusable.md.</li>
+<li>Update this note's status and the README Pending row to built (waiting on you), then ask the user (NEED) before <code>RELOAD: cv</code>. The CV Tool restarts on the reload because its code changed. Warn them that the catch-up look will deliver today's HandCheckCo test Submit (01:56:39) to job_search_agent once, since its <code>job_start.json</code> has no <code>replied</code>. Then the hand check below.</li>
+</ol>
+<h2 id="hand-check">Hand check</h2>
+<p>Redo check 2 of agent-talk-and-questions: the job agent asks a question and waits; you press Submit on a CV with small text. You see the warning, the Submit goes through, and the job agent gets the message right away with the PDF, the score and the small-text note. <code>job_start.json</code> gets <code>replied</code>.</p>
+<p><strong>Passed (2026-11-10, test job SubmitCheckCo,</strong> <code>logs\2026-11-10_01-33-35_it-reached-the-job-agent\assistant.log</code><strong>):</strong></p>
+<ul>
+<li><strong>Delivered by itself:</strong> at 02:51:20.852, the same second as the Submit, <code>cv: the Submit of 2026-11-10_SubmitCheckCo for job_search_agent: task 2894c9ca</code> and <code>Task 2894c9ca started on job_search_agent</code>. It came from the cv module: cv_agent's <code>cv.tool_result</code> calls were at 02:51:18 (<code>ready: false</code>) and 02:51:42.</li>
+<li><strong>The message</strong> had the PDF (<code>…\2026-11-10_SubmitCheckCo\CV_Test_SubmitCheckCo_final.pdf</code>) and the score (100, target 90).</li>
+<li><strong>No small-text note, correctly:</strong> <code>result.json</code> has <code>"small_text": []</code>, <code>"min_pt": 10.0</code>. The warning path is covered only by <code>test_a_submit_with_small_text_goes_through_with_a_warning</code>.</li>
+<li><strong><code>job_start.json</code>:</strong> <code>"replied": {"submitted_at": "2026-11-10T02:51:20", "to": "job_search_agent", "how": "task 2894c9ca"}</code>.</li>
+<li><strong><code>submits_seen.json</code></strong> written at 02:51:20: the three old Submits (ExampleCorp, Globex, HandCheckCo) only marked seen, plus <code>2026-11-10_SubmitCheckCo@2026-11-10T02:51:20</code>.</li>
+<li><strong>Once:</strong> one delivery line, one new task; the 02:51:42 <code>cv.tool_result</code> told nobody again; no errors after 02:30.</li>
+<li><strong>Seen by hand:</strong> cv_agent registered nothing about the Submit, hence <a href="cv-submit-notice.html">cv-submit-notice</a>. The job agent's test task had already ended, so the Submit arrived as a new task without context (follow-up 3 there).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/cv-submit-delivers.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

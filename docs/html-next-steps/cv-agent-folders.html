@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv agent: everything in one folder</title>
+<!-- Generated from docs/next-steps/cv-agent-folders.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-agent-folders.html"></nav>
+<main>
+<h1 id="cv-agent-everything-in-one-folder">cv agent: everything in one folder</h1>
+<blockquote>
+<p><strong>Status: proposed (2026-11-09).</strong> Part of <a href="cv-uses-cv-tool.html">cv-uses-cv-tool.md</a>. Nothing is moved yet. Read only so far.</p>
+</blockquote>
+<p><strong>Asked (2026-11-09):</strong> put what cv_agent needs in one place, the way the other agents have it. Today it's spread over five places, and that confuses the agent too.</p>
+<h2 id="how-the-other-agents-do-it">How the other agents do it</h2>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Workspace (read and write)</th>
+<th>Its skills</th>
+<th>Its memory</th>
+<th>Reads besides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Job search agent</td>
+<td><code>C:\Chang\Jobs\CV</code>: its whole project</td>
+<td><code>C:\Chang\Jobs\CV\.claude\skills\</code> (apply-session, fill-application, …), found by <code>claude</code> on its own</td>
+<td>Claude's memory for that folder (<code>~\.claude\projects\C--Chang-Jobs-CV\memory\</code>)</td>
+<td><code>C:\Chang\Jobs</code>, <code>C:\Chang\Git_projects\Resume</code></td>
+</tr>
+<tr>
+<td>Rezi helper (<code>task_agents</code>)</td>
+<td><code>C:\Chang\Jobs\rezi</code></td>
+<td>none</td>
+<td>Claude's memory for that folder</td>
+<td><code>C:\Chang\Jobs\CV</code>, this repo's <code>docs</code></td>
+</tr>
+<tr>
+<td><strong>cv_agent today</strong></td>
+<td><code>C:\Chang\Jobs\rezi\cv_agent</code></td>
+<td>a skill in <code>docs\cv-writing-preferences\</code> (not where <code>claude</code> looks, so the gate pastes it in)</td>
+<td>14 notes: rules, facts and one stale note mixed</td>
+<td><code>C:\Chang\Jobs\CV</code>, plus the output folder</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The pattern:</strong> one project folder is the workspace. Its skills sit in <code>.claude\skills\</code>, where <code>claude</code> finds them by itself, and its data sits next to them. The base CVs are read-only, from outside. The app's code stays in this repo.</p>
+<h2 id="what-cv_agent-has-today-in-five-places">What cv_agent has today, in five places</h2>
+<ol>
+<li><strong>Code:</strong> the cv module in this repo (<code>src/assistant/modules/cv/</code>) and the CV Tool's new copy (<code>src/cv_tool/</code>).</li>
+<li><strong>Workspace</strong> <code>C:\Chang\Jobs\rezi\cv_agent</code>: <code>work\</code> (one folder per job), <code>docs\cv-writing-preferences\SKILL.md</code>, <code>scripts\</code>, <code>applied\</code>.</li>
+<li><strong>Memory</strong> <code>~\.claude\projects\C--Chang-Jobs-rezi-cv-agent\memory\</code>: the style, layout and Rezi rules, the CV Tool notes, three fact notes, and the stale <code>user-wants-rezi-export-not-local-build.md</code>.</li>
+<li><strong>CV Tool data</strong> <code>C:\Chang\Jobs\rezi\cv_tool</code>: <code>jobs\</code>, <code>data\confirmed_facts.json</code>, <code>inbox\</code>, <code>outbox\</code>, <code>rezi_requests\</code>, and the old app's code.</li>
+<li><strong>Base CVs</strong> <code>C:\Chang\Jobs\CV</code> (the job agent's project).</li>
+</ol>
+<h2 id="proposed-layout">Proposed layout</h2>
+<pre><code>C:\Chang\Jobs\rezi\cv_agent\          ← cv_agent's workspace (same path: its memory stays bound to it)
+  .claude\skills\cv-writing\
+    SKILL.md                          ← today's cv-writing-preferences, step 4 fixed to the CV Tool's Submit
+    rules\*.md                        ← style, layout, 9 pt, Rezi and CV Tool rules (copied from memory)
+  data\confirmed_facts.json           ← your confirmed facts (copied from cv_tool\data, plus the 3 fact notes)
+  cv_tool\                            ← the CV Tool's data: jobs\ inbox\ outbox\ rezi_requests\ cache\ profiles
+  work\&lt;date&gt;_&lt;Co&gt;_&lt;Role&gt;\            ← one job (unchanged)
+  docs\  scripts\  applied\           ← unchanged
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Stays where it is</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The cv module's code (<code>src/assistant/modules/cv/</code>) and the CV Tool's code (<code>src/cv_tool/</code>)</td>
+<td>It's code: the app reloads and launches it from the repo. cv_agent never needs to read it</td>
+</tr>
+<tr>
+<td>Base CVs in <code>C:\Chang\Jobs\CV</code>, read only</td>
+<td>They're yours and the job agent's. The gate copies the base PDF into the job's <code>work\</code> folder</td>
+</tr>
+<tr>
+<td>Claude's memory folder</td>
+<td><code>claude</code> keeps it outside the workspace by design, tied to the workspace path. With the rules and facts moved out, it holds only small notes</td>
+</tr>
+</tbody>
+</table>
+<h2 id="who-reads-and-writes-what">Who reads and writes what</h2>
+<table>
+<thead>
+<tr>
+<th>Side</th>
+<th>Reads</th>
+<th>Writes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>cv_agent</strong></td>
+<td>its workspace (all of the above); <code>C:\Chang\Jobs\CV</code></td>
+<td>its workspace. In <code>cv_tool\</code> only through the <code>cv.tool_*</code> items, never by hand (said in its prompt and the skill)</td>
+</tr>
+<tr>
+<td><strong>cv module</strong> (in the app)</td>
+<td>the workspace's skill, rules and facts (the gate pastes them into each task); the base CV</td>
+<td><code>work\&lt;job&gt;\</code> (the gate); the CV Tool's API</td>
+</tr>
+<tr>
+<td><strong>CV Tool app</strong></td>
+<td><code>cv_tool\</code>, <code>data\confirmed_facts.json</code>, the skill's <code>rules\</code></td>
+<td><code>cv_tool\</code> only</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-changes">What changes</h2>
+<p><strong>The access list (your call, asked on the card when cv turns on):</strong></p>
+<ul>
+<li>Workspace: unchanged, <code>C:\Chang\Jobs\rezi\cv_agent</code>.</li>
+<li><code>read_dirs</code>: <code>C:\Chang\Jobs\CV</code> stays. The output folder <code>C:\Chang\Jobs\rezi\rezi\out</code> can go once <code>cv.build</code> is no longer the final PDF.</li>
+<li>Nothing new: the facts and the CV Tool's data move inside the workspace, so no line for <code>C:\Chang\Jobs\rezi\cv_tool</code> is needed.</li>
+</ul>
+<p><strong><code>module.toml</code>:</strong></p>
+<ul>
+<li><code>rules_dir = ".claude/skills/cv-writing"</code> (a relative path is from the workspace, like <code>job_skills</code> today). The gate loads <code>SKILL.md</code> and every file in <code>rules\</code>.</li>
+<li><code>job_skills</code> = <code>data/confirmed_facts.json</code>. The memory note <code>never-script-cv-folder-copy-first.md</code> moves into <code>rules\</code>.</li>
+<li><code>[tool] data_dir = "C:/Chang/Jobs/rezi/cv_agent/cv_tool"</code>, <code>port = 8771</code>.</li>
+</ul>
+<p><strong>Moves, all copies first:</strong></p>
+<ul>
+<li>The style, layout, Rezi and CV Tool notes go from memory into the skill's <code>rules\</code>.</li>
+<li><code>confirmed_facts.json</code> is copied to <code>data\</code>.</li>
+<li>New CV Tool jobs go in <code>cv_agent\cv_tool\</code>. Old jobs (Wayne, Hooli, Vandelay…) store absolute paths in their <code>job.json</code>, so they stay in <code>C:\Chang\Jobs\rezi\cv_tool\jobs\</code> as a read-only record and aren't moved.</li>
+<li><code>cv_tool.cmd</code> is pointed at the new data folder.</li>
+</ul>
+<h2 id="which-earlier-decisions-it-changes">Which earlier decisions it changes</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Before</th>
+<th>Now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The rules' folder</td>
+<td><code>src/assistant/modules/cv/rules/</code> in the repo</td>
+<td><code>cv_agent\.claude\skills\cv-writing\rules\</code>: the agent's own skill, which <code>claude</code> finds itself. Still the module's general rules, loaded by the gate for every cv job. They're no longer in git</td>
+</tr>
+<tr>
+<td>The CV Tool app's code</td>
+<td><code>src/cv_tool/</code></td>
+<td><strong>Unchanged</strong></td>
+</tr>
+<tr>
+<td>The CV Tool's data</td>
+<td><code>C:\Chang\Jobs\rezi\cv_tool</code></td>
+<td><code>cv_agent\cv_tool\</code> for new jobs; the old folder kept as a record</td>
+</tr>
+<tr>
+<td><code>confirmed_facts.json</code></td>
+<td>stays in <code>cv_tool\data\</code></td>
+<td><code>cv_agent\data\confirmed_facts.json</code>, a copy, plus the three fact notes merged into it (your data file, so your yes first)</td>
+</tr>
+<tr>
+<td>The memory notes</td>
+<td>copied into <code>rules/</code> and the facts, originals kept</td>
+<td>Same, into the workspace's skill and <code>data\</code>. Originals kept until you say they can go. <code>user-wants-rezi-export-not-local-build.md</code> is dropped from the copy</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommended:</strong> yes to all of it. It matches the job agent, and <code>claude</code> finds the skill without the gate. The one thing lost is git history for the rules. If you want that, the rules can stay in the repo and the workspace skill points to them, but then they're in two places again.</p>
+<h2 id="option-b-everything-under-cchangjobscv_module">Option B: everything under <code>C:\Chang\Jobs\CV_Module</code></h2>
+<p><strong>Asked (2026-11-09):</strong> instead of keeping <code>C:\Chang\Jobs\rezi\cv_agent</code>, give cv_agent a new home, <code>C:\Chang\Jobs\CV_Module</code> (it doesn't exist yet).</p>
+<pre><code>C:\Chang\Jobs\CV_Module\              ← cv_agent's new workspace
+  .claude\skills\cv-writing\SKILL.md  ← the skill
+  .claude\skills\cv-writing\rules\    ← style, layout, 9 pt, Rezi, CV Tool rules
+  .claude\state\                      ← its task state (copied)
+  data\confirmed_facts.json           ← your facts
+  cv_tool\                            ← the CV Tool's data: jobs\ inbox\ outbox\ rezi_requests\ cache\ profiles
+  work\&lt;date&gt;_&lt;Co&gt;_&lt;Role&gt;\            ← one job (copied over: ExampleCorp and the others)
+  applied\  docs\  scripts\           ← copied from cv_agent
+</code></pre>
+<p><strong>The code stays in the repo</strong> in both options. The app finds its modules by folder under <code>src/assistant/modules/</code>, and <code>CompanionApp</code> starts the CV Tool with <code>python -m cv_tool</code> from the repo's <code>src/</code>. Only data and the agent's files move.</p>
+<p><strong>What moving it takes (checked 2026-11-09):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude's memory</td>
+<td>It's kept by workspace path: today <code>~\.claude\projects\C--Chang-Jobs-rezi-cv-agent\memory\</code> (14 notes + <code>MEMORY.md</code>). The new workspace gets a new, empty folder (<code>C--Chang-Jobs-CV-Module</code>), so the notes must be <strong>copied</strong> there. Old session transcripts stay behind; nothing needs them. With the rules and facts moved into the skill and <code>data\</code>, few notes remain</td>
+</tr>
+<tr>
+<td>Access list and saved grant</td>
+<td>The workspace line changes, so the card asks you again when cv turns on. The grant in <code>data\permissions.toml</code> (<code>workspace:C:\Chang\Jobs\rezi\cv_agent</code>, <code>read:C:\Chang\Jobs\CV</code>, <code>read:…\rezi\rezi\out</code>, <code>chrome</code>) is replaced by your answer. <strong>Your call</strong></td>
+</tr>
+<tr>
+<td><code>module.toml</code></td>
+<td><code>workspace = "C:/Chang/Jobs/CV_Module"</code>. <code>work_dir</code>, <code>job_skills</code> and <code>rules_dir</code> follow it, because their relative paths are from the workspace. <code>read_dirs</code> keeps <code>C:/Chang/Jobs/CV</code>. The CV Tool's <code>data_dir</code> becomes <code>C:/Chang/Jobs/CV_Module/cv_tool</code>. <code>output_dir</code> (<code>rezi\rezi\out</code>, the old <code>cv.build</code> output) can stay until <code>cv.build</code> is dropped</td>
+</tr>
+<tr>
+<td>CV Tool code</td>
+<td><code>DEFAULT_DATA</code> in <code>src/cv_tool/cvlib.py</code> (set in this build anyway)</td>
+</tr>
+<tr>
+<td>Old CV Tool job</td>
+<td>One job folder in <code>C:\Chang\Jobs\rezi\cv_tool\jobs</code>, whose <code>job.json</code> has 18 absolute paths. It stays where it is as a read-only record, the same as in the first proposal</td>
+</tr>
+<tr>
+<td>Tests</td>
+<td><code>cv/tests/test_job_start.py</code> names <code>C:/Chang/Jobs/rezi/cv_agent</code> three times (the ExampleCorp PDF fixture under <code>work\pdf-reader-check</code>, the default <code>work_dir</code>, the skill path)</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td>The cv module's <code>README.md</code> and <code>architecture.md</code> (the workspace and output folder)</td>
+</tr>
+<tr>
+<td>The job agent's project (outside the repo)</td>
+<td><code>C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md</code> line 35 names <code>C:\Chang\Jobs\rezi\cv_agent\applied</code>, so it needs one line changed. <code>Recruiters\scripts\job_ui.py</code> reads <code>rezi\rezi\out</code>, which stays for now</td>
+</tr>
+<tr>
+<td>cv_agent's scripts, <code>cv_tool.cmd</code></td>
+<td>Nothing in them names <code>C:\Chang\Jobs\rezi</code></td>
+</tr>
+<tr>
+<td>An overlap that goes away</td>
+<td>The Rezi helper (<code>task_agents</code>) has the workspace <code>C:\Chang\Jobs\rezi</code>, which today <strong>contains</strong> cv_agent's workspace. With <code>CV_Module</code>, the two no longer overlap</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Costs:</strong> copying the memory notes to the new name, a new access card, one line in the job agent's skill, and the three test paths. It needs a cv reload, not an app restart. All of it is copying, and the old <code>C:\Chang\Jobs\rezi\cv_agent</code> and <code>cv_tool</code> stay until you say they can go.</p>
+<p><strong>Recommended: Option B.</strong></p>
+<ul>
+<li>It's one clearly named place for the whole cv module's data, next to <code>C:\Chang\Jobs\CV</code> the way the job agent has it.</li>
+<li>It ends the overlap with the Rezi helper's workspace.</li>
+<li>The extra cost over the first proposal is small: copying the memory notes and answering the new card.</li>
+</ul>
+<p><strong>Your check:</strong></p>
+<ol start="0">
+<li>Option B (<code>C:\Chang\Jobs\CV_Module</code>) or keep <code>C:\Chang\Jobs\rezi\cv_agent</code>? Either way, with the layout above.</li>
+<li>Rules in the workspace's skill rather than in the repo?</li>
+<li>New CV Tool jobs in <code>cv_agent\cv_tool\</code>, with the old jobs left where they are?</li>
+<li>Copy <code>confirmed_facts.json</code> into <code>cv_agent\data\</code> and merge the three fact notes into it?</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/cv-agent-folders.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

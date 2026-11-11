@@ -7,18 +7,44 @@ degree_first_order = ["contact", "summary", "skills", "education", "experience",
 # What goes first when the page is too long, in this order (then older bullets are tightened).
 drop_first = ["publications", "awards"]
 
-target_score = 90   # the Rezi Score to reach (aim 100)
-max_rounds = 5      # score rounds before it stops and reports
+target_score = 90   # the ATS score to reach in the CV Tool's ATS Loop (aim 100)
+max_rounds = 5      # ATS Loop rounds before it stops and reports
 paper = "letter"    # US Letter; "a4" later
 
 output_dir = "C:/Chang/Jobs/rezi/rezi/out"
-cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs: cv.read reads .odt files only here and in output_dir
+cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs: a base CV is a CV_Test_*.pdf here; cv.* refuses an .odt
 soffice = "C:/Program Files/LibreOffice/program/soffice.exe"
+
+# The job start (job_start.py): each new job (a CV_REQUEST) gets <work_dir>/<date>_<Company>_<Role>
+# with a copy of its base CV and the JD, made in code before the worker sees the task, and the
+# rules are read into the task in full. A missing or empty one refuses the job.
+# work_dir = ""  # unset: <agent.workspace>/work; must be in the workspace, never in cv_dir
+# A relative path is from agent.workspace; ~ is your home folder.
+# The cv module's general rules: SKILL.md, then every rules/*.md, loaded at every job (a new file needs no reload).
+rules_dir = ".claude/skills/cv-writing"
+# More files every job loads in full: the confirmed facts stay data.
+job_skills = ["data/confirmed_facts.json"]
 
 # The Rezi connection (mcp.py). Nothing connects until a rezi.* item is used.
 rezi_url = "https://api.rezi.ai/mcp"
 token_file = ""        # "" = %LOCALAPPDATA%/assistant/cv/rezi_token.json; never inside the repo
 callback_port = 33418  # the sign-in's redirect comes back to http://127.0.0.1:<port>/callback
+
+# Who may use cv's menu, checked on every call (the core sets the caller; it can't be faked).
+# cv.task and cv.read_result: only `callers`. rezi.status: anyone. Every other item (cv.open_tool,
+# cv.tool_*, cv.build, cv.read, rezi.write_resume, ...): only the worker, agent.agent_id.
+[hand_off]
+callers = ["job_search_agent", "main_assistant"]  # cv.task starts the worker itself, as the caller's child task
+
+# The CV Tool (tool.py, the app in src/cv_tool): launched by cv.open_tool through CompanionApp.
+[tool]
+host = "127.0.0.1"
+port = 8771            # fixed, so CompanionApp finds it (8765-8767 and 8770 are taken)
+# data_dir = ""        # unset: <agent.workspace>/cv_tool (jobs, inbox, outbox, rezi_requests)
+# facts = ""           # unset: <agent.workspace>/data/confirmed_facts.json
+# The page layout is not set here: it is <data_dir>/page_settings.json (line_height, body_pt, name_pt,
+# heading_pt, min_pt, margin_top_pt, margin_side_pt, entry_gap_pt), read at every print, so a change needs
+# no restart. A missing or out-of-range value gives its default (cv_tool's cvlib.LAYOUT_DEFAULTS, LAYOUT_RANGES).
 
 # The worker cv_agent (worker.py): a ProfileAgent, like job_search's agent. These keys are its
 # access list, asked for in one card when cv turns on (the module waits for your answer); the
@@ -26,7 +52,7 @@ callback_port = 33418  # the sign-in's redirect comes back to http://127.0.0.1:<
 [agent]
 enabled = true
 agent_id = "cv_agent"
-workspace = "C:/Chang/Jobs/rezi/cv_agent"
+workspace = "C:/Chang/Jobs/CV_Module"
 read_dirs = ["C:/Chang/Jobs/CV"]
 tools = "default"
 chrome = true                 # Claude in Chrome, only for app.rezi.ai (its prompt says so)

@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>CV Tool</title>
+<link rel="stylesheet" href="/static/app.css"></head>
+<body>
+<header>
+  <b>CV Tool</b>
+  <select id="jobSel"></select>
+  <input id="newCompany" placeholder="Company"><input id="newRole" placeholder="Role">
+  <button id="newJob">New job</button>
+  <span id="status"></span>
+</header>
+<nav>
+  <button data-tab="t1" class="on">Job &amp; CV</button>
+  <button data-tab="t2">CV Tool</button>
+  <button data-tab="t3">First Draft</button>
+  <button data-tab="t4">ATS Loop</button>
+</nav>
+<div id="roundsBar"></div>
+
+<section id="t1" class="tab on">
+  <div class="cols">
+    <div class="col">
+      <h3>Job description</h3>
+      <textarea id="jd" rows="20" placeholder="Paste the job description here"></textarea>
+      <div id="degreeHint" class="muted" style="margin-top:8px"></div>
+      <div class="bar" style="margin-top:10px"><button id="toStep2" class="main">Next: CV Tool →</button></div>
+    </div>
+    <div class="col">
+      <h3>Base CV</h3>
+      <div id="cvDrop" tabindex="0" role="button">
+        <div id="cvName" class="muted">No base CV yet</div>
+        Drop a CV file here (.odt or .docx), click this box, or <button id="cvPick">Choose file…</button>
+        <input type="file" id="cvFile" accept=".odt,.docx" hidden>
+      </div>
+      <div id="cvText" class="cvtext" style="margin-top:10px"></div>
+    </div>
+  </div>
+</section>
+
+<section id="t2" class="tab">
+  <h3>Choose the CV tool</h3>
+  <div class="tools">
+    <div class="tool" data-tool="Internal" role="button" tabindex="0">
+      <h4>Internal <span class="check">✓ Chosen</span><span class="pick">click to choose</span></h4>
+      <p>Runs here. It ranks the JD's key terms, proposes true edits from them, and gives a keyword and parse estimate. That's not a Rezi Score.</p>
+    </div>
+    <div class="tool" data-tool="Rezi" role="button" tabindex="0">
+      <h4>Rezi <span class="check">✓ Chosen</span><span class="pick">click to choose</span></h4>
+      <p>cv_agent puts the JD and the CV into the job's Rezi resume, reads back the Rezi Score and keywords, and returns a PDF. Score only: no Rezi AI writer, chat or suggested edits.</p>
+    </div>
+  </div>
+  <div class="bar" style="margin-top:16px"><button id="toStep3" class="main">Next: First Draft →</button></div>
+</section>
+
+<section id="t3" class="tab">
+  <div id="internalPanel">
+    <h3>First Draft with Internal</h3>
+    <div class="muted">When this tab opens, it ranks the JD's key terms and makes the draft proposals by itself. Tick what's true, then Apply. Terms are ranked by times in the JD, ×2 under required and ×1.5 under preferred qualifications, +3 if in the job title, and ×1.5 for a skill, tool or domain term. Untick a term in the table if it isn't a real keyword.</div>
+    <div class="bar" style="margin-top:10px"><button id="draftScore">Draft from score again</button>
+      <button id="toStep4" class="main">Next: ATS Loop →</button></div>
+    <div id="draftOut" class="box" style="display:none"></div>
+    <div id="recs" class="box" style="margin-top:10px"></div>
+    <table id="terms"></table>
+  </div>
+
+  <div id="reziPanel">
+    <h3>First Draft with Rezi</h3>
+    <label>Rezi resume for this job (name or link; leave it empty and cv_agent makes a new one)</label>
+    <input id="reziResume" placeholder="for example: ExampleCorp – Staff Engineer - Widget Design">
+    <div class="bar" style="margin-top:10px"><button id="draftRezi" class="main">Send JD and CV to Rezi</button>
+      <button id="toStep4r">Next: ATS Loop →</button></div>
+    <div class="muted">This writes a request with the JD and the CV text, puts the text on your clipboard too, and tells cv_agent at once: the click is your yes for the Rezi write, so it starts the First Draft by itself. cv_agent does it in Rezi, score only, and sends back the Rezi Score, the keywords and a PDF. They show up here, and the score is saved as the first round.</div>
+    <div id="reziOut" class="box" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<section id="t4" class="tab">
+  <div class="cols">
+    <div class="col previewcol loopPdf">
+      <div id="pdfInfo" class="muted"></div>
+      <label class="hlToggle"><input type="checkbox" id="hlOn" checked> Highlight Rezi's matched keywords (on screen only, the PDF file stays clean)</label>
+      <div id="pdfPages" title="Current CV PDF, matched keywords highlighted"></div>
+      <iframe id="pdfView" title="Current CV PDF"></iframe>
+    </div>
+    <div class="col loopSide">
+      <div class="bar"><button id="loopRun">Run a round</button><button id="submitCv" class="main">Submit: this is the one</button></div>
+      <div id="loopHint" class="muted"></div>
+      <div id="submitInfo"></div>
+      <h3>ATS score</h3><div id="loopScore" class="box"></div>
+      <h3>Rezi keywords</h3><div id="loopKeywords" class="box"></div>
+      <h3>Biggest issues</h3><div id="loopIssues" class="box"></div>
+      <h3>Change notes</h3><div id="loopNotes" class="box"></div>
+      <h4>Rounds</h4><table id="rounds"></table>
+    </div>
+  </div>
+</section>
+<script src="/static/app.js"></script>
+</body></html>

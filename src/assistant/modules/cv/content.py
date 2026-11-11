@@ -1,8 +1,9 @@
 """A CV as plain sections: the eight standard section ids, each with its lines of text.
 
 The one page knows only these sections (`SECTIONS`); a CV holds any of them, in any order, and
-the section order (`order.py`) decides where each goes. Readers: `from_odt` (the incoming
-`CV_Test_*.odt`, in `odt.py`) and `from_rezi` (Rezi's resume JSON, in `rezi_json.py`).
+the section order (`order.py`) decides where each goes. Readers: `from_pdf` (the incoming
+`CV_Test_*.pdf`, in `pdf_read.py`) and `from_rezi` (Rezi's resume JSON, in `rezi_json.py`).
+`odt.read_odt` still reads an `.odt` (the writer's round-trip tests use it); no item takes one.
 """
 
 from __future__ import annotations
@@ -44,11 +45,17 @@ class CvContent(BaseModel):
         return value
 
     @classmethod
-    def from_odt(cls, path: str | Path) -> CvContent:
-        """The CV in a `CV_Test_*.odt` (read only; `odt.read_odt`). ValueError: not an .odt, or an unknown heading."""
-        from assistant.modules.cv.odt import read_odt  # odt.py builds on this module
+    def from_pdf(cls, path: str | Path) -> CvContent:
+        """The CV in a `CV_Test_*.pdf` (read only; `pdf_read.read_pdf`). ValueError: not a
+        readable PDF, or text the read check couldn't place (named in the message)."""
+        from assistant.modules.cv.pdf_read import read_pdf  # pdf_read.py builds on this module
 
-        return read_odt(path)
+        read = read_pdf(path)
+        if read.unplaced:
+            shown = ", ".join(repr(w) for w in read.unplaced[:10])
+            raise ValueError(f"{Path(path).name}: {len(read.unplaced)} piece(s) of text couldn't be placed "
+                             f"in a section: {shown}")  # fmt: skip
+        return read.content
 
     @classmethod
     def from_rezi(cls, data: object) -> CvContent:

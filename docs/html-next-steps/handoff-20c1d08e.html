@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff 20c1d08e: cv module, PDF in and PDF out (build)</title>
+<!-- Generated from docs/next-steps/handoff-20c1d08e.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-20c1d08e.html"></nav>
+<main>
+<h1 id="handoff-20c1d08e-cv-module-pdf-in-and-pdf-out-build">Handoff 20c1d08e: cv module, PDF in and PDF out (build)</h1>
+<p>Task: build the plan in <code>docs/next-steps/cv-pdf-only.md</code>. The user said "build it". <strong>User change (2026-11-09): keep cv_agent's read access to <code>C:\Chang\Jobs\CV</code>. Don't touch <code>[agent] read_dirs</code>, and leave that part of the plan out.</strong> Ask before any reload or restart. Ask before editing the job agent's files (<code>save_jd.py</code>, the apply-session skill, the ExampleCorp record). Don't touch the uncommitted <code>infra/session_agent.py</code> and <code>handoff_keeper.py</code> (another agent's). <code>job_search/module.py</code>, <code>tests/test_agents.py</code> and <code>tests/test_worker_parts.py</code> are also modified, not by this task: leave them alone.</p>
+<h2 id="state-right-now-session-3-2026-11-09-built-and-tested-waiting-on-you">State right now (session 3, 2026-11-09): built and tested, waiting on you</h2>
+<ul>
+<li><strong>Tests:</strong> all updated to PDF fixtures, plus the new <code>tests/test_pdf_read.py</code>. 130 cv tests pass, three of them with real LibreOffice; with <code>test_module_layout.py</code> and <code>test_module_docs.py</code>, 156 pass. Ruff check is clean.</li>
+<li><strong>Reader fix:</strong> an unplaced line's words are named once in <code>unplaced</code>, not twice.</li>
+<li><strong>Fixture:</strong> <code>write_pdf(..., extra=)</code> adds lines, such as an unknown heading for the read check.</li>
+<li><strong>The ExampleCorp case:</strong> it now reads the reader check's copy in <code>work\pdf-reader-check\cvs</code>, never the CV folder, and checks that every word is placed.</li>
+<li><strong>Docs:</strong> README, architecture and tools are updated, <code>reusable.md</code> needs no change (no shared PDF reader), the plan page status and the next-steps row are updated, and the HTML is rebuilt.</li>
+<li><strong>Not done (waiting on you):</strong> the <code>cv</code> reload; your yes on the job agent's 3 files; <code>CV_Test_SWE.odt</code> being 0 bytes. Nothing is committed.</li>
+</ul>
+<h2 id="user-answers-2026-11-09-after-session-3">User answers (2026-11-09, after session 3)</h2>
+<ul>
+<li><strong>No for now</strong> to the <code>cv</code> reload and to editing the job agent's three files. Wait for the user. Only read-only work, plus the context note below.</li>
+</ul>
+<h2 id="in-progress-the-rezi-context-note-read-only-plus-one-file-to-write">In progress: the Rezi context note (read only, plus one file to write)</h2>
+<p><strong>Task:</strong> read <code>C:\Chang\Jobs\rezi\cv_tool</code>, <code>C:\Chang\Jobs\rezi\rezi</code> and <code>C:\Chang\Jobs\rezi\rezi_agent</code> read-only, and run nothing. Then write <strong>only</strong> <code>C:\Chang\Jobs\rezi\cv_agent\work\rezi_context_note.md</code> covering:</p>
+<ul>
+<li>how the Rezi flow and its UI really work;</li>
+<li>what each folder holds;</li>
+<li>which tools and scripts belong to which;</li>
+<li>what the old flow did that the cv module doesn't;</li>
+<li>anything that changes the PDF plan.</li>
+</ul>
+<p>Then tell the user the key points briefly. <strong>Written (session 4, 2026-11-09).</strong> Tests re-run: 156 pass. Also found: <code>CV_Test_SWE.odt</code> was emptied 2026-11-08 02:00:50 (during Hooli); <code>CV_Test_SWE.pdf</code> (2026-10-22) exists. Hooli never reached Submit. Still waiting: reload, the job agent's 3 files. (Earlier status below.) All three folders have been read except: Hooli's <code>job.json</code> (end state; submitted or not) and the names of the driving scripts in <code>C:\Chang\Jobs\rezi\cv_agent\scripts</code> (both still to check, read only).</p>
+<p><strong>Findings so far:</strong></p>
+<ul>
+<li><strong><code>rezi\</code> (2026-11-06/07): the cv module's planning folder, not a tool.</strong></li>
+<li><code>rezi-mcp-findings.md</code>: the module plan v4, superseded. It planned <code>rezi.score/keywords/import_pdf</code> items; the user later chose Chrome in the worker (N1).</li>
+<li><code>cv_module_plan.html</code>: the approved plan.</li>
+<li><code>handoff-d21df25f.md</code>: the build log for chunks 1–9, with:<ul>
+<li>the Rezi screen tour (D8);</li>
+<li>the live tool list (12 tools);</li>
+<li>the live <code>read_resume</code> shape;</li>
+<li>the Wayne run, cancelled at step 2 after creating resume <code>41431c88…</code>.</li>
+</ul>
+</li>
+<li><code>drafts\</code>: the first cv docs.</li>
+<li><code>scratch\</code>: the reader/build tryout scripts (<code>try_*.py</code>, <code>dump_odt.py</code>).</li>
+<li><code>out\2026-11-07_Wayne\</code>: the old local <code>.odt</code>/PDF build, not the deliverable, plus <code>out\jd\</code> (the WayneJD as HTML).</li>
+<li><code>logs\cv_agent.jsonl</code>: test traffic from the fake <code>claude</code> only (Acme jobs), a stray test log.</li>
+<li><strong><code>rezi_agent\notes.md</code> (2026-11-05): the retired helper's checklist and open questions.</strong> It was written before the module existed. It planned Rezi's "Download PDF" as the deliverable (option A).</li>
+<li><strong><code>cv_tool\</code>: the standalone CV Tool app the user actually used for Hooli</strong> (README read in full).</li>
+<li><strong>Start:</strong> <code>cv_tool.cmd</code> runs <code>pythonw -I server.py</code>, a server on 127.0.0.1 in its own Edge window (<code>.edge_profile</code>).</li>
+<li><strong><code>cvlib.py</code>:</strong><ul>
+<li>reads base CVs as <code>.odt</code>/<code>.docx</code> only, from <code>C:\Chang\Jobs\CV</code>;</li>
+<li>renders its own HTML template (Source Sans 3, Letter, <code>render()</code>);</li>
+<li>exports the PDF with <strong>headless Chrome print-to-pdf</strong> (<code>.chrome_print</code> profile), not LibreOffice;</li>
+<li>pymupdf for page count, parse checks and highlights;</li>
+<li><code>lint</code> flags semicolons, parentheses and bullets that wrap (fill &gt; 1.0, target 0.92);</li>
+<li>an Internal score estimate;</li>
+<li>the truth check against the <code>.odt</code> corpus <strong>plus <code>data/confirmed_facts.json</code></strong> (user-confirmed words and phrases, declined terms).</li>
+</ul>
+</li>
+<li><strong>Its 4 tabs:</strong> Job &amp; CV / CV Tool / First Draft / ATS Loop, then Submit (<code>result.json</code>, <code>outbox\</code>, <code>ready.flag</code>).</li>
+<li><strong>How it reaches Rezi:</strong> the app never touches Rezi. "Send JD and CV to Rezi" writes <code>rezi_requests\&lt;id&gt;.json</code>, and the user tells cv_agent to run it. cv_agent:<ul>
+<li>writes the text into its own Rezi resume as the full object by ids, never <code>sections</code>, and reads it back;</li>
+<li>scores in Chrome: <code>/dashboard/resume/&lt;id&gt;/finish-up</code>, reload once if it shows "Something went wrong", JS-click "Explore My Rezi score", read the text, Esc; then the AI Keyword Targeting card, JS-click both "See all (N)";</li>
+<li>writes <code>rezi_requests\results\&lt;name&gt;.json</code> (score, categories, matched, missing, issues, changes; <strong>no PDF</strong>: the user's rule since Hooli v5).</li>
+</ul>
+</li>
+<li><strong>Hooli:</strong> 7 Rezi rounds ending at 97, with Rezi PDFs <code>_rezi_draft1</code>/<code>r2</code>–<code>r4</code> downloaded before the rule.</li>
+<li><strong>The step-6 import ("<Company> – check") was never really run</strong> (the Wayne<code>report.md</code> says it was skipped at the user's request).</li>
+</ul>
+<p><strong>What changes the PDF plan, to put in the note:</strong></p>
+<ul>
+<li>(a) <strong>Truth source:</strong> user-confirmed facts live in <code>cv_tool\data\confirmed_facts.json</code> and in the memory notes. The cv module's truth gate reads only the CVs, so confirmed facts (system design, requirements analysis, …) and declined ones (AWS, data pipelines, telemetry, unit testing) aren't in the module. Recommend: a read-only input, with the user's yes.</li>
+<li>(b) <strong>Look of the final PDF:</strong> the approved Wayne v10 and Hooli v6 PDFs came from the CV Tool's HTML → Chrome template, not the module's LibreOffice <code>.odt</code> build, so the module's PDF will look different. Ask the user which look is the final one.</li>
+<li>(c) <strong>The CV Tool's intake is <code>.odt</code>/<code>.docx</code>:</strong> it conflicts with PDF-only, but it's outside the module, so leave it.</li>
+<li>(d) <strong><code>rezi.write_resume</code> with <code>sections</code> on an update scrambled Experience (Wayne).</strong> The module still offers <code>sections</code> with a <code>resume_id</code>, via <code>write_rezi</code>, which reuses ids in order. Check that the order-based reuse is safe, or make updates use the full object.</li>
+<li>(e) <strong>The memory notes contradict each other:</strong> "use Rezi's export" is older, "never download Rezi's PDF" is newer and wins. The module builds its own PDF, so that's consistent.</li>
+</ul>
+<p><strong>Next:</strong></p>
+<ol>
+<li>Read the two remaining items, read only.</li>
+<li>Write the note at that one path.</li>
+<li>Give the user the key points briefly.</li>
+<li>Then wait. No reload, no job agent edits, nothing committed.</li>
+</ol>
+<h2 id="done-sessions-1-and-2">Done (sessions 1 and 2)</h2>
+<ul>
+<li><strong><code>pdf_read.py</code></strong> (reader): <code>read_pdf(path) -&gt; PdfCv(content, unplaced, pages)</code> and <code>place(lines, plain)</code>. It uses pypdf's <code>_layout_mode</code> internals and raises a RuntimeError if they change.</li>
+<li>Session 2 fixes:<ul>
+<li>(a) <strong>Centered paragraphs:</strong> the lines' centers match while x0 differs; the fit test uses the whole width <code>right - left</code> (<code>Line.left</code> = the page's min x0).</li>
+<li>(b) <strong>First-word width:</strong> a character-weighted estimate (<code>_weight</code>: capitals and m/w/&amp; 1.3, narrow i/l/t/punctuation 0.5) × <code>_WORD_WIDE</code> 1.1.</li>
+<li>(c) <strong>Label lines:</strong> a line starting <code>Label:</code> (<code>_LABEL</code>, e.g. "Skills:", "AI Development:") never joins the line above.</li>
+</ul>
+</li>
+<li><strong>The one-time check against the .odt reader: 33/36 match exactly.</strong> The other 3 aren't reader bugs: the Apple and Walden PDFs are older than their .odt files, and SWE.odt is 0 bytes.<ul>
+<li>Unplaced is 0 on every CV except <code>CV_Test_Rezi.pdf</code> (78; Rezi's own layout, so the worker would stop and ask).</li>
+<li>Scripts and copies: <code>C:\Chang\Jobs\rezi\cv_agent\work\pdf-reader-check</code> (<code>check_all.py</code>, <code>lines.py</code>). Run them with <code>PYTHONPATH=&lt;repo&gt;\src</code>.</li>
+</ul>
+</li>
+<li><strong><code>content.py</code>:</strong> <code>CvContent.from_pdf</code> raises ValueError naming the unplaced text. <code>from_odt</code> is removed; <code>odt.read_odt</code> is kept for the writer's round-trip tests.</li>
+<li><strong><code>data.py</code>:</strong> <code>BASE_CV_NAME</code> regex. <code>CvRequest.base_cv</code> must match <code>CV_Test_*.pdf</code>, else "base_cv must be a CV_Test_*.pdf, not <name>". <code>CvResult.odt_path</code> is removed, so extra=forbid refuses it.</li>
+<li><strong><code>build.py</code>:</strong> <code>build_cv(content, order, pdf_path, export, ...)</code>. The .odt and the export go in a <code>TemporaryDirectory</code>; only the last checked PDF is copied to <code>pdf_path</code>. <code>Built</code> has no odt_path, and a non-.pdf target raises ValueError.</li>
+<li><strong><code>module.py</code>:</strong></li>
+<li><code>cv.task</code> description: JD as text, base CV as a PDF, the job comes back as a PDF. The <code>base_cv</code> and <code>jd_file</code> descriptions are updated.</li>
+<li><code>cv.read(pdf)</code> returns sections, names, pages, <code>complete</code> and <code>unplaced</code>, plus a <code>next</code> (stop and ask with NEED:) when the read is incomplete. A RuntimeError → not_available.</li>
+<li><code>cv.build</code> has a new <code>job_dir</code> arg (<code>_pdf_target</code>): it must be a subfolder of work_dir that exists. The PDF goes to <code>&lt;job_dir&gt;/CV_Test_&lt;Company&gt;.pdf</code>. If that's the job's base copy (from <code>job_start.json</code>, <code>_job_copies</code>), the name gets <code>_tailored</code>. Without job_dir it uses <code>output_path</code> (now <code>.pdf</code>).</li>
+<li><code>cv.compare</code>: <code>edited_odt</code> → <code>edited_pdf</code> (must be readable).</li>
+<li><code>cv.report</code>: the folder is the PDF's folder, allowed in output_dir or work_dir. <code>_REPORT_ARGS</code> has no odt_path.</li>
+<li><code>_check_pdf</code> refuses an .odt ("an .odt isn't read; give the CV_Test_*.pdf"). <code>_content(pdf, sections, ...)</code> uses <code>from_pdf</code>.</li>
+<li>The docstring is updated, and <code>json</code> and <code>read_pdf</code> are imported.</li>
+<li><strong><code>handoff.py</code>:</strong> <code>result_view.files</code> has no odt fields; the docstrings are updated.</li>
+<li><strong><code>report.py</code>:</strong> the <code>.odt</code> row is dropped.</li>
+<li><strong><code>worker.py</code> prompt:</strong> the base CV is a PDF and the JD is text; PDFs only, never an .odt; cv.read's read check (complete false → NEED:); step 5 calls cv.build with company and job_dir, which exports the PDF into the job folder; the CvResult list has no odt_path; the truth gate reads <code>CV_Test_*.pdf</code>; the last line says the PDF and report go in the job folder.</li>
+<li><strong><code>module.toml</code>:</strong> the cv_dir comment says PDFs. <strong>read_dirs is unchanged.</strong></li>
+<li><strong><code>job_start.py</code>:</strong> <code>start_block</code> adds "cv.build with job_dir=<work_dir> exports the final PDF into this folder". There's no logic change: it copies and hashes any file.</li>
+<li><strong>New <code>tests/pdf_fixture.py</code>:</strong> <code>write_pdf(content, order, path)</code> writes a real one-page Helvetica text PDF (no LibreOffice), with <code>•</code> bullets and the dates at x=470 for entries. <strong>Not run yet</strong>: first check that <code>read_pdf(write_pdf(CV, ...))</code> gives back CV's sections (the test CV strings in test_worker.py display mojibake in PowerShell, but they're fine UTF-8).</li>
+</ul>
+<h2 id="next">Next</h2>
+<ol>
+<li><strong>Tests</strong> (run <code>.\.venv\Scripts\python -m pytest src/assistant/modules/cv tests/test_module_layout.py -q</code>):
+   - <strong>New <code>tests/test_pdf_read.py</code>:</strong><ul>
+<li><code>place()</code> on hand-made <code>Line</code>/<code>Run</code> lists: left wrap, centered wrap, a <code>Label:</code> line not joined, the entry join, small caps (<code>_small_caps</code>), a bullet glyph (<code>_line</code>), an unknown big heading → unplaced, and <code>_unread</code>;</li>
+<li>the fixture round trip; <code>CvContent.from_pdf</code> raising on unplaced;</li>
+<li>a soffice round trip (OdtWriter → PdfExport → read_pdf), skipped without LibreOffice.</li>
+<li><strong>Update these to PDF fixtures (<code>write_pdf</code>):</strong></li>
+<li><strong>test_cv.py:</strong> the request needs a <code>CV_Test_*.pdf</code> (.odt refused); the CvResult with odt_path is refused.</li>
+<li><strong>test_handoff.py:</strong> APPROVED has no odt_path; files has no odt keys; base CVs become .pdf.</li>
+<li><strong>test_compare_report.py:</strong> APPROVED has no odt_path; <code>edited_pdf</code>.</li>
+<li><strong>test_build.py:</strong> <code>from_odt</code> → read_odt or from_pdf; the build target becomes <code>out/CV.pdf</code> (FakeExport returns the <code>.pdf</code> next to the temp odt, so build_cv's copyfile needs a real file there: make FakeExport write bytes); <code>output_path</code> → <code>.pdf</code>; the cv.build arg refusals include an .odt; the job_dir test (inside work_dir, its base copy not overwritten, outside refused).</li>
+<li><strong>test_job_start.py:</strong> <code>.pdf</code> base; <code>cv.read pdf=</code>; the ExampleCorp test is skipped or pointed at a <code>.pdf</code>.</li>
+<li><strong>test_worker.py:</strong> <code>cv.read</code> with <code>pdf</code>; an .odt is refused; the prompt says PDF.</li>
+</ul>
+</li>
+<li><strong>Docs:</strong>
+   - update <code>cv/docs/README.md</code>, <code>architecture.md</code> and <code>tools.md</code> (cv.read/cv.build/cv.compare args, no odt_path, pdf_read.py);
+   - check <code>docs/api/reusable.md</code> (pdf_read is cv-specific, so probably just mention it's not shared);
+   - plan page <code>cv-pdf-only.md</code>: Status "built (2026-11-09); the access cut is left out at the user's request; the job agent's 3 files wait for your yes";
+   - rebuild with the docs-html skill (<code>.\.venv\Scripts\python scripts\build_docs.py</code>).</li>
+<li><strong>Report, then ask:</strong>
+   - (a) reload <code>cv</code>?
+   - (b) edit the three job agent files to <code>.pdf</code>? (Until then, the job agent's cv.task calls with an .odt are refused.)
+   - (c) <code>CV_Test_SWE.odt</code> is 0 bytes.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/handoff-20c1d08e.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

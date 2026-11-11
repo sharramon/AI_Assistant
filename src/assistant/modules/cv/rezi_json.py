@@ -303,7 +303,7 @@ def read_real(data: dict[str, Any], hidden: Any = ()) -> tuple[CvContent, list[s
     return CvContent(sections={n: tuple(lines) for n, lines in found.items()}), skipped
 
 
-def _split_head(line: str) -> tuple[str, str, str]:
+def split_head(line: str) -> tuple[str, str, str]:
     """`Role, Company | Dates` -> (role, company, dates); the role ends at the first comma."""
     head, _, when = line.rpartition(" | ") if " | " in line else (line, "", "")
     first, _, rest = head.partition(", ")
@@ -367,7 +367,7 @@ def _section_items(name: str, lines: tuple[str, ...]) -> tuple[str, list[dict[st
             else:
                 items.append({"qualification": line})
         else:
-            first, rest, when = _split_head(line)
+            first, rest, when = split_head(line)
             title, org = ("role", "company") if name == "experience" else ("title", "organization")
             items.append({title: first} | ({org: rest} if rest else {}) | ({"duration": when} if when else {}))
     for item in items:

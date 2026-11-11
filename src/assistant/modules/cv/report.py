@@ -67,12 +67,14 @@ class ReportWriter:
         title = f"{company} – {role}" if role else company
         if result.status == "approved":
             outcome = "**Approved** by you"
+        elif result.status == "ready":
+            outcome = "**Ready** for your Submit"
         else:
             outcome = f"**Stopped:** {result.stop_reason.strip()}"
         out = [f"# CV report: {title}", "", f"{(today or date.today()).isoformat()} · {outcome}", ""]
 
         out += ["## Files", "", "| What | Where |", "|---|---|",
-                f"| PDF | {_cell(result.pdf_path or '')} |", f"| .odt | {_cell(result.odt_path or '')} |"]  # fmt: skip
+                f"| PDF | {_cell(result.pdf_path or '')} |"]  # fmt: skip
         for label, ref in (("Rezi resume", result.rezi_resume), ("Rezi check copy", result.check_copy)):
             out.append(f"| {label} | {_cell(f'{ref.name} ({ref.id})' if ref else '')} |")
 

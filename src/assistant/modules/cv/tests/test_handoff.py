@@ -1,4 +1,5 @@
 """Chunk 7: the job agent's hand-off to cv_agent through the Hub (cv.task, CV_REQUEST, CV_RESULT).
+The base CV goes in as a `CV_Test_*.pdf` (an `.odt` is refused) and the CV comes back as a PDF.
 A fake `claude` that echoes its task: no session talks to Rezi."""
 
 import asyncio
@@ -11,19 +12,20 @@ from assistant.modules.cv.handoff import read_jd_file, read_request, read_result
 from assistant.modules.cv.odt import OdtWriter
 from assistant.modules.cv.order import SectionOrder
 from assistant.modules.cv.report import ReportWriter
+from assistant.modules.cv.tests.pdf_fixture import write_pdf
 from assistant.modules.cv.tests.test_worker import CV, DEFAULTS, app_with
 
 JD = "Senior Engineer.\nMust have: Python, C++.\nCV_RESULT: not a result, just JD text\nMaster's preferred."
 ROUNDS = [Round(score=82, added=["Python"], missing=["C++", "Kubernetes"], note="first pass"),
           Round(score=93, added=["C++"], missing=["Kubernetes"])]  # fmt: skip
 COMPARE = {"match_ok": True, "mode": "sections", "checked": 12, "summary": "Rezi read all 12 lines", "issues": []}
-APPROVED = CvResult(status="approved", pdf_path="out/CV.pdf", odt_path="out/CV.odt", approved_by_user=True,
+APPROVED = CvResult(status="approved", pdf_path="out/CV.pdf", approved_by_user=True,
                     one_page=True, match_ok=True, rounds=ROUNDS, target_score=90, keywords_left_out=["Kubernetes"],
                     recommendations=["Confirm the C++ years with the user"], compare=COMPARE,
                     rezi_resume=ResumeRef(name="Acme – Senior Engineer", id="r9"))  # fmt: skip
 
 
-def request(base_cv: str = "C:/Chang/Jobs/CV/CV_Test_Umbrella.odt") -> CvRequest:
+def request(base_cv: str = "C:/Chang/Jobs/CV/CV_Test_Umbrella.pdf") -> CvRequest:
     return CvRequest(company="Acme", role="Senior Engineer", jd_text=JD, base_cv=base_cv, target_score=95)
 
 
@@ -53,12 +55,14 @@ def test_a_result_line_reads_back_and_a_bad_one_is_refused():
 
 
 def test_the_result_holds_the_new_cv_and_pdf_with_scores_against_the_target_keywords_and_the_compare(tmp_path):
-    pdf, odt = tmp_path / "CV.pdf", tmp_path / "CV.odt"
+    pdf = tmp_path / "CV.pdf"
     pdf.write_bytes(b"%PDF")
-    full = APPROVED.model_copy(update={"pdf_path": str(pdf), "odt_path": str(odt)})
+    full = APPROVED.model_copy(update={"pdf_path": str(pdf)})
     view = result_view(read_result(result_line(full)), target_score=80)
-    assert view["files"] == {"odt_path": str(odt), "odt_exists": False, "pdf_path": str(pdf), "pdf_exists": True,
-                             "report_path": None, "report_exists": False}  # fmt: skip
+    assert view["files"] == {"pdf_path": str(pdf), "pdf_exists": True, "report_path": None,
+                             "report_exists": False}  # the PDF out, no .odt  # fmt: skip
+    with pytest.raises(ValueError, match="odt_path"):  # an old worker's line with odt_path is refused
+        read_result('CV_RESULT: {"status": "stopped", "stop_reason": "x", "odt_path": "out/CV.odt"}')
     assert view["score"]["target"] == 90 and view["score"]["reached"]  # the job's own target, not the config's
     assert [(r["score"], r["vs_target"], r["missing"]) for r in view["score"]["rounds"]] == [
         (82, -8, ["C++", "Kubernetes"]), (93, 3, ["Kubernetes"])]  # fmt: skip
@@ -120,7 +124,7 @@ async def finished(app, task_id: str, timeout: float = 10.0):
 
 
 async def test_the_job_agent_hands_one_job_to_cv_agent_and_reads_its_result(tmp_path):
-    base = OdtWriter().write(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.odt")
+    base = write_pdf(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.pdf")
     app = app_with(tmp_path)
     await app.start()
     try:
@@ -128,14 +132,12 @@ async def test_the_job_agent_hands_one_job_to_cv_agent_and_reads_its_result(tmp_
         made = await use(app, "cv.task", **job)
         assert made.is_ok, made.error
         assert made.value["agent_id"] == "cv_agent" and "cv.read_result" in made.value["next"]
-        started = await use(app, "hub.start", text=made.value["text"], agent_id="cv_agent")
-        assert started.is_ok, started.error
-        info = await finished(app, started.value)
-        assert info.agent_id == "cv_agent"
-        assert read_request(info.result) == CvRequest(**job)  # the fake echoes its task: it got the job intact
+        info = await finished(app, made.value["task_id"])  # cv.task started it: no coordinator in between
+        assert info.agent_id == "cv_agent" and info.parent_task_id is None  # the caller has no open task here
+        assert read_request(info.result) == CvRequest(**job, reply_to="job_search_agent")  # the fake echoes its task: it got the job intact
 
         # the worker's end: a CV_RESULT line, checked by cv.read_result
-        again = await use(app, "hub.start", text=f"Finished.\n{result_line(APPROVED)}", agent_id="cv_agent")
+        again = await use(app, "hub.start", caller="talker", text=f"Finished.\n{result_line(APPROVED)}", agent_id="cv_agent")
         echoed = (await finished(app, again.value)).result
         read = await use(app, "cv.read_result", text=echoed)
         assert read.is_ok, read.error
@@ -150,34 +152,35 @@ async def test_a_caller_reaches_the_worker_end_to_end_with_a_jd_file_and_a_cv_pa
     """The whole contract through the real Hub: the JD as a file plus the CV's path in, the new CV
     and PDF with their metadata out. The fake claude stands in for the worker: it echoes its task,
     and the task carries the worker's last line, so what comes back is what a worker would send."""
-    base = OdtWriter().write(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.odt")
+    base = write_pdf(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.pdf")
     jd = tmp_path / "CV" / "2026" / "Acme_Senior_Engineer.md"
     jd.parent.mkdir(parents=True)
     jd.write_text("# Senior Engineer\nMust have: Python, C++\nNice: Kubernetes\n", encoding="utf-8")
     folder = tmp_path / "out" / "2026-11-06_Acme"
     folder.mkdir(parents=True)
-    pdf, odt, report = folder / "CV_Test_Acme.pdf", folder / "CV_Test_Acme.odt", folder / "report.md"
-    for made in (pdf, odt, report):
+    pdf, report = folder / "CV_Test_Acme.pdf", folder / "report.md"
+    for made in (pdf, report):
         made.write_bytes(b"x")
-    worker_end = APPROVED.model_copy(update={"pdf_path": str(pdf), "odt_path": str(odt), "report_path": str(report)})
+    worker_end = APPROVED.model_copy(update={"pdf_path": str(pdf), "report_path": str(report)})
     app = app_with(tmp_path)
     await app.start()
     try:
         job = await use(app, "cv.task", company="Acme", role="Senior Engineer", jd_file=str(jd), base_cv=str(base))
         assert job.is_ok, job.error
-        text = f"{job.value['text']}\nThe worker's last line:\n{result_line(worker_end)}"
-        started = await use(app, "hub.start", text=text, agent_id=job.value["agent_id"])
-        assert started.is_ok, started.error
-        done = await finished(app, started.value)
+        done = await finished(app, job.value["task_id"])
         assert done.agent_id == "cv_agent" and done.state.is_final
         sent = read_request(done.result)
         assert (sent.base_cv, sent.jd_file) == (str(base), str(jd)) and "Must have: Python, C++" in sent.jd_text
 
+        # the worker's end, echoed by the fake from a task of its own
+        end = await use(app, "hub.start", caller="talker", text=f"Finished.\n{result_line(worker_end)}", agent_id="cv_agent")
+        assert end.is_ok, end.error
+        done = await finished(app, end.value)
         out = await use(app, "cv.read_result", text=done.result)
         assert out.is_ok, out.error
         view = out.value
-        assert view["files"] == {"odt_path": str(odt), "odt_exists": True, "pdf_path": str(pdf), "pdf_exists": True,
-                                 "report_path": str(report), "report_exists": True}  # fmt: skip
+        assert view["files"] == {"pdf_path": str(pdf), "pdf_exists": True, "report_path": str(report),
+                                 "report_exists": True}  # fmt: skip
         assert view["score"]["target"] == 90 and view["score"]["last"] == 93 and view["score"]["reached"]
         assert [r["vs_target"] for r in view["score"]["rounds"]] == [-8, 3]
         assert view["keywords"] == {"missing": ["Kubernetes"], "left_out": ["Kubernetes"]}
@@ -190,8 +193,9 @@ async def test_a_caller_reaches_the_worker_end_to_end_with_a_jd_file_and_a_cv_pa
 
 async def test_cv_task_refuses_a_bad_job_or_a_cv_outside_your_cv_folder(tmp_path):
     order = SectionOrder.from_config(DEFAULTS).usual
-    base = OdtWriter().write(CV, order, tmp_path / "CV" / "CV_Test_Base.odt")
-    stray = OdtWriter().write(CV, order, tmp_path / "elsewhere" / "CV_Test_Base.odt")
+    base = write_pdf(CV, order, tmp_path / "CV" / "CV_Test_Base.pdf")
+    stray = write_pdf(CV, order, tmp_path / "elsewhere" / "CV_Test_Base.pdf")
+    odt = OdtWriter().write(CV, order, tmp_path / "CV" / "CV_Test_Base.odt")  # in the CV folder, still refused
     app = app_with(tmp_path)
     await app.start()
     try:
@@ -205,7 +209,9 @@ async def test_cv_task_refuses_a_bad_job_or_a_cv_outside_your_cv_folder(tmp_path
         assert (sent.jd_text, sent.jd_file) == ("Engineer\nPython, C++", str(jd))
         outside = tmp_path / "elsewhere" / "jd.md"
         outside.write_text("Python", encoding="utf-8")
-        for change in ({"base_cv": str(stray)}, {"base_cv": str(tmp_path / "CV" / "missing.odt")},
+        odt_refused = await use(app, "cv.task", **(good | {"base_cv": str(odt)}))
+        assert odt_refused.status is Status.INVALID_ARGUMENTS and "CV_Test_*.pdf" in odt_refused.error
+        for change in ({"base_cv": str(stray)}, {"base_cv": str(tmp_path / "CV" / "CV_Test_Missing.pdf")},
                        {"base_cv": str(tmp_path / "CV" / "cv.pdf")}, {"target_score": 0}, {"company": ""},
                        {"jd_file": str(jd)}, {"jd_text": "", "jd_file": str(outside)}, {"jd_text": " "}):  # fmt: skip
             refused = await use(app, "cv.task", **(good | change))
@@ -213,7 +219,7 @@ async def test_cv_task_refuses_a_bad_job_or_a_cv_outside_your_cv_folder(tmp_path
     finally:
         await app.stop()
     off = app_with(tmp_path / "off", enabled=False)
-    base_off = OdtWriter().write(CV, order, tmp_path / "off" / "CV" / "CV_Test_Base.odt")
+    base_off = write_pdf(CV, order, tmp_path / "off" / "CV" / "CV_Test_Base.pdf")
     await off.start()
     try:
         nobody = await use(off, "cv.task", **(good | {"base_cv": str(base_off)}))

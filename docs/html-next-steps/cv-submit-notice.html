@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv_agent hears about the Submit, without being woken; the font floor back to 9 pt</title>
+<!-- Generated from docs/next-steps/cv-submit-notice.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-submit-notice.html"></nav>
+<main>
+<h1 id="cv_agent-hears-about-the-submit-without-being-woken-the-font-floor-back-to-9-pt">cv_agent hears about the Submit, without being woken; the font floor back to 9 pt</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-10.</strong> Approved 2026-11-10 with follow-ups 1 and 3, not 2, plus the font floor back to 9 pt as a warning only. Built: the notice, the 9 pt floor, and follow-up 1 as <strong>design A</strong> (your pick, 2026-11-10: "No wait. I like A"). Next: <code>RELOAD: cv</code> (asked first), one reload for all of it; you'll test it on your next real job. Came from hand check 2 of <a href="cv-submit-delivers.html">cv-submit-delivers</a>: your Submit reached the job agent, but cv_agent registered nothing.</p>
+</blockquote>
+<h2 id="whats-wrong">What's wrong</h2>
+<p>When you press Submit in the CV Tool, the cv module delivers the result to the job agent by itself (<code>SubmitWatch</code> → <code>_tell_asker</code> → <code>DeliverMessage</code>). cv_agent is not told, so as far as it knows the job is still waiting on your Submit.</p>
+<h2 id="the-change-the-lightest-way">The change (the lightest way)</h2>
+<p>Reuse the notice mechanism that's already there. Nothing new is built: <code>AgentNotice</code> is a contract, the Hub passes it to the agent's <code>note</code>, and <code>MilestoneFeed</code> merges the line into that agent's <strong>next</strong> turn. It never wakes the agent or starts a turn (the same path <code>job.search</code> and the permissions handler use; <a href="../html/api/reusable.html">reusable parts</a>).</p>
+<ol>
+<li><strong><code>cv/module.py</code>:</strong> the Submit watch delivers through <code>_deliver_submit</code>, which is <code>_tell_asker</code> with <code>notice=True</code>: after the delivery, the module publishes one <code>AgentNotice(agent_id=cv_agent, source="cv", text=...)</code>. <code>AgentNotice</code> is in the manifest's <code>publishes</code>.</li>
+<li><strong>The line</strong> (<code>reply.submit_notice</code>), plain, one sentence (the Hub puts <code>[cv]</code> in front of it):<blockquote>
+<p>The user pressed Submit in the CV Tool on the CV for Robotics Engineer at SubmitCheckCo (job 2026-11-10_SubmitCheckCo) at 2026-11-10T02:51:20; the cv module delivered it to job_search_agent (task 2894c9ca). Note: 2 text pieces print under 9 pt (a warning only; the user submitted it as it is).</p>
+</blockquote>
+</li>
+</ol>
+<p>The note is only there when <code>small_text</code> isn't empty (<code>small_text_note</code>, shared with the job agent's message). A failed delivery says "…; delivering it to job_search_agent failed: <error>".
+3. <strong>Only the watch's deliveries.</strong> When cv_agent calls <code>cv.tool_result</code> itself, it already gets "told: …" in that call's result, so no notice. A missed Submit (pressed while cv was off) is only a reminder to you and sends nothing, so no notice either.
+4. <strong>If cv_agent isn't running</strong>, the Hub drops the notice and logs it (<code>Dropped a notice for cv_agent (not running)</code>), as it does today. The delivery is in <code>job_start.json</code> (<code>replied</code>) either way.</p>
+<h2 id="the-font-floor-9-pt-a-warning-only-your-word-2026-11-10">The font floor: 9 pt, a warning only (your word, 2026-11-10)</h2>
+<p>"I'll check with 9 as a suggested floor." Everywhere the Submit fix put 10 pt is now 9 pt, and it's still only a warning (a Submit is never refused):</p>
+<ul>
+<li><code>cv_tool/cvlib.py</code>: <code>MIN_PT = 9.0</code> (what <code>font_sizes</code>, <code>small_text</code>, <code>min_pt</code> and the on-screen warning use). The page itself still prints its small lines (contact, titles, degrees, awards) at <code>BODY</code>, 10 pt, as it did, so the CV looks the same; only the warning moved.</li>
+<li><code>cv/tool.py</code>: <code>MIN_PT = 9</code> (<code>MIN_PT_ADVICE</code> follows). <code>cv/reply.py</code> defaults to it.</li>
+<li>The menu texts (<code>cv.tool_round</code>, <code>cv.check_fonts</code>, <code>cv.tool_result</code>), the worker's prompt, the cv module's docs pages, the Parts row in the architecture overview, and the tests.</li>
+<li><strong>Conflict left for you:</strong> the CV Module rule file <code>C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\rules\cv-min-font-9pt-measured.md</code> says "at least 10 pt … (User rule, 2026-11-09, raised from 9 pt …) measure 10 yourself". cv_agent reads that folder, so it will see 10 there and 9 in its prompt. The Main Assistant can't write there, and you said not to rename the file; its text needs your word (or cv_agent's edit).</li>
+</ul>
+<h2 id="follow-ups-from-the-hand-check">Follow-ups from the hand check</h2>
+<ol>
+<li><strong>cv_agent's prompt, step 5: built as design A (2026-11-10).</strong> What was built: cv_agent tells you the CV is ready for your Submit and ends its task, with no NEED and no <code>cv.tool_result</code> check, and <code>CV_RESULT</code> status <code>"ready"</code>. <code>CvResult</code> takes <code>"ready"</code>: it needs <code>one_page</code> and <code>pdf_path</code> (the last <code>cv.tool_round</code>'s PDF) and refuses <code>approved_by_user</code> (that's the Submit); <code>"approved"</code> stays for older results. <code>cv.read_result</code> and <code>cv.report</code> ("<strong>Ready</strong> for your Submit") take it. Your Submit goes to the job agent from the cv module, in the same second, with no wait and no fallback timer; cv_agent hears of it from the <code>[cv]</code> line at its next task. The job agent's message now ends "this Submit is the user's yes. cv_agent's own CV_RESULT line has status "ready" (everything but this Submit); nothing more comes from it", and <code>cv.task</code>'s <code>next</code> says the worker's task ends before the Submit. Also fixed in the prompt: it told cv_agent to check its line with <code>cv.read_result</code>, which only the hand-off callers may call; it now says the asking agent checks it. Designs B (keep the NEED) and C (cv_agent sends the result, with a fallback timer) were turned down. The problem it fixed, as found: without a NEED, cv_agent's turn ends and its task is done before you press Submit. But <code>CvResult</code> can only be <code>approved</code> with your yes (<code>approved_by_user</code>, the Submit), and the job agent's message says cv_agent's <code>CV_RESULT</code> follows when its task ends. The <code>[cv]</code> notice can't fix that: it only arrives when a next turn starts. Two ways:
+   - <strong>A (recommended):</strong> cv_agent ends its task when the CV is ready, telling you it's ready for your Submit, with <code>CV_RESULT</code> status <code>"ready"</code> (a new status: everything but your Submit) and its current PDF. The module's delivery is what the job agent acts on; the <code>[cv]</code> line tells cv_agent at its next task. Touches <code>data.py</code> (<code>CvResult</code>), <code>cv.read_result</code>, the prompt, <code>reply_text</code>'s last sentence.
+   - <strong>B:</strong> keep the NEED as it is (your "submitted" ends the task as approved); only the wording drops the <code>cv.tool_result</code> check, since the <code>[cv]</code> line arrives with your answer.</li>
+<li><strong>Rename the rule file:</strong> dropped (your call).</li>
+<li><strong>Test jobs keep the job agent's task open:</strong> a note for future hand checks (no code). In hand check 2 the job agent's test task had already ended, so your Submit arrived as a new task with no context.</li>
+</ol>
+<h2 id="touches-built">Touches (built)</h2>
+<ul>
+<li><code>src/assistant/modules/cv/module.py</code>: <code>_deliver_submit</code>, <code>_tell_asker(notice=)</code>, <code>AgentNotice</code> in <code>publishes</code>, the menu texts at 9 pt.</li>
+<li><code>src/assistant/modules/cv/reply.py</code>: <code>small_text_note</code>, <code>submit_notice</code>; the default floor from <code>tool.MIN_PT</code>.</li>
+<li><code>src/assistant/modules/cv/tool.py</code>, <code>src/cv_tool/cvlib.py</code>: <code>MIN_PT</code> 9; cvlib's CSS small lines at <code>BODY</code>.</li>
+<li><code>src/assistant/modules/cv/worker.py</code>: 9 pt, a warning.</li>
+<li>Tests: <code>test_the_submit_watch_delivers_live_submits_and_only_reminds_missed_ones</code> now checks cv_agent's one notice (job, time, who, the 9 pt note) and none after <code>cv.tool_result</code>; the 9 pt asserts in <code>test_cv_tool.py</code> and <code>test_tool.py</code>.</li>
+<li>Docs: <code>cv/docs/architecture.md</code> (the Submit sequence, the return address, Tested), <code>cv/docs/README.md</code>, <code>docs/architecture/README.md</code> (CV Tool row), <code>docs/api/reusable.md</code> (<code>AgentNotice</code> Used by <code>cv</code>).</li>
+<li>Design A: <code>cv/data.py</code> (<code>CvResult.status</code> <code>"ready"</code>, its check), <code>cv/report.py</code> (the Ready line), <code>cv/worker.py</code> (step 5 and the Never list), <code>cv/reply.py</code> (<code>reply_text</code>'s last sentence), <code>cv/module.py</code> (<code>cv.task</code>'s <code>next</code>); tests <code>test_cv.py</code> (<code>test_a_ready_result_is_everything_but_the_submit_and_the_job_agent_is_told_so</code>) and <code>test_worker.py</code> (the prompt: no <code>cv.tool_result</code>, no Submit NEED); docs <code>cv/docs/tools.md</code> (the hand-off, <code>CvResult</code>, and the stale "10 pt … refuses" line fixed to 9 pt, a warning), <code>cv/docs/architecture.md</code>, <code>cv/docs/README.md</code>. No reusable part was new or changed: the index already lists <code>AgentNotice</code> and <code>DeliverMessage</code> with cv as a user.</li>
+</ul>
+<p>A module change plus the CV Tool app: <code>RELOAD: cv</code> (the CV Tool restarts on it, its code changed). No app restart.</p>
+<footer>Generated from <code>docs/next-steps/cv-submit-notice.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

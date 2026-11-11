@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: cv module, one folder plus the CV Tool build (task 2389decf)</title>
+<!-- Generated from docs/next-steps/handoff-2389decf.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-2389decf.html"></nav>
+<main>
+<h1 id="handoff-cv-module-one-folder-plus-the-cv-tool-build-task-2389decf">Handoff: cv module, one folder plus the CV Tool build (task 2389decf)</h1>
+<blockquote>
+<p><strong>Status: building (2026-11-09).</strong> Main Assistant task 2389decf. This note carries on from <a href="handoff-cv-tool-build.html">handoff-cv-tool-build.md</a>. Read that first; it holds the chunk plan and the cvlib/server design. The guide is the cv module's overview page, <code>src/assistant/modules/cv/docs/README.md</code> ("Design: the CV Tool flow" and "Build state"), plus <a href="cv-uses-cv-tool.html">cv-uses-cv-tool.md</a> and <a href="cv-agent-folders.html">cv-agent-folders.md</a>.</p>
+</blockquote>
+<h2 id="the-users-go-2026-11-09-the-whole-build-two-parts">The user's go (2026-11-09): the whole build, two parts</h2>
+<p><strong>Standing rules:</strong></p>
+<ul>
+<li>cv reloads are approved; ask before any app restart or anything very risky.</li>
+<li>Never answer cv_agent's questions, approvals or the access card yourself; pass them to the user.</li>
+<li>Don't touch the other agents' uncommitted edits: <code>infra/session_agent.py</code>, <code>handoff_keeper.py</code>, <code>job_search/module.py</code>, <code>tests/test_agents.py</code>, <code>tests/test_worker_parts.py</code>.</li>
+<li><strong>Copy, never move or delete.</strong> Leave all originals until the user says they can go.</li>
+<li>Batch the work. Run one build and test per chunk, and after each chunk report plainly what's live and what isn't.</li>
+</ul>
+<h3 id="part-1-one-home-for-the-cv-agent-option-b-all-recommendations-taken">Part 1: one home for the cv agent (Option B, all recommendations taken)</h3>
+<ul>
+<li><strong>New workspace and home: <code>C:\Chang\Jobs\CV_Module</code></strong> (it doesn't exist yet). Layout:</li>
+<li><code>.claude\skills\cv-writing\SKILL.md</code> and <code>rules\*.md</code></li>
+<li><code>.claude\state\</code></li>
+<li><code>data\confirmed_facts.json</code></li>
+<li><code>cv_tool\</code>: the CV Tool's data (<code>jobs\</code>, <code>inbox\</code>, <code>outbox\</code>, <code>rezi_requests\</code>, <code>cache\</code>, profiles)</li>
+<li><code>work\</code>, <code>applied\</code>, <code>docs\</code>, <code>scripts\</code></li>
+<li><strong>Copy these:</strong></li>
+<li>from <code>C:\Chang\Jobs\rezi\cv_agent</code>: <code>work\</code>, <code>applied\</code>, <code>docs\</code>, <code>scripts\</code>, <code>.claude\state\</code>;</li>
+<li>the skill: <code>docs\cv-writing-preferences\SKILL.md</code> → <code>.claude\skills\cv-writing\SKILL.md</code>. Fix its step 4 to the CV Tool's Submit;</li>
+<li>the rule notes from memory, <code>C:\Users\sharr\.claude\projects\C--Chang-Jobs-rezi-cv-agent\memory\</code>, into <code>rules\</code>: <code>cv-style-no-parentheses-semicolons</code>, <code>cv-style-action-to-result</code>, <code>cv-min-font-9pt-measured</code>, <code>cv-section-order-default</code>, <code>rezi-pdf-download-auto</code>, <code>rezi-write-sections-scrambles-experience</code>, <code>cv-tool-scope</code>, <code>cv-tool-rezi-request</code>, <code>never-script-cv-folder-copy-first</code>. Drop anything that conflicts with "never download Rezi's PDF", and <strong>skip</strong> <code>user-wants-rezi-export-not-local-build.md</code>;</li>
+<li><strong>all 14 notes plus <code>MEMORY.md</code></strong> into the new memory folder, <code>C:\Users\sharr\.claude\projects\C--Chang-Jobs-CV-Module\memory\</code> (<code>claude</code> names the folder after the workspace path);</li>
+<li><code>C:\Chang\Jobs\rezi\cv_tool\data\confirmed_facts.json</code> → <code>CV_Module\data\</code>. <strong>Merge</strong> the three fact notes (<code>user-fact-system-design</code>, <code>user-facts-soylent-no-aws</code>, <code>user-facts-hooli-v5-confirmed</code>) into the <strong>copy</strong> only. Read the JSON's shape first (<code>words</code>, <code>phrases</code>, …).</li>
+<li><strong>The one old CV Tool job (Hooli)</strong> stays in <code>C:\Chang\Jobs\rezi\cv_tool\jobs\</code> as a record. Its <code>job.json</code> holds 18 absolute paths.</li>
+<li><strong>Edit:</strong></li>
+<li><code>module.toml</code>:<ul>
+<li><code>[agent] workspace = "C:/Chang/Jobs/CV_Module"</code>;</li>
+<li><code>job_skills</code> = <code>data/confirmed_facts.json</code>;</li>
+<li>a new <code>rules_dir = ".claude/skills/cv-writing"</code>, relative to the workspace; the gate loads <code>SKILL.md</code> plus every file in <code>rules\</code>;</li>
+<li>a new <code>[tool]</code> table: <code>port = 8771</code>, <code>data_dir = "C:/Chang/Jobs/CV_Module/cv_tool"</code>, <code>cv_dir</code>.</li>
+</ul>
+</li>
+<li>The tests: <code>cv/tests/test_job_start.py</code> lines 27, 161 and 163 name <code>C:/Chang/Jobs/rezi/cv_agent</code>. Line 27 is the ExampleCorp fixture under <code>work\pdf-reader-check</code>; point it at the CV_Module copy.</li>
+<li>The docs: cv <code>README.md</code> (the <code>workspace</code> row; the <code>output_dir</code> row stays) and <code>architecture.md</code> L359.</li>
+<li>The job agent's skill: <code>C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md</code> L35 names <code>C:\Chang\Jobs\rezi\cv_agent\applied</code>; change it to <code>C:\Chang\Jobs\CV_Module\applied</code>.</li>
+<li><code>src/cv_tool/cvlib.py</code>: <code>DEFAULT_DATA</code> and <code>DEFAULT_RULES</code> move to the CV_Module paths. The module passes <code>--data-dir</code>, <code>--rules-dir</code> and <code>--agent-work</code> anyway.</li>
+<li><strong>The access list changes</strong> (the workspace line), so the card asks the user when cv reloads or turns on. <strong>Don't answer it.</strong> The old grant is in <code>data/permissions.toml</code> L7–8.</li>
+<li><strong>Bonus:</strong> the Rezi helper's workspace, <code>C:\Chang\Jobs\rezi</code>, no longer contains cv_agent's.</li>
+</ul>
+<h3 id="part-2-the-build-follow-the-overview-pages-flowchart">Part 2: the build (follow the overview page's flowchart)</h3>
+<ul>
+<li><strong>Code placement (decided):</strong> the CV Tool's code stays in <code>src/cv_tool/</code>. <code>CompanionApp</code> runs <code>python -m &lt;package&gt;</code>, and inside <code>cv/</code> that would import the module's code into the app. The module still owns it: it launches it, feeds it jobs and stops it, and the app's docs and tests sit with the module.</li>
+<li><strong>Chunk 1:</strong> finish the app. See <a href="handoff-cv-tool-build.html">handoff-cv-tool-build.md</a>, "Session 3", for <code>agent_round</code>, <code>job_status</code>, <code>job_result</code> and <code>server.py</code>.</li>
+<li><code>py_compile</code> <code>cvlib.py</code> first.</li>
+<li>In <code>import_request</code>, also accept a <code>content</code> dict, since the module sends the content read by <code>pdf_read</code>.</li>
+<li><code>app.js</code>:<ul>
+<li>L15: <code>tool()</code> returns <code>job?.tool || pickedTool || ""</code>, with no Internal default.</li>
+<li>L71: the bar shows "pick one" when empty.</li>
+<li>L172, L241, L359: say "cv_agent picks it up (cv.tool_status)".</li>
+<li>First Draft and <code>#loopRun</code> say "pick Internal or Rezi first" when there's no pick.</li>
+<li>L389: the 3 s poll also reads the server's <code>_fresh</code> list.</li>
+</ul>
+</li>
+<li>The old <code>server.py</code> is 278 lines in <code>C:\Chang\Jobs\rezi\cv_tool</code>. Model the new one on html_viewer's <code>viewer.py</code>:<ul>
+<li><code>require_loopback</code> on bind;</li>
+<li><code>local_request(Host, Origin)</code> on every request, 403 otherwise;</li>
+<li>POST JSON only, 415 otherwise;</li>
+<li><code>/api/quit</code>;</li>
+<li><code>load_layered</code> + <code>merge</code> for <code>src/cv_tool/cv_tool.toml</code>;</li>
+<li><code>open_app_window(url, profile, size="1500,950")</code>;</li>
+<li><code>raise_window(pid, "CV Tool")</code>;</li>
+<li><code>close_app_windows(profile)</code>.</li>
+</ul>
+</li>
+<li>Add <code>__init__.py</code> and <code>__main__.py</code>.</li>
+<li>Tests in <code>cv/tests/test_cv_tool.py</code>.</li>
+<li><strong>Chunk 2, the module side:</strong></li>
+<li><code>CompanionHandover(ctx.handover, "cv_tool", host, 8771, args=[...], ping="/api/ping")</code> (signature in <code>app_kit/companion.py</code> L197). <code>export_state</code> returns the guard and the companion.</li>
+<li><strong>The gate never opens the app.</strong> cv_agent calls <code>cv.open_tool(job_dir)</code> when the user tells it to. That item starts the app, imports the job and returns the app's job id.</li>
+<li>The other items: <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.tool_result</code> (refuses a PDF with text under 9 pt). They use only the app's API, so they work with no window (headless later).</li>
+<li><code>cv.check_fonts</code> uses pymupdf span sizes. Check pymupdf is in the repo venv first; if it isn't, ask the app.</li>
+<li><code>CvRequest.tool</code>: Internal, Rezi or none.</li>
+<li>The <code>rules_dir</code> loading.</li>
+<li>Check that a fresh session after a handoff gets the gate's text again (<code>SessionTaskAgent</code>, <code>cv/handoff.py</code>).</li>
+<li><strong>Chunk 3, the prompt (<code>worker.py</code>): 5 steps.</strong>
+  1. Job &amp; CV: the gate.
+  2. Pick: the request's <code>tool</code>, else a <code>NEED:</code> to pick in the CV Tool's tab 2.
+  3. First Draft.
+  4. ATS Loop: to 90, at most 5 rounds, or only unbacked terms left.
+  5. The user's Submit, read back with <code>cv.tool_result</code>.</li>
+</ul>
+<p>The prompt must also say:
+  - Wait for the user to say "open the UI and start", then call <code>cv.open_tool</code>.
+  - Edit only the CV's own content and send it with <code>rezi.write_resume</code>.
+  - Use Chrome only to read the ATS score, categories and keywords. If it ever edits in Chrome, copy the same change into the content before the next PDF.
+  - With Rezi picked, open the job's Rezi resume in the user's own Chrome at First Draft, keep that tab through the loop, and reload it after each write.
+  - Never download Rezi's PDF.
+  - The final PDF is <code>CV_Test_&lt;Company&gt;_final.pdf</code>.
+  - First Draft ends with a <code>NEED:</code> for the user's review.
+- <strong>Chunk 4:</strong> tests, ruff and the docs: the cv <code>README</code>, <code>architecture</code> and <code>tools</code>, the module library, <code>reusable.md</code> if anything is shared, and the overview page's <strong>Build state</strong> table. Rebuild the HTML. Run the architecture-check.
+- <strong>Chunk 5:</strong> <code>RELOAD: cv</code> (approved). Confirm with <code>list_modules</code> and <code>show_menu cv</code>. The access card goes to the user.
+- <strong>Chunk 6: ExampleCorp #1.</strong> The job agent's task 73aebe5d (paused): <code>hub.send</code> it, or <code>hub.start</code> fresh if that's refused.
+  - The job: base CV <code>CV_Test_ExampleCorp.pdf</code>, the JD as text, <code>tool</code> unset.
+  - Notes for cv_agent:
+    - one simulation platform, Isaac Sim only;
+    - don't claim Isaac Lab, MuJoCo, RL policy training, reward functions or domain randomization;
+    - the real sim-to-real link: the G1 teleop checked in Isaac Sim before the robot, and the GR00T locomotion integration;
+    - lead Skills with Python.
+  - Then cv_agent <strong>waits for the user</strong> to tell it to open the UI and start.</p>
+<h2 id="done-this-session-2026-11-09-docs-only-no-source-code">Done this session (2026-11-09), docs only, no source code</h2>
+<ul>
+<li><strong>The design docs:</strong></li>
+<li>The flow is merged into the cv overview page: "Design: the CV Tool flow" and "Build state".</li>
+<li><code>cv-module-flow.md</code> is kept until the user says it can go.</li>
+<li>Scratch copies are in <code>docs/scratch/</code>.</li>
+<li><strong>Decisions written:</strong></li>
+<li><a href="cv-agent-folders.html">cv-agent-folders.md</a>: Option B.</li>
+<li><a href="cv-uses-cv-tool.html">cv-uses-cv-tool.md</a>: cv_agent opens the app with <code>cv.open_tool</code>, the gate doesn't, and headless comes later.</li>
+<li><a href="handoff-cv-tool-build.html">handoff-cv-tool-build.md</a>: the <code>opener</code> is dropped.</li>
+<li><strong>The user's base CV was restored:</strong> <code>C:\Chang\Jobs\CV\CV_Test_SWE.odt</code> was copied from <code>cv_agent\work\recovery\</code> (419,432 bytes, hash checked).</li>
+<li><strong>Facts from the logs</strong> (for the docs, already in the overview page):</li>
+<li>cv_agent writes to Rezi only with <code>rezi.write_resume</code> and reads the score and keywords in Chrome.</li>
+<li><code>generate_keywords</code> timed out, and the API never gives a score.</li>
+<li>It made Chrome edits in Hooli round 2 and in Wayne.</li>
+<li>It downloaded Rezi's PDF in Hooli rounds 2–4, before the rule.</li>
+<li>The Hooli run (2026-11-08) used the old app by hand; Submit was never pressed.</li>
+<li><strong>Code state (start of session 5):</strong> <code>src/cv_tool/cvlib.py</code> edited but untested; no <code>server.py</code>. Nothing reloaded.</li>
+</ul>
+<h2 id="session-5-2026-11-09-part-1-copies-done-chunk-1-written-blocked-on-pymupdf">Session 5 (2026-11-09): Part 1 copies done, chunk 1 written, blocked on pymupdf</h2>
+<p><strong>Done:</strong></p>
+<ul>
+<li><strong><code>C:\Chang\Jobs\CV_Module</code> made, all by copying</strong> (originals untouched): <code>work\</code>, <code>applied\</code>, <code>docs\</code>, <code>scripts\</code> and <code>.claude\state\</code> from <code>rezi\cv_agent</code> (450 files vs 439 source, plus new dirs); <code>.claude\skills\cv-writing\SKILL.md</code> (copied as is, <strong>not yet edited</strong>); the 9 rule notes into <code>.claude\skills\cv-writing\rules\</code> (copied as is, <strong>not yet cleaned</strong>); <code>data\confirmed_facts.json</code> (copied, <strong>fact notes not yet merged</strong>); empty <code>cv_tool\{jobs,inbox,outbox,rezi_requests}</code>. Memory: all 13 notes + <code>MEMORY.md</code> copied to <code>C:\Users\sharr\.claude\projects\C--Chang-Jobs-CV-Module\memory\</code>.</li>
+<li><strong><code>app.js</code>:</strong> <code>tool()</code> has no default (<code>""</code>); <code>PICK_FIRST</code> message on First Draft, Draft from score and <code>#loopRun</code>; bar says "pick one"; the three "Tell the Main Assistant" texts now say "cv_agent picks it up (cv.tool_status)". (The 3 s <code>/api/inbox</code> poll already returns the server's fresh list, see below.)</li>
+<li><strong><code>cvlib.py</code>:</strong> defaults → <code>C:\Chang\Jobs\CV_Module\cv_tool</code> and <code>...\.claude\skills\cv-writing</code>; <code>configure(..., facts="")</code> sets <code>FACTS</code> (default <code>&lt;data_dir&gt;\..\data\confirmed_facts.json</code> if it exists); <code>confirmed()</code>/<code>save_confirmed()</code> use <code>FACTS</code>; <code>rule_files()</code> (SKILL.md + <code>rules\*.md</code>) and <code>rules()</code> (file + first rule line, frontmatter skipped); <code>import_request</code> takes a <code>content</code> dict and <code>work_dir</code>; new <code>agent_round(r)</code>, <code>_round_answer</code>, <code>job_status(jid)</code>, <code>job_result(jid)</code> at the end (as designed in handoff-cv-tool-build "Session 3"; Internal job with no score → <code>internal_round</code>; <code>request_id</code> → Rezi round; Rezi PDF never taken).</li>
+<li><strong>New files:</strong> <code>src/cv_tool/server.py</code> (class <code>Tool</code>: <code>require_loopback</code>, <code>local_request</code> on every request → 403, POST JSON only → 415, <code>/api/quit</code>, <code>/api/window {job}</code> raises or opens the Edge window via <code>open_app_window(size="1500,950")</code>, <code>close_app_windows</code> on stop, <code>_fresh</code> imports returned by <code>/api/inbox</code>; module calls <code>/api/job/import</code>, <code>/api/job/status?id=</code>, <code>/api/round</code>, <code>/api/job/result?id=</code>, <code>/api/rules</code>; <code>settings()</code> = defaults → <code>cv_tool.toml</code> + <code>.local</code> → CLI flags <code>--port --window app|none --no-window --data-dir --cv-dir --rules-dir --agent-work --facts --profile</code>; profile default <code>window_profile("cv_tool")</code>), <code>__init__.py</code>, <code>__main__.py</code>, <code>cv_tool.toml</code> (port 8771, CV_Module paths).</li>
+</ul>
+<p><strong>Blocker, needs the user (install = risky):</strong> <code>pymupdf</code> is <strong>not in the repo venv</strong> (<code>ModuleNotFoundError</code>), and <code>cvlib</code> needs it throughout (font widths, PDF text, page PNGs, <code>font_sizes</code>). <code>CompanionApp</code> runs the app with the app's own <code>sys.executable</code>. Next session: check what Python <code>C:\Chang\Jobs\rezi\cv_tool\cv_tool.cmd</code> used (it has pymupdf), then <strong>NEED: Risky:</strong> ask to <code>pip install pymupdf</code> into <code>.venv</code> (and add it to <code>pyproject.toml</code>, e.g. a <code>cv</code> extra), recommending yes. Same need covers <code>cv.check_fonts</code> in the module. Nothing compiled/tested yet beyond that import failure.</p>
+<p><strong>Next, in order:</strong></p>
+<ol>
+<li>Resolve pymupdf (ask). Then <code>py_compile</code> + import <code>cv_tool.server</code>; add <code>cv_tool</code> to ruff <code>known-first-party</code>; tests in <code>src/assistant/modules/cv/tests/test_cv_tool.py</code> (temp <code>data_dir</code>: import with <code>content</code>, <code>job_status</code>, <code>agent_round</code> export + score, <code>job_result</code>, <code>font_sizes</code>, <code>render</code> nothing under 9 pt, server ping/403/415/quit on a free port with <code>--window none</code>).</li>
+<li>Clean the rule copies in CV_Module: <code>SKILL.md</code> step 4 → the CV Tool's Submit, base CVs are PDFs, <code>cv-tool-rezi-request.md</code> rewritten to the <code>cv.tool_status</code>/<code>cv.tool_round</code> flow and no Rezi PDF; drop "Related: user-wants-rezi-export-not-local-build" links; old <code>rezi\cv_tool</code> paths → CV_Module. Merge the 3 fact notes into <code>CV_Module\data\confirmed_facts.json</code> <code>notes</code> (Soylent = 3D scene data to browser, not video, not "real-time"; G1 teleop "real-time data and state feedback" is backed; "Led a 5-person team" G1 is CV-backed).</li>
+<li>Chunks 2–6 as in "Part 1 → Edit" and "Part 2" above (module.toml, CompanionHandover, <code>cv.open_tool/tool_status/tool_round/tool_result/check_fonts</code>, <code>CvRequest.tool</code>, <code>rules_dir</code> gate loading, test paths, the 5-step prompt, docs + HTML, reload, ExampleCorp).</li>
+</ol>
+<h2 id="the-users-change-to-the-plan-2026-11-09-after-session-6-docs-in-every-chunk">The user's change to the plan (2026-11-09, after session 6): docs in every chunk</h2>
+<ul>
+<li><strong>Don't leave the docs for the end.</strong> Each chunk updates the cv module's own docs (<code>src/assistant/modules/cv/docs/</code>) in the same chunk:</li>
+<li><code>architecture.md</code>: a diagram of the code as built, laid out after the main flow diagram ("Design: the CV Tool flow");</li>
+<li><code>tools.md</code> and the API pages: the new <code>cv.open_tool</code> and <code>cv.tool_*</code> items and the CV Tool app (<code>src/cv_tool</code>: its routes, settings and launch);</li>
+<li>the overview's <strong>Build state</strong> table and the diagram marks: only what is actually live is marked live.</li>
+<li>A new shared helper goes into <code>docs/api/reusable.md</code> with its Used by line.</li>
+<li>After each big chunk: rebuild the HTML with the docs-html skill (<code>build_docs.py</code>), then run the architecture-check skill.</li>
+<li><strong>pymupdf is NOT approved yet.</strong> Ask before installing it into <code>.venv</code>, as a <code>NEED: Risky:</code> question with the full question and a recommendation in the NEED line. Ask as soon as the work that doesn't need it (the module side, the rules, the prompt and their docs) is done and checked.</li>
+<li><strong>Every architecture-check (after each big chunk and before the final report) also checks the design and the code against <code>docs/architecture/principles.md</code> and <code>docs/architecture/reusable-parts.md</code>:</strong> build it once and reuse existing parts (e.g. <code>rezi_json._split_head</code>, <code>CompanionHandover</code>, <code>local_guard</code>, <code>app_kit.window</code>); the thin-module + companion-app pattern exactly as <code>html_viewer</code> uses it (the app never imports <code>assistant</code>); clean module boundaries and contracts. List every place where the code or the flowchart breaks a rule, then fix it or ask the user. Never skip a mismatch silently. (Known one to raise: <code>tool.py</code> importing <code>rezi_json</code>'s private <code>_split_head</code>/<code>_BULLET</code>; make them public within the cv module, or justify it.)</li>
+<li>Order: chunk A = module side + gate + <code>CvRequest.tool</code> + module.toml + their tests and docs; chunk B = rules cleanup and fact merge (CV_Module) + the 5-step prompt + docs; then the pymupdf NEED; chunk C = the app's tests (<code>test_cv_tool.py</code>) + app docs; then <code>RELOAD: cv</code> and ExampleCorp.</li>
+</ul>
+<h2 id="at-the-restart-2026-11-09-whats-done-whats-left-the-hand-checks">At the restart (2026-11-09): what's done, what's left, the hand checks</h2>
+<ul>
+<li><strong>Done:</strong> the whole CV Tool build (live since the cv reload); ExampleCorp at First Draft v2, Rezi Score 90 (Content 90, Format 99, Optimization 100, Best Practices 73, Application Ready 90), one page, nothing under 9 pt, Rezi resume <code>00000000-0000-0000-0000-0000000000b1</code>; the job's folder <code>C:\Chang\Jobs\CV_Module\work\2026-11-09_ExampleCorp_StaffEngineerWidgetDesign\</code> (its <code>handoff.md</code> has cv_agent's notes). The Hub's stale-task fix at the source (<code>TaskRecord.holder</code>, <code>_close_replaced</code>), <code>cv.tool_draft</code>, <code>cv.tool_internal_round</code>, the truth check (PDF CVs, confirmed phrases, hyphenated terms), the sign-in prompt: built, 742 tests pass, loaded by this restart.</li>
+<li><strong>Open question from cv_agent (task 152d6243, may not survive the restart):</strong> "Please review the ExampleCorp First Draft (v2, Rezi Score 90, one page) in the CV Tool. Do you want any edits? And for each of these, is it true for you and OK to add: Synthetic Data Generation, physics simulation, embodied AI, experimental skills, sim-to-real transfer?" If the task is gone after the restart, start cv_agent again on the same job (cv.task as before; the gate reuses the day's folder) and tell it the First Draft v2 is in the CV Tool and waits for the review.</li>
+<li><strong>Hand checks after the restart:</strong> (1) <code>hub.agents</code>: cv_agent shows no stale 20c1d08e; (2) type on cv_agent's tab: the message reaches its live task, not a stale one; (3) the cv menu has <code>cv.tool_draft</code> and <code>cv.tool_internal_round</code>; (4) in the CV Tool, "modular" and "sim-to-real" are no longer flagged "not on your CVs"; (5) with an Internal job: <code>cv.tool_draft</code> with <code>apply</code>, then <code>cv.tool_internal_round</code>, shows the score and the missing keywords with no agent.</li>
+<li><strong>Left:</strong> your review of the First Draft, then the ATS Loop and your Submit; the cv manifest's one-line description still says "checked by Rezi, your yes" (fix); commit (nothing committed); the old copies (<code>C:\Chang\Jobs\rezi\cv_agent</code>, <code>rezi\cv_tool</code>, the memory notes) stay until you say they can go; the job agent's paused task 73aebe5d is obsolete (ExampleCorp was sent from the Main Assistant).</li>
+</ul>
+<h2 id="session-7-later-2026-11-09-live-examplecorp-at-first-draft-v2-three-fixes-built-not-live">Session 7, later (2026-11-09): live, ExampleCorp at First Draft v2; three fixes built, not live</h2>
+<ul>
+<li><strong>Live:</strong> cv reloaded with chunks A–C (access card allowed 4/4); pymupdf 1.28.2 in <code>.venv</code>. ExampleCorp runs as cv_agent task <strong>152d6243</strong> (my child), First Draft v2 in the CV Tool; the Rezi request <code>2026-11-09_ExampleCorp_20261109-155236</code> is pending, no score; the user signed in to Rezi in Chrome, but their reply bounced.</li>
+<li><strong>Built and tested (742 pass, ruff clean, docs rebuilt), NOT live:</strong>
+  1. <strong>Stale Hub task</strong> (<code>agent_hub/tasks.py</code>): <code>open_task_of</code> takes the newest open task (tab messages went to the stale 20c1d08e left by the cv reloads); <code>send</code>/<code>cancel</code> close a record the agent says it doesn't hold. Test: <code>agent_hub/tests/test_stale_task.py</code>. Needs an agent_hub reload, but <code>AgentHubModule.busy</code> refuses while any record is open and records aren't handed over, so only <code>reload now</code> (drops every open task record: 2389decf, 152d6243, 73aebe5d) or an app restart makes it live. <strong>Asked the user.</strong>
+  2. <strong>Internal path with no agent:</strong> <code>cvlib.apply_internal_draft</code>, route <code>/api/draft/internal/apply</code>, <code>keyword_lists</code> falls back to the last Internal round; items <code>cv.tool_draft</code>, <code>cv.tool_internal_round</code> (<code>tool.py</code> <code>draft</code>, <code>internal_round</code>).
+  3. <strong>Truth check:</strong> <code>corpus()</code> reads <code>.pdf</code>/<code>.odt</code>/<code>.docx</code> CVs, <code>known()</code> takes the confirmed <code>phrases</code>' words and hyphenated terms whose parts are known, <code>configure()</code> resets the cache; facts' <code>notes</code> and job notes are deliberately NOT backing.
+  4. <strong>Sign-in:</strong> the prompt says cv_agent checks both Rezi sign-ins itself (<code>rezi.status</code> / <code>rezi.sign_in</code>; Chrome: ask with NEED, reload, check). Design and code agreed apart from the prompt's missing Chrome case and the Hub routing bug.
+  Items 2–4 need a cv reload; it waits while cv_agent holds 152d6243 (busy), and it restarts the CV Tool app (code changed).</li>
+</ul>
+<h2 id="session-7-2026-11-09-chunks-a-and-b-done-waiting-on-the-pymupdf-answer">Session 7 (2026-11-09): chunks A and B done, waiting on the pymupdf answer</h2>
+<ul>
+<li><strong>Chunk A (built, tested, not live):</strong> <code>cv/tool.py</code> (<code>tool_settings</code>, <code>tool_content</code>, <code>CvTool</code> on <code>CompanionHandover</code>); <code>module.py</code> (<code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.check_fonts</code>, <code>cv.tool_result</code>, <code>_job_folder</code>, <code>_tool_call</code>, <code>export_state</code> = <code>{guard, tool}</code>, <code>settings</code> gains <code>rules_dir</code> and <code>tool</code>, <code>cv.task</code> gains <code>tool</code>); <code>job_start.py</code> (<code>rules_dir</code>: SKILL.md + rules/*.md, then <code>job_skills</code>; the block names <code>cv.open_tool</code>); <code>data.py</code> (<code>ToolPick</code>, <code>TOOL_PICKS</code>, <code>CvRequest.tool</code>; approved no longer needs Rezi's match); <code>handoff.py</code> (5 steps); <code>worker.py</code> (the 5-step prompt); <code>module.toml</code> (workspace CV_Module, <code>rules_dir</code>, <code>job_skills</code> = facts, <code>[tool]</code>); <code>rezi_json.split_head</code> made public; tests <code>test_tool.py</code> new, <code>test_worker.py</code>/<code>test_job_start.py</code> updated. 136 cv tests pass, ruff clean. <code>pyproject.toml</code>: <code>cv_tool</code> first-party, a scoped ruff ignore for <code>cvlib.py</code>, and a <code>cv = ["pymupdf&gt;=1.24"]</code> extra (declared only). Docs: cv README (status, diagram marks, the 5 steps, config, Build state), architecture ("The CV Tool: code as built", class + sequence diagrams), tools (the five items), <code>reusable.md</code> and <code>app_kit.md</code> Used by lines; HTML rebuilt.</li>
+<li><strong>Chunk B (done, outside the repo):</strong> CV_Module <code>SKILL.md</code> and 7 rule notes cleaned; 3 fact notes merged into <code>CV_Module\data\confirmed_facts.json</code> (17 notes); <code>apply-session</code> SKILL L35 → <code>CV_Module\applied</code>.</li>
+<li><strong>Next:</strong> the pymupdf NEED (asked at the end of session 7). On yes: install, then <code>test_cv_tool.py</code> (the app: import with content, status, agent_round, result, font_sizes, render ≥ 9 pt, server ping/403/415/quit on a free port with <code>--window none</code>), a <code>src/cv_tool</code> docs section, the final architecture-check, <code>RELOAD: cv</code> (the access card goes to the user), ExampleCorp.</li>
+</ul>
+<h2 id="session-6-2026-11-09-read-only-nothing-changed-findings-so-the-next-session-can-write-at-once">Session 6 (2026-11-09): read only, nothing changed. Findings so the next session can write at once</h2>
+<p><strong>pymupdf, still the blocker:</strong> the system Python <code>C:\Users\sharr\AppData\Local\Programs\Python\Python312\python.exe</code> (3.12.7) has <strong>PyMuPDF 1.28.2</strong>, and the old <code>cv_tool.cmd</code> ran <code>pythonw -I server.py</code> with it. <code>.venv</code> has only <code>pypdf 7.0.0</code>. <code>CompanionApp.ensure_running</code> always runs <code>sys.executable</code> (<code>app_kit/companion.py</code> L115); changing that is an <code>app_kit</code> change, so it needs a restart. <strong>Plan:</strong> do all the work that doesn't need pymupdf (below), then end with one <code>NEED: Risky: pip install pymupdf==1.28.2 into .venv, and add a</code>cv = ["pymupdf&gt;=1.24"]<code>extra to pyproject.toml. The CV Tool and its tests need it. Recommend yes.</code> The module side never imports pymupdf: <code>cv.check_fonts</code> asks the app (<code>small_text</code> from <code>/api/round</code> and <code>/api/job/result</code>).</p>
+<p><strong>Already checked, no change needed:</strong></p>
+<ul>
+<li><strong>A handoff's fresh session gets the gate's rules again.</strong> <code>JobStartAgent.assign</code> passes <code>task.model_copy(text=text + block)</code> to the inner agent, and <code>_continue_fresh</code> sends <code>HANDED_OFF.format(text=task.text)</code> (<code>session_agent.py</code> L547, <code>handoff_keeper.py</code> L8). The one gap: a job given later by <code>message()</code> gets the block only in that message. Say so in the docs.</li>
+<li><strong><code>src/cv_tool/server.py</code> is complete</strong>: the routes, the guard, 415 on non-JSON, <code>/api/quit</code>, <code>/api/window</code>, <code>settings()</code>. <code>cvlib.agent_round/job_status/job_result/import_request(content=, work_dir=)</code> exist (L742, L1379–1454). <code>submit</code> already names <code>CV_Test_&lt;slug&gt;_final.pdf</code> (L1334).</li>
+</ul>
+<p><strong>The app's content shape</strong> (<code>cvlib.parse_cv</code> L180): <code>{name, contact: [str | {text, href, visible}], summary: str, skills: [[label, text]], experience: [{title, company, dates, bullets: [str]}], education: [{degree, detail: [str]}], awards: [str], publications: [str], education_first}</code>.</p>
+<p><strong>The plan to write (one pass per file):</strong></p>
+<ul>
+<li><strong>New <code>src/assistant/modules/cv/tool.py</code>:</strong></li>
+<li><code>tool_content(content: CvContent, degree_first=False) -&gt; dict</code>: CvContent sections → the app's shape. Reuse <code>rezi_json._split_head</code> (Role, Company | Dates) and <code>rezi_json._BULLET</code>. contact[0] = name; later contact lines split on <code>|</code>, linkedin/http parts → <code>{text, href, visible: True}</code>; summary lines joined; skills <code>Label: text</code> → <code>[label, text]</code>; experience/projects head lines → entries, bullets added; education: non-bullet degree lines start <code>{degree, detail: []}</code>, others → detail; awards/publications bullets stripped.</li>
+<li><code>CvTool</code> class around <code>CompanionHandover(ctx.handover-part, "cv_tool", host, port, args=[--port, --window none, --data-dir, --cv-dir, --rules-dir, --facts, --agent-work work_dir], ping="/api/ping", label="CV Tool", log=ctx.log)</code>, with <code>open(job_dir)</code> (read <code>job_start.json</code> → company, role, jd text from <code>jd_file</code>, <code>base_cv_copy</code>; <code>read_pdf</code> → <code>tool_content</code>; <code>POST /api/job/import</code> with <code>tool</code> from the request; then <code>POST /api/window {job}</code>) → <code>{job_id, tool, window}</code>; <code>status</code>, <code>round</code>, <code>result</code> (refuse when <code>small_text</code> isn't empty: name the lines, "shorten or ask, never shrink").</li>
+<li><strong><code>module.py</code>:</strong> <code>init</code> builds <code>CvTool</code> from <code>settings["tool"]</code>. <code>export_state</code> → <code>{"guard": guard.as_value(), "tool": tool.export()}</code>, and <code>ResumeGuard.from_value(ctx.handover.get("guard") if dict else ctx.handover)</code>. Give <code>CompanionHandover</code> the <code>tool</code> part. <code>stop</code> → <code>await tool.stop()</code>. Items: <code>cv.open_tool(job_dir)</code>, <code>cv.tool_status(job_id)</code>, <code>cv.tool_round(job_id, content?, export?, score?, categories?, matched?, missing?, issues?, changes?, note?, request_id?, tool?)</code>, <code>cv.tool_result(job_id)</code>, <code>cv.check_fonts(job_id)</code> (the current PDF's <code>small_text</code> from the app). <code>cv.task</code> gains <code>tool</code> (Internal | Rezi). <code>settings()</code> gains <code>tool</code> (host 127.0.0.1, port 8771, data_dir, cv_dir, rules_dir resolved, facts) and <code>rules_dir</code> (relative to the workspace). <code>JobStart(..., rules_dir=)</code>.</li>
+<li><strong><code>job_start.py</code>:</strong> <code>JobStart.__init__(..., rules_dir=None)</code>. <code>load_skills</code> loads <code>rules_dir/SKILL.md</code>, then <code>rules_dir/rules/*.md</code> sorted (listed at every job, so a new rule needs no reload; a missing dir or SKILL.md → JobStartError), then <code>skills</code>. <code>start_block</code>'s text: drop "cv.build … exports the final PDF"; say the CV Tool's Submit makes the final PDF.</li>
+<li><strong><code>data.py</code>:</strong> <code>CvRequest.tool: Literal["Internal", "Rezi"] | None = None</code>.</li>
+<li><strong><code>handoff.py</code>:</strong> in <code>task_text</code>, "the 8 steps" → "the 5 CV Tool steps".</li>
+<li><strong><code>worker.py</code>:</strong> the 5-step prompt as in "Chunk 3" above (also the docstring). <code>worker_prompt</code> stays the same, with target 90 and max_rounds 5 from the config.</li>
+<li><strong><code>module.toml</code>:</strong> <code>[agent] workspace = "C:/Chang/Jobs/CV_Module"</code>; <code>job_skills = ["data/confirmed_facts.json"]</code>; <code>rules_dir = ".claude/skills/cv-writing"</code>; <code>[tool] host = "127.0.0.1"</code>, <code>port = 8771</code>, <code>data_dir = "C:/Chang/Jobs/CV_Module/cv_tool"</code>, <code>facts = ""</code> (→ <code>&lt;workspace&gt;/data/confirmed_facts.json</code>).</li>
+<li><strong>Tests:</strong> <code>cv/tests/test_job_start.py</code> L27, L161, L163 → the CV_Module paths. A new <code>cv/tests/test_tool.py</code> (<code>tool_content</code> on <code>pdf_fixture</code>, the gate's <code>rules_dir</code> loading, <code>CvRequest.tool</code>, the items against a fake app via <code>http_transport</code> or a monkeypatched <code>CompanionApp.call</code>), and <code>test_cv_tool.py</code> for the app (<code>pytest.importorskip("pymupdf")</code>). Add <code>cv_tool</code> to ruff's <code>known-first-party</code>.</li>
+<li><strong>Outside the repo</strong> (<code>CV_Module</code>, copies only):</li>
+<li><code>SKILL.md</code>: L11 <code>.odt</code> → <code>.pdf</code>. Step 4 → "the user presses Submit in the CV Tool; cv.tool_result reads it". Step 3: the feedback goes through <code>cv.tool_round</code>, not files. Layout L41: <code>scripts/font_sizes.py</code> → <code>cv.check_fonts</code>. L29 "Don't lead with Python" stays as the general rule; ExampleCorp' note overrides it for that job.</li>
+<li><code>rules/cv-tool-rezi-request.md</code>: rewrite to <code>cv.tool_status</code> (the pending <code>rezi_request</code>) and <code>cv.tool_round</code> (<code>request_id</code>, the score fields, no pdf). Drop the "pdf" and "link_round_pdf" parts and "the user says run request".</li>
+<li><code>rules/rezi-pdf-download-auto.md</code>: the results-folder line → <code>cv.tool_round</code>.</li>
+<li><code>cv-tool-scope</code>: the path → <code>src/cv_tool</code> and <code>CV_Module\cv_tool</code>.</li>
+<li>Every rule: remove <code>[[user-wants-rezi-export-not-local-build]]</code>. <code>rezi\cv_agent</code> / <code>rezi\cv_tool</code> paths → CV_Module.</li>
+<li><code>data/confirmed_facts.json</code> <code>notes</code>: add "G1 teleop: 'real-time data and state feedback' over CycloneDDS/Zenoh is backed", "'Led a 5-person team developing Unitree G1 teleoperation' at Example Tech is CV-backed", "Soylent: 3D scene data, not video; don't call it real-time", "Hooli v6: Problem solving, Collaboration, Adaptability go in the Summary story; Technical communication stays in Skills".</li>
+<li><strong>Docs:</strong> the cv <code>README</code> (the workspace row and <strong>Build state</strong>), <code>architecture.md</code> (L359 and the CV Tool section), <code>tools.md</code> (the new items), the module library, and the <code>apply-session</code> SKILL L35 → <code>CV_Module\applied</code>. Then <code>build_docs.py</code>, the architecture-check, then the pymupdf NEED, then tests, <code>RELOAD: cv</code>, ExampleCorp.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/handoff-2389decf.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

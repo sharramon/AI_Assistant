@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff e519644c: CV page layout settings, read per print (cv_agent, 2026-11-10)</title>
+<!-- Generated from docs/next-steps/handoff-e519644c.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-e519644c.html"></nav>
+<main>
+<h1 id="handoff-e519644c-cv-page-layout-settings-read-per-print-cv_agent-2026-11-10">Handoff e519644c: CV page layout settings, read per print (cv_agent, 2026-11-10)</h1>
+<h2 id="done-tests-pass-pytest-srcassistantmodulescvtests-157-passed">Done (tests pass: <code>pytest src/assistant/modules/cv/tests</code> → 157 passed)</h2>
+<ul>
+<li><strong>Skills rule</strong> (user): core keywords only, at most 5 one-line Skills lines, at most 6 entries each, about 25 in all.
+  Saved in <code>C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\SKILL.md</code> ("Skills section"),
+  <code>rules\cv-style-skills-core-keywords.md</code>, and memory.</li>
+<li><strong>Line spacing 1.1 → 1.15</strong> (user-approved). SKILL.md "Layout" and memory say 1.15.</li>
+<li><strong>Layout settings file:</strong> <code>C:\Chang\Jobs\CV_Module\cv_tool\page_settings.json</code> (the CV Tool's data_dir). It's read on every
+  call of <code>cvlib.layout()</code>, with no cache: every render, preview and PDF, every <code>fill()</code>/<code>lint()</code>/<code>fills()</code>, every <code>font_sizes()</code>
+  default and the Submit's <code>min_pt</code>. Its keys and defaults are <code>LAYOUT_DEFAULTS</code> in <code>src/cv_tool/cvlib.py</code>: line_height 1.15,
+  body_pt 10, name_pt 15, heading_pt 10.8, min_pt 10, margin_top_pt 36, margin_side_pt 36, entry_gap_pt 4. A value that is
+  missing, not a number, a bool or outside <code>LAYOUT_RANGES</code> falls back to its default on its own. A bad file gives all the defaults.</li>
+<li>Removed from cvlib: <code>TOP, SIDE, GAP, BODY, TEXT_W, MIN_PT, LINE_H, line_height()</code>. Added <code>PAGE_W, PAGE_H, text_width(lay)</code>.
+  <code>server.py</code> page_h_pt uses <code>layout()</code>.</li>
+<li>Warning 9 → 10 pt: <code>cv/tool.py</code> MIN_PT = 10, plus the "under 10 pt" texts in module.py, worker.py, reply.py, tool.py and
+  cvlib docstrings. Tests updated, and a new test <code>test_the_layout_settings_are_read_at_every_render</code> checks a change with no reload.
+  Note: <code>docs/next-steps/cv-submit-notice.md</code> records the user's earlier choice of 9 pt. The user asked for 10 on 2026-11-10 (later).</li>
+<li><code>cv/module.toml</code> [tool] has a comment pointing to page_settings.json.</li>
+<li>Nothing is committed in git. The CV Tool (port 8771) was NOT restarted and still runs the old code (prints at 1.1).</li>
+<li>Untouched: the AcmeBio CV, every draft and job, Rezi.</li>
+</ul>
+<h2 id="done-in-the-follow-up-session-2026-11-10">Done in the follow-up session (2026-11-10)</h2>
+<p>The "Next" list below is finished. Added paper, bold_weight, the gaps, text_color, heading_rule_pt and link_color, plus
+<code>PAPERS</code>, <code>page_size()</code> and <code>text_height()</code>. <code>PAGE_W</code>/<code>PAGE_H</code> are gone, and server.py page_h_pt uses <code>text_height()</code>.
+pytest: 157 passed. The copy test passes (3 prints in one process, AcmeBio v17 1 page at 10.0 pt). page_settings.json has every key.
+Caveat found: <code>fills()</code> measures about 4% under Chrome's print width. A bigger body_pt or A4 makes Chrome shrink the page.
+Then the Send JD and CV to Rezi click event was built: see <code>cv-rezi-click-signal.md</code> (status: built). 159 passed.
+Open: one CV Tool restart plus a reload of the cv module ONLY (the core's module reload for cv, never the whole app),
+covering both changes.</p>
+<h2 id="next-the-user-said-yes-2026-11-10-restart-reload-approved-nothing-done-yet-no-half-done-edits">Next (the user said YES, 2026-11-10: restart + reload approved). Nothing done yet; no half-done edits.</h2>
+<ol>
+<li><code>use_item modules.reload {"module_id": "cv"}</code> (core menu). Never reload or restart the whole app. Per
+   <code>cv/docs/architecture.md</code>, a cv reload quits the CV Tool when its code changed, and the next call starts the new code.
+   So check the old 8771 process is gone (or stop it with <code>POST /api/quit</code>), then let a cv.* call (for example
+   <code>cv.tool_status</code> on job 2026-11-10_Acme_Bio) start it again. Note: cv_agent is this module's worker, so the
+   reload may end this session. If it does, the next session picks up from here.</li>
+<li>Check the settings file on the next print: change one value in <code>C:\Chang\Jobs\CV_Module\cv_tool\page_settings.json</code>
+   (e.g. line_height 1.2), POST <code>/api/check</code> on 8771 with a job's content (or print a test job), confirm <code>line-height: 1.2</code>,
+   then put 1.15 back. Use a test job (HandCheckCo / SubmitCheckCo), never a real job's PDF.</li>
+<li>Check that the click reaches cv_agent: on a test job (2026-11-10_HandCheckCo), POST <code>/api/draft/rezi</code> on 8771 and look for
+   "cv: the Rezi request ... for cv_agent:" in assistant.log, and the "[Message from cv] The user pressed Send JD and CV
+   to Rezi" message reaching cv_agent. Don't act on that message (it's a test). Say so in the report.</li>
+<li>Confirm that the AcmeBio Submit's final file is v17 with the new lab name: find <code>CV_Test_AcmeBio*_final.pdf</code> in the CV Tool's job
+   folder (<code>cv_tool\jobs\2026-11-10_Acme_Bio</code>), read its text (cv.read or pymupdf), and check that it says
+   "Center for Resilient Autonomous Systems" and not the old Al-Faruque lab name. Check that it matches the v17 version (the job's
+   versions or rounds). If not, tell the user.</li>
+<li>Report all four to the user. No NEED needed unless something fails.</li>
+</ol>
+<h2 id="next-user-approved-2026-11-10-make-all-the-ones-you-recommended-into-settings">Next (user-approved 2026-11-10: "make all the ones you recommended into settings")</h2>
+<p>Add these to <code>LAYOUT_DEFAULTS</code>/<code>LAYOUT_RANGES</code> and to page_settings.json, use them in <code>render()</code>, and keep the current
+values as defaults:</p>
+<ul>
+<li><code>paper</code>: "letter" (612×792) or "a4" (595.28×841.89). Make PAGE_W/PAGE_H come from layout, and use them in <code>text_width</code>
+  and server.py page_h_pt. (<code>module.toml paper = "letter"</code> is unused.)</li>
+<li><code>bold_weight</code> 600: the h1, h2, .title, .row, .edu .deg and .aw weights.</li>
+<li><code>header_gap_pt</code> 4 (.contact margin-bottom), <code>section_before_pt</code> 5 and <code>section_after_pt</code> 2.5 (h2 margin),
+  <code>skill_gap_pt</code> 1 (.skill), <code>degree_gap_pt</code> 3 (.edu), <code>award_gap_pt</code> 1.5 (.aw).</li>
+<li><code>text_color</code> "#2e3a4b" (body and h2 border), <code>heading_rule_pt</code> 0.9, <code>link_color</code> "#1F4E79" (a.vis).
+  Validate colours with a regex like <code>^#[0-9A-Fa-f]{6}$</code>. Non-numbers need their own check in layout(), which only takes numbers now.</li>
+<li>Keep fixed: the font family, the 2 pt under the name, the 1 pt heading padding, the tight gap = 0.55 × entry gap, the bullet
+  mark and separators, the headings' words, alignment, nowrap bullets, FILL_TARGET, the .over colour, the link underline details.</li>
+<li>Then: extend the test, run <code>pytest src/assistant/modules/cv/tests</code>, and test on a copy (work\2026-11-10_line_spacing_check\setting,
+  test_setting.py with its own data_dir): change a value between two prints in one process, and check that AcmeBio v17 with Skills
+  trimmed is still 1 page at 10.0 pt. Rewrite page_settings.json with every key. Update memory <code>cv-line-spacing-proposal.md</code>.</li>
+<li>Then tell the user that the config file is <code>C:\Chang\Jobs\CV_Module\cv_tool\page_settings.json</code>, and ask again about the
+  one restart of the CV Tool. Don't restart without their yes. A cv module reload would also be needed for the module-side 10 pt texts.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/handoff-e519644c.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

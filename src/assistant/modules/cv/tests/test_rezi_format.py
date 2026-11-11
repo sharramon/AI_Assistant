@@ -97,7 +97,7 @@ def test_an_update_reuses_the_resumes_entries_and_hides_the_rest():
 
 
 async def call(app, item: str, **args):
-    return await app.router.send(InvokeTool(name=item, args=args, caller="test"))
+    return await app.router.send(InvokeTool(name=item, args=args, caller="cv_agent"))
 
 
 async def test_write_resume_from_sections_through_the_fake(tmp_path, monkeypatch):

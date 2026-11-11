@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The &quot;Send JD and CV to Rezi&quot; click reaches cv_agent</title>
+<!-- Generated from docs/next-steps/cv-rezi-click-signal.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-rezi-click-signal.html"></nav>
+<main>
+<h1 id="the-send-jd-and-cv-to-rezi-click-reaches-cv_agent">The "Send JD and CV to Rezi" click reaches cv_agent</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you), 2026-11-10.</strong> Built as below (the user asked for it 2026-11-10: the pick stays saved with no event; the click is an event to cv_agent; Submit unchanged). Touches: <code>cv_tool/server.py</code> (<code>/api/draft/rezi</code> publishes <code>rezi_request</code>), <code>cv_tool/cvlib.py</code> (<code>rezi_request</code> gives <code>job_id</code>, <code>at</code>), <code>cv_tool/static/index.html</code> and <code>app.js</code> (the hint), <code>cv/submit_watch.py</code> (<code>on_rezi</code>, once per request id), <code>cv/module.py</code> (<code>_tell_worker_rezi</code>), <code>cv/reply.py</code> (<code>rezi_click_text</code>), <code>cv/worker.py</code> (step 3: the click is the yes), <code>cv/docs/architecture.md</code>. Tests: <code>test_the_send_to_rezi_click_is_an_event_and_the_pick_is_not</code> (test_cv_tool.py), <code>test_the_send_to_rezi_click_tells_cv_agent_once_and_submit_stays_the_same</code> (test_tool.py); 159 passed. Also run on a copy (<code>C:\Chang\Jobs\CV_Module\work\2026-11-10_rezi_click_check</code>). Next: one CV Tool restart and a reload of the cv module only (asked first), together with the page layout settings. Came from the log investigation of the Contoso click at 11:48:00.</p>
+</blockquote>
+<h2 id="whats-wrong">What's wrong</h2>
+<p>The CV Tool's <strong>Send JD and CV to Rezi</strong> button only writes a request file and sets <code>rezi_pending</code> on the job. No event, notice or Hub message goes out, so cv_agent is never told. The signal is lost at the source: nothing was delivered, held or refused, because nothing was sent.</p>
+<ul>
+<li><code>src/cv_tool/static/app.js:234-246</code> (<code>draftRezi</code>) posts <code>/api/draft/rezi</code>, copies the text to the clipboard and shows "Next: cv_agent picks it up (cv.tool_status)".</li>
+<li><code>src/cv_tool/server.py:227-228</code> calls <code>cvlib.rezi_request(...)</code> and publishes nothing. <code>/api/submit</code> (<code>server.py:241</code>) does publish <code>{"kind": "submitted", ...}</code>.</li>
+<li><code>src/cv_tool/cvlib.py:974-998</code> writes the file and <code>rezi_pending</code>, nothing else.</li>
+<li><code>src/assistant/modules/cv/submit_watch.py:101</code>, the cv module's only watcher on the CV Tool's event stream, acts only on <code>kind == "submitted"</code>. An event from the click would be dropped too.</li>
+<li><code>src/assistant/modules/cv/worker.py:52-57</code> only says to pass <code>request_id</code> "when cv.tool_status shows a pending rezi_request". It doesn't say the click is your yes, so cv_agent would ask again.</li>
+<li><code>src/cv_tool/static/index.html:72</code>, the panel's hint: "You tell the Main Assistant to run it." The flow predates cv_agent and assumes someone polls.</li>
+</ul>
+<h2 id="evidence-contoso-job-cv_agent-task-0c8a6a33-2026-11-10">Evidence (Contoso job, cv_agent task 0c8a6a33, 2026-11-10)</h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>11:47:54</td>
+<td>cv_agent's turn ends: it will ask you before any Rezi write if Rezi is picked.</td>
+</tr>
+<tr>
+<td>11:47:57</td>
+<td>The cv tab's Talker tells cv_agent to check the pick and ask you before the first Rezi write.</td>
+</tr>
+<tr>
+<td>11:47:58</td>
+<td>cv_agent calls <code>cv.tool_status</code>: Rezi picked, no pending request yet. A long turn starts (Rezi sign-in, reading CVs, ~40 s thinking).</td>
+</tr>
+<tr>
+<td><strong>11:48:00</strong></td>
+<td><strong>The click.</strong> <code>C:\Chang\Jobs\CV_Module\cv_tool\rezi_requests\2026-11-10_Contoso_20261110-114800.json</code> written, <code>rezi_pending</code> set. Nothing in assistant.log; no event, notice, <code>DeliverMessage</code> or Hub call.</td>
+</tr>
+<tr>
+<td>11:48:39</td>
+<td>You type in cv_agent's tab that you picked Rezi and clicked the button.</td>
+</tr>
+<tr>
+<td>11:48:42</td>
+<td>The Talker interrupts cv_agent with it; cv_agent takes the click as your yes and carries on (<code>cv.tool_round</code> ×2, then <code>rezi.write_resume</code>, done 11:50:37).</td>
+</tr>
+</tbody>
+</table>
+<p>Sources: <code>cv_agent.jsonl</code> (262, 276, 281–348), <code>talker-cv_agent.jsonl</code>, <code>assistant.log</code>, the request file's time, all in <code>logs\2026-11-10_01-33-35_it-reached-the-job-agent\</code>.</p>
+<h2 id="the-fix-treat-the-click-like-submit">The fix: treat the click like Submit</h2>
+<p>The button stays (you want to keep working through the UI too).</p>
+<ol>
+<li><strong><code>src/cv_tool/server.py</code>, <code>/api/draft/rezi</code>:</strong> after <code>cvlib.rezi_request(...)</code>, also <code>tool.publish({"kind": "rezi_request", "job_id": ..., "request_id": ...})</code>, as <code>/api/submit</code> does.</li>
+<li><strong><code>src/assistant/modules/cv/submit_watch.py</code></strong> (line 101 acts only on <code>"submitted"</code>): handle <code>"rezi_request"</code> too. The cv module sends cv_agent a <code>DeliverMessage</code> (sender <code>cv</code>): the user pressed Send JD and CV to Rezi for job <code>&lt;job_id&gt;</code> at <code>&lt;time&gt;</code>, request <code>&lt;request_id&gt;</code>; that click is their yes for the Rezi write. <code>DeliverMessage</code> never cuts into a turn: it answers an open <code>NEED:</code>, or waits until the turn ends. (Whether to rename the watcher to a general CV Tool event watcher is decided at build time.)</li>
+<li><strong><code>src/assistant/modules/cv/worker.py</code>, step 3:</strong> one line: a pending <code>rezi_request</code> in <code>cv.tool_status</code> means the user has already approved; don't ask again.</li>
+<li><strong><code>src/cv_tool/static/index.html:72</code>:</strong> the hint says the click tells cv_agent and counts as your yes for the Rezi write (and <code>app.js</code>'s "Next:" text to match).</li>
+</ol>
+<p><strong>At build time:</strong> tests for the new event kind and the message (as the Submit watch's tests do), the cv module's docs pages and tools page, <code>RELOAD: cv</code> (asked first); the CV Tool restarts with its new code on the reload.</p>
+<h2 id="rejected-drop-the-button">Rejected: drop the button</h2>
+<p>cv_agent now drives Rezi itself through <code>rezi.write_resume</code>, so picking Rezi in tab 2 could be the only signal. Turned down: you want to be able to act through the UI as well, not only by telling the agent.</p>
+<footer>Generated from <code>docs/next-steps/cv-rezi-click-signal.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

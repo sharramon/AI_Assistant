@@ -2,11 +2,13 @@
 
 A Hub task is plain text, so each side is one marked line of JSON:
 - **In:** the job agent calls `cv.task` with the job's fields; it checks them (`CvRequest`, the
-  base CV in `cv_dir`) and gives the task's `text`, which the job agent sends with `hub.start`
-  to `cv_agent`. The text holds a line `CV_REQUEST: <json>` that the worker reads.
+  base CV in `cv_dir`) and starts `cv_agent` on the task's `text` itself (a `StartTask`, the
+  caller's open task as its parent). The text holds a line `CV_REQUEST: <json>` that the worker reads. On the way
+  in, the module (`job_start.JobStartAgent`) makes the job's folder and adds a `CV_JOB: <json>`
+  line (a `CvJob`) with the job's rules under it.
 - **Out:** the worker ends its task with a line `CV_RESULT: <json>` (a `CvResult`), which the job
   agent reads from the task's result with `cv.read_result` (`read_result`, then `result_view`:
-  the new CV and PDF, the score per round against the target, the keywords, the recommendations,
+  the new CV's PDF and report, the score per round against the target, the keywords, the recommendations,
   the one-page check and the compare).
 Each JSON is on one line (newlines in the JD are escaped), and the last marked line counts.
 """
@@ -20,16 +22,17 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from assistant.modules.cv.data import CvRequest, CvResult
+from assistant.modules.cv.data import CvJob, CvRequest, CvResult
 
 REQUEST = "CV_REQUEST:"
+JOB = "CV_JOB:"  # added by the module (JobStart) under the request: the folder, the copy, the rules
 RESULT = "CV_RESULT:"
 
 
 def task_text(request: CvRequest, agent_id: str = "cv_agent") -> str:
     """The `hub.start` text for one job."""
-    return (f"Tailor the CV for {request.role} at {request.company} ({agent_id}: the 8 steps, one clean page, "
-            f"the user's yes). The job, as JSON:\n{_line(REQUEST, request)}")  # fmt: skip
+    return (f"Tailor the CV for {request.role} at {request.company} ({agent_id}: the 5 CV Tool steps, one clean "
+            f"page, the user's Submit). The job, as JSON:\n{_line(REQUEST, request)}")  # fmt: skip
 
 
 def result_line(result: CvResult) -> str:
@@ -40,6 +43,21 @@ def result_line(result: CvResult) -> str:
 def read_request(text: str) -> CvRequest:
     """The job in a task's text. ValueError if there's none or it isn't a valid `CvRequest`."""
     return CvRequest.model_validate(_last(text, REQUEST))
+
+
+def has_request(text: str) -> bool:
+    """The text has a `CV_REQUEST:` line (valid or not)."""
+    return _has(text, REQUEST)
+
+
+def job_line(job: CvJob) -> str:
+    """The `CV_JOB:` line the module adds to a job's task."""
+    return _line(JOB, job)
+
+
+def read_job(text: str) -> CvJob:
+    """The set-up job in a task's text. ValueError if there's none or it isn't a valid `CvJob`."""
+    return CvJob.model_validate(_last(text, JOB))
 
 
 def read_result(text: str) -> CvResult:
@@ -98,7 +116,7 @@ def read_jd_file(path: str | Path) -> str:
 
 
 def result_view(result: CvResult, target_score: int) -> dict[str, Any]:
-    """What `cv.read_result` returns: the new CV and PDF with their metadata, grouped.
+    """What `cv.read_result` returns: the new CV's PDF with its metadata, grouped.
     `target_score`: the config's, used when the result doesn't name its own."""
     target = result.target_score or target_score
     last = result.score
@@ -111,7 +129,6 @@ def result_view(result: CvResult, target_score: int) -> dict[str, Any]:
         "stop_reason": result.stop_reason,
         "approved_by_user": result.approved_by_user,
         "files": {
-            "odt_path": result.odt_path, "odt_exists": exists(result.odt_path),
             "pdf_path": result.pdf_path, "pdf_exists": exists(result.pdf_path),
             "report_path": result.report_path, "report_exists": exists(result.report_path),
         },
@@ -142,9 +159,17 @@ def _line(marker: str, model: BaseModel) -> str:
     return f"{marker} {json.dumps(model.model_dump(mode='json', exclude_defaults=True), ensure_ascii=False)}"
 
 
-def _last(text: str, marker: str) -> dict:
+def _marked(text: str, marker: str) -> list[str]:
     lines = [line.strip().strip("`").strip() for line in text.splitlines()]
-    found = [line[len(marker):].strip() for line in lines if line.startswith(marker)]
+    return [line[len(marker):].strip() for line in lines if line.startswith(marker)]
+
+
+def _has(text: str, marker: str) -> bool:
+    return bool(_marked(text, marker))
+
+
+def _last(text: str, marker: str) -> dict:
+    found = _marked(text, marker)
     if not found:
         raise ValueError(f"no {marker} line in the text")
     try:

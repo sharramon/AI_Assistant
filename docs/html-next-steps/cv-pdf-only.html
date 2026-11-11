@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv module: PDF in, PDF out</title>
+<!-- Generated from docs/next-steps/cv-pdf-only.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-pdf-only.html"></nav>
+<main>
+<h1 id="cv-module-pdf-in-pdf-out">cv module: PDF in, PDF out</h1>
+<blockquote>
+<p><strong>Status: live (2026-11-09).</strong> <code>cv</code> reloaded with your yes; the live menu takes <code>CV_Test_*.pdf</code>. The job agent's three files below now name <code>.pdf</code> (the skill's form-filling <code>.odt</code> lines are left, as planned). The cv module takes the base CV as a PDF, refuses an <code>.odt</code> in every item, and exports the final PDF into the job's folder; <code>odt_path</code> is gone from the result. The cv tests pass: 130, three of them with real LibreOffice, plus the layout and docs checks (156 in all). <strong>Left out at your request:</strong> the access cut. cv_agent keeps its read access to <code>C:\Chang\Jobs\CV</code>. <strong>Waiting on you:</strong> (1) a <code>cv</code> reload; (2) your yes to change the job agent's three files below to <code>.pdf</code>. Until then its <code>cv.task</code> calls with an <code>.odt</code> are refused.</p>
+</blockquote>
+<p><strong>Asked:</strong> the <code>cv</code> module's interface is fixed to three things: it takes a job description as text and a base CV as a PDF, and it gives back a CV as a PDF. Other modules and the job agent need to know only that. How the module reads and edits the PDF inside is its own business. The cv agent has no access to your <code>.odt</code> files.</p>
+<h2 id="the-interface">The interface</h2>
+<p><strong>In:</strong> <code>cv.task</code>, then <code>hub.start</code> to <code>cv_agent</code>, as today.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>company</code>, <code>role</code></td>
+<td>the job</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>jd_text</code></td>
+<td>the job description as text</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>jd_file</code></td>
+<td>instead of <code>jd_text</code>: a <code>.txt</code>, <code>.md</code> or <code>.html</code> file that <code>cv.task</code> reads into the text</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>base_cv</code></td>
+<td><strong>a <code>CV_Test_*.pdf</code> in <code>C:\Chang\Jobs\CV</code></strong> (read only, never changed)</td>
+<td>was a <code>.odt</code>; an <code>.odt</code> is now refused: "base_cv must be a CV_Test_*.pdf"</td>
+</tr>
+<tr>
+<td><code>jd_url</code>, <code>notes</code>, <code>degree_first</code>, <code>target_score</code></td>
+<td>optional, as today</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Out:</strong> the task's last line <code>CV_RESULT: &lt;json&gt;</code>, read with <code>cv.read_result</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdf_path</code></td>
+<td><strong>the tailored one-page CV as a PDF</strong>, in <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\</code></td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>report_path</code></td>
+<td><code>report.md</code> next to it</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>odt_path</code></td>
+<td></td>
+<td><strong>dropped</strong>: no <code>.odt</code> comes out</td>
+</tr>
+<tr>
+<td>status, scores, keywords, compare, the rest</td>
+<td>as today</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<h2 id="no-access-to-the-odt-files">No access to the .odt files</h2>
+<blockquote>
+<p><strong>Not done, at your request (2026-11-09):</strong> the access list stays as it is. The code refusals below are built.</p>
+</blockquote>
+<ul>
+<li>The cv agent's access list (<code>[agent] read_dirs</code> in <code>cv/module.toml</code>) drops <code>C:\Chang\Jobs\CV</code>. It reaches a base CV only through the module's own <code>cv.read</code>, which opens PDFs only.</li>
+<li>Every <code>cv.*</code> item refuses an <code>.odt</code>. Any file the module makes on the way to the PDF stays outside the agent's folders, and only the PDF and the report reach the output folder.</li>
+<li>The access list changes, so its card comes up once when <code>cv</code> reloads.</li>
+</ul>
+<h2 id="what-the-job-agent-must-change-to-match">What the job agent must change to match</h2>
+<p><code>job_search</code>'s app code and prompt don't name the CV's file type, so nothing changes in the app. Its <code>cv.task</code> call is built from files in its own project, <code>C:\Chang\Jobs\CV</code>:</p>
+<ul>
+<li><code>Recruiters/scripts/save_jd.py</code>: the base CV map and its check name <code>CV_Test_*.pdf</code> (it now names <code>.odt</code> files, and refuses anything else).</li>
+<li>The <code>apply-session</code> skill: <code>--base &lt;file&gt;.pdf</code>, and it looks for per-company <code>.pdf</code> files instead of <code>.odt</code>.</li>
+<li>The saved ExampleCorp hand-off record (<code>Recruiters/docs/applications/jd/examplecorp-…json</code>): <code>base_cv</code> becomes <code>CV_Test_ExampleCorp.pdf</code>.</li>
+</ul>
+<h2 id="inside-the-module-its-own-business-settled-here">Inside the module (its own business, settled here)</h2>
+<ul>
+<li><strong>Reading the PDF:</strong> a reader of its own, built on <code>pypdf</code>, already a dependency. A check that every word of the PDF was read stops the agent and asks you if any text can't be placed. Rezi's existing check of the final PDF stays.</li>
+<li><strong>The job agent's own <code>.odt</code> use</strong> (form filling with <code>odt_bullets.py</code>, hand tailoring in <code>cv_guide.md</code>) isn't part of the cv module, so it's left as it is.</li>
+<li><strong>No deny rule and no restart.</strong> The access list and the code refusals keep the <code>.odt</code> files away, and the cv agent runs in Manual mode, which asks you before any other read. So only a <code>cv</code> reload is needed.</li>
+<li><strong>The old <code>.odt</code> reader</strong> is kept only so the builder can check, once, that the new reader matches your real CVs. The agent never uses it.</li>
+<li><strong>No second reading by Rezi</strong> at the start: the read check and your step-3 read cover it.</li>
+</ul>
+<p><strong>Touches:</strong> <code>src/assistant/modules/cv/</code> (code, prompt, <code>module.toml</code>, tests, its <code>docs/</code> pages) and the three job agent files above in <code>C:\Chang\Jobs\CV</code>. Nothing in <code>core</code>, <code>infra</code> or <code>contracts</code>.</p>
+<p><strong>After building:</strong> reload <code>cv</code> once you say so; the access card follows.</p>
+<footer>Generated from <code>docs/next-steps/cv-pdf-only.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
