@@ -61,6 +61,10 @@ transcript = "main_assistant.jsonl"  # in the session's log folder
 [modules.agent_hub]
 coordinator = "main_assistant"  # the agent that hears the others' STATUS milestones, and holds the focus by default
 max_extra_agents = 3      # big agents besides the coordinator that may work at once (the coordinator isn't counted)
+# Agents a free-agent pick (hub.start with no agent_id) never lands on; they're started only when
+# named. cv_agent: its jobs come from cv.task, which starts it itself.
+named_only = ["cv_agent"]
+# start_only_by = { agent_id = ["caller", ...] }  # optional: only these callers may hub.start that agent
 # door = true             # the agents' MCP door to the module menus (door_host, door_port = 0: any free port)
 
 [modules.task_agents]

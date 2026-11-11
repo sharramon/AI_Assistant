@@ -16,6 +16,8 @@ voice-service = "voice_service.__main__:main"  # the voice service, a standalone
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "httpx>=0.27"]
 # Voice input: the voice service (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) and voice_in's client (websockets).
+# The CV Tool (src/cv_tool): PDF text, sizes and page images.
+cv = ["pymupdf>=1.24"]
 voice = ["fastapi>=0.110", "uvicorn>=0.29", "sherpa-onnx>=1.10", "faster-whisper>=1.2", "sounddevice>=0.4.6", "websockets>=12"]
 
 [tool.setuptools.packages.find]
@@ -45,5 +47,8 @@ ignore = [
     "B027",  # Module.start/stop are deliberately optional no-ops
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The CV Tool's engine, moved in as it was (2026-11-09): its short names and lambdas are kept.
+"src/cv_tool/cvlib.py" = ["E741", "E731", "B905"]
 [tool.ruff.lint.isort]
-known-first-party = ["app_kit", "assistant", "html_viewer", "tests", "voice_service"]
+known-first-party = ["app_kit", "assistant", "cv_tool", "html_viewer", "tests", "voice_service"]
