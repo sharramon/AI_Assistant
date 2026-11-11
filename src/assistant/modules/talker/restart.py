@@ -14,8 +14,10 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from assistant.contracts import ListAgents, ReportKind, ShutdownRequested, TaskState, TaskUpdated
+from assistant.contracts import ListAgents, QuestionKind, ReportKind, ShutdownRequested, TaskState, TaskUpdated
 from assistant.infra import last_line
+
+ASKED = (QuestionKind.NEED, QuestionKind.RISKY)  # a task holding one of these was dropped by its agent
 
 if TYPE_CHECKING:
     from assistant.modules.talker.module import TalkerModule
@@ -41,10 +43,6 @@ AFTER_RESTART = (
     "loaded: their hand checks are due."
 )
 TASK_TEXT_MAX = 200  # characters of a task's text in the state section
-RESTART_WAITING = (
-    "The task is waiting on the user ({question}), so I didn't restart. Ask the user whether "
-    "to restart anyway; if yes, use the RESTART tag with the argument anyway."
-)
 FALLBACK_NOTE = (
     "The Main Assistant didn't write reset instructions ({why}). The conversation before the "
     "restart, newest last:\n{history}"
@@ -88,9 +86,11 @@ class RestartFlow:
         if self.note and not self.restarting:
             self.note.unlink(missing_ok=True)
 
-    async def ask(self, anyway: bool) -> None:
-        """Ask the worker for reset instructions: a message to its task, or a small task of its own.
-        The restart follows its `RESTART_READY` reply, or `timeout` with a note of our own."""
+    async def ask(self) -> None:
+        """Ask the worker for reset instructions: a message to the task it holds, or a small task
+        of its own (also when its task holds a question for you: that question stays open, and the
+        app's state section lists it). The restart follows its `RESTART_READY` reply, or `timeout`
+        with a note of our own."""
         talker = self._talker
         if self._timer is not None or self.restarting:
             return  # already on its way
@@ -99,10 +99,8 @@ class RestartFlow:
             status = await talker.hub("hub.status", task_id=task_id)
             if status.is_ok and status.value and not status.value[0].state.is_final:
                 task = status.value[0]
-        if task is not None and task.state is TaskState.WAITING_FOR_INPUT and not anyway:
-            talker.main.status(RESTART_WAITING.format(question=task.question_line or "a question"))
-            return
-        if task is not None:
+        asked = task is not None and task.state is TaskState.IDLE and task.question_kind in ASKED
+        if task is not None and not asked:
             result = await talker.hub("hub.send", text=WRITE_RESET_NOTE, task_id=task.id, pause=True)
         else:
             result = await talker.hub("hub.start", text=WRITE_RESET_NOTE, agent_id=talker.worker_id,
@@ -160,7 +158,7 @@ class RestartFlow:
             tasks = [t for t in (status.value or []) if not t.state.is_final and t.text != WRITE_RESET_NOTE] \
                 if status.is_ok else []  # fmt: skip
             for info in agents.value if agents.is_ok and isinstance(agents.value, list) else []:
-                working = ", working" if info.working else ""
+                working = ", working" if info.active else ""
                 about = f" ({info.description})" if info.description else ""
                 lines.append(f"- {info.agent_id}{about}: {info.permission_mode.value}{working}")
                 for task in (t for t in tasks if t.agent_id == info.agent_id):
@@ -170,6 +168,7 @@ class RestartFlow:
                     if task.question:
                         line += f"; waiting on the user: {task.question_line}"
                         line += " (behind its tab's !)" if task.held else ""
+                        line += f" (context: {task.question_key})" if task.question_key else ""
                     lines.append(line)
         except Exception as exc:  # noqa: BLE001 - the restart goes on without the details
             talker.ctx.log.warning("Couldn't read the agents for the restart note: %s", exc)

@@ -81,6 +81,8 @@ class ProfileAgent:
             edit_note=edit_note,
             task_file=task_file,
             write_folders=self.profile.write_folders(),
+            compact_handoffs=lambda: self.profile.chrome,  # its tabs stay across a handoff
+            close_tabs=lambda: self.profile.chrome,  # and are closed at the task's end
         )
 
     def _profile(self, config: dict[str, Any]) -> AgentProfile:
@@ -110,7 +112,7 @@ class ProfileAgent:
         self.profile = self._profile(config)
         self.agent.write_folders = self.profile.write_folders()
         self._ctx.log.info("%s's access changed; it applies from its next session", self.agent_id)
-        if self.session.running and not self.agent.info().busy and (self._regrant is None or self._regrant.done()):
+        if self.session.running and not self.agent.has_task and (self._regrant is None or self._regrant.done()):
             self._regrant = asyncio.create_task(self._restart_for_grant(), name=f"{self.agent_id}:regrant")
 
     async def _restart_for_grant(self) -> None:
@@ -126,7 +128,7 @@ class ProfileAgent:
 
     def busy(self) -> str | None:
         """Why a reload should wait: this agent has a task."""
-        return f"{self.agent_id} is working on a task" if self.agent.info().busy else None
+        return f"{self.agent_id} is working on a task" if self.agent.has_task else None
 
     async def start(self) -> None:
         """Claim the agent's id (`IAgentNames`, when the Hub runs), then make the workspace.
@@ -155,7 +157,7 @@ class ProfileAgent:
         if not self._door_pending or event.state is not ModuleState.ACTIVE or not self.door():
             return
         self._door_pending = False
-        if self.agent.info().busy:
+        if self.agent.has_task:
             self._ctx.log.info("%s is busy; it picks up the module door at its next session", self.agent_id)
             return
         try:

@@ -26,6 +26,12 @@ Call `list_modules` (one line each), then `show_menu` for the module you need, t
 Module control (on, off, reload, add) is the `core` menu. The SHOW, RELOAD and ADD_MODULE \
 lines still work as before."""
 
+# The Claude in Chrome tools' names, and the two that list and close the session's own tabs:
+# allowed with no card for an agent with Chrome (docs/next-steps/chrome-tabs-close.md).
+CHROME_TOOLS = "mcp__claude-in-chrome__"
+CHROME_CLOSE_TAB = CHROME_TOOLS + "tabs_close_mcp"
+CHROME_TAB_TOOLS = (CHROME_TOOLS + "tabs_context_mcp", CHROME_CLOSE_TAB)
+
 # For an agent with an access list (a task-agent module's), when it has the door.
 REQUEST_PROMPT = """
 - More access: if a task needs a folder, a shell command, a Python or Chrome you don't have, \
@@ -38,6 +44,15 @@ BASICS_BLOCK = """
 
 - Your access is listed at the end of this prompt.
 - Before each major step, write one short line saying what you're about to do.
+- Chrome tabs belong to your session: a new one (a new task) can't see or reach them. A \
+handoff keeps your session (its context is compacted) when you use Chrome, but if that fails \
+you start fresh. So before a `HANDOFF:`, write each open tab's URL and state (filled or not, \
+saved on the site or not) into the note, and save or finish unsaved form work first. In a \
+fresh session, reopen the note's URLs in your own tab group; don't look for the old tabs.
+- Close a Chrome tab (`tabs_close_mcp`) as soon as you're done with its page. Keep it while you \
+still need it, while a question to the user is about it, and across a handoff. Before your \
+final reply, close each tab of yours you don't need any more (`tabs_context_mcp` lists them), \
+except one the user should act on (a filled form for them to submit): name that one in the reply.
 - When you're finished, end with a short summary of what you did."""
 
 # The two kinds of message (multi-agent, section 8), for a helper agent.
@@ -173,7 +188,9 @@ class AgentProfile:
             allowed += command_rules(self.python)
         if door:
             allowed += list(DOOR_READ_TOOLS)
-        auto = mode is PermissionMode.AUTO
+        if self.chrome:
+            allowed += list(CHROME_TAB_TOOLS)  # listing and closing its own tabs asks no card
+        auto =mode is PermissionMode.AUTO
         return claude_command(
             model=self.model,
             tools=self.tools,

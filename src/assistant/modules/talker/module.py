@@ -288,7 +288,7 @@ class TalkerModule(ModuleProtocol):
             elif session and card is not None:
                 session.status(f"The user answered {self.name(agent)}'s permission request in the app: {event.text}.")
             return
-        if session and event.state is not TaskState.WAITING_FOR_INPUT:
+        if session and event.question_kind is not QuestionKind.PERMISSION:
             session.cards.pop(event.task_id, None)  # moved on: its card is gone
         if await self.restart.on_worker_update(event, agent):
             return

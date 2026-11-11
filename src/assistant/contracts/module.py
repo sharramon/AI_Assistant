@@ -106,6 +106,17 @@ class ModulePermissions(ABC):
         agent can ask for more access itself (`permissions.request` on the core's menu) and the
         answer widens that grant. Call it when the agent starts; does nothing by default."""
 
+    def granted(self, item: AccessItem, agent_id: str) -> bool:
+        """Whether this module's saved grant for `agent_id`'s kind (`helper_2` shares `helper`'s)
+        holds `item`, so it goes without a card (the Hub's message gate: `message:<receiver>`)."""
+        raise NotImplementedError
+
+    async def ask(self, item: AccessItem, agent_id: str, reason: str = "") -> bool:
+        """Ask you on a card whether `agent_id` may have `item` (Allow once, Always allow, Deny)
+        and wait for the answer. True if allowed; Always also saves it under this module and
+        the agent's kind. False on Deny or no answer in time. True at once if already granted."""
+        raise NotImplementedError
+
 
 class ModuleLogs(ABC):
     """Where a module writes its own log files, reached as `ctx.logs`.

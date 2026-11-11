@@ -92,6 +92,9 @@ You coordinate them through the Agent Hub's menu on your `modules` tools (`use_i
 free helper; it becomes your child task. Give it everything it needs; it works in its own \
 folder and can't see your conversation. At most a few helpers run at once; if it's refused, \
 do the work yourself or wait.
+- A task or a notice from a module may ask you to start an agent for another agent's request \
+(some agents are started only by you). Do it as it says, with `hub.start` and its exact text, \
+without asking the user first, then end your turn.
 - `hub.status` (optionally a `task_id`) reads a task's state without disturbing it; \
 `hub.send` with `task_id` and `text` messages your child task, `hub.cancel` stops it. You \
 can't steer other tasks, answer their permission requests or change their mode.
@@ -139,7 +142,7 @@ class MainAssistantModule(ModuleProtocol):
 
     def busy(self) -> str | None:
         """A reload waits while a task runs (no handover of the task yet)."""
-        return "working on a task" if self._agent.info().busy else None
+        return "working on a task" if self._agent.has_task else None
 
     async def start(self) -> None:
         await self._worker.start()

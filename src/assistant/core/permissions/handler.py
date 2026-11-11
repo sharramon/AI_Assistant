@@ -12,7 +12,10 @@ answers from the saved grant when the list is unchanged, and otherwise opens a c
 `wait=True` (a helper launched inside an approved run) it awaits your answer.
 
 An answered card is applied by its action's handler, looked up in a table (principle 20):
-`access` saves the module's list; `grant` and `revoke` carry out an agent's call.
+`access` saves the module's list; `grant` and `revoke` carry out an agent's call; `message`
+(one item a module asks for an agent, `ask`: the Hub's message gate) is Allow once, Always
+allow (saved under the module and the agent's kind) or Deny. Taking back only `message:`
+items never turns the module off.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ import logging
 import uuid
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -86,6 +89,13 @@ class CardAction(StrEnum):
     ACCESS = "access"
     GRANT = "grant"
     REVOKE = "revoke"
+    MESSAGE = "message"
+
+
+def messages_only(keys: Iterable[str]) -> bool:
+    """Whether every key is a `message:` item (taking those back leaves the module on)."""
+    keys = list(keys)
+    return bool(keys) and all(AccessItem.from_key(k).kind is AccessKind.MESSAGE for k in keys)
 
 
 @dataclass(eq=False)
@@ -104,6 +114,7 @@ class Card:
     everything: bool = False  # revoke: the whole grant of every subject named
     activate: bool = False  # access: turn the module on after Allow
     adds: bool = False  # grant: an agent's own request, whose items join the grant's added ones
+    remember: bool = True  # message: Always allow (False: Allow once), from the answer
     notes: tuple[AccessNote, ...] = ()
     reviewed: bool | None = None
     shown: bool = False
@@ -155,6 +166,7 @@ class PermissionsHandler:
             CardAction.ACCESS: self._apply_access,
             CardAction.GRANT: self._apply_grant,
             CardAction.REVOKE: self._apply_revoke,
+            CardAction.MESSAGE: self._apply_message,
         }
 
     @classmethod
@@ -203,6 +215,30 @@ class PermissionsHandler:
         """`module_id`'s agent `agent_id` holds `subject`'s grant (`ctx.permissions.own_agent`)."""
         self._agents[agent_id] = (module_id, subject)
 
+    def kind_of(self, agent_id: str) -> str:
+        """The subject an agent's grants are saved under: its kind (from `own_agent`), else its id."""
+        return self._agents.get(agent_id, ("", agent_id))[1] or agent_id
+
+    def granted(self, module_id: str, agent_id: str, item: AccessItem) -> bool:
+        saved = self.store.get(module_id, self.kind_of(agent_id))
+        return saved is not None and not saved.denied and item.key in saved.granted
+
+    async def ask(self, module_id: str, agent_id: str, item: AccessItem, reason: str = "") -> bool:
+        """`module_id` asks whether `agent_id` may have `item`: a `message` card (Allow once,
+        Always allow, Deny). Awaits your answer; True if allowed. Cancelling closes the card."""
+        if self.granted(module_id, agent_id, item):
+            return True
+        card = Card(module_id, self.kind_of(agent_id), CardAction.MESSAGE, (item,), reason, agent_id)
+        self._open(card)
+        try:
+            await asyncio.shield(card.outcome)
+            return True
+        except AccessDenied:
+            return False
+        except asyncio.CancelledError:
+            self._drop(card, f"{agent_id}'s request to {item.label} was withdrawn")
+            raise
+
     def open_cards(self) -> int:
         return len(self._cards)
 
@@ -215,6 +251,7 @@ class PermissionsHandler:
         if not cmd.allow:
             card.reply.set_result(None)
             return Result.ok("denied")
+        card.remember = cmd.remember
         offered = [i.key for i in card.items]
         if cmd.keep is not None and (bad := [k for k in cmd.keep if k not in offered]):
             return Result.invalid_arguments(f"Not on card {card.id}: {', '.join(bad)}")
@@ -318,9 +355,12 @@ class PermissionsHandler:
             return Result.ok(await self._do_revoke(module_id, subject, keys))
         items = tuple(AccessItem.from_key(k) for k in keys) if keys else ()
         what = "these items" if keys else "its whole grant"
+        if messages_only(keys if keys is not None else (k for g in targets for k in g.granted)):
+            effect = "the next message asks again"
+        else:
+            effect = "it turns off right away and its running task is stopped"
         card = Card(module_id, subject, CardAction.REVOKE, items, f"{caller} asks to take back {what} from "
-                    f"{module_id}; it turns off right away and its running task is stopped", caller,
-                    everything=keys is None)  # fmt: skip
+                    f"{module_id}; {effect}", caller, everything=keys is None)  # fmt: skip
         self._open(card)
         return Result.ok(f"Asked the user on a card ({card.id}); the answer reaches you as a note")
 
@@ -422,6 +462,27 @@ class PermissionsHandler:
 
         await self._close_agent_card(card, keep, late, take_back)
 
+    async def _apply_message(self, card: Card, keep: tuple[str, ...] | None, late: str) -> None:
+        """A `message` card: Deny (or no answer) refuses; Allow once saves nothing; Always adds
+        the item to the module's grant for the agent's kind. The asking module tells the agent."""
+        item, saved = card.items[0], self.store.get(card.module_id, card.subject)
+        if keep is None:
+            text = f"The user denied {card.caller}'s request to {item.label}{late}."
+            self._changed(card.module_id, card.subject, text, card.id)
+            self._settle(card, AccessDenied(text))
+            return
+        if card.remember:
+            saved = saved or Grant(card.module_id, card.subject, "", ())
+            asked = saved.asked if item.key in saved.asked else (*saved.asked, item.key)
+            saved = replace(saved, asked=asked, fingerprint=fingerprint(AccessItem.from_key(k) for k in asked))
+            saved = saved.with_granted({*saved.granted, item.key})
+            self.store.put(saved)
+            text = f"{card.caller} may {item.label} from now on (saved for {card.subject})."
+        else:
+            text = f"{card.caller} may {item.label} this once."
+        self._changed(card.module_id, card.subject, text, card.id, saved.granted_items() if saved else ())
+        self._settle(card, (item,))
+
     async def _close_agent_card(self, card: Card, keep: tuple[str, ...] | None, late: str,
                                 act: Callable[[], Awaitable[str]]) -> None:  # fmt: skip
         """An agent's grant or revoke card was answered: carry it out on Allow, then tell you and the agent."""
@@ -518,7 +579,9 @@ class PermissionsHandler:
 
     async def _do_revoke(self, module_id: str, subject: str, keys: Iterable[str] | None) -> str:
         keys = set(keys) if keys is not None else None
-        for g in [g for g in self.store.of(module_id) if not subject or g.subject == subject]:
+        targets = [g for g in self.store.of(module_id) if not subject or g.subject == subject]
+        stays_on = messages_only(keys if keys is not None else (k for g in targets for k in g.granted))
+        for g in targets:
             whole = keys is None or any(AccessItem.from_key(k).kind is AccessKind.WORKSPACE for k in keys & set(g.granted))
             if whole:
                 self.store.remove(module_id, g.subject)
@@ -528,6 +591,8 @@ class PermissionsHandler:
                 self.store.put(narrowed)
                 granted = narrowed.granted_items()
             self._changed(module_id, g.subject, f"{module_id} ({g.subject})'s grant was taken back.", granted=granted)
+        if stays_on:
+            return f"{module_id}'s message grant was taken back; it stays on, and the next message asks again."
         return await self._turn_off(module_id)
 
     async def _turn_off(self, module_id: str) -> str:

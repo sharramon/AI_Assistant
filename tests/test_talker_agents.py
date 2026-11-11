@@ -47,6 +47,7 @@ async def test_held_question_is_said_on_focus_and_your_words_pass_unchanged(tmp_
     try:
         task = (await app.router.send(StartTask(text="find jobs", agent_id="helper"))).value
         await app.router.send(ReportTask(task_id=task, kind=ReportKind.MILESTONE, text="found 3 jobs"))
+        helper.busy = False  # a NEED ends the agent's turn: it drops the task and is idle
         await app.router.send(ReportTask(task_id=task, kind=ReportKind.NEED, text="Which city?"))
         await asyncio.sleep(0.2)
         assert replies.empty()  # out of focus: no milestone, no question in the chat
@@ -60,8 +61,10 @@ async def test_held_question_is_said_on_focus_and_your_words_pass_unchanged(tmp_
         app.bus.publish(InputReceived(text="Berlin, remote is fine <<PASS>>", source="test"))
         echoed = await next_matching(replies, lambda e: "Berlin" in e.text)
         assert echoed.agent_id == "helper" and "[Focus]" not in echoed.text
-        await wait_until(lambda: ("message", task, "Berlin, remote is fine <<PASS>>") in helper.calls)
-        assert not any(c[0] == "message" for c in main.calls)
+        # The question was a message to an idle agent: the answer is the same task, given back to it.
+        answer = f'Answer to your question in task {task} ("Which city?"): Berlin, remote is fine <<PASS>>'
+        await wait_until(lambda: ("assign", task, answer) in helper.calls)
+        assert not any(c[0] in ("assign", "message") for c in main.calls)
 
         await app.router.send(ReportTask(task_id=task, kind=ReportKind.REPLY, text="Searching Berlin"))
         reply = await next_matching(replies, lambda e: "Searching Berlin" in e.text)

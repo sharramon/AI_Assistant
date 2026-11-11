@@ -207,7 +207,7 @@ class TaskAgentsModule(ModuleProtocol):
         del self._launched[agent_id]
         await self._take_back(agent)
         # Like a launch, say so: the Talker closes its tab's session, UIs drop its tab, usage marks it closed.
-        self._ctx.publish(AgentStateChanged(agent_id=agent_id, busy=False, working=False, change="closed"))
+        self._ctx.publish(AgentStateChanged(agent_id=agent_id, change="closed"))
         self._ctx.log.info("Closed helper %s", agent_id)
         return Result.ok(f"{agent_id} closed")
 
@@ -248,7 +248,7 @@ class TaskAgentsModule(ModuleProtocol):
             await self._take_back(agent)
             return Result.failed(f"{name} couldn't start: {exc}")
         # Nothing else says a helper appeared (its own state events come with a task): UIs add its tab.
-        self._ctx.publish(AgentStateChanged(agent_id=name, busy=False, working=False, change="opened"))
+        self._ctx.publish(AgentStateChanged(agent_id=name, change="opened"))
         if task is None:
             self._launched[name] = (kind, agent)
             self._ctx.log.info("Opened helper %s (%s), idle", name, kind)

@@ -55,7 +55,7 @@ async def test_the_workers_ready_reply_saves_the_note_and_restarts(tmp_path) -> 
     talker = fake_talker()
     flow = RestartFlow(talker, note, 60)
     assert not await flow.on_worker_update(update(ReportKind.DONE, f"x\n{RESTART_READY}"), "main_assistant")
-    await flow.ask(anyway=False)  # no task: a small task of its own, then waits
+    await flow.ask()  # no task: a small task of its own, then waits
     assert flow.waiting
     assert not await flow.on_worker_update(update(ReportKind.DONE, "not yet"), "main_assistant")
     assert not await flow.on_worker_update(update(ReportKind.DONE, RESTART_READY, "helper"), "helper")

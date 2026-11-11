@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keep a worker&#x27;s Chrome tab across a reset</title>
+<!-- Generated from docs/next-steps/chrome-tab-after-reset.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="chrome-tab-after-reset.html"></nav>
+<main>
+<h1 id="keep-a-workers-chrome-tab-across-a-reset">Keep a worker's Chrome tab across a reset</h1>
+<blockquote>
+<p><strong>Status (2026-11-10): steps 1 and 2 (option a, chosen by the user) built, tested and documented (<code>docs/agents/runtime.md</code>, <code>docs/api/infra.md</code>). Extra tests added: a message during the compact goes in after it, and a failed compact falls back to a fresh session. Waiting on the app restart, which the user wants asked only after all the pending fixes are built.</strong> The second Chrome problem (old tabs never closed) is a separate task.</p>
+<p><strong>Step 2 as built:</strong> <code>SessionTaskAgent(compact_handoffs=...)</code> (<code>ProfileAgent</code> passes <code>lambda: profile.chrome</code>). On <code>HANDOFF:</code> a Chrome agent with a live session in the right mode goes to <code>_Mode.COMPACTING</code>, sends <code>COMPACT</code> (bare <code>/compact &lt;keep note path and tab ids&gt;</code>), and on its result sends <code>HANDED_OFF_COMPACTED</code> plus any messages held meanwhile (<code>WHILE_COMPACTING</code>). A failed compact falls back to <code>_continue_fresh(note, held)</code>. Progress reads "Handed off in place, context compacted (n)". New tasks still start fresh. Texts in <code>infra/handoff_keeper.py</code>; <code>BASICS_BLOCK</code> reworded. Test: <code>tests/test_agents.py::test_a_chrome_agents_handoff_compacts_the_same_session</code>.</p>
+<p><strong>Checks:</strong> ruff clean; full suite 786 passed. Known failures not from this change: the cv docs link into next-steps (<code>test_main_docs_never_link_into_next_steps</code>), and flaky <code>test_voice_pieces</code> closing-socket and <code>test_html_viewer::test_refuses_what_it_cant_do</code> (ConnectionAborted; was being re-run).</p>
+<p><strong>Next:</strong> (1) re-run <code>tests/test_html_viewer.py</code> to confirm it's flaky; (2) optional extra tests: a message during the compact is held and delivered, and a failed compact falls back to a fresh session; (3) add the Chrome rule to <code>docs/agents/runtime.md</code> ("Fresh sessions and handoffs") and <code>SessionTaskAgent</code> in <code>docs/api/infra.md</code> (<code>compact_handoffs</code>), then rebuild the docs; (4) architecture check; (5) ask the user before the one app restart (<code>src/assistant/infra</code> changed). <code>scratch/chrome_clear_spike.py</code> is the spike script; two example.com spike tabs are left in Chrome for the user to close.</p>
+</blockquote>
+<h2 id="what-happened-job-agent-task-b7c1a092-2026-11-10">What happened (job agent, task b7c1a092, 2026-11-10)</h2>
+<p>From <code>logs/2026-11-10_17-30-53_open-job-agent/</code> (<code>job_search_agent.jsonl</code>, <code>assistant.log</code>):</p>
+<ol>
+<li>Before the reset the agent worked the Microsoft apply form in Chrome tab <strong>2086284216</strong>, in the tab group of its <code>claude</code> session (5a166bfd…). Nothing in the app tracks the tab. Only that session knew its id.</li>
+<li>At 18:49:45 its context passed 150k. It wrote <code>C:\Chang\Jobs\CV\docs\next-steps\handoff-b7c1a092.md</code> and ended with <code>HANDOFF:</code>. The note carried the form's <strong>URL</strong> and "Chrome tab (MCP group) is open on the apply form", but no tab id. A tab id wouldn't have helped anyway (see 4).</li>
+<li><code>SessionTaskAgent._continue_fresh</code> → <code>_fresh_session</code> (<code>src/assistant/infra/session_agent.py</code>) closed that <code>claude</code> process and started a new one (18:50:09, session 741217b8…). That is by design: every task and every handoff gets a new process.</li>
+<li>The new session's <code>tabs_context_mcp</code> answered: <em>"This session has no tab group of its own. Any tabs opened earlier … may still be open in Chrome, in a group this session cannot see or control."</em></li>
+<li>So the agent did <code>navigate</code> to the URL from the note, which made a new group and tab (<strong>2086284219</strong>). The old tab stayed open, unreachable. The form had autosaved on Microsoft's side, so nothing was lost this time.</li>
+</ol>
+<p><strong>Cause:</strong> the Chrome extension ties a tab group to the <code>claude</code> <strong>session id</strong>. Every reset starts a new session, so it starts with no tabs: a handoff, a new task, or an answer that arrives after the session is gone. Tasks 4424e909 and 131f8e4f each started a new <code>claude</code> too.</p>
+<h2 id="step-1-say-it-in-the-shared-texts-built">Step 1: say it in the shared texts (built)</h2>
+<ul>
+<li><code>BASICS_BLOCK</code> (<code>infra/agent_profile.py</code>, every agent's prompt): Chrome tabs belong to your session. Before a <code>HANDOFF:</code>, write each open tab's URL and state into the note, and save or finish unsaved form work first. In a fresh session, reopen the note's URLs in your own group and don't look for the old tabs.</li>
+<li><code>CHROME_HANDOFF</code> (<code>infra/handoff_keeper.py</code>) is added to the reset request and the 150k reminder. <code>CHROME_FRESH</code> is added to the fresh-session start (<code>HANDED_OFF</code>) and to the "your question's session is gone" text (<code>CONTEXT_AGAIN</code>, <code>infra/session_agent.py</code>).</li>
+<li>Test: <code>tests/test_worker_parts.py::test_handoff_texts_carry_the_chrome_lines</code>.</li>
+<li>These files are in <code>src/assistant/infra</code>, so running agents get them only after an <strong>app restart</strong>.</li>
+</ul>
+<h2 id="step-2-the-spike-done">Step 2: the spike (done)</h2>
+<p><code>scratch/chrome_clear_spike.py</code> starts one <code>claude -p</code> stream-json session with <code>--chrome</code>. The session opens a tab, gets a command, then checks with <code>tabs_context_mcp</code> whether the tab is still reachable.</p>
+<table>
+<thead>
+<tr>
+<th>Command sent</th>
+<th>Session id</th>
+<th>Context</th>
+<th>Tab group</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/clear</code></td>
+<td><strong>new</strong> (7a9c… → 0926…)</td>
+<td>cleared</td>
+<td><strong>lost</strong>: "This session has no tab group of its own"</td>
+</tr>
+<tr>
+<td><code>/compact</code></td>
+<td><strong>same</strong> (6760…)</td>
+<td>summarised</td>
+<td><strong>kept</strong>: the same tab 2086284226, reachable</td>
+</tr>
+</tbody>
+</table>
+<p>So the group follows the session id. A clear can't save it, but a compact in the same process can.</p>
+<h3 id="step-2-options-your-choice">Step 2: options (your choice)</h3>
+<ul>
+<li><strong>(a) Compact instead of a fresh session, for agents with Chrome open.</strong> On a context handoff (<code>HANDOFF:</code> after the 150k reminder, or a reset you asked for), an agent started with <code>--chrome</code> sends <code>/compact</code> to its running session instead of starting a new one, then "continue; your handoff note is <path>". The tab stays. The cost is that the context keeps a summary, so it starts larger than a fresh session reading a note, and a summary can miss details the note has. Only the handoff path changes; a new task still starts fresh. Recommended.</li>
+<li><strong>(b) The same as (a), and also keep the session across tasks for Chrome agents</strong> (resume with <code>--resume &lt;id&gt;</code> plus a compact). Not tested yet: it would need one more spike. Each new job-agent task would then carry the last task's summary.</li>
+<li><strong>(c) Stop at step 1.</strong> Tabs are reopened from the note's URL. That's enough when sites save on their own (Microsoft did).</li>
+</ul>
+<p>Two spike tabs (example.com, 2086284225 and 2086284226) are left in Chrome in their own groups. Close them by hand.</p>
+<p>When it's settled, <code>docs/agents/runtime.md</code> ("Fresh sessions and handoffs") gets the Chrome rule.</p>
+<footer>Generated from <code>docs/next-steps/chrome-tab-after-reset.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

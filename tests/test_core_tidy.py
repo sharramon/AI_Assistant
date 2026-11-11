@@ -20,6 +20,6 @@ def test_multiple_provider_contract_always_allows_another() -> None:
 
 
 def test_card_actions_are_the_cards_action_values() -> None:
-    assert [a.value for a in CardAction] == ["access", "grant", "revoke"]
+    assert [a.value for a in CardAction] == ["access", "grant", "revoke", "message"]
     for action in CardAction:
         assert PermissionRequested(request_id="r", module_id="m", action=action.value).action == action

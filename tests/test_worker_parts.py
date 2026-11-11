@@ -111,9 +111,25 @@ def test_handoff_keeper_counts_to_its_maximum():
     assert keeper.take() and not keeper.take()
     assert "2 times" in keeper.too_many("b.md")
     keeper.reset()
-    assert keeper.count == 0 and keeper.take()
+    assert keeper.count == 0 and keeper.take() and keeper.take()
+    assert keeper.renew() == 2 and keeper.count == 1  # the user's go-ahead: a fresh allowance
+    assert keeper.take() and not keeper.take()
+    assert "the user answered: go on" in HandoffKeeper.answered(2, "go on")
     assert "handoff-t9.md" in HandoffKeeper.reset_request("t9")
     assert "150k" in HandoffKeeper.reminder("150k", "150k", "t9")
+
+
+def test_handoff_texts_carry_the_chrome_lines():
+    """A fresh session can't reach the last one's Chrome tabs (chrome-tab-after-reset.md)."""
+    from assistant.infra.agent_profile import BASICS_BLOCK
+    from assistant.infra.handoff_keeper import HANDED_OFF
+    from assistant.infra.session_agent import CONTEXT_AGAIN
+
+    assert "Chrome tab" in HandoffKeeper.reset_request("t9")
+    assert "Chrome tab" in HandoffKeeper.reminder("150k", "150k", "t9")
+    assert "reopen the note's URLs" in HANDED_OFF.format(text="x", note="n.md")
+    assert "reopen the note's URLs" in CONTEXT_AGAIN.format(notes="n")
+    assert "Chrome tabs belong to your session" in BASICS_BLOCK
 
 
 def test_last_line_tags_try_entries_in_order_and_pass_on():

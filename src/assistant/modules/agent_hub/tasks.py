@@ -44,6 +44,7 @@ from assistant.contracts import (
 RECENT_REPORTS = 10
 RECENT_ACTIVITY = 15
 RECENT_FINISHED = 5
+KEEP_FINISHED = 20  # finished records kept in memory; older ones go (not held, not an open task's parent)
 RESULT_IN_FEED = 120  # characters of a finished task's result in the coordinator's feed
 
 
@@ -52,7 +53,7 @@ class TaskRecord:
     id: str
     agent_id: str
     text: str
-    state: TaskState = TaskState.RUNNING
+    state: TaskState = TaskState.ACTIVE
     recent: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_REPORTS))
     activity: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_ACTIVITY))
     question: str | None = None
@@ -61,6 +62,20 @@ class TaskRecord:
     held: bool = False
     reply: str | None = None  # a reply that waits behind the agent's ! (kept only while held)
     question_kind: QuestionKind = QuestionKind.NONE
+    question_key: str = ""  # the question's context key, from its agent (cv: the job's folder)
+    # The agent object that took the task. A reload provides a new object under the same id, which
+    # never heard of this task: the board then closes it (`TaskBoard._close_replaced`).
+    holder: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def asked(self) -> bool:
+        """It holds its agent's question (a `need`): idle, and its agent dropped it and is free."""
+        return self.state is TaskState.IDLE and self.question_kind in (QuestionKind.NEED, QuestionKind.RISKY)
+
+    @property
+    def paused(self) -> bool:
+        """Stopped after a reply (`hub.send` with pause): its agent still holds it."""
+        return self.state is TaskState.IDLE and not self.asked
 
     def ask(self, kind: ReportKind, text: str) -> None:
         """Open the task's question: the agent's text, and what it is (typed, principle 7)."""
@@ -76,8 +91,17 @@ class TaskRecord:
             recent=tuple(self.recent), activity=tuple(self.activity),
             question=self.question, result=self.result,
             parent_task_id=self.parent_task_id, held=self.held, reply=self.reply,
-            question_kind=self.question_kind,
+            question_kind=self.question_kind, question_key=self.question_key,
         )
+
+    def export(self) -> dict:
+        """An asked record, for the next copy of the Hub (`TaskBoard.restore`)."""
+        return {"id": self.id, "agent_id": self.agent_id, "text": self.text, "question": self.question,
+                "question_kind": str(self.question_kind), "question_key": self.question_key,
+                "parent_task_id": self.parent_task_id, "held": self.held, "recent": list(self.recent)}  # fmt: skip
+
+
+ANSWER = 'Answer to your question in task {id} ("{question}"): {text}'
 
 
 class TaskBoard:
@@ -99,7 +123,9 @@ class TaskBoard:
         feed: Callable[[str], None],
         coordinator: str,
         max_extra: int,
+        restricted: frozenset[str] = frozenset(),
     ) -> None:
+        self._restricted = restricted  # agents a free-agent pick skips (started only when named)
         self._publish, self._log = publish, log
         self._agents, self._agent, self._focused, self._feed = agents, agent, focused, feed
         self._coordinator, self._max_extra = coordinator, max_extra
@@ -111,10 +137,43 @@ class TaskBoard:
         return self._tasks.get(task_id)
 
     def open_records(self) -> list[TaskRecord]:
+        self._close_replaced()
         return [r for r in self._tasks.values() if not r.state.is_final]
 
+    def _close_replaced(self) -> None:
+        """End every open task whose agent was replaced (the module reloaded: a new agent object
+        under the same id). Its old copy can't report any more, so the record would stay open,
+        count the agent busy in the Hub's eyes, block the Hub's own reload, and catch the tab's
+        messages meant for the agent's new task."""
+        for record in [r for r in self._tasks.values() if not r.state.is_final and r.holder is not None]:
+            current = self._agent(record.agent_id)
+            if current is not None and current is not record.holder:
+                self._finish(record, TaskState.FAILED, None, f"{record.agent_id} was reloaded; this task "
+                                                             "ended with its old copy")  # fmt: skip
+
     def open_task_of(self, agent_id: str) -> TaskRecord | None:
-        return next((r for r in self.open_records() if r.agent_id == agent_id), None)
+        """`agent_id`'s newest open task it holds (a stale older one, left by a reload, never
+        shadows it); else its newest task holding a question it asked."""
+        records = [r for r in reversed(self.open_records()) if r.agent_id == agent_id]
+        return next((r for r in records if not r.asked), records[0] if records else None)
+
+    def held_records(self) -> list[TaskRecord]:
+        """The open tasks an agent holds (active or paused), not the questions waiting on you."""
+        return [r for r in self.open_records() if not r.asked]
+
+    def export_questions(self) -> list[dict]:
+        """The asked records, for the next copy of the Hub: a question outlives a Hub reload."""
+        return [r.export() for r in self._tasks.values() if r.asked]
+
+    def restore(self, questions: list[dict]) -> None:
+        """Take back what a previous copy's `export_questions` handed over."""
+        for q in questions:
+            record = TaskRecord(id=q["id"], agent_id=q["agent_id"], text=q["text"], state=TaskState.IDLE,
+                                question=q.get("question"), question_kind=QuestionKind(q["question_kind"]),
+                                question_key=q.get("question_key", ""), parent_task_id=q.get("parent_task_id"),
+                                held=bool(q.get("held")))  # fmt: skip
+            record.recent.extend(q.get("recent") or ())
+            self._tasks[record.id] = record
 
     def holds(self, agent_id: str) -> bool:
         """Whether something of `agent_id`'s waits behind its tab's !."""
@@ -155,15 +214,18 @@ class TaskBoard:
             agents = [a for a in agents if a.info().agent_id == command.agent_id]
             if not agents:
                 return Result.invalid_arguments(f"No agent {command.agent_id!r}")
+        else:
+            agents = [a for a in agents if a.info().agent_id not in self._restricted]
         if not agents:
             return Result.not_available("No agent is running")
-        open_records = self.open_records()
+        # Only active tasks count: an idle agent writes nothing, and a question waiting on you ties up no agent.
+        open_records = [r for r in self.open_records() if r.state is TaskState.ACTIVE]
         extras = sum(1 for r in open_records if r.agent_id != self._coordinator)
-        refusal = "Every agent is busy"
+        refusal = "Every agent is active"
         for agent in agents:
             info = agent.info()
-            if info.busy:
-                refusal = f"{info.agent_id} is busy" if command.agent_id else refusal
+            if info.active:
+                refusal = f"{info.agent_id} is active" if command.agent_id else refusal
                 continue
             if info.agent_id != self._coordinator and extras >= self._max_extra:
                 refusal = (f"{extras} extra agents are working, the most at once ({self._max_extra}; "
@@ -172,9 +234,10 @@ class TaskBoard:
             if clash := self._folder_clash(info.agent_id, info.write_folders, open_records):
                 refusal = clash
                 continue
+            self._drop_paused(info.agent_id)  # the agent drops a task it was stopped on for this one
             # Recorded before assigning, so a report that arrives at once finds it.
             record = TaskRecord(id=uuid4().hex[:8], agent_id=info.agent_id, text=command.text,
-                                parent_task_id=command.parent_task_id)  # fmt: skip
+                                parent_task_id=command.parent_task_id, holder=agent)  # fmt: skip
             self._tasks[record.id] = record
             result = await agent.assign(Task(id=record.id, text=command.text, context=command.context))
             if result.is_ok:
@@ -200,25 +263,65 @@ class TaskBoard:
         record = self._open_task(command.task_id)
         if isinstance(record, Result):
             return record
+        if record.asked:
+            return await self._answer(record, command.text)
         agent = self._agent(record.agent_id)
         if agent is None:
             self._finish(record, TaskState.FAILED, None, f"{record.agent_id} is no longer running")
             return Result.not_available(f"{record.agent_id} is no longer running")
         result = await agent.message(record.id, command.text, command.resume)
         if result.is_ok:
-            record.state = TaskState.RUNNING if command.resume else TaskState.PAUSED
+            record.state = TaskState.ACTIVE if command.resume else TaskState.IDLE
             record.answered()
             self._updated(record, None, command.text)
+        elif result.status is Status.INVALID_ARGUMENTS:  # the agent doesn't hold it: a reload replaced it
+            self._finish(record, TaskState.FAILED, None, f"{record.agent_id} no longer holds this task (reloaded)")
+            return Result.not_available(f"Task {record.id} ended: {record.agent_id} no longer holds it (it was "
+                                        "reloaded); start a new task")  # fmt: skip
         return result
+
+    async def _answer(self, record: TaskRecord, text: str) -> Result:
+        """The answer to the question `record` holds: the same task, given back to its agent
+        (`not_available` while the agent is active or not running; the question stays open)."""
+        agent = self._agent(record.agent_id)
+        if agent is None:
+            return Result.not_available(f"{record.agent_id} isn't running; the answer waits for it")
+        if agent.info().active:
+            return Result.not_available(f"{record.agent_id} is in a turn; the answer waits for it to end")
+        kept = (record.question, record.question_kind, record.held)
+        task = Task(id=record.id, text=ANSWER.format(id=record.id, question=record.info().question_line, text=text),
+                    question_key=record.question_key)  # fmt: skip
+        self._drop_paused(record.agent_id)
+        record.state, record.holder = TaskState.ACTIVE, agent
+        record.answered()
+        result = await agent.assign(task)
+        if not result.is_ok:  # still the question
+            record.state, record.holder = TaskState.IDLE, None
+            record.question, record.question_kind, record.held = kept
+            return result
+        self._log.info("Task %s answered; %s has it again", record.id, record.agent_id)
+        self._updated(record, None, text)
+        return Result.ok()
+
+    def _drop_paused(self, agent_id: str) -> None:
+        """`agent_id` takes other work: a task it was stopped on ends (the agent drops it too)."""
+        for record in [r for r in self.open_records() if r.agent_id == agent_id and r.paused]:
+            self._finish(record, TaskState.DONE, None, "stopped: a new task replaced it")
 
     async def cancel(self, command: CancelTask) -> Result:
         record = self._open_task(command.task_id)
         if isinstance(record, Result):
             return record
+        if record.asked:  # its agent dropped it already
+            self._finish(record, TaskState.CANCELLED, None, "cancelled")
+            return Result.ok()
         agent = self._agent(record.agent_id)
         result = await agent.cancel(record.id) if agent else Result.ok()
         if result.is_ok:
             self._finish(record, TaskState.CANCELLED, None, "cancelled")
+        elif result.status is Status.INVALID_ARGUMENTS:  # the agent doesn't hold it: a stale record, closed here
+            self._finish(record, TaskState.CANCELLED, None, f"cancelled: {record.agent_id} no longer held it (reloaded)")
+            return Result.ok()
         return result
 
     async def report(self, command: ReportTask) -> Result:
@@ -227,10 +330,14 @@ class TaskBoard:
             return record
         record.recent.append(f"{command.kind}: {command.text}")
         match command.kind:
-            case ReportKind.NEED | ReportKind.PERMISSION:
-                record.state = TaskState.WAITING_FOR_INPUT
+            case ReportKind.NEED:  # the agent dropped the task and is free; the record holds the question
+                record.state, record.holder = TaskState.IDLE, None
                 record.ask(command.kind, command.text)
+                record.question_key = command.key or record.question_key
                 record.held = record.held or record.agent_id != self._focused()  # waits behind its tab's !
+            case ReportKind.PERMISSION:  # a card holds the agent in its turn
+                record.ask(command.kind, command.text)
+                record.held = record.held or record.agent_id != self._focused()
             case ReportKind.REPLY if record.agent_id != self._focused():
                 record.reply, record.held = command.text, True  # said in its own tab, when you open it
             case ReportKind.MILESTONE:
@@ -254,7 +361,7 @@ class TaskBoard:
             return Result.not_available(f"{record.agent_id} is no longer running")
         result = await agent.answer_permission(record.id, command.allow)
         if result.is_ok:
-            record.state = TaskState.RUNNING
+            record.state = TaskState.ACTIVE
             record.answered()
             self._updated(record, None, "permission allowed" if command.allow else "permission denied")
         return result
@@ -264,9 +371,10 @@ class TaskBoard:
         if agent is None:
             return Result.invalid_arguments(f"No agent {command.agent_id!r}")
         result = await agent.set_permission_mode(command.mode)
-        record = self.open_task_of(command.agent_id)
+        record = next((r for r in self.open_records() if r.agent_id == command.agent_id
+                       and r.question_kind is QuestionKind.PERMISSION), None)  # fmt: skip
         if result.is_ok and result.value is True and record is not None:  # Auto answered its open card
-            record.state = TaskState.RUNNING
+            record.state = TaskState.ACTIVE
             record.answered()
             self._updated(record, None, "permission allowed (Auto)")
         return result
@@ -305,10 +413,20 @@ class TaskBoard:
         if not record.held:
             record.reply = None
         record.result = text
+        record.holder = None  # an ended task keeps no agent object alive (a reloaded module's old copy)
         self._log.info("Task %s %s", record.id, state)
         self._updated(record, kind, text)
         if record.agent_id != self._coordinator:
             self._feed(f"[{record.agent_id}] task {state}: {' '.join(text.split())[:RESULT_IN_FEED]}")
+        self._prune()
+
+    def _prune(self) -> None:
+        """Keep the last `KEEP_FINISHED` finished records. A held one (it waits behind its tab's !)
+        and the parent of an open task (its child's steering checks it) always stay."""
+        parents = {r.parent_task_id for r in self._tasks.values() if not r.state.is_final and r.parent_task_id}
+        done = [r.id for r in self._tasks.values() if r.state.is_final and not r.held and r.id not in parents]
+        for task_id in done[:-KEEP_FINISHED]:
+            del self._tasks[task_id]
 
     def _updated(self, record: TaskRecord, kind: ReportKind | None, text: str) -> None:
         self._publish(TaskUpdated(

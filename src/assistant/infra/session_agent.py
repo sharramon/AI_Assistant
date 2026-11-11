@@ -12,6 +12,7 @@ from assistant.contracts import (
     AddModule,
     AgentActivity,
     AgentInfo,
+    AgentState,
     AgentStateChanged,
     Command,
     ITaskAgent,
@@ -25,11 +26,18 @@ from assistant.contracts import (
     SessionUsage,
     Task,
 )
-from assistant.infra.agent_profile import AUTO_ACCESS, MANUAL_ACCESS
+from assistant.infra.agent_profile import AUTO_ACCESS, CHROME_CLOSE_TAB, CHROME_TOOLS, MANUAL_ACCESS
 from assistant.infra.agent_tags import LastLineTags, find_tags, last_line, status_lines
 from assistant.infra.claude_session import ClaudeSession
 from assistant.infra.context_watch import ContextWatch
-from assistant.infra.handoff_keeper import HANDED_OFF, HandoffKeeper
+from assistant.infra.handoff_keeper import (
+    CHROME_FRESH,
+    COMPACT,
+    HANDED_OFF,
+    HANDED_OFF_COMPACTED,
+    WHILE_COMPACTING,
+    HandoffKeeper,
+)
 from assistant.infra.milestone_feed import MilestoneFeed
 from assistant.infra.permission_gate import CODE_LOADED, PermissionGate, summarize
 from assistant.infra.show_pages import show_page
@@ -42,6 +50,13 @@ INTERRUPTED = (
     "you'll be told when to continue.] {text}"
 )
 CONTINUE = "Continue the task from where you left off."
+# The end-of-task check for an agent with Chrome whose last turn closed no tab
+# (docs/next-steps/chrome-tabs-close.md).
+CLOSE_TABS = (
+    "[App] Before this task ends: you used Chrome in it. Close each of your Chrome tabs you don't "
+    "need any more with tabs_close_mcp (tabs_context_mcp lists them); keep any the user should "
+    "act on. Reply in one line, with no NEED:, HANDOFF: or other tag."
+)
 NEED_PREFIX = "NEED:"
 HANDOFF_PREFIX = "HANDOFF:"
 RELOAD_PREFIX = "RELOAD:"
@@ -51,6 +66,16 @@ ADD_MODULE_PREFIX = "ADD_MODULE:"
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 MODE_CHANGED = "The user changed your permission mode; the new rules are below."
 MODE_RULES = "[App] The user switched you to {mode} mode. From now on:\n{access}"
+CONTEXT_AGAIN = (
+    "\n\n[App] This is a fresh session: you asked that question in an earlier one, which is gone. "
+    "To pick the work up again:\n{notes}\n" + CHROME_FRESH.strip()
+)
+NOTE_HINT = "Your last handoff note for this work is {key}; read it first."
+
+
+def default_context(key: str) -> str:
+    """The notes for a question's key when its module has none of its own: the handoff note."""
+    return NOTE_HINT.format(key=key) if key else ""
 
 
 class _Mode(StrEnum):
@@ -58,9 +83,14 @@ class _Mode(StrEnum):
     WORKING = "working"            # in a turn on the task
     INTERRUPTING = "interrupting"  # interrupt sent for a message; waiting for the turn to end
     REPLYING = "replying"          # in a turn answering a message
-    WAITING = "waiting"            # asked the user something (NEED); turn ended
-    PAUSED = "paused"              # replied to a message and stays stopped
+    ASKING = "asking"              # asked the user (NEED) and dropped the task; idle once the Hub has it
+    PAUSED = "paused"              # replied to a message and stays stopped (idle, still holding the task)
     CANCELLING = "cancelling"      # interrupt sent for a cancel; task already dropped
+    COMPACTING = "compacting"      # a handoff kept in this session: `/compact` running, messages held
+    CLOSING_TABS = "closing_tabs"  # the task's final reply is in; its Chrome tabs are being closed
+
+
+_IDLE_MODES = (_Mode.IDLE, _Mode.PAUSED)
 
 
 class SessionTaskAgent(ITaskAgent):
@@ -81,6 +111,13 @@ class SessionTaskAgent(ITaskAgent):
     context holds only that task. A turn whose last line is `HANDOFF: <note>`
     continues the same task in a fresh session told to read that note, up to
     `max_handoffs` times per task; then it asks the user (a `need` report).
+
+    Two states outside: active or idle (`info().state`). A `NEED:` question ends the turn and
+    drops the task: the agent is idle at once (once the Hub has the report) and takes new work;
+    the Hub keeps the task, idle, holding the question and its context key (`set_context`'s
+    `key(task_id)`, else the task's last handoff note). The answer comes back as that same task
+    (`Task.question_key` set): into the live session if nothing ran since, else a fresh session
+    with the module's notes for the key (`set_context`'s `notes(key)`, default the handoff note).
     Publishes `SessionUsage` whenever the session's usage changes (every call), and one
     per sub-agent whose tokens grew (`subagent_usage`).
     Opens the pages its text names with `<<SHOW: …>>` (`show_page`, through `InvokeTool`; the
@@ -112,6 +149,13 @@ class SessionTaskAgent(ITaskAgent):
     `milestone`. `note(line)` (the Hub's feed: other agents' milestones, focus moves,
     callbacks) waits in a `MilestoneFeed` and is added, as one block, to the end of the next
     message it writes to its session: a new task, a message, or its own `Continue`.
+
+    Chrome (`compact_handoffs`, `close_tabs`: on for an agent started with `--chrome`): a
+    handoff compacts this session, so its tab group stays. At the task's end, if the task used
+    Chrome tools and its last turn closed no tab, one more turn (`CLOSE_TABS`) asks it to close
+    the tabs it no longer needs; the done report keeps the real final text. A message in that
+    turn waits for it, then goes in as any message, and the task carries on. A question, a
+    handoff, a cancel or a failure closes nothing.
     """
 
     def __init__(
@@ -130,8 +174,18 @@ class SessionTaskAgent(ITaskAgent):
         edit_note: bool = False,
         task_file: str | Path | None = None,
         write_folders: tuple[str, ...] = (),
+        compact_handoffs: Callable[[], bool] = lambda: False,
+        close_tabs: Callable[[], bool] = lambda: False,
     ):
         self._session = session
+        self._close_tabs = close_tabs  # True for an agent with Chrome (chrome-tabs-close.md)
+        self._chrome_used = False  # the task used a Chrome tool since its tabs were last checked
+        self._closed_tab = False  # the current turn closed a Chrome tab
+        self._done_text = ""  # the final reply, held while its tabs are closed
+        # True for an agent with Chrome: a handoff compacts this session instead of starting a
+        # new one, since its tab group belongs to the session id (chrome-tab-after-reset.md).
+        self._compact_handoffs = compact_handoffs
+        self._compact_note = ""  # the handoff note of the compact running now
         self._write_folders = tuple(write_folders)
         self._feed = MilestoneFeed()
         self._ctx = ctx
@@ -141,6 +195,10 @@ class SessionTaskAgent(ITaskAgent):
         self._cancel_timeout = cancel_timeout
         self._fresh_sessions = fresh_sessions
         self._handoffs = HandoffKeeper(max_handoffs)
+        self._asked: str | None = None  # the task whose question the live session still has
+        self._last_note = ""  # the current task's latest handoff note
+        self._question_key: Callable[[str], str] = lambda _task_id: ""
+        self._context_notes: Callable[[str], str] = default_context
         self._manual_claude_mode = manual_claude_mode
         self._permission_mode = PermissionMode.MANUAL
         self._live_mode = PermissionMode.MANUAL  # what the running process is in now
@@ -157,7 +215,7 @@ class SessionTaskAgent(ITaskAgent):
         self._reports: asyncio.Queue[ReportTask] = asyncio.Queue()
         self._background: set[asyncio.Task] = set()
         self._report_worker: asyncio.Task | None = None
-        self._published: tuple[bool, bool] = (False, False)
+        self._published = AgentState.IDLE
         self._context_watch = ContextWatch(context_reminder)
         self._remind_at: int | None = None  # context size of a reminder due, sent once the task is working
         self._edit_note = edit_note
@@ -198,13 +256,27 @@ class SessionTaskAgent(ITaskAgent):
         """A live grant changed them (`ProfileAgent.set_access`): the next `info()` says so."""
         self._write_folders = tuple(folders)
 
+    def set_context(self, key: Callable[[str], str], notes: Callable[[str], str]) -> None:
+        """The owning module's hook for questions: `key(task_id)` is a question's context key (""
+        for none: the task's last handoff note is used), `notes(key)` what a fresh session needs to
+        pick the work up again when the answer comes ("" for nothing)."""
+        self._question_key, self._context_notes = key, notes
+
+    @property
+    def state(self) -> AgentState:
+        return AgentState.IDLE if self._mode in _IDLE_MODES else AgentState.ACTIVE
+
+    @property
+    def has_task(self) -> bool:
+        """It holds a task (in a turn, or stopped on one): a reload or a restart would cut it."""
+        return self._task is not None or self._mode is not _Mode.IDLE
+
     def info(self) -> AgentInfo:
         return AgentInfo(
             agent_id=self._agent_id,
             description=self._description,
             capabilities=self._capabilities,
-            busy=self._mode is not _Mode.IDLE,
-            working=self._session.working,
+            state=self.state,
             permission_mode=self._permission_mode,
             write_folders=self._write_folders,
         )
@@ -225,26 +297,46 @@ class SessionTaskAgent(ITaskAgent):
         return f"{text}\n\n{block}" if block else text
 
     async def assign(self, task: Task) -> Result:
-        if self._mode is not _Mode.IDLE:
-            return Result.not_available(f"{self._agent_id} is busy")
+        """A new task, or (with `question_key`) the answer to a question asked in `task.id`. A task
+        it was stopped on (paused) is dropped for it."""
+        if self._mode not in _IDLE_MODES:
+            return Result.not_available(f"{self._agent_id} is active")
+        live = task.question_key is not None and task.id == self._asked and self._session.running
+        if self._mode is _Mode.PAUSED:
+            self._ctx.log.info("%s drops its stopped task %s for %s", self._agent_id, self._task and self._task.id, task.id)
+            self._task, self._mode = None, _Mode.IDLE
         try:
-            await self._fresh_session(restart=self._fresh_sessions)
+            if not live:
+                await self._fresh_session(restart=self._fresh_sessions)
         except Exception as exc:
             self._ctx.log.exception("Couldn't start the session")
             return Result.failed(f"{self._agent_id} couldn't start: {exc}")
         # Set before writing: the turn's events may arrive while send drains.
-        self._task, self._mode = task, _Mode.WORKING
-        self._handoffs.reset()
-        self._edits = {}
+        self._task, self._mode, self._asked = task, _Mode.WORKING, None
+        if not live:
+            self._handoffs.reset()
+            self._edits = {}
+            self._last_note = ""
+            self._chrome_used = False
         self._write_task_file(task.id)
         try:
-            await self._session.send(self._with_feed(_task_text(NEW_TASK, task)))
+            await self._session.send(self._with_feed(self._first_text(task, live)))
             self._used = True
         except Exception as exc:
             self._task, self._mode = None, _Mode.IDLE
             return Result.failed(f"{self._agent_id} couldn't take the task: {exc}")
         self._publish_state()
         return Result.ok()
+
+    def _first_text(self, task: Task, live: bool) -> str:
+        """A new task's first message; an answer as it is (the live session has the question), or
+        with the module's notes for its key (a fresh session doesn't)."""
+        if task.question_key is None:
+            return _task_text(NEW_TASK, task)
+        if live:
+            return task.text
+        notes = self._context_notes(task.question_key) if task.question_key else ""
+        return task.text + (CONTEXT_AGAIN.format(notes=notes) if notes else "")
 
     async def set_permission_mode(self, mode: PermissionMode) -> Result:
         """Set the mode; it applies at once (`now`). With no task, the next session starts in
@@ -295,8 +387,17 @@ class SessionTaskAgent(ITaskAgent):
         return await self.message(self._task.id, HandoffKeeper.reset_request(self._task.id))
 
     async def message(self, task_id: str, text: str, resume: bool = True) -> Result:
+        if self._mode is _Mode.ASKING and task_id == self._asked:  # its question is on the way to the Hub
+            return Result.not_available(f"{self._agent_id} has just asked a question in {task_id}; try again")
         if not self._is_current(task_id):
             return Result.invalid_arguments(f"{task_id!r} is not {self._agent_id}'s current task")
+        if self._mode is _Mode.COMPACTING:  # a compact can't take a message: it goes in after it
+            self._pending.append(text)
+            return Result.ok()
+        if self._mode is _Mode.CLOSING_TABS:  # the task carries on with it once its tabs are closed
+            self._pending.append(text)
+            self._resume = resume
+            return Result.ok()
         try:
             in_turn = self._session.working or self._mode is _Mode.INTERRUPTING
             if self._mode in (_Mode.WORKING, _Mode.REPLYING, _Mode.INTERRUPTING) and in_turn:
@@ -307,7 +408,7 @@ class SessionTaskAgent(ITaskAgent):
                 if self._mode is not _Mode.INTERRUPTING:
                     self._mode = _Mode.INTERRUPTING
                     await self._session.interrupt()
-            elif resume:  # waiting or paused: nothing to interrupt, the text is the next message
+            elif resume:  # paused: nothing to interrupt, the text is the next message
                 self._mode = _Mode.WORKING
                 await self._session.send(self._with_feed(text))
             else:
@@ -325,7 +426,7 @@ class SessionTaskAgent(ITaskAgent):
         self._task = None
         self._pending.clear()
         self._gate.drop()
-        if self._mode in (_Mode.WAITING, _Mode.PAUSED):
+        if self._mode is _Mode.PAUSED:
             self._mode = _Mode.IDLE
         else:
             self._mode = _Mode.CANCELLING
@@ -373,7 +474,7 @@ class SessionTaskAgent(ITaskAgent):
         elif kind == "result":
             self._on_result(event)
         elif kind == "control_request" and event.get("request", {}).get("subtype") == "can_use_tool":
-            accepting = self._task is not None and self._mode in (_Mode.WORKING, _Mode.REPLYING)
+            accepting = self._task is not None and self._mode in (_Mode.WORKING, _Mode.REPLYING, _Mode.CLOSING_TABS)
             self._gate.on_tool_request(event, accepting)
         elif kind == "exit":
             self._on_exit()
@@ -392,6 +493,13 @@ class SessionTaskAgent(ITaskAgent):
         elif block.get("type") == "tool_use":
             self._activity(f"→ {block.get('name')} {summarize(block.get('input', {}))}")
             self._count_edit(block)
+            self._note_chrome(block.get("name") or "")
+
+    def _note_chrome(self, name: str) -> None:
+        """Whether the task used Chrome, and whether this turn closed a tab (`CLOSE_TABS`)."""
+        if self._task is not None and name.startswith(CHROME_TOOLS):
+            self._chrome_used = True
+            self._closed_tab = self._closed_tab or name == CHROME_CLOSE_TAB
 
     def _show_tags(self, text: str) -> None:
         """Open the pages the agent names with `<<SHOW: path>>` or `<<SHOW: path | "quote" | heading>>`,
@@ -456,8 +564,13 @@ class SessionTaskAgent(ITaskAgent):
                     self._mode = _Mode.PAUSED
             case _Mode.CANCELLING:
                 self._mode = _Mode.IDLE
+            case _Mode.COMPACTING:
+                self._after_compact(is_error)
+            case _Mode.CLOSING_TABS:
+                self._after_closing_tabs(is_error)
             case _:
                 self._ctx.log.debug("Ignored a result while %s", self._mode)
+        self._closed_tab = False  # the next turn starts with none closed
 
     def _finish_turn(self, text: str, is_error: bool, subtype: str | None) -> None:
         if is_error:
@@ -467,16 +580,48 @@ class SessionTaskAgent(ITaskAgent):
             self._spawn(self._send(outcome))
         elif self._gate.waiting:  # the user hasn't answered yet (or `run` is running): wait
             self._activity("waiting for the user's answer")
-        elif not self._last_line.dispatch(text):
+        elif self._last_line.dispatch(text):
+            pass
+        elif self._chrome_used and not self._closed_tab and self._close_tabs() and self._session.running:
+            self._mode, self._done_text = _Mode.CLOSING_TABS, text
+            self._activity("closing the Chrome tabs it no longer needs")
+            self._spawn(self._send(CLOSE_TABS))
+        else:
             self._report(ReportKind.DONE, text)
             self._end_task()
+
+    def _after_closing_tabs(self, is_error: bool) -> None:
+        """Report the task done with its real final text; a message that came meanwhile goes in
+        as any message instead, and the task carries on."""
+        if is_error:
+            self._ctx.log.warning("%s couldn't close its Chrome tabs; the task ends anyway", self._agent_id)
+        self._chrome_used = False  # checked: Chrome used after this asks again
+        held, self._pending = "\n".join(self._pending), []
+        if held:
+            self._mode = _Mode.REPLYING
+            self._spawn(self._send(INTERRUPTED.format(text=held)))
+            return
+        self._report(ReportKind.DONE, self._done_text)
+        self._end_task()
 
     # --- last-line tags (the `_last_line` table) ---
 
     def _on_need(self, question: str) -> bool:
-        self._report(ReportKind.NEED, question)
-        self._mode = _Mode.WAITING
+        self._ask_user(question, live=True)
         return True
+
+    def _ask_user(self, question: str, live: bool) -> None:
+        """Report the question with its context key and drop the task: the agent turns idle
+        once the Hub has the report (`_send_reports`). With `live`, the answer may carry on in
+        this session; otherwise it starts a fresh one."""
+        task = self._task
+        if task is None:
+            return
+        self._report(ReportKind.NEED, question, key=self._question_key(task.id) or self._last_note)
+        self._asked = task.id if live else None
+        self._task, self._mode = None, _Mode.ASKING
+        self._pending.clear()
+        self._gate.clear()
 
     def _on_reload(self, argument: str) -> bool:
         """`RELOAD: <module id> [now]`."""
@@ -489,14 +634,54 @@ class SessionTaskAgent(ITaskAgent):
         return request is not None and self._ask_to_load(*request)
 
     def _on_handoff(self, note: str) -> bool:
-        """Continue the task in a fresh session that reads `note`, or ask the user after too many."""
+        """Continue the task in a fresh session that reads `note`, or ask the user after too many:
+        a question like any other, whose answer starts a fresh session (with a fresh allowance)
+        pointed at the note."""
+        self._last_note = note
         if not self._handoffs.take():
-            self._report(ReportKind.NEED, self._handoffs.too_many(note))
-            self._mode = _Mode.WAITING
+            self._ask_user(self._handoffs.too_many(note), live=False)
             return True
-        self._report(ReportKind.PROGRESS, self._handoffs.progress(note))
-        self._spawn(self._continue_fresh(note))
+        compact = self._can_compact()
+        self._report(ReportKind.PROGRESS, self._handoffs.progress(note, compacted=compact))
+        if compact:
+            self._mode, self._compact_note = _Mode.COMPACTING, note  # now, so a message waits for it
+            self._spawn(self._compact(note))
+        else:
+            self._spawn(self._continue_fresh(note))
         return True
+
+    def _can_compact(self) -> bool:
+        """Keep the session on a handoff: an agent with Chrome, a live session in the right mode."""
+        stale = self._live_mode is not self._permission_mode
+        return self._compact_handoffs() and self._session.running and not stale
+
+    async def _compact(self, note: str) -> None:
+        """`/compact` in this session (sent bare: a slash command takes no feed). Its result
+        arrives in `_on_result` as `COMPACTING`, which goes on with `_after_compact`."""
+        self._activity(f"compacting the context for the handoff in {note} (the Chrome tabs stay)")
+        try:
+            await self._session.send(COMPACT.format(note=note))
+            self._used = True
+        except Exception:
+            self._ctx.log.exception("Couldn't compact the session; starting a fresh one")
+            self._after_compact(is_error=True)
+
+    def _after_compact(self, is_error: bool) -> None:
+        """Carry on in the compacted session with the note and any messages that came meanwhile;
+        a failed compact falls back to a fresh session (the tabs are lost, the note says where)."""
+        note, task = self._compact_note, self._task
+        held = "".join(WHILE_COMPACTING.format(text=text) for text in self._pending)
+        self._pending.clear()
+        if task is None:  # cancelled meanwhile
+            return
+        self._mode = _Mode.WORKING
+        if is_error:
+            self._ctx.log.warning("The compact for task %s failed; a fresh session reads %s", task.id, note)
+            self._spawn(self._continue_fresh(note, held))
+            return
+        self._remind_at = None  # the compacted context is small again
+        self._activity(f"context compacted, reading the handoff in {note}")
+        self._spawn(self._send(_task_text(HANDED_OFF_COMPACTED, task, note=note) + held))
 
     def _ask_to_load(self, command: Command, action: str) -> bool:
         """Run a reload or add the agent asked for: at once in Auto, after the user allows it in
@@ -516,7 +701,7 @@ class SessionTaskAgent(ITaskAgent):
             self._gate.ask(action, run)
         return True
 
-    async def _continue_fresh(self, note: str) -> None:
+    async def _continue_fresh(self, note: str, held: str = "") -> None:
         task = self._task
         try:
             await self._fresh_session(restart=True)
@@ -526,7 +711,7 @@ class SessionTaskAgent(ITaskAgent):
             return
         if self._task is task and self._mode is _Mode.WORKING:  # not cancelled meanwhile
             self._activity(f"fresh session, reading the handoff in {note}")
-            await self._send(_task_text(HANDED_OFF, task, note=note))
+            await self._send(_task_text(HANDED_OFF, task, note=note) + held)
 
     async def _fresh_session(self, restart: bool) -> None:
         """Make sure a session is running in the current mode; with `restart`, a new one if
@@ -559,7 +744,9 @@ class SessionTaskAgent(ITaskAgent):
         return True
 
     def _on_exit(self) -> None:
-        if self._task is not None:
+        if self._task is not None and self._mode is _Mode.CLOSING_TABS:  # its work was done
+            self._report(ReportKind.DONE, self._done_text)
+        elif self._task is not None:
             self._report(ReportKind.FAILED, "The agent's claude process exited")
         self._end_task()
 
@@ -590,11 +777,11 @@ class SessionTaskAgent(ITaskAgent):
             self._mode = _Mode.IDLE
             self._publish_state()
 
-    def _report(self, kind: ReportKind, text: str) -> None:
+    def _report(self, kind: ReportKind, text: str, key: str = "") -> None:
         """Queue a report. One worker sends them in order, so the Hub sees them as they happened."""
         if self._task is None:
             return
-        self._reports.put_nowait(ReportTask(task_id=self._task.id, kind=kind, text=text))
+        self._reports.put_nowait(ReportTask(task_id=self._task.id, kind=kind, text=text, key=key))
         if self._report_worker is None or self._report_worker.done():
             self._report_worker = asyncio.create_task(self._send_reports(), name=f"{self._agent_id}:reports")
 
@@ -604,16 +791,19 @@ class SessionTaskAgent(ITaskAgent):
             result = await self._ctx.send(report)
             if not result.is_ok:
                 self._ctx.log.warning("Hub refused %s report: %s", report.kind, result.error)
+            if report.kind is ReportKind.NEED and self._mode is _Mode.ASKING:  # the Hub has the question
+                self._mode = _Mode.IDLE
+                self._publish_state()
 
     def _activity(self, text: str) -> None:
         task_id = self._task.id if self._task else None
         self._ctx.publish(AgentActivity(agent_id=self._agent_id, task_id=task_id, text=text))
 
     def _publish_state(self) -> None:
-        state = (self._mode is not _Mode.IDLE, self._session.working)
-        if state != self._published:
+        state = self.state
+        if state is not self._published:
             self._published = state
-            self._ctx.publish(AgentStateChanged(agent_id=self._agent_id, busy=state[0], working=state[1]))
+            self._ctx.publish(AgentStateChanged(agent_id=self._agent_id, state=state))
 
     def _publish_usage(self) -> None:
         usage = session_usage(self._agent_id, self._session)

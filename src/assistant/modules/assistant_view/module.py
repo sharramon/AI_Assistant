@@ -61,8 +61,7 @@ class AssistantViewModule(ModuleProtocol):
         await self._show(f"[{event.agent_id}] {event.text}")
 
     async def _on_state(self, event: AgentStateChanged) -> None:
-        state = "working" if event.working else "busy, waiting" if event.busy else "idle"
-        await self._show(f"--- {event.agent_id}: {state}")
+        await self._show(f"--- {event.agent_id}: {event.state}")
 
     async def _on_task(self, event: TaskUpdated) -> None:
         if event.kind is not None or event.state.is_final or event.text == "started":

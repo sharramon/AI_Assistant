@@ -202,7 +202,7 @@ async def test_a_launch_only_proposes_and_starts_on_allow(tmp_path):
         again = await app.router.send(launch("flight_search"))
         assert again.status is Status.INVALID_ARGUMENTS and "`flight_search_2` is free" in again.error
 
-        await wait_until(lambda: not agent(app, "flight_search").info().busy)
+        await wait_until(lambda: not agent(app, "flight_search").info().active)
         states: list[AgentStateChanged] = []
 
         async def keep(event: AgentStateChanged) -> None:

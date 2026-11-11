@@ -83,7 +83,7 @@ async def test_two_agents_work_at_once(tmp_path):
         first = await app.router.send(StartTask(text="SLOW sort the notes", agent_id="helper"))
         second = await app.router.send(StartTask(text="SLOW draft the summary", agent_id="writer"))
         assert first.is_ok and second.is_ok
-        await wait_until(lambda: agent(app, "helper").info().working and agent(app, "writer").info().working)
+        await wait_until(lambda: agent(app, "helper").info().active and agent(app, "writer").info().active)
         assert {a.info().agent_id for a in app.container.get_all(ITaskAgent)} == {"main_assistant", "helper", "writer"}
     finally:
         await app.stop()
@@ -182,8 +182,7 @@ async def test_an_idle_open_session_restarts_on_a_grant_and_a_busy_one_waits(tmp
         monkeypatch.setattr(ClaudeSession, "running", property(lambda self: True))
         monkeypatch.setattr(helper.agent, "restart_session", restart)
         if busy:
-            info = helper.agent.info()
-            monkeypatch.setattr(helper.agent, "info", lambda: info.model_copy(update={"busy": True}))
+            monkeypatch.setattr(type(helper.agent), "has_task", property(lambda self: True))  # holds a task
         config = {**helper._config, "read_dirs": [str(tmp_path / "more")]}
         helper.set_access(config)
         helper.set_access(config)  # a second change while the first restart runs: one restart

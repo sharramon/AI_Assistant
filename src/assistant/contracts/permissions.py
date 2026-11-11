@@ -23,6 +23,7 @@ class AccessKind(StrEnum):
     PYTHON = "python"  # a Python it may run, with any arguments
     COMMAND = "command"  # a shell command it may run, with any arguments
     CHROME = "chrome"  # the Claude in Chrome tools
+    MESSAGE = "message"  # messaging another agent (target: its id); saved under agent_hub, per sender kind
 
 
 class AccessItem(BaseModel):
@@ -59,6 +60,7 @@ class AccessItem(BaseModel):
             AccessKind.PYTHON: f"run {t} (any arguments)",
             AccessKind.COMMAND: f"run `{t}` (any arguments)",
             AccessKind.CHROME: "use Chrome",
+            AccessKind.MESSAGE: f"message {t}",
         }[self.kind]
 
 
@@ -83,8 +85,9 @@ class AccessPending(Exception):
 
 
 class PermissionRequested(Event):
-    """A card for you. `action`: `access` (a module's list), or `grant` / `revoke` (an agent's
-    call, `caller`, waiting for your yes). `items`: the lines offered, each with a tick box when
+    """A card for you. `action`: `access` (a module's list), `grant` / `revoke` (an agent's
+    call, `caller`, waiting for your yes), or `message` (agent `caller` wants to message the
+    agent in its one item; answered Allow once, Always allow or Deny). `items`: the lines offered, each with a tick box when
     `trimmable`. `notes`: refused items, rule warnings, then the review's notes. `reviewed`:
     True or False for an access list (False shows "not reviewed"), None for no review step.
     `rules`: the fixed rules, one line each."""
@@ -92,7 +95,7 @@ class PermissionRequested(Event):
     request_id: str
     module_id: str
     subject: str = ""
-    action: Literal["access", "grant", "revoke"] = "access"
+    action: Literal["access", "grant", "revoke", "message"] = "access"
     reason: str = ""
     items: tuple[AccessItem, ...] = ()
     notes: tuple[AccessNote, ...] = ()
@@ -103,11 +106,14 @@ class PermissionRequested(Event):
 
 class AnswerPermissionRequest(Command):
     """Your answer to a `PermissionRequested` card. `keep`: the keys of the ticked items
-    (None: all of them); ignored on Deny. `invalid_arguments` if the card isn't open."""
+    (None: all of them); ignored on Deny. `remember`: for a `message` card, False is Allow
+    once (nothing saved), True is Always allow; other cards ignore it. `invalid_arguments` if
+    the card isn't open."""
 
     request_id: str
     allow: bool
     keep: tuple[str, ...] | None = None
+    remember: bool = True
 
 
 class PermissionChanged(Event):

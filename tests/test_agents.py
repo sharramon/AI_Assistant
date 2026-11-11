@@ -196,17 +196,18 @@ async def test_task_runs_to_done(hub):
     status = await app.router.send(GetTaskStatus(task_id=result.value))
     assert status.value[0].state is TaskState.DONE
     agents = (await app.router.send(ListAgents())).value
-    assert [a.agent_id for a in agents] == ["main_assistant"] and not agents[0].busy
+    assert [a.agent_id for a in agents] == ["main_assistant"] and not agents[0].active
 
 
-async def test_need_waits_for_your_answer(hub):
+async def test_the_answer_to_a_need_comes_back_as_the_same_task(hub):
     app, updates = hub
     task_id = (await app.router.send(StartTask(text="ASKME then write"))).value
     need = await next_matching(updates, report(ReportKind.NEED))
-    assert need.text == "Which style?" and need.state is TaskState.WAITING_FOR_INPUT
+    assert need.text == "Which style?" and need.state is TaskState.IDLE
     assert (await app.router.send(SendToTask(task_id=task_id, text="modern"))).is_ok
     done = await next_matching(updates, report(ReportKind.DONE))
-    assert done.text == "modern"
+    assert done.task_id == task_id  # the same task, not a new one
+    assert done.text.startswith(f'Answer to your question in task {task_id} ("Which style?"): modern')
 
 
 async def test_message_interrupts_replies_and_continues(hub):
@@ -226,7 +227,7 @@ async def test_pause_then_carry_on(hub):
     await app.router.send(SendToTask(task_id=task_id, text="stop for now", resume=False))
     await next_matching(updates, report(ReportKind.REPLY))
     status = (await app.router.send(GetTaskStatus(task_id=task_id))).value[0]
-    assert status.state is TaskState.PAUSED
+    assert status.state is TaskState.IDLE
     await app.router.send(SendToTask(task_id=task_id, text="carry on"))
     done = await next_matching(updates, report(ReportKind.DONE))
     assert done.text == "carry on"
@@ -242,7 +243,7 @@ async def test_cancel_keeps_the_agent_usable(hub):
     assert status.state is TaskState.CANCELLED
 
     async def free():
-        return not (await app.router.send(ListAgents())).value[0].busy
+        return not (await app.router.send(ListAgents())).value[0].active
 
     async with asyncio.timeout(TIMEOUT):
         while not await free():
@@ -273,7 +274,7 @@ async def test_permission_request_allowed(hub):
     assert asked.text == "Write .claude/skills/x/SKILL.md"
     assert asked.question_kind is QuestionKind.PERMISSION  # typed by the Hub, no prefix to parse
     status = (await app.router.send(GetTaskStatus(task_id=task_id))).value[0]
-    assert status.state is TaskState.WAITING_FOR_INPUT and status.question_kind is QuestionKind.PERMISSION
+    assert status.state is TaskState.ACTIVE and status.question_kind is QuestionKind.PERMISSION
     assert status.question == asked.text and status.question_line == "Permission: " + asked.text
     assert (await app.router.send(AnswerPermission(task_id=task_id, allow=True))).is_ok
     done = await next_matching(updates, report(ReportKind.DONE))
@@ -372,13 +373,128 @@ async def test_handoff_continues_the_task_in_a_fresh_session(hub):
     assert "handoff in docs/next-steps/part.md" in done.text
 
 
+async def test_a_chrome_agents_handoff_compacts_the_same_session(tmp_path):
+    """Its Chrome tab group belongs to the session id, which `/compact` keeps (chrome-tab-after-reset.md)."""
+    app, updates = await start_hub(tmp_path, chrome=True)
+    try:
+        task_id = (await app.router.send(StartTask(text="HANDOFFONCE fill the form"))).value
+        handed = await next_matching(updates, report(ReportKind.PROGRESS))
+        while not handed.text.startswith("Handed off"):
+            handed = await next_matching(updates, report(ReportKind.PROGRESS))
+        assert handed.text == "Handed off in place, context compacted (1): docs/next-steps/part.md"
+        done = await next_matching(updates, report(ReportKind.DONE))
+        assert done.task_id == task_id  # the compact's own result didn't end the task
+        assert done.text.startswith("Task, continued after your context was compacted: HANDOFFONCE fill the form")
+        assert "handoff in docs/next-steps/part.md" in done.text and "Chrome tabs are still yours" in done.text
+    finally:
+        await app.stop()
+
+
+async def test_a_message_during_the_compact_goes_in_after_it(tmp_path):
+    app, updates = await start_hub(tmp_path, chrome=True)
+    try:
+        task_id = (await app.router.send(StartTask(text="HANDOFFONCE COMPACTWAIT fill the form"))).value
+        await next_matching(updates, lambda e: e.text.startswith("Handed off in place"))
+        assert (await app.router.send(SendToTask(task_id=task_id, text="use the work email"))).is_ok
+        done = await next_matching(updates, report(ReportKind.DONE))
+        assert done.text.startswith("Task, continued after your context was compacted")
+        assert done.text.endswith("A message came while your context was being compacted: use the work email")
+    finally:
+        await app.stop()
+
+
+async def test_a_failed_compact_falls_back_to_a_fresh_session(tmp_path):
+    app, updates = await start_hub(tmp_path, chrome=True)
+    try:
+        task_id = (await app.router.send(StartTask(text="HANDOFFONCE COMPACTFAIL fill the form"))).value
+        done = await next_matching(updates, report(ReportKind.DONE))
+        assert done.task_id == task_id
+        assert done.text.startswith("Task, continued in a fresh session: HANDOFFONCE COMPACTFAIL fill the form")
+        assert "reopen the note's URLs" in done.text
+    finally:
+        await app.stop()
+
+
+CLOSING = "closing the Chrome tabs it no longer needs"
+
+
+async def run_chrome_task(tmp_path, text, chrome=True):
+    """A task's done report and the agent's activity lines (chrome-tabs-close.md)."""
+    app, updates = await start_hub(tmp_path, chrome=chrome)
+    seen: list[AgentActivity] = []
+    app.bus.subscribe(AgentActivity, seen.append)
+    try:
+        task_id = (await app.router.send(StartTask(text=text))).value
+        done = await next_matching(updates, report(ReportKind.DONE))
+        assert done.task_id == task_id
+        return done, [e.text for e in seen]
+    finally:
+        await app.stop()
+
+
+async def test_a_chrome_task_closes_its_tabs_before_it_ends(tmp_path):
+    done, activity = await run_chrome_task(tmp_path, "CHROMEUSE read the ad")
+    assert CLOSING in activity
+    assert any("Close each of your Chrome tabs" in line for line in activity)  # the check turn went in
+    assert done.text == "New task: CHROMEUSE read the ad"  # the real final reply, not "Closed 1 tab."
+
+
+@pytest.mark.parametrize(("text", "chrome"), [
+    ("CHROMEUSE CHROMECLOSE read the ad", True),  # its last turn closed a tab already
+    ("CHROMEUSE read the ad", False),             # no Chrome: no check
+    ("read the ad", True),                        # Chrome on, but not used in the task
+])  # fmt: skip
+async def test_no_close_turn_when_it_isnt_needed(tmp_path, text, chrome):
+    done, activity = await run_chrome_task(tmp_path, text, chrome=chrome)
+    assert CLOSING not in activity and done.text == f"New task: {text}"
+
+
+async def test_a_message_during_the_close_turn_carries_the_task_on(tmp_path):
+    app, updates = await start_hub(tmp_path, chrome=True)
+    closing = asyncio.Event()
+    app.bus.subscribe(AgentActivity, lambda e: closing.set() if e.text == CLOSING else None)
+    try:
+        task_id = (await app.router.send(StartTask(text="CHROMEUSE CLOSEWAIT read the ad"))).value
+        await asyncio.wait_for(closing.wait(), TIMEOUT)
+        assert (await app.router.send(SendToTask(task_id=task_id, text="one more thing"))).is_ok
+        reply = await next_matching(updates, report(ReportKind.REPLY))
+        assert reply.text.endswith("one more thing")
+        done = await next_matching(updates, report(ReportKind.DONE))  # answered it, then carried on
+        assert done.task_id == task_id and done.text.startswith("Continue the task from where you left off.")
+    finally:
+        await app.stop()
+
+
 async def test_too_many_handoffs_ask_the_user(tmp_path):
     app, updates = await start_hub(tmp_path, max_handoffs=2)
     try:
         await app.router.send(StartTask(text="HANDOFFALWAYS"))
         need = await next_matching(updates, report(ReportKind.NEED))
         assert need.text.startswith("I've handed this task off 2 times")
-        assert need.state is TaskState.WAITING_FOR_INPUT
+        assert need.state is TaskState.IDLE
+    finally:
+        await app.stop()
+
+
+async def test_an_answer_to_too_many_handoffs_gives_a_fresh_allowance(tmp_path):
+    app, updates = await start_hub(tmp_path, max_handoffs=2)
+    activity: asyncio.Queue[AgentActivity] = asyncio.Queue()
+    app.bus.subscribe(AgentActivity, activity.put)
+    try:
+        task_id = (await app.router.send(StartTask(text="HANDOFFALWAYS"))).value
+        await next_matching(updates, report(ReportKind.NEED))
+        assert (await app.router.send(SendToTask(task_id=task_id, text="yes, carry on HANDOFFALWAYS"))).is_ok
+        # The answered handoff goes ahead as the first of a new allowance; the next one is the
+        # second, and only then is the user asked again.
+        seen = []
+        while (event := await next_matching(updates, lambda e: e.kind in (ReportKind.PROGRESS, ReportKind.NEED))):
+            if event.kind is ReportKind.NEED:
+                break
+            if event.text.startswith("Handed off"):
+                seen.append(event.text)
+        assert seen == [f"Handed off to a fresh session ({n}): docs/next-steps/part.md" for n in (1, 2)]
+        assert event.text.startswith("I've handed this task off 2 times")
+        assert event.task_id == task_id  # the same task asked again
     finally:
         await app.stop()
 
@@ -535,7 +651,7 @@ async def test_status_shows_recent_activity_without_interrupting(hub):
     async with asyncio.timeout(TIMEOUT):
         while not any(line.startswith("→ Write slow.txt") for line in await activity()):
             await asyncio.sleep(0.01)
-    assert (await app.router.send(GetTaskStatus(task_id=task_id))).value[0].state is TaskState.RUNNING
+    assert (await app.router.send(GetTaskStatus(task_id=task_id))).value[0].state is TaskState.ACTIVE
     await app.router.send(CancelTask(task_id=task_id))
 
 

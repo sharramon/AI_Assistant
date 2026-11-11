@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>&quot;You&quot; means the Talker and its worker together</title>
+<!-- Generated from docs/next-steps/you-means-the-pair.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="you-means-the-pair.html"></nav>
+<main>
+<h1 id="you-means-the-talker-and-its-worker-together">"You" means the Talker and its worker together</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-10).</strong> Approved with the user's wording (naming a side targets it; everything else, "you" or an implicit request, is the pair) and built: <code>ONE_PAIR</code> in <code>talker/prompt.py</code>, test <code>tests/test_talker_prompt.py</code>, a line on the Talker's page. Waits on <code>RELOAD: talker</code>, then a hand check: ask a tab "can you look over the files" and see it hand the work over, with no "I can't, but the agent can".</p>
+</blockquote>
+<p><strong>Asked:</strong> "Whenever I say 'you', I mean the agent/talker pair. I need this to be built into every agent/talker pair moving forward. If I want specifically talker or worker I'll say 'the talker' or 'the worker/agent'. If I say you, I need the default understanding to be 'the pair'."</p>
+<p><strong>Why:</strong> the Talker answers "I can't, but the agent can" and goes round in loops, as if its worker were someone else. Its prompt opens with "You can't do work yourself (no files, no tools)", which sets up that barrier; the line saying "you" means both comes much later, at the end of the rules.</p>
+<p><strong>Touches:</strong> one file, <code>src/assistant/modules/talker/prompt.py</code> (<code>talker_prompt</code>, the one builder every tab's Talker uses: the main tab and every helper's tab, now and future). Its tests in <code>src/assistant/modules/talker/tests/</code> (or <code>tests/</code>) get a check that every tab's prompt has the new block and not the old line. Docs: the Talker's page (<code>docs/modules/talker.md</code>) and the Talker section of <code>docs/architecture/agents.md</code>, one line each. No config, no contract.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>Rewrite the opening of both heads (<code>_MAIN_HEAD</code>, <code>_HELPER_HEAD</code>). Instead of "You can't do work yourself", say: "You and {agent} are one assistant to the user. You are its voice; {agent} does the work (files, tools, commands) in the background. Hand work to it with these tags, which the user never sees:".</li>
+<li>Move the "you means the pair" rule from the end of <code>_RULES</code> into a new shared block <code>_ONE_PAIR</code>, placed right after the head of every tab, and make it stronger:</li>
+<li>Everything the user says is aimed at the pair: "you", "can you", "do you know", and requests with no "you" at all ("look over the files").</li>
+<li>When the user names one side explicitly ("the talker", "the worker", "the agent", {agent}'s name, or similar words that pick one side), it means that side alone. Without such a name it's the pair.</li>
+<li>Never say "I can't, but {agent} can", or tell the user to ask the worker. If {agent} can do it, say "I'll do that" and hand it over with WORK (or LOOK to check on it, ASK for its running task) in the same reply.</li>
+<li>Speak as one ("I can read my source", "I'll do that").</li>
+<li>Reword "Answer simple things yourself" in <code>_RULES</code> to "Answer simple things directly, without a task", so it doesn't read as "you" being only the Talker.</li>
+<li>Nothing else in the prompts says the Talker is separate; the door note ("hand real work to the worker") stays, as it's the Talker's own tool rule.</li>
+</ul>
+<p><strong>Picking it up:</strong> the prompt is set when a Talker's session starts, so a running Talker keeps the old one. It needs <code>RELOAD: talker</code>, a Reset of each Talker (<code>RESET: talker</code>, or the Reset button on each tab), or an app relaunch.</p>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li>How to load it: <code>RELOAD: talker</code> (no restart; every tab's Talker restarts with the new prompt, keeping its last few exchanges) or the next app relaunch? <strong>Recommended:</strong> <code>RELOAD: talker</code>.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/you-means-the-pair.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

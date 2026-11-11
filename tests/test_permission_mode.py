@@ -103,8 +103,8 @@ async def test_switch_applies_now_idle_and_mid_task(tmp_path):
         module = app._lifecycle._active["main_assistant"][0]
         assert "bypassPermissions" in module._session._command_source()
 
-        await app.router.send(StartTask(text="ASKME first"))  # starts in Auto, then waits
-        await next_matching(updates, report(ReportKind.NEED))
+        await app.router.send(StartTask(text="SLOW first"))  # starts in Auto, mid-turn
+        await next_matching(updates, lambda e: e.text == "started")
         # Mid-task to Manual: the running process switches at once (a control request).
         assert (await switch(PermissionMode.MANUAL)).applies == "now"
         # Mid-task back to Auto: now too, answered by the agent (no control request).
@@ -167,10 +167,10 @@ async def test_auto_closes_an_open_card_and_allows_it(tmp_path):
     try:
         await app.router.send(StartTask(text="PERMIT first"))  # Manual: a card opens
         card = await next_matching(updates, report(ReportKind.PERMISSION))
-        assert card.state is TaskState.WAITING_FOR_INPUT
+        assert card.state is TaskState.ACTIVE  # a card keeps its agent in its turn
         assert (await switch(PermissionMode.AUTO)).applies == "now"
         closed = await next_matching(updates, lambda e: e.text == "permission allowed (Auto)")
-        assert closed.state is TaskState.RUNNING
+        assert closed.state is TaskState.ACTIVE
         done = await next_matching(updates, report(ReportKind.DONE))
         assert done.text == "allowed"
     finally:
@@ -265,7 +265,7 @@ async def test_temp_ui_button_mode_and_risky_card(tmp_path):
         assert ui._chats["helper"][-1]["text"] == "helper: Auto, no permission prompts from the next task"
 
         app.bus.publish(TaskUpdated(
-            task_id="t1", state=TaskState.WAITING_FOR_INPUT, kind=ReportKind.NEED, text="Risky: delete the old logs",
+            task_id="t1", state=TaskState.IDLE, kind=ReportKind.NEED, text="Risky: delete the old logs",
             question_kind="risky",  # as the Hub types it
         ))
         await wait_until(lambda: any(i["kind"] == "risky" for c in ui._chats.values() for i in c), TIMEOUT)

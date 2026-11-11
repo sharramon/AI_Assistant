@@ -46,6 +46,18 @@ class PermissionsPort(ModulePermissions):
         if self._handler is not None:
             self._handler.own_agent(self.module_id, agent_id, subject or self.module_id)
 
+    def granted(self, item: AccessItem, agent_id: str) -> bool:
+        if self._handler is None:
+            self._allow(f"{item.label} for {agent_id}", "")
+            return True
+        return self._handler.granted(self.module_id, agent_id, item)
+
+    async def ask(self, item: AccessItem, agent_id: str, reason: str = "") -> bool:
+        if self._handler is None:
+            self._allow(f"{item.label} for {agent_id}", reason)
+            return True
+        return await self._handler.ask(self.module_id, agent_id, item, reason)
+
     def _allow(self, name: str, reason: str) -> None:
         level = logging.DEBUG if name in self._warned else logging.WARNING
         self._warned.add(name)

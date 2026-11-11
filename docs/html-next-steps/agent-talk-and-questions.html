@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents talk to each other freely, and a question never makes an agent busy</title>
+<!-- Generated from docs/next-steps/agent-talk-and-questions.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="agent-talk-and-questions.html"></nav>
+<main>
+<h1 id="agents-talk-to-each-other-freely-and-a-question-never-makes-an-agent-busy">Agents talk to each other freely, and a question never makes an agent busy</h1>
+<blockquote>
+<p><strong>Status: built (2026-11-10), waiting on the app restart and the hand checks.</strong> The user approved all six choices as recommended. Takes in <a href="two-agent-states.html">two-agent-states</a> and replaces <a href="hub-folder-check-parent.html">hub-folder-check-parent</a> (cancelled, never built).</p>
+</blockquote>
+<p><strong>Asked:</strong> "the cv module can't give the job module the resulting cv and the info about it either. Which makes the process a mess." "They can just ask for permission to send things to each other if we need a gate." The cv and job modules were meant to talk to each other freely when needed; restore that, with the permission card as the only gate. And: an agent that asks a question must not sit in a holding pattern. The question is just a message; the agent ends its turn and is free; the user answers whenever they like, as a normal message, and the module finds the right context again from its notes.</p>
+<p><strong>Why:</strong> on 2026-11-09 the Globex Robotics hand-off failed both ways, and only manual relays by the Talker got it through.</p>
+<h2 id="what-went-wrong-exactly">What went wrong, exactly</h2>
+<p><strong>Job agent → cv agent</strong> (the job: <code>cv.task</code>). Three blocks, one after the other:</p>
+<ol>
+<li><strong>Who may start cv_agent</strong> (cv-path-hardening): <code>cv.task</code> doesn't start cv_agent. It hands the text to the coordinator (<code>[hand_off] coordinator = "main_assistant"</code>), and <code>start_only_by = { cv_agent = ["main_assistant"] }</code> in <code>[modules.agent_hub]</code> refuses <code>hub.start</code> for cv_agent from anyone else, the job agent included.</li>
+<li><strong>The queue that never runs:</strong> the hand-off to the Main Assistant is a <code>StartTask</code>. The Main Assistant had an open task waiting on a <code>NEED:</code> (4df48918), so it counted as <strong>busy</strong> and refused. <code>cv.task</code> fell back to an <code>AgentNotice</code>, which only joins the agent's next turn and never wakes it. That turn didn't come, so the job agent sent <code>cv.task</code> three times into the same hole.</li>
+<li><strong>The folder check counts the requester's own task:</strong> when the Main Assistant did run it, <code>hub.start</code> refused: "cv_agent would write C:\Chang\Git_projects\AI_Assistant, which main_assistant's open task writes". <code>_folder_clash</code> (<code>agent_hub/tasks.py</code>) counts every open task, including the one calling <code>hub.start</code>. The clash is real on paper: <strong>cv_agent's saved grant holds three write folders inside the repo</strong> (<code>src\cv_tool</code>, <code>src\assistant\modules\cv\docs</code>, <code>tests</code>, added in <code>data/permissions.toml</code> when cv_agent built the CV Tool), and the Main Assistant writes the whole repo. So any open Main Assistant task blocks cv_agent, and the reverse.</li>
+</ol>
+<p><strong>Cv agent → job agent</strong> (the finished CV):</p>
+<ol>
+<li><strong>Child-only <code>hub.send</code>:</strong> an agent may message only tasks it started (<code>may_steer</code>). cv_agent didn't start the job agent's task 0590f5bc, so: "Task 0590f5bc isn't one of cv_agent child tasks".</li>
+<li><strong>The automatic return did fire, as a notice nobody saw.</strong> The job's <code>job_start.json</code> says <code>replied: {submitted_at 23:41:12, to job_search_agent, how: notice}</code>. At the Submit, <code>_tell_asker</code> → <code>_wake</code> tried a <code>StartTask</code> on job_search_agent. The job agent was waiting on its question ("tell me CV ready"), so it counted as busy and refused, and the module fell back to an <code>AgentNotice</code>. A notice never wakes an agent, so the job agent only saw it when the Talker messaged its task by hand. cv_agent didn't know the return had gone (the <code>told</code> field of <code>cv.tool_result</code> wasn't in its view by then) and tried <code>hub.send</code> itself.</li>
+</ol>
+<p><strong>The shared root:</strong> "busy" includes "waiting on a question" (<code>session_agent.py:207</code>: busy unless the mode is idle; <code>assign</code> refuses a busy agent at line 230). Every fallback that hit a waiting agent turned into a silent notice.</p>
+<h2 id="options">Options</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>What</th>
+<th>Good</th>
+<th>Bad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A</strong></td>
+<td>Gated agent messages only: any agent may <code>hub.send</code> / <code>hub.start</code> any other, after a permission card</td>
+<td>One general mechanism</td>
+<td>The hand-off depends on agents remembering to send; a relaunch between job and Submit loses who to tell</td>
+</tr>
+<tr>
+<td><strong>B</strong></td>
+<td>Module hand-off only: the cv module starts cv_agent on <code>cv.task</code> and delivers the result at Submit, in code</td>
+<td>Reliable, survives relaunches, no AI in the middle</td>
+<td>No free talk: the job agent can't ask cv_agent for a change, cv_agent can't ask the job agent about the JD</td>
+</tr>
+<tr>
+<td><strong>C (recommended)</strong></td>
+<td><strong>B for the fixed hand-off, A for everything else, and questions as messages</strong> so neither ever hits a "busy" agent</td>
+<td>Both ways work, one gate, nothing waits silently</td>
+<td>The biggest change; contract changes, so an app restart</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-approach-option-c">The approach (option C)</h2>
+<h3 id="1-the-cv-module-does-the-hand-off-itself-no-main-assistant">1. The cv module does the hand-off itself (no Main Assistant)</h3>
+<ul>
+<li><strong><code>cv.task</code> starts cv_agent</strong> with a <code>StartTask</code> of its own, <code>parent_task_id</code> = the caller's open task (so the job agent may <code>hub.send</code> to it as its child, as today). <code>[hand_off] coordinator</code> goes; <code>start_only_by</code> for cv_agent goes from <code>config/default.toml</code>. A module's <code>StartTask</code> isn't an agent's <code>hub.start</code>, so the parent-task rules don't apply to it.</li>
+<li><strong>If cv_agent is working on another job</strong>, <code>cv.task</code> says so and who it's for. No silent queue.</li>
+<li><strong>At Submit</strong>, the module delivers the result to <code>reply_to</code> with one shared helper, <em>deliver</em> (in the Hub, below): to the asker's open task as a message, or a new task if it has none, or held and delivered when it next starts if it isn't running. <code>job_start.json</code> records how (<code>message &lt;task&gt;</code>, <code>task &lt;id&gt;</code>, <code>pending</code>). No <code>AgentNotice</code> fallback.</li>
+<li><strong>No card for these two:</strong> <code>cv.task</code> is already limited to <code>[hand_off] callers</code>, and the Submit is your own click.</li>
+</ul>
+<h3 id="2-agents-message-each-other-with-the-permission-card-as-the-gate">2. Agents message each other, with the permission card as the gate</h3>
+<ul>
+<li><strong><code>hub.send</code> with <code>agent_id</code></strong> (and <code>hub.start</code> on a named agent) works for every agent, not only the Talker. Your child tasks stay free as now; the Talker (you) is never asked.</li>
+<li><strong>The first message from A to B</strong> opens a permission card: "job_search_agent wants to message cv_agent", with the start of the text. Buttons: <strong>Allow once</strong> · <strong>Always allow</strong> · <strong>Deny</strong>.</li>
+<li><strong>How it fits the existing grants:</strong> "Always" saves a grant in <code>data/permissions.toml</code>, module <code>agent_hub</code>, subject = the sender's kind (as <a href="../html/architecture/permissions.html#grants-per-kind-of-agent">grants per kind of agent</a>: <code>helper_2</code> shares <code>helper</code>'s), item <code>message:&lt;receiver&gt;</code>. One grant per direction, so job → cv and cv → job are each asked once. It shows in <code>permissions.grants</code> and the Grants panel; <code>permissions.revoke</code> takes it back and the next message asks again. "Allow once" sends this message and saves nothing. Deny sends nothing; the sender gets a note saying so.</li>
+<li><strong>New in the handler:</strong> an <code>AccessKind.MESSAGE</code>, <code>AnswerPermissionRequest.remember</code> (false = once), and a revoke of a <code>message:</code> item doesn't turn <code>agent_hub</code> off (today any revoke turns the module off).</li>
+<li><strong>While the card is open,</strong> <code>hub.send</code> answers "waiting on the user's card"; the Hub holds the message and delivers it on Allow.</li>
+<li><strong>Delivery never interrupts:</strong> an agent in a turn gets the message when the turn ends, as its next message (unlike a notice, it wakes the agent). An idle agent gets it at once: into its open task if it has one, else as a new task. The text starts <code>[Message from &lt;sender&gt;]</code>.</li>
+</ul>
+<h3 id="3-a-question-is-a-message-the-agent-is-never-busy-waiting-takes-in-two-agent-states">3. A question is a message; the agent is never busy waiting (takes in two-agent-states)</h3>
+<ul>
+<li><strong>Two states only:</strong> an agent or task is <strong>active</strong> (in a turn) or <strong>idle</strong>, as in <a href="two-agent-states.html">two-agent-states</a>; its table of what "waiting" touches is the work list. <code>TaskState</code> loses <code>running</code>, <code>paused</code> and <code>waiting_for_input</code>; <code>AgentInfo</code> gets <code>state</code> in place of <code>busy</code> and <code>working</code>.</li>
+<li><strong>A <code>NEED:</code> ends the turn and the task.</strong> The agent is free at once. The question becomes its own record in the Hub (id, agent, text, a <strong>context key</strong>, asked at), shown behind the tab's <strong>!</strong> as today. This replaces two-agent-states' "a new task ends the old one as left unanswered": the question stays answerable however much happens in between.</li>
+<li><strong>Your answer is a normal message</strong>, whenever you like: the Hub sends it to the agent as "Answer to your question <id> (<question>): <answer>", into its open task or as a new task.</li>
+<li><strong>The module finds the context again.</strong> The question carries a context key (cv: the job's work folder; job_search: the application doc). If the agent's session still has the question, nothing more is needed. If not (a relaunch, a reset, other work in between), the module adds its notes for that key to the message: cv adds the job's <code>job_start.json</code> summary and its handoff note; others their handoff note. Each module says how, through one small hook on its agent (<code>context_for(key)</code>), default: none.</li>
+<li><strong>A permission card</strong> (a tool call mid-turn) stays as it is: the turn is still active, and Allow or Deny lets it carry on.</li>
+<li><strong>The restart</strong> goes ahead with questions open; they're in the restart note and asked again after the launch.</li>
+</ul>
+<h3 id="the-hubs-folder-check">The Hub's folder check</h3>
+<ul>
+<li><strong>Keep the check, don't skip the requester.</strong> The cancelled note's idea (skip the parent task) is not needed: in step 1 the Main Assistant is out of the loop, and the job agent's folders (<code>C:\Chang\Jobs\CV</code>) don't overlap cv_agent's (<code>C:\Chang\Jobs\CV_Module</code>).</li>
+<li><strong>Revoke cv_agent's three repo write folders</strong> (with your yes; they were for building the CV Tool, and CV jobs never write the repo). cv_agent can ask for them again with <code>permissions.request</code> when it builds again; live grants reach it without a restart.</li>
+<li><strong>With step 3,</strong> an agent waiting on a question has no open task, so it holds no folder. Only agents really in a turn can clash.</li>
+</ul>
+<h2 id="touches">Touches</h2>
+<ul>
+<li><strong>Contracts</strong> (<code>contracts/agents.py</code>, <code>contracts/permissions</code> types): <code>TaskState</code>, <code>AgentInfo.state</code>, <code>AgentStateChanged</code>, the question record, <code>AccessKind.MESSAGE</code>, <code>AnswerPermissionRequest.remember</code>. App restart.</li>
+<li><strong>Core:</strong> <code>core/permissions/</code> (message items, once, revoke without turning off). App restart.</li>
+<li><strong>Infra:</strong> <code>session_agent.py</code> (no <code>waiting</code>/<code>paused</code> outside, <code>context_for</code>), <code>profile_agent.py</code>, <code>agent_tags.py</code> if the NEED parse changes.</li>
+<li><strong>Modules:</strong> <code>agent_hub</code> (<code>tasks.py</code>: states, question records, <em>deliver</em>, the message gate; <code>module.py</code>: <code>hub.send</code> / <code>hub.start</code> for all, <code>hub.answer</code> for questions), <code>cv</code> (<code>module.py</code>, <code>reply.py</code>, <code>module.toml</code>: no coordinator; its <code>context_for</code>), <code>job_search</code> (its <code>context_for</code>), <code>main_assistant</code>, <code>talker</code> (<code>module.py</code>, <code>restart.py</code>, <code>session.py</code>), <code>temp_ui</code> (active/idle, the three card buttons, the <strong>!</strong> from question records), <code>task_agents</code>.</li>
+<li><strong>Config</strong> (with your yes): <code>start_only_by</code> removed for cv_agent. <strong>Grants</strong> (with your yes): <code>permissions.revoke</code> of cv_agent's three repo write folders.</li>
+<li><strong>Docs:</strong> <code>architecture/agents.md</code>, <code>agents-code.md</code>, <code>permissions.md</code>, <code>core.md</code>, <code>api/agents.md</code>, <code>api/messaging.md</code>, <code>api/infra.md</code>, <code>modules/agent_hub.md</code>, <code>modules/temp_ui.md</code>, <code>agents/runtime.md</code>, the cv module's <code>docs/</code> (hand-off section), <code>api/reusable.md</code> (<em>deliver</em>, <code>context_for</code>); rebuilt.</li>
+</ul>
+<h2 id="tests">Tests</h2>
+<ul>
+<li><strong>cv hand-off</strong> (<code>cv/tests/test_handoff.py</code>, through the real Hub with fake <code>claude</code>): <code>cv.task</code> from job_search_agent starts cv_agent with the job agent's task as parent, no Main Assistant task; cv_agent active on another job → refused with the reason, nothing queued; Submit with the asker idle and a question open → a message to it; asker with no task → a new task; asker in a turn → delivered at its turn end; asker not running → <code>pending</code>, delivered when it starts; a second look at the same Submit tells nobody.</li>
+<li><strong>Message gate</strong> (<code>agent_hub/tests/</code>): non-child send with no grant → a card, the message held; Allow once → delivered, nothing saved, the next asks again; Always → saved under <code>agent_hub</code> / the sender's kind, the next goes through with no card; Deny → not delivered, the sender noted; revoke → asks again and <code>agent_hub</code> stays on; a <code>helper_2</code> uses <code>helper</code>'s grant; the Talker and child tasks never asked; a message never interrupts a turn.</li>
+<li><strong>Questions as messages</strong> (<code>tests/test_agents.py</code>, <code>tests/test_worker_parts.py</code>, the Hub's tests): a <code>NEED:</code> ends the task and the agent is idle (<code>state</code> idle); a new task is accepted with a question open; the answer arrives as "Answer to your question …" in a new task; with the session reset, <code>context_for</code> adds the notes for the key (cv: the job folder's); the restart goes ahead and its note lists the open questions; a permission card still keeps the turn active.</li>
+<li><strong>Folder check:</strong> unchanged rules; an idle agent with an open question doesn't clash.</li>
+<li>Then the whole suite and <code>ruff check src tests scripts</code>.</li>
+</ul>
+<h2 id="build-status">Build status</h2>
+<p>Built 2026-11-10 in one build, tested step by step. Final run: 768 passed (the cv_tool 9 pt test deselected, below; 2 <code>claude</code>-marked tests skipped by default), ruff clean. The docs for all three steps are updated (architecture, API, reusable index, module pages, the cv module's docs) and the HTML is rebuilt. Final architecture check: the Hub imports no other module, cv reaches the Hub only through contracts (<code>StartTask</code>, <code>GetTaskStatus</code>, <code>DeliverMessage</code>), the core's permissions handler names no module. Needs one app restart (contracts, core, infra changed).</p>
+<p><strong>Verified again 2026-11-10 (final session):</strong> ruff clean; the whole suite 768 passed, 3 deselected (the 9 pt test and the 2 <code>claude</code> tests), run in the foreground; the generated-docs tests pass after the rebuild; no stale <code>busy</code> / <code>working</code> / <code>waiting_for_input</code> lines left in the permanent docs; <code>agent_hub</code> and <code>cv</code> import no other module and nothing from the core.</p>
+<ul>
+<li><strong>Step 1, the cv hand-off:</strong> <code>cv.task</code> starts cv_agent itself (<code>StartTask</code> with the caller's open task as parent) and refuses with the job and its asker when cv_agent is busy on another job. At Submit the result goes out through the new <code>DeliverMessage</code> contract, handled by the Hub's <code>Delivery</code> (<code>agent_hub/delivery.py</code>): never into a turn, into the open task or a new one, <code>pending</code> until the agent runs. The coordinator and the <code>AgentNotice</code> fallback are gone. Tests: <code>agent_hub/tests/test_delivery.py</code>, <code>cv/tests/test_reply_delivery.py</code>, <code>test_callers.py</code>, <code>test_handoff.py</code>.</li>
+<li><strong>Step 2, the message gate:</strong> <code>agent_hub/gate.py</code> <code>MessageGate</code>; <code>hub.send</code> with <code>agent_id</code> for every agent; the card with Allow once · Always allow · Deny; <code>AccessKind.MESSAGE</code>, <code>AnswerPermissionRequest.remember</code>, <code>ModulePermissions.granted / ask</code>; a revoke of only <code>message:</code> items keeps the module on. Tests: <code>agent_hub/tests/test_gate.py</code>.</li>
+<li><strong>Step 3, questions as messages:</strong> <code>AgentState</code> (active, idle) replaces busy and working; <code>TaskState</code> is active, idle, done, failed, cancelled. A <code>NEED:</code> ends the turn and the agent is free; the Hub keeps the task idle with its question (<code>TaskRecord.asked</code>), and the answer re-assigns the same task id. An answer during a turn waits for the turn's end (<code>Delivery.later</code>). The module's notes come back through <code>SessionTaskAgent.set_context(key, notes)</code> (cv: <code>job_notes</code>, the job folder's <code>job_start.json</code> and handoff note). Open questions survive a Hub reload (<code>export_questions / restore</code>); the restart no longer refuses with questions open. Tests: <code>tests/test_questions_as_messages.py</code>, plus the updated agent tests.</li>
+<li><strong>Differences from the plan:</strong> the hook is named <code>set_context</code> (not <code>context_for</code>); the question is kept on its task record, not a separate record, so parents, children and the Talker's open tasks stay valid. <code>start_only_by</code> for cv_agent became <code>named_only = ["cv_agent"]</code> in <code>config/default.toml</code>, which keeps free picks off cv_agent while anyone may name it.</li>
+<li><strong>After the restart, still to do (asks first):</strong> revoke cv_agent's three repo write folders (<code>write:</code> <code>src\cv_tool</code>, <code>src\assistant\modules\cv\docs</code>, <code>tests</code>; still in <code>data/permissions.toml</code> under <code>cv.cv_agent</code>). It's a folder revoke, so it turns the cv module off (<code>handler.py</code> <code>_turn_off</code>); not done before the restart because you're asked before any module goes off. <code>named_only = ["cv_agent"]</code> replacing <code>start_only_by</code> is confirmed in <code>config/default.toml</code>.</li>
+<li><strong>Not from this change:</strong> <code>cv/tests/test_cv_tool.py::test_every_style_on_the_page_is_9_pt_or_more</code> fails because <code>src/cv_tool/cvlib.py</code> now sets <code>MIN_PT = 10.0</code>; left as is.</li>
+</ul>
+<h2 id="hand-checks-after-the-restart">Hand checks (after the restart)</h2>
+<ol>
+<li>With the Main Assistant busy on something else, the job agent sends a job with <code>cv.task</code>: cv_agent's tab has it within seconds, and the Main Assistant's tab shows nothing.</li>
+<li>In the CV Tool, Submit while the job agent is waiting on a question: its tab gets the cv message and it carries on with the upload.</li>
+<li>The job agent messages cv_agent for the first time: a card with Allow once · Always allow · Deny. Pick Always; the second message has no card; the Grants panel shows it; revoke it; the next message asks again.</li>
+<li>cv_agent asks you something; <code>hub.agents</code> shows it idle. Give it another job: accepted. Answer the first question later: it picks up the right job.</li>
+<li>Relaunch between a question and your answer: the answer still finds its job.</li>
+<li>Revoke cv_agent's three repo write folders (<code>permissions.revoke</code>, asked first: cv turns off, then back on). <code>permissions.grants</code> no longer lists them, and a CV job still runs.</li>
+<li>The temp UI's tabs show active or idle (no "busy"), and a message card has the three buttons.</li>
+</ol>
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li><strong>Which option?</strong> Recommended: <strong>C</strong>.</li>
+<li><strong>One grant per direction, or one per pair both ways?</strong> Recommended: <strong>per direction</strong>.</li>
+<li><strong>Should a message interrupt an agent in a turn, as <code>hub.send</code> does for a parent today?</strong> Recommended: <strong>no</strong>, delivered at its turn end; a parent's own <code>hub.send</code> to its child keeps interrupting.</li>
+<li><strong>Where the answer finds its context:</strong> the module's notes by the question's key, with the live session when it still has it (recommended), or keep every asking session open until answered.</li>
+<li><strong>Revoke cv_agent's three repo write folders and drop <code>start_only_by</code> for cv_agent?</strong> Recommended: <strong>yes, both</strong>.</li>
+<li><strong>Build order:</strong> recommended in one build (you chose one change), checked per part with the tests: step 1, then 2, then 3. One app restart at the end.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/agent-talk-and-questions.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

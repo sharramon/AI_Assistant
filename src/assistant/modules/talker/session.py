@@ -60,6 +60,9 @@ def access_card_text(event: PermissionRequested) -> str:
     name = event.module_id if event.subject in ("", event.module_id) else f"{event.module_id} → {event.subject}"
     if event.action == "access":
         head = f"{name} asks for its access list"
+    elif event.action == "message":  # ALLOW sends it once; "Always allow" is the card's button
+        head = f"{event.caller} wants to message {', '.join(i.target for i in event.items)} (ALLOW: this once)"
+        return head + (f". {event.reason}" if event.reason else ".")
     else:
         head = f"{event.caller} asks to {event.action} access for {name}"
     parts = [head + (f" ({event.reason})" if event.reason else "") + "."]
@@ -377,7 +380,7 @@ class TalkerSession:
         if not self.main:
             self.status(RESTART_HERE)
             return
-        await self.talker.restart.ask(anyway=argument.strip().lower().startswith("anyway"))
+        await self.talker.restart.ask()
 
     async def _tag_answer(self, tag: str, argument: str, item: Item) -> None:
         """ALLOW / DENY: answer one open permission card."""
@@ -387,7 +390,9 @@ class TalkerSession:
         ctx = self.talker.ctx
         self.answered.add(task_id)
         if task_id.startswith(ACCESS_CARD):  # the permissions handler's card: all of it, or nothing
-            answer = AnswerPermissionRequest(request_id=task_id.removeprefix(ACCESS_CARD), allow=tag == "ALLOW")
+            # remember=False: a message card allowed in words goes once (others ignore it)
+            answer = AnswerPermissionRequest(request_id=task_id.removeprefix(ACCESS_CARD), allow=tag == "ALLOW",
+                                             remember=False)  # fmt: skip
             result = await ctx.send(answer)
         else:
             result = await self.talker.hub("hub.answer", task_id=task_id, allow=tag == "ALLOW")
@@ -436,7 +441,7 @@ def describe_agents(agents: list[dict]) -> str:
         return "No agents are running."
     lines = []
     for agent in agents:
-        marks = [m for m, on in (("talking to the user", agent.get("focused")), ("working", agent.get("busy")),
+        marks = [m for m, on in (("talking to the user", agent.get("focused")), ("working", agent.get("state") == "active"),
                                  ("has something waiting (!)", agent.get("held"))) if on]  # fmt: skip
         lines.append(f"{agent['agent_id']}: {', '.join(marks) or 'idle'}")
     return "\n".join(lines)

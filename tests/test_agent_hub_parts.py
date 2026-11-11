@@ -84,7 +84,7 @@ async def test_the_board_holds_a_question_out_of_focus_and_the_focus_releases_it
     task_id = started.value
     assert (await rig.board.report(ReportTask(task_id=task_id, kind=ReportKind.PERMISSION, text="Bash: ls"))).is_ok
     record = rig.board.get(task_id)
-    assert record.state is TaskState.WAITING_FOR_INPUT and record.held
+    assert record.state is TaskState.ACTIVE and record.held
     assert record.question_kind is QuestionKind.PERMISSION and rig.board.holds("helper")
     assert (await rig.focus.set(SetFocus(agent_id="helper"))).value == "helper"
     moved = [e for e in rig.published if isinstance(e, FocusChanged)][-1]
@@ -159,7 +159,7 @@ async def test_the_talkers_answer_and_mode_items_check_their_caller() -> None:
     refused = await menu.call(hub, "hub.answer", {"task_id": task_id, "allow": True}, caller="main")
     assert refused.status is Status.NOT_AVAILABLE and helper.answers == []
     assert (await menu.call(hub, "hub.answer", {"task_id": task_id, "allow": True}, caller="talker")).is_ok
-    assert helper.answers == [True] and rig.board.get(task_id).state is TaskState.RUNNING
+    assert helper.answers == [True] and rig.board.get(task_id).state is TaskState.ACTIVE
 
     assert (await menu.call(hub, "hub.mode", {"agent_id": "helper", "mode": "manual"}, caller="main")).status \
         is Status.NOT_AVAILABLE  # fmt: skip

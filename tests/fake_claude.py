@@ -14,11 +14,17 @@ is the message itself, except:
 - containing "asked to restart the app": the result is a reset note ending `RESTART_READY`
 - containing "asked to reset your session": the result ends with `HANDOFF: docs/next-steps/reset.md`
 - containing "[Context check]": the result ends with `HANDOFF: docs/next-steps/context.md`
+- starting with `/compact`: the result is `Compacted.`; it fails (`error_during_execution`)
+  if this process has had `COMPACTFAIL`, and waits half a second first if it has had `COMPACTWAIT`
 - a `New task:` containing `RELOADME <id>`: the result ends with `RELOAD: <id>`
 - containing `SUBAGENT`: one Agent call to a `general-purpose` sub-agent (`agentId` `a1b2`),
   its last call's tokens on the tool result's `tool_use_result.usage`, and the turn's every
   call (its own and the sub-agent's) on the result's `model_usage_since_last_result`
   (see `subagent_turn`)
+- containing `CHROMEUSE`: a Chrome `navigate` call first; containing `CHROMECLOSE`: a Chrome
+  `tabs_close_mcp` call first (either way the turn goes on as above)
+- containing "Close each of your Chrome tabs" (the app's end-of-task check): a `tabs_close_mcp`
+  call, and the result `Closed 1 tab.`
 
 Each turn is one call (one message id, `msg_<n>`): its `usage` says 1000 input tokens per
 message this process has had, so a fresh process starts small again, plus 10 output
@@ -29,6 +35,7 @@ unless the message contains `SHOWUSAGE`.
 
 import json
 import sys
+import time
 
 TOKENS_PER_MESSAGE = 1000
 
@@ -39,6 +46,7 @@ def emit(obj: dict) -> None:
 
 
 messages = 0  # in this process
+seen: set[str] = set()  # the compact flags this process has had
 
 
 def result(text: str, error: bool = False, **extra) -> None:
@@ -107,7 +115,22 @@ def main() -> None:
         emit({"type": "assistant", "message": {**call, "content": [{"type": "text", "text": f"working on: {text}"}]}})
         if "CRASH" in text:
             return
-        if "asked to restart the app" in text:
+        seen.update(flag for flag in ("COMPACTFAIL", "COMPACTWAIT", "CLOSEWAIT") if flag in text)
+        closing = "Close each of your Chrome tabs" in text
+        for flag, tool in (("CHROMEUSE", "navigate"), ("CHROMECLOSE", "tabs_close_mcp")):
+            if flag in text or (closing and tool == "tabs_close_mcp"):
+                emit({"type": "assistant", "message": {**call, "content": [  # same call: counted once
+                    {"type": "tool_use", "name": f"mcp__claude-in-chrome__{tool}", "input": {"tabId": 1}},
+                ]}})
+        if closing:
+            if "CLOSEWAIT" in seen:
+                time.sleep(0.5)
+            result("Closed 1 tab.")
+        elif text.startswith("/compact"):
+            if "COMPACTWAIT" in seen:
+                time.sleep(0.5)
+            result("Compacted.", error="COMPACTFAIL" in seen)
+        elif "asked to restart the app" in text:
             result("Was building the poems; part one done.\nRESTART_READY")
         elif "asked to reset your session" in text:
             result("Saved where I was.\nHANDOFF: docs/next-steps/reset.md")

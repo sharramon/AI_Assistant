@@ -27,6 +27,10 @@ class Task(BaseModel):
     id: str
     text: str
     context: str = ""
+    # Set when the task answers a question the agent asked in it (the same task id, active
+    # again): the question's context key. The agent carries on in its live session if it still
+    # has the question; otherwise it adds its module's notes for the key (`set_context`).
+    question_key: str | None = None
 
 
 class PermissionMode(StrEnum):
@@ -41,25 +45,39 @@ class PermissionMode(StrEnum):
     AUTO = "auto"
 
 
+class AgentState(StrEnum):
+    """An agent is `active` (in a turn, or held in one by a permission card) or `idle`. An idle
+    agent takes new work, whatever questions it has open."""
+
+    ACTIVE = "active"
+    IDLE = "idle"
+
+
 class AgentInfo(BaseModel):
-    """Who an agent is. `busy`: it has an unfinished task. `working`: its session is in a turn now.
-    `write_folders`: the folders it may write, for the Hub's folder-clash check."""
+    """Who an agent is, and its `state` (active or idle). `write_folders`: the folders it may
+    write, for the Hub's folder-clash check."""
 
     model_config = ConfigDict(frozen=True)
 
     agent_id: str
     description: str
     capabilities: tuple[str, ...] = ()
-    busy: bool = False
-    working: bool = False
+    state: AgentState = AgentState.IDLE
     permission_mode: PermissionMode = PermissionMode.MANUAL
     write_folders: tuple[str, ...] = ()
 
+    @property
+    def active(self) -> bool:
+        return self.state is AgentState.ACTIVE
+
 
 class TaskState(StrEnum):
-    RUNNING = "running"
-    PAUSED = "paused"
-    WAITING_FOR_INPUT = "waiting_for_input"
+    """A live task is `active` (its agent is in a turn on it) or `idle`: stopped after a reply
+    (`hub.send` with pause), or holding the question its agent asked (a `need`; the agent dropped
+    it and is free, and the answer makes it active again). The ends: done, failed, cancelled."""
+
+    ACTIVE = "active"
+    IDLE = "idle"
     DONE = "done"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -108,7 +126,9 @@ class TaskInfo(BaseModel):
     open question or permission request; `held` means it, its `reply` or its end (`result`)
     waits behind the agent's **!** until you focus that agent. `reply`: the agent's latest
     reply, kept only while held. `parent_task_id`: the task that started it, if any.
-    `question_kind`: what `question` is (`QuestionKind`); `question` is the agent's own text."""
+    `question_kind`: what `question` is (`QuestionKind`); `question` is the agent's own text.
+    `question_key`: the question's context key, from its agent (cv: the job's folder), so a late
+    answer finds its context again."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -124,6 +144,7 @@ class TaskInfo(BaseModel):
     held: bool = False
     reply: str | None = None
     question_kind: QuestionKind = QuestionKind.NONE
+    question_key: str = ""
 
     @property
     def question_line(self) -> str:
@@ -145,11 +166,13 @@ class ITaskAgent(Contract):
 
     @abstractmethod
     def info(self) -> AgentInfo:
-        """Who this agent is and whether it's busy. Called on every lookup."""
+        """Who this agent is and whether it's active. Called on every lookup."""
 
     @abstractmethod
     async def assign(self, task: Task) -> Result:
-        """Accept (`ok`) or refuse (`not_available` if busy, `failed` if it can't start) a task."""
+        """Accept (`ok`) or refuse (`not_available` if active, `failed` if it can't start) a task.
+        An idle agent stopped on a task drops it for the new one. A task with `question_key` set
+        answers a question it asked: the same id, active again."""
 
     @abstractmethod
     async def message(self, task_id: str, text: str, resume: bool = True) -> Result:
@@ -207,7 +230,7 @@ class IAgentNames(Contract):
 
 
 class ListAgents(Command):
-    """Every agent and whether it's busy or working. Result value: `list[AgentInfo]`."""
+    """Every agent and whether it's active or idle. Result value: `list[AgentInfo]`."""
 
 
 class StartTask(Command):
@@ -223,6 +246,23 @@ class StartTask(Command):
     parent_task_id: str | None = None
 
 
+class DeliverMessage(Command):
+    """A message for an agent from a module (or the Hub's own message gate), delivered without
+    ever interrupting a turn. Handled by the Agent Hub.
+
+    The text reaches the agent as `[Message from <sender>] <text>`: into its open task if it
+    has one (which also answers a question it waits on), else as a new task. An agent in a turn
+    gets it when the turn ends; one that isn't running gets it when it starts (kept across a
+    Hub reload, lost on an app restart). Messages to one agent keep their order.
+
+    Result value: how it went, `"message <task id>"`, `"task <task id>"` or `"pending"`
+    (delivered later). `failed` if the agent refused the task for good."""
+
+    agent_id: str
+    text: str
+    sender: str
+
+
 class GetTaskStatus(Command):
     """Task status without disturbing the agent. Result value: `list[TaskInfo]`.
 
@@ -233,7 +273,9 @@ class GetTaskStatus(Command):
 
 
 class SendToTask(Command):
-    """A question, extra instruction, or answer for a task. `resume=False` pauses it."""
+    """A question, extra instruction, or answer for a task. `resume=False` pauses it. Into a task
+    holding its agent's question, the text is the answer: the agent gets "Answer to your question
+    ..." and the task is active again (`not_available` while the agent is in another turn)."""
 
     task_id: str
     text: str
@@ -272,11 +314,13 @@ class SetFocus(Command):
 
 
 class ReportTask(Command):
-    """Agent → Hub. A command, not an event, so the Hub's state never misses it."""
+    """Agent → Hub. A command, not an event, so the Hub's state never misses it. `key`: with a
+    `need`, the question's context key (the agent's module decides it; "" for none)."""
 
     task_id: str
     kind: ReportKind
     text: str
+    key: str = ""
 
 
 class TaskUpdated(Event):
@@ -323,12 +367,11 @@ class AgentNotice(Event):
 
 
 class AgentStateChanged(Event):
-    """An agent's `busy` or `working` changed (`change="state"`), or an agent that isn't a module
-    of its own appeared (`"opened"`) or went away (`"closed"`): a helper inside `task_agents`."""
+    """An agent's `state` (active or idle) changed (`change="state"`), or an agent that isn't a
+    module of its own appeared (`"opened"`) or went away (`"closed"`): a helper inside `task_agents`."""
 
     agent_id: str
-    busy: bool
-    working: bool
+    state: AgentState = AgentState.IDLE
     change: Literal["state", "opened", "closed"] = "state"
 
 

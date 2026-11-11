@@ -67,7 +67,7 @@ async def test_restart_note_lists_a_task_waiting_on_the_user(tmp_path):
     assert "  - task " in state and "poems ASKME" in state and "waiting on the user: Which style?" in state
 
 
-async def test_restart_asks_first_when_the_task_waits_on_the_user(tmp_path):
+async def test_the_restart_goes_ahead_and_the_question_stays_open(tmp_path):
     app = _app(tmp_path)
     replies, shutdowns = _queues(app)
     await app.start()
@@ -75,15 +75,12 @@ async def test_restart_asks_first_when_the_task_waits_on_the_user(tmp_path):
         app.bus.publish(InputReceived(text="<<WORK: poems ASKME>>", source="test"))
         await next_matching(replies, lambda e: e.text.startswith("[Task update: need]"))
         app.bus.publish(InputReceived(text="<<RESTART>>", source="test"))
-        status = await next_matching(replies, lambda e: e.text.startswith("[Status]"))
-        assert "waiting on the user (Which style?)" in status.text
-        assert shutdowns.empty()
-
-        app.bus.publish(InputReceived(text="<<RESTART: anyway>>", source="test"))
-        assert (await asyncio.wait_for(shutdowns.get(), TIMEOUT)).restart
+        assert (await asyncio.wait_for(shutdowns.get(), TIMEOUT)).restart  # no refusal, no "anyway"
     finally:
         await app.stop()
-    assert "part one done" in (tmp_path / "state" / "reset.md").read_text(encoding="utf-8")
+    note = (tmp_path / "state" / "reset.md").read_text(encoding="utf-8")
+    assert "part one done" in note
+    assert "poems ASKME" in note and "waiting on the user: Which style?" in note  # the question stayed open
 
 
 async def test_restart_without_a_worker_writes_its_own_note(tmp_path):

@@ -6,6 +6,7 @@ from pathlib import Path
 from assistant.contracts import (
     AgentInfo,
     AgentNotice,
+    AgentState,
     FocusChanged,
     FocusSuggested,
     GetTaskStatus,
@@ -39,17 +40,19 @@ class FakeAgent(ITaskAgent):
 
     def __init__(self, agent_id: str, folders: tuple[str, ...]) -> None:
         self.agent_id, self.folders = agent_id, folders
-        self.busy = False
+        self.busy = False  # holds a task (assign refuses a second)
+        self.working = False  # in a turn: the Hub never delivers into it
         self.calls: list[tuple] = []
         self.notes: list[str] = []
         self.ctx: ModuleContext | None = None
 
     def info(self) -> AgentInfo:
-        return AgentInfo(agent_id=self.agent_id, description="fake", busy=self.busy, write_folders=self.folders)
+        return AgentInfo(agent_id=self.agent_id, description="fake",
+                         state=AgentState.ACTIVE if self.working else AgentState.IDLE, write_folders=self.folders)
 
     async def assign(self, task: Task) -> Result:
         if self.busy:
-            return Result.not_available(f"{self.agent_id} is busy")
+            return Result.not_available(f"{self.agent_id} is active")
         self.busy = True
         self.calls.append(("assign", task.id, task.text))
         return Result.ok()

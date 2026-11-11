@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Close an agent&#x27;s Chrome tabs when it&#x27;s done with them</title>
+<!-- Generated from docs/next-steps/chrome-tabs-close.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="chrome-tabs-close.html"></nav>
+<main>
+<h1 id="close-an-agents-chrome-tabs-when-its-done-with-them">Close an agent's Chrome tabs when it's done with them</h1>
+<blockquote>
+<p><strong>Status (2026-11-10): built and tested; the user chose 1a (both parts) and 2a (tabs stay on a cancel or a failure).</strong> Follows <a href="chrome-tab-after-reset.html">chrome-tab-after-reset.md</a> (tabs kept across a handoff). Built in <code>src/assistant/infra</code> (<code>agent_profile.py</code>: the prompt rule, <code>CHROME_TAB_TOOLS</code> allowed with no card; <code>session_agent.py</code>: <code>close_tabs</code>, <code>_Mode.CLOSING_TABS</code>, <code>CLOSE_TABS</code>; <code>profile_agent.py</code> turns it on for Chrome agents), so it takes effect at the one app restart after all pending fixes. Tests: <code>tests/test_agents.py</code> (<code>test_a_chrome_task_closes_its_tabs_before_it_ends</code>, <code>test_no_close_turn_when_it_isnt_needed</code>, <code>test_a_message_during_the_close_turn_carries_the_task_on</code>). Documented in <code>docs/agents/runtime.md</code> and <code>SessionTaskAgent</code> in <code>docs/api/infra.md</code>.</p>
+</blockquote>
+<h2 id="the-problem">The problem</h2>
+<p>An agent with Chrome (the job agent, the cv worker, task agents whose kind has <code>chrome = true</code>) opens tabs and never closes them. The app never touches Chrome itself: each agent's <code>claude</code> session drives it through the Claude in Chrome tools, and that session has a <code>tabs_close_mcp</code> tool it never uses. Its prompt doesn't ask it to. Once the session is replaced (a new task starts a fresh one), its tab group can't be reached by anyone, so the tabs stay until you close them by hand.</p>
+<h2 id="when-a-tab-closes-and-when-it-stays">When a tab closes, and when it stays</h2>
+<table>
+<thead>
+<tr>
+<th>Moment</th>
+<th>Tabs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A page is no longer needed (an ad read, a search done, a form saved)</td>
+<td>the agent closes that tab</td>
+</tr>
+<tr>
+<td>A handoff (<code>HANDOFF:</code>, context compacted)</td>
+<td><strong>kept</strong>: the same session carries on with them</td>
+</tr>
+<tr>
+<td>A question to you (<code>NEED:</code>)</td>
+<td><strong>kept</strong>: the answer may need the page</td>
+</tr>
+<tr>
+<td>A page you're asked to act on (a filled form for you to submit: agents never submit)</td>
+<td><strong>kept</strong>, and the final reply says which tab</td>
+</tr>
+<tr>
+<td>The task's end (its final reply)</td>
+<td>every other tab of the task is closed</td>
+</tr>
+<tr>
+<td>You cancel a task, a task fails, the app stops or restarts</td>
+<td>kept, so you can see where it stopped (see question 2)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-change">The change</h2>
+<ol>
+<li><strong>The rule in the prompt</strong> (the Chrome part of every agent's prompt, <code>infra/agent_profile.py</code>): close a tab with <code>tabs_close_mcp</code> as soon as you're done with its page; before your final reply, close each tab of yours you don't need any more (<code>tabs_context_mcp</code> lists them), except one you tell the user to act on; never close a tab on a handoff or while a question is open.</li>
+<li><strong>A check at the task's end</strong> (<code>SessionTaskAgent</code>, on only for agents with Chrome, the same switch as the compact handoff): if the task used Chrome tools and its last turn didn't close a tab, the app sends one short turn before reporting the task done: "close the tabs you no longer need, keep the ones the user should act on, reply in one line". The done report keeps the agent's real final text. This catches an agent that forgot the rule, and costs one short turn on those tasks only.</li>
+<li>Tests for both, and the rule in <code>docs/agents/runtime.md</code> and <code>SessionTaskAgent</code> in <code>docs/api/infra.md</code>.</li>
+</ol>
+<p>The handoff path from the earlier fix doesn't change: a compact keeps the session and its tabs, and nothing closes them there.</p>
+<h2 id="the-two-examplecom-tabs">The two example.com tabs</h2>
+<p>They are the earlier spike's tabs (2086284225, 2086284226), each in the tab group of a spike session that has ended. They hold nothing, and nothing in the app uses them, so they're safe to close. No agent can close them, because their sessions are gone: close each group by hand (right-click the group's label, then <strong>Close group</strong>).</p>
+<footer>Generated from <code>docs/next-steps/chrome-tabs-close.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

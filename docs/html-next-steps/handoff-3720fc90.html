@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: hand checks 1, 2, 4 of agent-talk-and-questions (task 3720fc90)</title>
+<!-- Generated from docs/next-steps/handoff-3720fc90.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-3720fc90.html"></nav>
+<main>
+<h1 id="handoff-hand-checks-1-2-4-of-agent-talk-and-questions-task-3720fc90">Handoff: hand checks 1, 2, 4 of agent-talk-and-questions (task 3720fc90)</h1>
+<blockquote>
+<p><strong>Status: checks run 2026-11-10 against the live app; the write-up for check 2 is next.</strong> Logs: <code>logs\2026-11-10_01-33-35_it-reached-the-job-agent\</code> (<code>assistant.log</code> has the evidence below).</p>
+</blockquote>
+<h2 id="results">Results</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+<th>Evidence (assistant.log, 2026-11-10)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. <code>cv.task</code> reaches cv_agent while the Main Assistant is busy</td>
+<td><strong>passed</strong> (third run)</td>
+<td>01:52:28.388 job set up in <code>C:\Chang\Jobs\CV_Module\work\2026-11-10_HandCheckCo_HandCheckRole</code>; 01:52:28.409 <code>cv.task from job_search_agent: task 226a1dfa on cv_agent</code> (parent 52513adb, the job agent's task); no Main Assistant task, no notice; <code>job_start.json</code> <code>reply_to: job_search_agent</code></td>
+</tr>
+<tr>
+<td>2. A Submit reaches the job agent while it waits on a question</td>
+<td><strong>failed</strong></td>
+<td>Submit saved 01:56:39 (<code>C:\Chang\Jobs\CV_Module\cv_tool\jobs\2026-11-10_HandCheckCo\result.json</code>, <code>ready.flag</code>), but no <code>cv.tool_result</code> call, no delivery, no <code>replied</code> in <code>job_start.json</code>; the job agent stayed idle on its question (not busy, no notice)</td>
+</tr>
+<tr>
+<td>4. A waiting agent is idle, takes new work, a late answer finds its job</td>
+<td><strong>passed</strong> (second run)</td>
+<td>01:58:20 job A 3b7c46c0 asks; cv_agent idle, task idle <code>question_kind: need</code>; 01:58:41–43 job B 898279fb accepted and done; 01:59:02 the late answer goes into 3b7c46c0 (new session), 01:59:05 done: "A4b is for job A, and the colour is blue"</td>
+</tr>
+</tbody>
+</table>
+<p>Earlier runs that didn't count: check 1 run 1 (01:47:24) refused because <code>base_cv</code> was a bare file name; run 2 (01:49:31) refused by the folder check, since cv_agent still had its repo write grants. <strong>The user then revoked those three grants</strong> (<code>write:</code> <code>src\cv_tool</code>, <code>src\assistant\modules\cv\docs</code>, <code>tests</code>; cv off 01:50:36, on 01:50:40); <code>permissions.grants</code> confirms. That closes the to-do on line 92 of <a href="agent-talk-and-questions.html">agent-talk-and-questions</a>. Check 4 run 1 (2fbec13e) didn't count: the user answered at once.</p>
+<h2 id="why-check-2-failed">Why check 2 failed</h2>
+<ol>
+<li><strong>The hand-off is pull only.</strong> The message to <code>reply_to</code> goes out only inside <code>cv.tool_result</code> (<code>src/assistant/modules/cv/module.py:479</code> → <code>_tell_asker</code> → <code>DeliverMessage</code>). Nothing watches the CV Tool for the Submit (<code>cv/tool.py</code> has no event or stream). With questions as messages, cv_agent is usually idle when the user submits, so nobody calls <code>cv.tool_result</code> and the job agent is never told. (In this run cv_agent's task 5c335ad0 had ended at 01:55:58, told not to call it.)</li>
+<li><strong>The test PDF would be refused anyway.</strong> <code>result.json</code> lists "417 text pieces print under 10.0 pt (e.g. 6.66 pt)"; <code>cv.tool_result</code> returns <code>failed</code> on small text before telling anyone (<code>module.py:476</code>). The CV Tool still accepted the Submit (<code>src/cv_tool/cvlib.py:1358</code> <code>submit</code>, <code>server.py:213</code> <code>/api/submit</code>): app and module disagree.</li>
+<li><strong>The minimum is inconsistent:</strong> <code>cvlib.MIN_PT = 10.0</code> (the user's 10 pt rule, 2026-11-09, <code>cvlib.py:74</code>), but <code>cv/tool.py:29</code> <code>NINE_PT</code> and the menu texts say 9 pt, and <code>test_cv_tool.py:81</code> asserts 9.0 (the known stale test).</li>
+</ol>
+<h2 id="next-the-user-chose-write-it-up-no-code-until-they-approve">Next (the user chose "write it up", no code until they approve)</h2>
+<ol>
+<li>Write the change note <code>docs/next-steps/cv-submit-delivers.md</code> (option table, recommendation, touches, tests, hand check), covering:
+   - the cv module watches the Submit itself (recommended: <code>CompanionApp</code>'s event stream if the CV Tool server can push one, else a watch for new <code>ready.flag</code> files under <code>cv_tool\jobs\</code>) and calls the same <code>_tell_asker</code> path, so delivery doesn't need cv_agent; <code>cv.tool_result</code> stays and tells nobody twice (<code>pending_reply</code> already dedups by <code>submitted_at</code>);
+   - the CV Tool refuses a Submit with text under the minimum (in <code>cvlib.submit</code> / <code>/api/submit</code>), with the reason in the page;
+   - <strong>one number: 10 pt</strong> (<code>cvlib.MIN_PT</code>), used by the module's check, the messages (<code>NINE_PT</code> renamed) and the menu texts; fix the stale 9 pt test to 10.
+   - Still to read first: <code>cvlib.py:1358-1410</code> (<code>submit</code>) and <code>server.py</code> (is there an event stream?).</li>
+<li>Add it to the Pending table in <code>docs/next-steps/README.md</code>, and update the agent-talk-and-questions row: checks 1 and 4 passed, 2 failed (link the new note), cv_agent's repo writes revoked.</li>
+<li>Rebuild: <code>.\.venv\Scripts\python scripts\build_docs.py</code> (next-steps-html skill).</li>
+<li>Report the note's path. Check 4 is already done (passed, above).</li>
+</ol>
+<h2 id="side-findings-to-mention">Side findings to mention</h2>
+<ul>
+<li><code>agent_hub</code> ERROR "Two agents share the id 'cv_agent'; only the first is used" at 01:41:58 when cv first turned on (also on 2026-11-09); not on the second turn-on at 01:50:40.</li>
+<li><code>cv.task</code> refuses a bare <code>base_cv</code> name (<code>module.py:361</code> resolves against the app's folder, not <code>cv_dir</code>), though its description says "in cv_dir".</li>
+<li><code>job_search</code> and <code>cv</code> are on now (turned on for the checks). The job agent's test task 52513adb was closed with "done". Test files: the two HandCheckCo folders above.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/handoff-3720fc90.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
