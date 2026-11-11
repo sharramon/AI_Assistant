@@ -43,6 +43,11 @@ class CompanionApp:
     with, unless `name` says otherwise. `code_changed()` says whether its source changed since
     this object started using it, so a reloading module can quit it (`stop(adopted=True)`) and
     the next start runs the new code.
+
+    An app outside the convention (a script of another project, like the job UI): `command` is its
+    whole command line instead of `python -m module` (`args` still follow it; `code_changed()` is
+    then always False), `plain_ping=True` takes any 200 answer to the ping path as alive (no
+    `{"app": ...}` check), and `quit=None` means it has no quit call: `stop` ends the process.
     """
 
     def __init__(
@@ -54,9 +59,11 @@ class CompanionApp:
         ping: str,
         args: Sequence[str] = (),
         start_timeout: float = 20.0,
-        quit: str = "/api/quit",
+        quit: str | None = "/api/quit",
         name: str | None = None,
         log: logging.Logger | Any | None = None,
+        command: Sequence[str] | None = None,
+        plain_ping: bool = False,
     ) -> None:
         self.module = module
         self.name = name or module
@@ -64,6 +71,8 @@ class CompanionApp:
         self.port = port
         self.url = f"http://{host}:{port}"
         self.args = list(args)
+        self.command = list(command) if command else None
+        self._plain_ping = plain_ping
         self._ping_path = ping
         self._quit_path = quit
         self._start_timeout = start_timeout
@@ -85,7 +94,12 @@ class CompanionApp:
 
     async def ping(self) -> bool:
         """Whether the app answers its ping with its own name. Its answer stays in `last_answer`
-        (a ping path that reports more, like the voice service's `/health`, needs no second call)."""
+        (a ping path that reports more, like the voice service's `/health`, needs no second call).
+        With `plain_ping`, any 200 answer counts, and `last_answer` is `{"status": 200}`."""
+        if self._plain_ping:
+            ok = await asyncio.to_thread(self._answers_200)
+            self.last_answer = {"status": 200} if ok else {}
+            return ok
         try:
             answer = await self.call("GET", self._ping_path, timeout=1)
         except (OSError, ValueError, TimeoutError):
@@ -93,6 +107,16 @@ class CompanionApp:
         ok = answer.get("app") == self.name
         self.last_answer = answer if ok else {}
         return ok
+
+    def _answers_200(self) -> bool:
+        try:
+            with urllib.request.urlopen(self.url + self._ping_path, timeout=1) as response:
+                return response.status == 200
+        except (OSError, ValueError):
+            return False
+
+    def _source(self) -> tuple[int, int] | None:
+        return None if self.command else source_stamp(self.module)
 
     async def ensure_running(self) -> bool:
         """Launch the app unless it already answers; wait until it does.
@@ -104,16 +128,17 @@ class CompanionApp:
         async with self._starting:
             if await self.ping():
                 if self._stamp is None:  # adopted: our best guess at the code it runs
-                    self._stamp = source_stamp(self.module)
+                    self._stamp = self._source()
                 return False
-            self._stamp = source_stamp(self.module)
+            self._stamp = self._source()
             kwargs: dict[str, Any] = {}
             if sys.platform == "win32":
                 import subprocess
 
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            program = self.command or [sys.executable, "-m", self.module]
             self._proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", self.module, *self.args,
+                *program, *self.args,
                 stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL, **kwargs,
             )
@@ -157,14 +182,20 @@ class CompanionApp:
 
     def code_changed(self) -> bool:
         """Whether its source changed since this object launched it (or first found it running)."""
-        return self._stamp is not None and source_stamp(self.module) != self._stamp
+        return self._stamp is not None and self._source() != self._stamp
 
     async def stop(self, adopted: bool = False) -> None:
         """Quit it if this object launched it: `POST` quit, wait 5 s, then kill. With
         `adopted=True`, also quit one it found already running (`POST` quit, then wait up to
-        5 s for its ping to stop answering)."""
+        5 s for its ping to stop answering). With no quit call (`quit=None`): end the process it
+        launched at once, and leave one it found running."""
         proc, self._proc = self._proc, None
         self._stamp = None
+        if self._quit_path is None:
+            if proc is not None and proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+            return
         if proc is None and adopted and await self.ping():
             try:
                 await self.call("POST", self._quit_path, {})
@@ -202,7 +233,7 @@ class CompanionHandover:
         `app_kwargs`: the rest of `CompanionApp`'s arguments (`ping`, `quit`, `start_timeout`)."""
         self._log = log or logging.getLogger(__name__)
         self._label = label or module
-        self.key = (module, host, port, tuple(args))
+        self.key = (module, host, port, tuple(args), tuple(app_kwargs.get("command") or ()))
         self._handed_over = False
         self._restart = False  # the app's code changed: quit it at stop
         given = handover if isinstance(handover, dict) else {}

@@ -108,6 +108,30 @@ class _Fake(BaseHTTPRequestHandler):
 QUIT = threading.Event()
 
 
+def free_port() -> int:
+    import socket
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+async def test_companion_app_runs_an_app_outside_the_convention_by_its_command_line():
+    """The job UI's way: a script by its command line, any 200 from the ping path, no quit call."""
+    import sys
+
+    port = free_port()
+    script = str(Path(__file__).with_name("fake_job_ui.py"))
+    app = CompanionApp("job_ui", "127.0.0.1", port, ping="/tracker", plain_ping=True, quit=None,
+                       command=[sys.executable, "-I", script], args=["--port", str(port), "--no-browser"])  # fmt: skip
+    assert not await app.ping()
+    assert await app.ensure_running() is True and app.launched
+    assert app.last_answer == {"status": 200} and not app.code_changed()
+    assert await app.ensure_running() is False  # answers: no second launch
+    await app.stop()  # no quit call: the process it launched is ended
+    assert not app.launched and not await app.ping()
+
+
 @pytest.fixture
 def fake_app():
     QUIT.clear()

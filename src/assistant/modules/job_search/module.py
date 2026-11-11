@@ -16,14 +16,18 @@ later (`permissions.grant`, or the agent's own `permissions.request`) reaches it
 Its menu: `job.search`, which answers at once and later sends its result to the caller as an
 `AgentNotice` (the Hub hands it to that agent at its next turn). The search runner isn't built
 yet: today the notice says so, and the job agent runs the project's `company-sweep` skill itself.
+`job.open_ui` starts the job project's job UI if needed and opens its window on the Tracker
+(`ui.py`: `JobUi`, through `CompanionHandover`, kept across a reload like the CV Tool).
 
-The project's `handoff.ps1` is replaced by the agent's `HANDOFF:` line (a fresh session), and the
+The project's `handoff.ps1` is replaced by the agent's `HANDOFF:` line (a fresh session for the
+same job only; a finished job ends with a plain report, so the task ends as done), and the
 project never submits or sends anything: the prompt says both.
 """
 
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from assistant.contracts import (
     AgentNotice,
@@ -36,8 +40,15 @@ from assistant.contracts import (
     Result,
 )
 from assistant.infra import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_USES, AgentKit, ProfileAgent
+from assistant.modules.job_search.ui import JobUi, ui_settings
 
 menu = Menu()
+
+# The user's standing wish (2026-11-10): "open the UI" is job.open_ui at once, its own window every time.
+# In the job prompt and in the agent's description, which its tab's Talker reads ("{agent}'s job: ...").
+UI_SHORTCUT = ('"Open the UI" or "open the job UI" means calling job.open_ui (the job_search menu, with '
+               "use_item) straight away, with no searching for a tool and no looking in the folder: it opens "
+               "the job UI in its own window every time")  # fmt: skip
 
 JOB_PROMPT = """\
 You are {agent_id}, the job-search agent of a personal AI assistant. You run the job project in \
@@ -45,12 +56,14 @@ your working folder: its CLAUDE.md and skills are yours to follow.
 
 - Tasks reach you through the assistant; when the user turns to you, their words reach you \
 unchanged. You never talk with the user in the main chat.
-- One job per session. At the end of a job, write the next-session note and next_prompt.txt as \
-the apply-session skill says, but don't run handoff.ps1: end with a last line \
-`HANDOFF: <that note's path>` and a fresh session carries on.
+- At the end of a job, write the next-session note and next_prompt.txt as the apply-session \
+skill says, but don't run handoff.ps1, and finish with a normal final report: no `HANDOFF:` \
+line, so the task ends as done. Use a last line `HANDOFF: <that note's path>` only to carry \
+the same job on in a fresh session (your context is large, or you're asked to reset).
 - Never submit an application or send a message: fill the form and stop before Submit. The user \
 submits.
-- Confirm with the user (a NEED: question) before running any search, as the project's CLAUDE.md says."""
+- Confirm with the user (a NEED: question) before running any search, as the project's CLAUDE.md says.
+- {ui_shortcut}."""
 
 SEARCH_STUB = ("job.search: the search runner isn't built yet, so nothing ran ({days} days asked). "
                "Ask the job agent to run the company-sweep skill instead.")  # fmt: skip
@@ -73,7 +86,11 @@ class JobSearchModule(ModuleProtocol):
         self._ctx = ctx
         config = dict(ctx.config)
         self._agent_id = str(config.pop("agent_id", f"{self.manifest.id}_agent"))
-        config.setdefault("description", "The job agent: applies to one job per session and runs job searches")
+        config.setdefault("description", "The job agent: applies to one job per session and runs job searches. "
+                          + UI_SHORTCUT)  # fmt: skip
+        ui = ui_settings(config.pop("ui", {}), str(config.get("workspace", "")), str(config.get("python", "")))
+        given = ctx.handover if isinstance(ctx.handover, dict) else {}
+        self.ui = JobUi(given.get("ui"), ui, ctx.log)  # the running job UI from before a reload, if any
         self._config = config
         self._agent: ProfileAgent | None = None
         self._work: set[asyncio.Task] = set()
@@ -83,7 +100,7 @@ class JobSearchModule(ModuleProtocol):
     async def start(self) -> None:
         """Ask for its access list (a card unless the saved grant still matches; AccessPending
         ends this start, and your Allow turns it on), then build the agent from what you allowed."""
-        self._agent = await self._kit.open(self._agent_id, self._config, JOB_PROMPT.format(agent_id=self._agent_id),
+        self._agent = await self._kit.open(self._agent_id, self._config, JOB_PROMPT.format(agent_id=self._agent_id, ui_shortcut=UI_SHORTCUT),
                                            subject=self._agent_id,
                                            reason="the job agent's folders, commands and Chrome")  # fmt: skip
 
@@ -92,10 +109,25 @@ class JobSearchModule(ModuleProtocol):
             task.cancel()
         await asyncio.gather(*self._work, return_exceptions=True)
         await self._kit.stop()
+        await self.ui.stop()
 
     def busy(self) -> str | None:
         """A reload restarts the agent, so it waits while it has a task or a search runs."""
         return self._kit.busy() or ("a job search is running" if self._work else None)
+
+    def export_state(self) -> Any:
+        """The running job UI, for the new copy (kept: its window stays)."""
+        return {"ui": self.ui.export()}
+
+    @menu.item("job.open_ui", "Opens the job UI (Tracker, Job stack, Live search, Keywords) in its own window on "
+               "the Tracker page, every time: starts its local server first if it isn't answering, and closes "
+               "the job UI window already open, so there's only one", {})  # fmt: skip
+    async def open_ui(self) -> Result:
+        try:
+            opened = await self.ui.open()
+        except (OSError, TimeoutError) as exc:
+            return Result.not_available(f"job.open_ui: the job UI didn't start or answer: {exc}")
+        return Result.ok(opened)
 
     @menu.item("job.search", "Start a job search; answers at once, and the result reaches you as a note at "
                "your next turn (the runner is a stub for now)",
