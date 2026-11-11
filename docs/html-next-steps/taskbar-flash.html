@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash the app&#x27;s taskbar icon when an agent needs you</title>
+<!-- Generated from docs/next-steps/taskbar-flash.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="taskbar-flash.html"></nav>
+<main>
+<h1 id="flash-the-apps-taskbar-icon-when-an-agent-needs-you">Flash the app's taskbar icon when an agent needs you</h1>
+<blockquote>
+<p><strong>Status (2026-11-10): built and tested as written</strong> (the user checked it; failures of every agent flash too, a cancel doesn't). Flash only when the app window isn't in focus, and keep flashing until you click it. Code: <code>flash_window</code> and <code>_find_window</code> in <code>src/app_kit/window.py</code>; <code>_notice</code>, <code>_flash</code>, <code>FLASH_KINDS</code> in <code>src/assistant/modules/temp_ui/module.py</code>. Tests: <code>tests/test_taskbar_flash.py</code> (ends and questions of every agent, a failed helper task, no flash on progress / replies / a cancel). Documented in <code>docs/modules/temp_ui.md</code> and <code>window</code> in <code>docs/api/app_kit.md</code>. Takes effect at the one app restart after all pending fixes.</p>
+</blockquote>
+<h2 id="the-problem">The problem</h2>
+<p>When an agent finishes a task while you're in another window, nothing tells you. You find out only when you look at the app again.</p>
+<h2 id="when-it-flashes">When it flashes</h2>
+<p>Only while the app window (the temp UI's Edge window) is <strong>not</strong> in front. It keeps flashing until you bring the window forward (Windows stops it then by itself).</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Flash?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Any agent's task is done or failed: the Main Assistant, a helper, the job agent (<code>TaskUpdated</code>, kind <code>done</code> / <code>failed</code>)</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>An agent asks you something: a <code>NEED:</code> question, a risky step, a permission request (<code>TaskUpdated</code>, kind <code>need</code> / <code>permission</code>), also when it's held behind a tab's <strong>!</strong></td>
+<td>yes</td>
+</tr>
+<tr>
+<td>A permissions-handler card (<code>PermissionRequested</code>: an access list, a grant)</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>A task you cancelled, progress, milestones, replies</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-it-goes">Where it goes</h2>
+<ul>
+<li><strong><code>app_kit/window.py</code></strong>: a new <code>flash_window(pid, title)</code> next to <code>raise_window</code>, with the window search they both need moved into one private <code>_find_window(pid, title)</code>. It calls <code>FlashWindowEx</code> with <code>FLASHW_ALL | FLASHW_TIMERNOFG</code> (flash the caption and the taskbar button until the window comes to the front), and does nothing when the window is already in front or not on Windows. Reusable: the HTML viewer and the CV Tool could use it later.</li>
+<li><strong><code>temp_ui</code></strong>: it owns the app window (it started the Edge process), so it calls <code>flash_window(edge pid, "Assistant")</code> from its existing <code>_on_task</code> and <code>_on_access_card</code> handlers, in a thread. No new events, nothing in the core or the Agent Hub: the Hub's <code>TaskUpdated</code> already covers every agent's tasks, helpers included. When the real UI handler replaces the temp UI, it calls the same helper.</li>
+<li>Tests: <code>temp_ui</code> flashes on done / failed / need / permission / a card, and not on progress or a cancel (the flash call is swappable, like the viewer's raise). Docs: <code>docs/api/app_kit.md</code> (<code>window</code>), the reusable index's Used by line, <code>docs/modules/temp_ui.md</code>.</li>
+</ul>
+<p>It needs one app restart (the code is in <code>app_kit</code> and a running module), taken with the other pending fixes.</p>
+<footer>Generated from <code>docs/next-steps/taskbar-flash.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

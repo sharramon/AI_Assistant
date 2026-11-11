@@ -76,20 +76,12 @@ def close_app_windows(profile: Path, log: Any = log) -> None:
         log.warning("Couldn't close the app window: %s", exc)
 
 
-def raise_window(pid: int | None, title: str) -> bool:
-    """Bring an app window to the front (restoring it if minimized). Windows only.
-
-    Finds a visible Edge window owned by `pid` (the Edge the app started), or else one whose
-    title ends with `title`. Returns whether it found one; elsewhere than Windows, `True`
-    (it can't tell, so the caller shouldn't open another window).
-    """
-    if os.name != "nt":
-        return True
+def _find_window(user32: Any, pid: int | None, title: str) -> int | None:
+    """A visible Edge window owned by `pid` (the Edge the app started), or else one whose title
+    ends with `title`; the pid's own first. Windows only."""
     import ctypes
     from ctypes import wintypes
 
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     user32.GetWindowThreadProcessId.restype = wintypes.DWORD
     found: list[tuple[bool, int]] = []  # (owned by pid, hwnd)
 
@@ -110,9 +102,25 @@ def raise_window(pid: int | None, title: str) -> bool:
         return True
 
     user32.EnumWindows(visit, 0)
-    if not found:
+    return max(found, key=lambda item: item[0])[1] if found else None
+
+
+def raise_window(pid: int | None, title: str) -> bool:
+    """Bring an app window to the front (restoring it if minimized). Windows only.
+
+    Finds a visible Edge window owned by `pid` (the Edge the app started), or else one whose
+    title ends with `title`. Returns whether it found one; elsewhere than Windows, `True`
+    (it can't tell, so the caller shouldn't open another window).
+    """
+    if os.name != "nt":
+        return True
+    import ctypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    hwnd = _find_window(user32, pid, title)
+    if hwnd is None:
         return False
-    hwnd = max(found, key=lambda item: item[0])[1]
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, 9)  # SW_RESTORE
     # Windows keeps a background process from taking the foreground; borrowing the input of
@@ -127,6 +135,34 @@ def raise_window(pid: int | None, title: str) -> bool:
     finally:
         if attached:
             user32.AttachThreadInput(me, front, False)
+    return True
+
+
+FLASHW_ALL = 0x3  # the caption and the taskbar button
+FLASHW_TIMERNOFG = 0xC  # until the window comes to the front
+
+
+def flash_window(pid: int | None, title: str) -> bool:
+    """Flash an app window's taskbar button until you bring the window to the front. Windows only.
+
+    Finds the window as `raise_window` does. Does nothing when the window is already in front.
+    Returns whether it flashed (`False` elsewhere than Windows, or with no window).
+    """
+    if os.name != "nt":
+        return False
+    import ctypes
+    from ctypes import wintypes
+
+    class FLASHWINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("hwnd", wintypes.HWND), ("dwFlags", wintypes.DWORD),
+                    ("uCount", wintypes.UINT), ("dwTimeout", wintypes.DWORD)]  # fmt: skip
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    hwnd = _find_window(user32, pid, title)
+    if hwnd is None or hwnd == user32.GetForegroundWindow():
+        return False
+    info = FLASHWINFO(ctypes.sizeof(FLASHWINFO), hwnd, FLASHW_ALL | FLASHW_TIMERNOFG, 0, 0)
+    user32.FlashWindowEx(ctypes.byref(info))
     return True
 
 
