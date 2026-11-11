@@ -102,12 +102,13 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from app_kit.window import close_app_windows, open_app_window, window_profile
+from app_kit.window import close_app_windows, flash_window, open_app_window, window_profile
 from assistant.contracts import (
     MAX_SNIPS,
     PASTED_FILE,
     RISKY_PREFIX,
     AgentActivity,
+    AgentState,
     AgentStateChanged,
     AnswerPermission,
     AnswerPermissionRequest,
@@ -139,6 +140,7 @@ from assistant.contracts import (
     StartListening,
     Status,
     StopListening,
+    TaskState,
     TaskUpdated,
     ViewerClip,
     ViewerClipDropped,
@@ -173,6 +175,10 @@ APP_DOWN = ("service_unavailable", "service_stopped")  # VoiceState reasons: the
 TAKEN_OVER = "taken_over"  # VoiceState reason: another part of the app took the mic (the second press wins)
 USAGE_MODULE = "usage"
 USAGE_SETTLE = 0.2  # seconds after a SessionUsage before asking the ledger, so it has taken the event
+# A task's report that flashes the app's taskbar button (when the window isn't in front): it ended,
+# or it asks you something. A cancel (your own act), progress, milestones and replies don't.
+FLASH_KINDS = (ReportKind.DONE, ReportKind.FAILED, ReportKind.NEED, ReportKind.PERMISSION)
+WINDOW_TITLE = "Assistant"  # page.html's <title>: finds the window when Edge's pid doesn't own it
 
 
 def reset_target(button: str, tab: str, coordinator: str) -> str | None:
@@ -204,6 +210,8 @@ class TempUIModule(ModuleProtocol):
         self._window = ctx.config.get("window", "app")
         self._profile = Path(ctx.config.get("window_profile", window_profile("temp_ui"))).resolve()
         self._edge: subprocess.Popen | None = None
+        self._flash = self._flash_app_window  # () -> None, in a thread; swappable for tests
+        self._flashes: set[asyncio.Task] = set()
         self._launch = uuid4().hex
         self._history: deque[dict[str, Any]] = deque(maxlen=HISTORY)
         self._chats: dict[str, deque[dict[str, Any]]] = {}  # the Talker pane's items, by agent tab
@@ -276,12 +284,31 @@ class TempUIModule(ModuleProtocol):
         close_app_windows(self._profile, self._ctx.log)
         self._edge = open_app_window(self.url, self._profile, log=self._ctx.log)
 
+    def _flash_app_window(self) -> None:
+        """Flash the app window's taskbar button until you click it, unless it's in front."""
+        if self._window == "app":
+            flash_window(self._edge.pid if self._edge else None, WINDOW_TITLE)
+
+    def _notice(self, why: str) -> None:
+        """Something needs your eyes: flash the taskbar (nothing while you're in the window).
+        In the background, so the panes' items keep their order."""
+
+        async def flash() -> None:
+            try:
+                await asyncio.to_thread(self._flash)
+            except Exception as exc:  # a flash must never break the pane
+                self._ctx.log.warning("Couldn't flash the taskbar for %s: %s", why, exc)
+
+        task = asyncio.create_task(flash())
+        self._flashes.add(task)
+        task.add_done_callback(self._flashes.discard)
+
     async def stop(self) -> None:
         if self._edge and self._edge.poll() is None:
             await asyncio.to_thread(close_app_windows, self._profile, self._ctx.log)
         if self._server:
             self._server.close()
-        pending = [*self._connections, *([self._tally_task] if self._tally_task else [])]
+        pending = [*self._connections, *self._flashes, *([self._tally_task] if self._tally_task else [])]
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)
@@ -487,6 +514,8 @@ class TempUIModule(ModuleProtocol):
             held.discard(event.task_id)
         if len(held) != before:
             self._push_state(self._agents_item())
+        if event.kind in FLASH_KINDS or (event.kind is None and event.state is TaskState.FAILED):
+            self._notice(f"task {event.task_id} ({event.kind or event.state})")
         # Progress (and the text in done/need) is already in the pane as activity; show a short marker.
         if event.kind is ReportKind.PROGRESS:
             return
@@ -520,6 +549,7 @@ class TempUIModule(ModuleProtocol):
         card["items"] = [{"key": i.key, "label": i.label, "trimmable": i.trimmable} for i in event.items]
         self._card_tabs[event.request_id] = self._focus  # shown in the tab you're in, as the Talker says it
         self._push("talker", "access", event.reason, request_id=event.request_id, card=card, agent=self._focus)
+        self._notice(f"card {event.request_id}")
 
     async def _on_access_changed(self, event: PermissionChanged) -> None:
         if event.request_id:
@@ -542,10 +572,10 @@ class TempUIModule(ModuleProtocol):
         self._push("worker", kind, event.text, agent=event.agent_id)
 
     async def _on_state(self, event: AgentStateChanged) -> None:
-        state = "working" if event.working else "waiting" if event.busy else "idle"
+        state = "working" if event.state is AgentState.ACTIVE else "idle"
         self._push("worker", "state", state, agent=event.agent_id)
         if event.agent_id in self._agent_list:
-            self._agent_list[event.agent_id].update(busy=event.busy, working=event.working)
+            self._agent_list[event.agent_id].update(state=str(event.state))
             self._push_state(self._agents_item())
         else:
             await self._refresh_agents()
@@ -556,7 +586,7 @@ class TempUIModule(ModuleProtocol):
         listed = await self._ctx.send(ListAgents())
         if listed.is_ok:
             before = set(self._agent_list)
-            self._agent_list = {a.agent_id: {"id": a.agent_id, "busy": a.busy, "working": a.working} for a in listed.value}
+            self._agent_list = {a.agent_id: {"id": a.agent_id, "state": str(a.state)} for a in listed.value}
             if before - set(self._agent_list):  # an agent is gone: its usage rows now say closed
                 self._schedule_tally()
         self._push_state(self._agents_item())
@@ -636,7 +666,8 @@ class TempUIModule(ModuleProtocol):
                 body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")
                 keep = body.get("keep")
                 answer = AnswerPermissionRequest(request_id=str(body["request_id"]), allow=bool(body["allow"]),
-                                                 keep=None if keep is None else tuple(str(k) for k in keep))  # fmt: skip
+                                                 keep=None if keep is None else tuple(str(k) for k in keep),
+                                                 remember=bool(body.get("remember", True)))  # fmt: skip
                 result = await self._ctx.send(answer)
                 await self._respond(writer, 200, "application/json", json.dumps({"ok": result.is_ok, "error": result.error}).encode())
             elif method == "GET" and path == "/grants.js":
@@ -735,7 +766,7 @@ class TempUIModule(ModuleProtocol):
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
         listed = await self._ctx.send(ListAgents())  # fresh for a page connecting (or reconnecting)
         if listed.is_ok:
-            self._agent_list = {a.agent_id: {"id": a.agent_id, "busy": a.busy, "working": a.working} for a in listed.value}
+            self._agent_list = {a.agent_id: {"id": a.agent_id, "state": str(a.state)} for a in listed.value}
         writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\n\r\n")
         writer.write(_sse({"kind": "hello", "launch": self._launch}))
         for item in self._history:

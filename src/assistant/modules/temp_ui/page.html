@@ -347,7 +347,9 @@ function accessCard(item) {
   card.className = "perm access";
   card.dataset.request = item.request_id;
   const who = c.subject && c.subject !== c.module_id ? `${c.module_id} → ${c.subject}` : c.module_id;
-  const head = c.action === "access" ? `${who} asks for its access` : `${c.caller} asks to ${c.action} access for ${who}`;
+  const head = c.action === "access" ? `${who} asks for its access`
+    : c.action === "message" ? `${c.caller} wants to message ${c.items.map((i) => i.target).join(", ")}`
+    : `${c.caller} asks to ${c.action} access for ${who}`;
   const title = Object.assign(document.createElement("div"), { className: "title", textContent: head });
   const body = [title];
   if (c.reason) body.push(Object.assign(document.createElement("div"), { className: "note", textContent: c.reason }));
@@ -369,12 +371,15 @@ function accessCard(item) {
     body.push(d);
   }
   const actions = Object.assign(document.createElement("div"), { className: "actions" });
-  for (const [label, allow] of [["Allow ticked", true], ["Deny", false]]) {
-    const b = Object.assign(document.createElement("button"), { textContent: c.action === "access" ? label : allow ? "Allow" : "Deny", className: allow ? "" : "deny" });
+  // [label, allow, remember]: a message card has Allow once · Always allow · Deny.
+  const buttons = c.action === "message" ? [["Allow once", true, false], ["Always allow", true, true], ["Deny", false, false]]
+    : [[c.action === "access" ? "Allow ticked" : "Allow", true, true], ["Deny", false, false]];
+  for (const [label, allow, remember] of buttons) {
+    const b = Object.assign(document.createElement("button"), { textContent: label, className: allow ? "" : "deny" });
     b.onclick = async () => {
       actions.querySelectorAll("button").forEach((x) => (x.disabled = true));
       const keep = c.action === "access" ? [...c.items.filter((i) => !i.trimmable).map((i) => i.key), ...boxes.filter((x) => x.checked).map((x) => x.value)] : null;
-      const r = await post("/access-answer", { request_id: item.request_id, allow, keep })
+      const r = await post("/access-answer", { request_id: item.request_id, allow, keep, remember })
         .then((r) => r.json()).catch(() => ({ ok: false, error: "no connection" }));
       if (!r.ok) settle(card, "Couldn't answer: " + (r.error || "unknown error"), "Access");
     };
@@ -661,7 +666,7 @@ function showAgents(item) {
     b.setAttribute("role", "tab");
     b.dataset.agent = a.id;
     b.setAttribute("aria-selected", String(a.id === focused()));
-    b.dataset.state = a.working ? "working" : a.busy ? "waiting" : "idle";
+    b.dataset.state = a.state === "active" ? "working" : "idle";
     b.append(Object.assign(document.createElement("span"), { className: "dot" }), label(a.id));
     if (a.held) b.append(Object.assign(document.createElement("span"), { className: "bang", textContent: "!" }));
     b.title = a.id === focused() ? "You're talking to " + label(a.id)

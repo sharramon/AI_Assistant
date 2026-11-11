@@ -7,6 +7,7 @@ import time
 from assistant.contracts import (
     AgentActivity,
     AgentInfo,
+    AgentState,
     FocusChanged,
     InputReceived,
     IVoice,
@@ -373,9 +374,9 @@ async def test_permission_card_on_talker_side():
     port = int(app._lifecycle._active["temp_ui"][0].url.rsplit(":", 1)[1].strip("/"))
     try:
         app.bus.publish(
-            TaskUpdated(task_id="t1", state=TaskState.WAITING_FOR_INPUT, kind=ReportKind.PERMISSION, text="Bash rm x")
+            TaskUpdated(task_id="t1", state=TaskState.ACTIVE, kind=ReportKind.PERMISSION, text="Bash rm x")
         )
-        app.bus.publish(TaskUpdated(task_id="t1", state=TaskState.RUNNING, text="permission allowed"))
+        app.bus.publish(TaskUpdated(task_id="t1", state=TaskState.ACTIVE, text="permission allowed"))
         items = (await read_events(port, 4))[1:]
         # The Allow / Deny card and its answer go to the Talker pane; the worker pane only logs them.
         # (Replay: the worker history first, then the chat.)
@@ -403,11 +404,11 @@ class FakeHub(ModuleProtocol):
         ctx.handle(SetFocus, self.set_focus)
 
     async def list_agents(self, command: ListAgents) -> Result:
-        return Result.ok([AgentInfo(agent_id="main_assistant", description="m"), AgentInfo(agent_id="helper", description="h", busy=True)])
+        return Result.ok([AgentInfo(agent_id="main_assistant", description="m"), AgentInfo(agent_id="helper", description="h", state=AgentState.ACTIVE)])
 
     async def set_focus(self, command: SetFocus) -> Result:
         self.focused.append(command.agent_id)
-        held = TaskInfo(id="t2", agent_id="helper", text="x", state=TaskState.WAITING_FOR_INPUT, question="Bash rm y", question_kind="permission", held=True)
+        held = TaskInfo(id="t2", agent_id="helper", text="x", state=TaskState.ACTIVE, question="Bash rm y", question_kind="permission", held=True)
         self.ctx.publish(FocusChanged(agent_id=command.agent_id, previous="main_assistant", released=(held,)))
         return Result.ok(command.agent_id)
 
@@ -421,9 +422,10 @@ async def test_agent_tabs_hold_cards_until_the_focus_moves():
     try:
         tabs = await next_item(reader, lambda i: i.get("kind") == "agents")
         assert [a["id"] for a in tabs["agents"]] == ["main_assistant", "helper"] and tabs["focus"] == "main_assistant"
+        assert {a["id"]: a["state"] for a in tabs["agents"]} == {"main_assistant": "idle", "helper": "active"}
 
         # Out of focus: the card is held behind the helper's !, only the worker pane logs it.
-        app.bus.publish(TaskUpdated(task_id="t2", state=TaskState.WAITING_FOR_INPUT, kind=ReportKind.PERMISSION,
+        app.bus.publish(TaskUpdated(task_id="t2", state=TaskState.ACTIVE, kind=ReportKind.PERMISSION,
                                     text="Bash rm y", agent_id="helper", held=True))  # fmt: skip
         app.bus.publish(AgentActivity(agent_id="helper", text="→ Bash"))
         bang = await next_item(reader, lambda i: i.get("kind") == "agents")

@@ -95,7 +95,7 @@ class AgentTabs:
         end = loop.time() + IDLE_WAIT
         while loop.time() < end:
             listed = await self._ctx.send(ListAgents())
-            if not any(a.agent_id == agent_id and a.busy for a in (listed.value or ())):
+            if not any(a.agent_id == agent_id and a.active for a in (listed.value or ())):
                 return
             await asyncio.sleep(0.1)
 
