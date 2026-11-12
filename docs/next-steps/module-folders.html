@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Module folders and dependencies: today and ideal</title>
+<style>
+  :root { --ink:#1d1d1b; --mute:#6f6d66; --line:#d9d6cf; --bg:#fbfaf7; --red:#c0392b; --redbg:#fdecea;
+          --teal:#0f7c7a; --tealbg:#e3f4f3; --ok:#eef0ec; --core:#55534d; --corebg:#f1f0ec; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 40px 80px; font:18px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  h1 { font-size:30px; margin:0 0 6px; }
+  h2 { font-size:24px; margin:48px 0 14px; padding-top:14px; border-top:2px solid var(--line); }
+  h3 { margin:0 0 4px; font-size:21px; }
+  .sub { color:var(--mute); margin:0 0 8px; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; margin:10px 0 16px; font-size:16px; color:var(--mute); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:16px; height:16px; border-radius:4px; display:inline-block; border:2px solid var(--line); background:#fff; }
+  .sw.red { border-color:var(--red); background:var(--redbg); }
+  .sw.teal { border-color:var(--teal); background:var(--tealbg); }
+
+  /* the folder × module grid: scrolls sideways in a narrow window */
+  .scroll { overflow-x:auto; padding:10px 0 8px; }
+  .grid { display:grid; grid-template-columns:170px repeat(8, minmax(128px,1fr)); gap:6px; align-items:stretch; min-width:1240px; }
+  .group { text-align:center; font-weight:700; font-size:15px; letter-spacing:.06em; text-transform:uppercase; padding:4px; border-radius:8px; }
+  .group.core { grid-column:2 / span 4; background:var(--corebg); border:2px solid var(--core); }
+  .group.add { grid-column:6 / span 4; background:#fff; border:2px dashed #8a877c; color:var(--mute); }
+  .head { font-weight:700; text-align:center; padding:8px 4px; border-radius:8px 8px 0 0; color:#fff; font-size:16px; }
+  .place { background:#fff; border:2px solid #8a877c; border-radius:4px 10px 10px 10px; padding:8px 10px; font-weight:600; font-size:15px; position:relative; }
+  .place::before { content:""; position:absolute; top:-8px; left:-2px; width:56px; height:8px; background:#fff; border:2px solid #8a877c; border-bottom:none; border-radius:6px 6px 0 0; }
+  .place small { display:block; font-weight:400; color:var(--mute); }
+  .cell { border-radius:8px; padding:6px 8px; font-size:15px; min-height:44px; border-left:6px solid transparent; }
+  .cell.on { background:#fff; border:1px solid var(--line); }
+  .cell.bad { background:var(--redbg); border:2px solid var(--red); }
+  .cell.good { background:var(--ok); border:1px solid #b9c2b3; }
+  .n { display:inline-block; min-width:22px; height:22px; border-radius:11px; background:var(--red); color:#fff; font-size:13px; font-weight:700; text-align:center; line-height:22px; margin-right:4px; }
+  .l { display:inline-block; min-width:22px; height:22px; border-radius:11px; background:var(--teal); color:#fff; font-size:13px; font-weight:700; text-align:center; line-height:22px; margin-right:4px; }
+  .c-cv{background:#7a5c99}.c-job{background:#9a6b2f}.c-view{background:#2f6f9f}.c-vin{background:#3d7f4f}
+  .c-vn{background:#5f8a3a}.c-ta{background:#8a4f6b}.c-us{background:#5a6b7a}.c-base{background:#55534d}
+
+  ul.why { list-style:none; padding:0; margin:0; font-size:20px; }
+  ul.why li { margin:8px 0; }
+
+  /* ideal layout */
+  .big { border:3px solid var(--teal); background:var(--tealbg); border-radius:6px 16px 16px 16px; padding:12px 14px 14px; position:relative; }
+  .big::before { content:""; position:absolute; top:-12px; left:-3px; width:90px; height:12px; background:var(--tealbg); border:3px solid var(--teal); border-bottom:none; border-radius:8px 8px 0 0; }
+  .big.core { border-color:var(--core); background:var(--corebg); }
+  .big.core::before { border-color:var(--core); background:var(--corebg); }
+  .big .what { color:var(--mute); font-size:15px; margin-bottom:10px; }
+  .row2 { display:grid; grid-template-columns: 2.4fr 1.2fr 1.1fr; gap:16px; margin-top:22px; }
+  .mods { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:8px; }
+  .mod { background:#fff; border-radius:8px; border:1px solid var(--line); border-top:6px solid; padding:6px 8px; font-size:14px; }
+  .mod b { display:block; font-size:16px; margin-bottom:2px; }
+  .mod .t { color:var(--teal); font-weight:600; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background:#fff; border:1px solid var(--line); border-radius:14px; padding:3px 10px; font-size:15px; }
+  .chip.t { border:2px solid var(--teal); color:#0b5e5c; }
+  .note { font-size:16px; color:var(--mute); margin:10px 0 0; }
+  .note b { color:var(--ink); }
+
+  /* the cv folder tree */
+  .tree { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; margin-top:22px; align-items:start; }
+  .tree pre { margin:0; background:#fff; border:3px solid #7a5c99; border-radius:10px; padding:12px 16px; font:16px/1.6 Consolas, "Cascadia Mono", monospace; overflow-x:auto; }
+  .tree pre .t { color:var(--teal); font-weight:700; }
+  .tree pre .m { color:var(--mute); }
+  .rule { border:3px solid var(--teal); background:var(--tealbg); border-radius:10px; padding:12px 16px; font-size:18px; }
+  .rule p { margin:0 0 8px; }
+  @media (max-width: 900px) { .row2, .tree { grid-template-columns:1fr; } }
+  svg text { font-family:"Segoe UI", system-ui, sans-serif; }
+</style>
+</head>
+<body>
+
+<h1>Module folders and dependencies</h1>
+<p class="sub">Where each module's pieces really are today, and where they should be. <b>Core</b> = essential to everyday use, ships with the app. <b>Add-on</b> = downloaded or deleted.</p>
+
+<!-- ============ PART 1 ============ -->
+<h2>1 · Today: where each module's pieces are</h2>
+<div class="legend">
+  <span><i class="sw"></i> in place</span>
+  <span><i class="sw red"></i> wrong place, or a bad dependency (number = reason in part 2)</span>
+</div>
+
+<div class="scroll">
+<div class="grid">
+  <div></div>
+  <div class="group core">core</div>
+  <div class="group add">add-ons</div>
+
+  <div></div>
+  <div class="head c-base">base modules<br><span style="font-weight:400;font-size:13px">console_io · agent_hub · main_assistant · talker · temp_ui</span></div>
+  <div class="head c-vin">voice_in<br><span style="font-weight:400;font-size:13px">+ voice service</span></div>
+  <div class="head c-ta">task_agents</div>
+  <div class="head c-us">usage</div>
+  <div class="head c-cv">cv</div>
+  <div class="head c-job">job_search</div>
+  <div class="head c-view">html_viewer</div>
+  <div class="head c-vn">voice_notes</div>
+
+  <!-- module folder -->
+  <div class="place">modules/&lt;id&gt;/<small>the module folder</small></div>
+  <div class="cell on">code · agent_hub has tests</div>
+  <div class="cell on">thin module only</div>
+  <div class="cell on">code</div>
+  <div class="cell on">code</div>
+  <div class="cell good">code · docs · tests · module.toml</div>
+  <div class="cell on">code · job UI launcher</div>
+  <div class="cell on">thin module only</div>
+  <div class="cell on">code · page</div>
+
+  <!-- companion apps -->
+  <div class="place">src/&lt;app&gt;/<small>companion apps</small></div>
+  <div class="cell"></div>
+  <div class="cell bad"><span class="n">1</span>voice_service app</div>
+  <div class="cell"></div><div class="cell"></div>
+  <div class="cell bad"><span class="n">1</span>cv_tool app + cv_tool.toml</div>
+  <div class="cell"></div>
+  <div class="cell bad"><span class="n">1</span>html_viewer app</div>
+  <div class="cell"></div>
+
+  <!-- config -->
+  <div class="place">config/<small>default.toml + others</small></div>
+  <div class="cell on">their sections · enabled list</div>
+  <div class="cell bad"><span class="n">2</span>[modules.voice_in] · voice_service.toml</div>
+  <div class="cell bad"><span class="n">2</span>[modules.task_agents] · kinds</div>
+  <div class="cell"></div>
+  <div class="cell bad"><span class="n">6</span>agent_hub section names cv_agent</div>
+  <div class="cell bad"><span class="n">2</span>[modules.job_search]</div>
+  <div class="cell bad"><span class="n">2</span>[modules.html_viewer]</div>
+  <div class="cell bad"><span class="n">2</span>[modules.voice_notes]</div>
+
+  <!-- tests -->
+  <div class="place">tests/<small>central tests</small></div>
+  <div class="cell bad"><span class="n">3</span>shared helpers · agent_hub tests import test_multi_agent</div>
+  <div class="cell bad"><span class="n">2</span>7 voice test files</div>
+  <div class="cell bad"><span class="n">2</span>test_task_agents</div>
+  <div class="cell bad"><span class="n">2</span>test_usage</div>
+  <div class="cell bad"><span class="n">3</span>own tests import tests.support, tests.test_agents</div>
+  <div class="cell bad"><span class="n">2</span>test_job_search · fake_job_ui</div>
+  <div class="cell bad"><span class="n">2</span>test_html_viewer</div>
+  <div class="cell bad"><span class="n">2</span>test_voice_notes</div>
+
+  <!-- docs -->
+  <div class="place">docs/<small>central docs</small></div>
+  <div class="cell on">modules/*.md</div>
+  <div class="cell bad"><span class="n">2</span>modules/ + architecture/voice.md</div>
+  <div class="cell bad"><span class="n">2</span>modules/task_agents.md</div>
+  <div class="cell bad"><span class="n">2</span>modules/usage.md</div>
+  <div class="cell good">own docs/</div>
+  <div class="cell bad"><span class="n">2</span>modules/job_search.md · job-project/</div>
+  <div class="cell bad"><span class="n">2</span>modules/ + architecture/html-viewer.md</div>
+  <div class="cell bad"><span class="n">2</span>modules/voice_notes.md</div>
+
+  <!-- pyproject -->
+  <div class="place">pyproject.toml<small>packages</small></div>
+  <div class="cell"></div>
+  <div class="cell bad"><span class="n">2</span>"voice" extra: fastapi, sherpa-onnx, whisper…</div>
+  <div class="cell"></div><div class="cell"></div>
+  <div class="cell bad"><span class="n">2</span>"cv" extra: pymupdf · ruff rule for cvlib</div>
+  <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+
+  <!-- contracts -->
+  <div class="place">core contracts<small>assistant/contracts</small></div>
+  <div class="cell on">agent + message types</div>
+  <div class="cell on">IVoice · voice events (core: fine)</div>
+  <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+  <div class="cell bad"><span class="n">4</span>ViewerTabsChanged · ViewerClip · ViewerClipDropped</div>
+  <div class="cell"></div>
+
+  <!-- infra -->
+  <div class="place">infra<small>shared helpers</small></div>
+  <div class="cell on">ClaudeSession, agent parts…</div>
+  <div class="cell"></div><div class="cell"></div>
+  <div class="cell on">UsageLedger (core: fine)</div>
+  <div class="cell"></div><div class="cell"></div>
+  <div class="cell bad"><span class="n">4</span>show_pages: SHOW → viewer.open / highlight</div>
+  <div class="cell"></div>
+
+  <!-- core → add-on -->
+  <div class="place">core → add-on<small>never allowed</small></div>
+  <div class="cell bad"><span class="n">6</span>temp_ui → viewer.open, snips · talker → viewer events, SHOW · workers' SHOW → viewer</div>
+  <div class="cell"></div>
+  <div class="cell bad"><span class="n">5</span>rezi kind → a rezi module (target unclear)</div>
+  <div class="cell"></div>
+  <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+
+  <!-- add-on → other -->
+  <div class="place">add-on → other<small>allowed, if declared</small></div>
+  <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+  <div class="cell"></div>
+  <div class="cell bad"><span class="n">5</span>job agent → cv.task (docs and prompt only)</div>
+  <div class="cell"></div>
+  <div class="cell on">requires IVoice → voice_in (core)</div>
+</div>
+</div>
+<p class="note">Not drawn, both add-ons and off by default: the <b>echo_orchestrator</b> stand-in and <b>assistant_view</b> (terminal 2).</p>
+
+<!-- ============ PART 2 ============ -->
+<h2>2 · Why that is wrong</h2>
+<ul class="why">
+  <li><span class="n">1</span> A module's app sits outside its folder, so deleting the folder leaves the app behind.</li>
+  <li><span class="n">2</span> Config, tests, docs and packages are kept centrally, so adding or removing a module means editing shared files.</li>
+  <li><span class="n">3</span> Module tests import central test files, so a module can't be tested on its own.</li>
+  <li><span class="n">4</span> The core's contracts and infra hold an add-on's types (the viewer's events, SHOW handling).</li>
+  <li><span class="n">5</span> Modules name other modules in prompts and code but never declare it, so nothing warns you before a delete.</li>
+  <li><span class="n">6</span> Core modules name add-ons (the viewer, cv_agent), so deleting an add-on can break the core.</li>
+</ul>
+
+<!-- ============ PART 3 ============ -->
+<h2>3 · Ideal: a core group, add-ons in modules/, plus config/ and generated/</h2>
+<div class="legend">
+  <span><i class="sw teal"></i> new or moved</span>
+  <span><i class="sw"></i> unchanged</span>
+</div>
+
+<div class="big core">
+  <h3>core/ <span style="font-weight:400;font-size:16px;color:var(--mute)">ships with the app · never deleted · works with zero add-ons</span></h3>
+  <div class="chips" style="margin:6px 0 10px">
+    <span class="chip">host: lifecycle · router · events · directory · permissions</span>
+    <span class="chip">generic contracts + infra only</span>
+    <span class="chip t">public test kit (from tests/support)</span>
+    <span class="chip t">reads "needs" lists</span>
+  </div>
+  <div class="mods">
+    <div class="mod" style="border-top-color:#55534d"><b>agent_hub/ · talker/ · main_assistant/ · console_io/</b><span class="t">own docs · tests</span></div>
+    <div class="mod" style="border-top-color:#55534d"><b>temp_ui/</b><span class="t">own docs · tests · a snip/open slot an add-on can fill</span></div>
+    <div class="mod" style="border-top-color:#3d7f4f"><b>voice_in/</b><span class="t">voice_service app · docs · tests · voice packages</span></div>
+    <div class="mod" style="border-top-color:#8a4f6b"><b>task_agents/</b><span class="t">docs · tests · kinds as defaults</span></div>
+    <div class="mod" style="border-top-color:#5a6b7a"><b>usage/</b><span class="t">docs · tests · UsageLedger</span></div>
+  </div>
+</div>
+
+<div class="row2">
+  <div class="big">
+    <h3>modules/ <span style="font-weight:400;font-size:16px;color:var(--mute)">add-ons</span></h3>
+    <div class="what">one self-contained folder each · downloaded or deleted whole</div>
+    <div class="mods">
+      <div class="mod" style="border-top-color:#7a5c99"><b>cv/</b><span class="t">see the tree below</span></div>
+      <div class="mod" style="border-top-color:#9a6b2f"><b>job_search/</b>code · <span class="t">docs · tests · needs cv</span></div>
+      <div class="mod" style="border-top-color:#2f6f9f"><b>html_viewer/</b>code · <span class="t">viewer app · docs · tests · its events · SHOW handling</span></div>
+      <div class="mod" style="border-top-color:#5f8a3a"><b>voice_notes/</b>code · page · <span class="t">docs · tests · needs voice_in</span></div>
+    </div>
+  </div>
+  <div class="big">
+    <h3>config/</h3>
+    <div class="what">your choices only · kept across downloads</div>
+    <div class="chips">
+      <span class="chip t">one file per module</span>
+      <span class="chip t">which add-ons are on</span>
+      <span class="chip">local overrides</span>
+      <span class="chip t">saved grants (now data/permissions.toml)</span>
+    </div>
+  </div>
+  <div class="big">
+    <h3>generated/</h3>
+    <div class="what">built by the core · never hand-edited · safe to delete</div>
+    <div class="chips">
+      <span class="chip t">live module list</span>
+      <span class="chip t">installed dependencies</span>
+      <span class="chip t">module directory</span>
+      <span class="chip t">module library page</span>
+    </div>
+  </div>
+</div>
+
+<div class="tree">
+<pre><b>modules/cv/</b>
+├─ module.py · worker.py · …   <span class="m">code</span>
+├─ module.toml                 <span class="m">defaults</span>
+│    needs = []                <span class="t">dependency list (new)</span>
+│    [agent] cv_agent          <span class="t">← agent_hub's section</span>
+├─ app/                        <span class="t">← src/cv_tool</span>
+│    cv_tool.toml              <span class="t">← src/cv_tool</span>
+├─ tests/                      <span class="t">all cv tests, on the core test kit</span>
+├─ docs/                       <span class="m">its pages</span>
+└─ packages                    <span class="t">pymupdf · ruff rule ← pyproject</span></pre>
+  <div class="rule">
+    <p><b>Rule:</b> nothing of cv lives outside <code>modules/cv/</code>, except your own choices in <code>config/cv.toml</code>.</p>
+    <p><b>Delete <code>modules/cv/</code></b> and nothing of cv is left behind.</p>
+    <p style="margin:0">Every other add-on (job_search, html_viewer, voice_notes) has the same shape, and so do the core modules that own an app or tests.</p>
+  </div>
+</div>
+
+<svg viewBox="0 0 980 150" width="100%" style="max-width:980px;margin-top:22px" aria-label="Dependency arrows">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker>
+  </defs>
+  <text x="10" y="18" font-size="15" fill="#6f6d66">"needs" arrows point one way: add-on → core, or add-on → add-on · never core → add-on</text>
+  <g font-size="17">
+    <rect x="10" y="40" width="140" height="44" rx="8" fill="#fff" stroke="#9a6b2f" stroke-width="3"/><text x="80" y="68" text-anchor="middle">job_search</text>
+    <rect x="220" y="40" width="90" height="44" rx="8" fill="#fff" stroke="#7a5c99" stroke-width="3"/><text x="265" y="68" text-anchor="middle">cv</text>
+    <line x1="150" y1="62" x2="218" y2="62" stroke="#0f7c7a" stroke-width="3" marker-end="url(#a)"/>
+
+    <rect x="370" y="40" width="140" height="44" rx="8" fill="#fff" stroke="#5f8a3a" stroke-width="3"/><text x="440" y="68" text-anchor="middle">voice_notes</text>
+    <rect x="580" y="40" width="120" height="44" rx="8" fill="#f1f0ec" stroke="#55534d" stroke-width="3"/><text x="640" y="68" text-anchor="middle">voice_in</text>
+    <line x1="510" y1="62" x2="578" y2="62" stroke="#0f7c7a" stroke-width="3" marker-end="url(#a)"/>
+
+    <rect x="760" y="40" width="200" height="44" rx="8" fill="#f1f0ec" stroke="#55534d" stroke-width="3"/><text x="860" y="68" text-anchor="middle">temp_ui · talker</text>
+    <rect x="760" y="104" width="200" height="40" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="3"/><text x="860" y="130" text-anchor="middle">html_viewer</text>
+    <line x1="820" y1="84" x2="820" y2="102" stroke="#c0392b" stroke-width="3" marker-end="url(#r)"/>
+    <text x="808" y="99" font-size="20" font-weight="700" fill="#c0392b" text-anchor="end">✕</text>
+    <line x1="900" y1="104" x2="900" y2="86" stroke="#0f7c7a" stroke-width="3" marker-end="url(#a)"/>
+    <text x="910" y="99" font-size="13" fill="#0f7c7a">plugs in</text>
+  </g>
+  <g font-size="13" fill="#6f6d66"><rect x="10" y="110" width="16" height="16" rx="3" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/><text x="32" y="123">core</text>
+    <rect x="80" y="110" width="16" height="16" rx="3" fill="#fff" stroke="#8a877c" stroke-width="2"/><text x="102" y="123">add-on</text></g>
+</svg>
+<p class="note"><b>New:</b> today <code>requires</code> lists contracts (voice_notes requires IVoice), not modules. A list of the modules a module needs is new.</p>
+<p class="note"><b>Unlike Unity:</b> saved grants are your decisions, so they go in config/, not generated/. Modules load and reload while the app runs, with no build step.</p>
+
+<!-- ============ PART 4 ============ -->
+<h2>4 · Why that is right</h2>
+<ul class="why">
+  <li><span class="l">A</span> Download or delete one add-on folder and the whole module comes or goes. Your choices stay in config/.</li>
+  <li><span class="l">B</span> The core group knows no add-on by name, so it runs with none, and any add-on can be swapped.</li>
+  <li><span class="l">C</span> The "needs" lists point only toward the core or other add-ons. They show what breaks before a delete, and bring cv along with job_search.</li>
+  <li><span class="l">D</span> Each module tests alone with the core's public test kit.</li>
+</ul>
+
+<!-- ============ PART 5 ============ -->
+<h2>5 · How it is used</h2>
+<svg viewBox="0 0 980 230" width="100%" style="max-width:980px" aria-label="How modules are used">
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker></defs>
+  <g font-size="17">
+    <rect x="10" y="20" width="170" height="56" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="95" y="44" text-anchor="middle">You</text><text x="95" y="66" text-anchor="middle" font-size="14">"open the X module"</text>
+    <rect x="240" y="20" width="200" height="56" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2"/>
+    <text x="340" y="44" text-anchor="middle">Talker →</text><text x="340" y="66" text-anchor="middle">Main Assistant</text>
+    <rect x="500" y="20" width="200" height="56" rx="10" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="600" y="44" text-anchor="middle">live module list</text><text x="600" y="66" text-anchor="middle" font-size="14">kept by the core</text>
+    <rect x="760" y="20" width="200" height="56" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2"/>
+    <text x="860" y="44" text-anchor="middle">module door</text><text x="860" y="66" text-anchor="middle" font-size="14">list · menu · use</text>
+    <line x1="180" y1="48" x2="238" y2="48" stroke="#55534d" stroke-width="2.5" marker-end="url(#b)"/>
+    <line x1="440" y1="48" x2="498" y2="48" stroke="#55534d" stroke-width="2.5" marker-end="url(#b)"/>
+    <line x1="700" y1="48" x2="758" y2="48" stroke="#55534d" stroke-width="2.5" marker-end="url(#b)"/>
+    <text x="470" y="38" text-anchor="middle" font-size="13" fill="#6f6d66">look up X</text>
+    <text x="730" y="38" text-anchor="middle" font-size="13" fill="#6f6d66">call</text>
+
+    <rect x="760" y="150" width="200" height="56" rx="10" fill="#fff" stroke="#7a5c99" stroke-width="2"/>
+    <text x="860" y="184" text-anchor="middle">module X's tools</text>
+    <line x1="860" y1="76" x2="860" y2="148" stroke="#55534d" stroke-width="2.5" marker-end="url(#b)"/>
+
+    <rect x="400" y="150" width="200" height="56" rx="10" fill="#fff" stroke="#9a6b2f" stroke-width="2"/>
+    <text x="500" y="174" text-anchor="middle">module A</text><text x="500" y="196" text-anchor="middle" font-size="14">(job_search)</text>
+    <path d="M600 178 C 680 178, 700 110, 790 78" fill="none" stroke="#55534d" stroke-width="2.5" marker-end="url(#b)"/>
+    <text x="640" y="140" font-size="13" fill="#6f6d66">same door</text>
+    <text x="600" y="104" text-anchor="middle" font-size="14" fill="#0f7c7a">updates on download / delete</text>
+  </g>
+</svg>
+<ul class="why" style="font-size:18px">
+  <li><b>Add:</b> drop or download a folder, and the core reads its module.toml and adds it to the list.</li>
+  <li><b>Reload:</b> the same folder's new code is swapped in while the app runs (as today).</li>
+  <li><b>Remove:</b> it warns if another module needs it, then deletes the folder and updates the list.</li>
+</ul>
+
+</body>
+</html>

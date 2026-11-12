@@ -14,3 +14,23 @@ data/permissions.toml
 # Speech models are downloaded (python -m voice_service download zipformer), never committed.
 # The default place is %LOCALAPPDATA%\AI_Assistant\voice_models, outside the repo; this covers a models_dir inside it.
 voice_models/
+# Secrets and machine-local overrides, anywhere in the tree.
+.env
+.env.*
+*.local.toml
+*.local.*
+# Personal data: CVs, job and recruiter folders, tokens, saved facts, snips. Never committed.
+data/
+*.pdf
+*.odt
+*.docx
+rezi_token.json
+confirmed_facts.json
+snips/
+**/snips/
+**/Jobs/
+**/Recruiters/
+# Scratch and temp notes stay on this machine.
+docs/scratch/
+docs/temp/
+scratch/

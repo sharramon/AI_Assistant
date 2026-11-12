@@ -446,6 +446,15 @@ def copy_images(sections) -> None:
             shutil.copytree(src, OUT / section / "img")
 
 
+def copy_hand_pages() -> int:
+    """Next-steps pages written as HTML by hand (docs/next-steps/*.html, a plan page, say) copied as
+    written into docs/html-next-steps/, so the rebuild that clears that folder keeps them."""
+    pages = sorted((DOCS / NEXT_STEPS).glob("*.html"))
+    for page in pages:
+        shutil.copy2(page, NEXT_OUT / page.name)
+    return len(pages)
+
+
 def write_module_pages() -> int:
     """Each module's own docs into docs/html/modules/<id>/: Markdown rendered, everything else (the
     HTML pages it wrote itself, images) copied as written. Returns the number of pages."""
@@ -570,6 +579,7 @@ def main() -> None:
     (OUT / FRAME).write_text(FRAME_PAGE, encoding="utf-8")
     # The next-steps README becomes that output's index.html.
     next_count = write_pages([NEXT_STEPS, ARCHIVE])
+    next_count += copy_hand_pages()
     write_shared(NEXT_OUT)
     print(f"Wrote {count} pages to {OUT.relative_to(ROOT).as_posix()}/ (open docs/html/index.html)")
     print(f"Wrote {next_count} pages to {NEXT_OUT.relative_to(ROOT).as_posix()}/ (open docs/html-next-steps/index.html)")
