@@ -17,13 +17,13 @@
 </blockquote>
 <p><strong>Asked:</strong> step 2 of <a href="../index.html#next-voice-in-phase-1">voice in</a>: the <code>voice_service</code> app itself, as its own independent app in <code>src/voice_service/</code>. It holds the mic and the speech engine, serves the WebSocket protocol from <code>protocol.py</code>, and uses <code>app_kit</code> pieces like <code>load_layered</code> where they fit. It never imports <code>assistant</code>. The thin <code>voice_in</code> module is step 3.</p>
 <p><strong>Why:</strong> everything else in voice input talks to this service. Built and tested alone first, step 3 can be built against a real service.</p>
-<p><strong>The design is already approved</strong> (<a href="../../html/architecture/voice.html#code-design-phase-1">Code design (phase 1)</a>): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.</p>
+<p><strong>The design is already approved</strong> (<a href="../../html/modules/voice_in/voice-service.html#code-design-phase-1">Code design (phase 1)</a>): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.</p>
 <h2 id="touches">Touches</h2>
 <ul>
 <li><strong>New, <code>src/voice_service/</code>:</strong> <code>__main__.py</code>, <code>config.py</code>, <code>server.py</code>, <code>session.py</code>, <code>audio.py</code>, <code>download.py</code>, <code>engines/__init__.py</code>, <code>engines/zipformer.py</code>, <code>engines/fake.py</code>. <code>__init__.py</code> stays empty and <code>protocol.py</code> stays as built.</li>
 <li><strong>New:</strong> <code>config/voice_service.toml</code> (the design's file as is); <code>tests/test_voice_service.py</code>.</li>
 <li><strong>Changed:</strong> <code>pyproject.toml</code> (the <code>voice</code> extra; <code>voice_service</code> in ruff's first-party list; a <code>voice-service</code> script like <code>html-viewer</code>); <code>.gitignore</code> (<code>config/*.local.toml</code>, so <code>voice_service.local.toml</code> is never committed); <code>.github/workflows/ci.yml</code> (question 2).</li>
-<li><strong>Docs:</strong> <a href="../../html/architecture/voice.html">Voice</a> (status: step 2 built), the overview's Parts table (the voice handler's location), <a href="../../html/api/app_kit.html">App kit</a> and the <a href="../../html/api/reusable.html">reusable parts index</a> (Used by lines), <a href="../index.html">Next steps</a>. Then rebuild.</li>
+<li><strong>Docs:</strong> <a href="../../html/modules/voice_in/voice-service.html">Voice</a> (status: step 2 built), the overview's Parts table (the voice handler's location), <a href="../../html/api/app_kit.html">App kit</a> and the <a href="../../html/api/reusable.html">reusable parts index</a> (Used by lines), <a href="../index.html">Next steps</a>. Then rebuild.</li>
 </ul>
 <h2 id="how-it-starts-and-stops">How it starts and stops</h2>
 <ul>

@@ -109,7 +109,7 @@
 <li><strong>Change</strong> <code>src/assistant/modules/temp_ui/module.py</code> (and its page if needed): follow only its own sessions; show "cancelled" when taken over.</li>
 <li><strong>Change</strong> <code>config/default.toml</code> (<code>[modules.voice_notes]</code>, and <code>voice_notes</code> in <code>enabled</code>) and <code>src/assistant/__main__.py</code> (<code>MODULES</code>). Both only matter at the next launch; today's run uses <code>ADD_MODULE</code>.</li>
 <li><strong>Add</strong> <code>tests/test_voice_notes.py</code>; <strong>extend</strong> <code>tests/test_voice_in.py</code> and <code>tests/test_temp_ui.py</code>.</li>
-<li><strong>Docs:</strong> <a href="../html/architecture/modules.html">Modules</a> (voice notes v1 built, by workaround), <a href="../html/architecture/voice.html">Voice</a> (one user at a time, the second press wins), the <a href="../html/api/messaging.html#voicestate">messaging API page</a> (reason <code>taken_over</code>; a second <code>StartListening</code> cancels the open session), the overview's Voice notes row, and the <a href="../html/agents/runtime.html#temp-ui">runtime</a> page.</li>
+<li><strong>Docs:</strong> <a href="../html/architecture/modules.html">Modules</a> (voice notes v1 built, by workaround), <a href="../html/modules/voice_in/voice-service.html">Voice</a> (one user at a time, the second press wins), the <a href="../html/api/messaging.html#voicestate">messaging API page</a> (reason <code>taken_over</code>; a second <code>StartListening</code> cancels the open session), the overview's Voice notes row, and the <a href="../html/agents/runtime.html#temp-ui">runtime</a> page.</li>
 </ul>
 <h2 id="how-to-test">How to test</h2>
 <ul>

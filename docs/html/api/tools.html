@@ -134,7 +134,7 @@
 <td><code>viewer.open</code></td>
 <td><code>html_viewer</code></td>
 <td><code>{"path": str, "front"?: bool}</code></td>
-<td>Opens an HTML file in the <a href="../architecture/html-viewer.html">HTML viewer</a>, starting it if needed; switches to the file's tab if it's open, and reloads it if the file changed. <code>path</code> should be absolute: a relative one resolves against the app's folder. <code>front</code> (default false; the chat's button sends true) brings the viewer window to the front, or opens a new one if it was closed; leave it off for pages an agent opens on its own. <code>ok({"tab", "path", "reloaded"})</code>; <code>invalid_arguments</code> for a missing file; <code>failed</code> if the viewer can't start or refuses the file (not HTML)</td>
+<td>Opens an HTML file in the <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>, starting it if needed; switches to the file's tab if it's open, and reloads it if the file changed. <code>path</code> should be absolute: a relative one resolves against the app's folder. <code>front</code> (default false; the chat's button sends true) brings the viewer window to the front, or opens a new one if it was closed; leave it off for pages an agent opens on its own. <code>ok({"tab", "path", "reloaded"})</code>; <code>invalid_arguments</code> for a missing file; <code>failed</code> if the viewer can't start or refuses the file (not HTML)</td>
 </tr>
 <tr>
 <td><code>viewer.highlight</code></td>

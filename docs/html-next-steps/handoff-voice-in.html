@@ -68,7 +68,7 @@
    - A user checklist: run <code>check</code> while speaking; click the mic and speak; note the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence and look for the drop symbol, then the mic coming back or failing.</li>
 </ol>
 <blockquote>
-<p><strong>Written 2026-11-03</strong> at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on <a href="../html/architecture/voice.html">Voice</a> (built parts are marked there); the step's note is <a href="archive/voice-in-module.html">voice-in-module.md</a>, with what was built differently at its top. The step list is in <a href="index.html#next-voice-in-phase-1">Next steps</a>.</p>
+<p><strong>Written 2026-11-03</strong> at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on <a href="../html/modules/voice_in/voice-service.html">Voice</a> (built parts are marked there); the step's note is <a href="archive/voice-in-module.html">voice-in-module.md</a>, with what was built differently at its top. The step list is in <a href="index.html#next-voice-in-phase-1">Next steps</a>.</p>
 </blockquote>
 <h2 id="done">Done</h2>
 <ul>
@@ -83,7 +83,7 @@
 <li>No answer: <code>ensure_running()</code> again, which relaunches the service.</li>
 </ul>
 </li>
-<li><strong>Error mapping:</strong> the table under <a href="../html/architecture/voice.html#the-voice_in-module-how-errors-reach-the-button">Voice: how errors reach the button</a>.</li>
+<li><strong>Error mapping:</strong> the table under <a href="../html/modules/voice_in/voice-service.html#the-voice_in-module-how-errors-reach-the-button">Voice: how errors reach the button</a>.</li>
 <li><strong>Mic-drop recovery, a change to the step 2 service:</strong></li>
 <li><strong>Config:</strong> <code>[audio] mic_recovery_seconds = 15</code> in <code>config/voice_service.toml</code> and <code>config.py</code>. Setting it to 0 keeps the old behavior.</li>
 <li><strong>Protocol:</strong> two new service messages, <code>MicDropped(detail, wait_seconds)</code> and <code>MicBack</code>. Every other message is unchanged.</li>

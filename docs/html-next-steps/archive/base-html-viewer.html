@@ -13,10 +13,10 @@
 <main>
 <h1 id="base-html-viewer">Base HTML viewer</h1>
 <blockquote>
-<p><strong>Status: done (2026-10-27).</strong> The user approved the note, answered the open question (yes, move the window code to <code>assistant.infra</code>), and added: HTML files opened through the chat open in the viewer. Built as scoped; <code>ruff</code> and <code>pytest</code> pass. Not yet tried by hand in the real window. What was built and where it differs from the plan: <a href="../../html/architecture/html-viewer.html#as-built-v1">As built (v1)</a>.</p>
+<p><strong>Status: done (2026-10-27).</strong> The user approved the note, answered the open question (yes, move the window code to <code>assistant.infra</code>), and added: HTML files opened through the chat open in the viewer. Built as scoped; <code>ruff</code> and <code>pytest</code> pass. Not yet tried by hand in the real window. What was built and where it differs from the plan: <a href="../../html/modules/html_viewer/viewer-app.html#as-built-v1">As built (v1)</a>.</p>
 </blockquote>
 <p><strong>Asked:</strong> "create a base html viewer that can view the html and make edits to the html." Earlier: double-click to edit and save, undo with Ctrl+Z <em>and</em> an Undo button on top, and these answers (session <code>2026-10-26_03-49-08_html-viewer-according-to-docs</code>): open files from <strong>any folder</strong>; an <strong>interactive button</strong> in the chat, not a plain link; clicking a file that's already open <strong>switches to its tab, and reloads it if edits were made</strong>; highlight-to-ask is wanted, <strong>after the architecture is settled</strong>; the viewer should be <strong>its own separate window/program with hooks to the AI</strong>, which the assistant treats like a module (starts it, shuts it down when the app shuts down).</p>
-<p><strong>Why:</strong> the first, smallest piece of the <a href="../../html/architecture/html-viewer.html">HTML viewer</a> that's useful on its own: see a page, fix it in place, save, undo. Everything later (highlight-to-ask, point, snip, Markdown) plugs into the same state, commands, and view.</p>
+<p><strong>Why:</strong> the first, smallest piece of the <a href="../../html/modules/html_viewer/viewer-app.html">HTML viewer</a> that's useful on its own: see a page, fix it in place, save, undo. Everything later (highlight-to-ask, point, snip, Markdown) plugs into the same state, commands, and view.</p>
 <p><strong>Touches:</strong></p>
 <ul>
 <li>New module <code>src/assistant/modules/html_viewer/</code>: <code>module.py</code> (starts and stops the viewer, relays its events), the viewer program (stdlib HTTP server), <code>page.html</code> (tabs, toolbar, the edit tool, the undo stack), with config <code>[modules.html_viewer]</code>.</li>
@@ -24,7 +24,7 @@
 <li>The Edge app-window helper, moved from <code>temp_ui</code> to <code>assistant.infra</code>.</li>
 <li>New event <code>ViewerTabsChanged</code> in <code>src/assistant/contracts/</code>.</li>
 <li>Tests against the viewer's HTTP API (open, save, the temporary copy, the warning for generated folders).</li>
-<li>Docs: <a href="../../html/architecture/html-viewer.html">HTML viewer</a> (answers recorded, status), <a href="../../html/agents/runtime.html">runtime</a>, the <a href="../../html/api/index.html">API</a>, and the module list in the <a href="../../html/architecture/index.html#parts">overview</a>.</li>
+<li>Docs: <a href="../../html/modules/html_viewer/viewer-app.html">HTML viewer</a> (answers recorded, status), <a href="../../html/agents/runtime.html">runtime</a>, the <a href="../../html/api/index.html">API</a>, and the module list in the <a href="../../html/architecture/index.html#parts">overview</a>.</li>
 </ul>
 <h2 id="scope">Scope</h2>
 <table>
@@ -62,7 +62,7 @@
 </tbody>
 </table>
 <h2 id="approach">Approach</h2>
-<p>Built on the <a href="../../html/architecture/html-viewer.html#architecture-state-commands-view">state, commands, view</a> design, cut down to what the base needs:</p>
+<p>Built on the <a href="../../html/modules/html_viewer/viewer-app.html#architecture-state-commands-view">state, commands, view</a> design, cut down to what the base needs:</p>
 <ul>
 <li><strong>Document state:</strong> each tab holds its file's content and the current selection.</li>
 <li><strong>View:</strong> the tab's frame draws the state; it never changes it directly.</li>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>console_io: architecture</title>
+<!-- Generated from src/assistant/modules/console_io/docs/architecture.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/console_io/architecture.html"></nav>
+<main>
+<h1 id="console_io-architecture">console_io: architecture</h1>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools · Handles · Calls</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td><a href="../../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../../api/messaging.html#shutdownrequested"><code>ShutdownRequested</code></a> (<code>reason="console exit"</code>)</td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><a href="../../api/messaging.html#responseready"><code>ResponseReady</code></a>: replies to its inputs, and uncorrelated ones</td>
+</tr>
+</tbody>
+</table>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<ul>
+<li><strong>One stdin reader thread per process.</strong> A blocking <code>input()</code> can't be cancelled, so the thread outlives a deactivated module and is reused when it's activated again; lines typed while it's off are dropped.</li>
+</ul>
+<h2 id="inner-workings">Inner workings</h2>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;You type&quot;]) --&gt; Thread[&quot;stdin thread&quot;] --&gt; Mod[&quot;console_io&quot;]
+    Mod -- InputReceived --&gt; Core[&quot;core&quot;]
+    Core -- ResponseReady --&gt; Mod --&gt; Print[&quot;printed&quot;]
+</code></pre>
+<h2 id="planned">Planned</h2>
+<p>Nothing specific. A core module: part of the main app.</p>
+<footer>Generated from <code>src/assistant/modules/console_io/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

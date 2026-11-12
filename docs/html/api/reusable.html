@@ -322,7 +322,7 @@
 <td><code>ZipformerEngine</code>, <code>WhisperEngine</code>, <code>FakeEngine</code>, <code>ListenSession</code> (both engines; the <code>voice-clean</code> thread), <code>transcribe</code>; the Nemotron engine (step 7, <em>planned</em>)</td>
 </tr>
 <tr>
-<td><a href="../architecture/voice.html#two-passes-live-text-cleaned-piece-by-piece">Two-pass real check</a></td>
+<td><a href="../modules/voice_in/voice-service.html#two-passes-live-text-cleaned-piece-by-piece">Two-pass real check</a></td>
 <td>script</td>
 <td>The service in-process with the real models over WAVs fed at speech speed: CPU, partial lag, per-piece times, queue, wait after stop, text vs whole-recording whisper. Config overrides in memory only</td>
 <td><code>scripts/voice_two_pass_check.py</code></td>

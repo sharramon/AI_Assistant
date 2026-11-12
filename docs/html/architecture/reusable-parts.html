@@ -63,7 +63,7 @@
 <li><strong>Viewer events</strong> stay in <code>contracts/messages.py</code>.</li>
 </ul>
 <h2 id="companion-app-checklist">Companion app checklist</h2>
-<p>Every independent app the main app launches (the <a href="html-viewer.html">HTML viewer</a>, the <a href="voice.html">voice service</a>) keeps the same shape, so <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a> can launch and call any of them:</p>
+<p>Every independent app the main app launches (the <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>, the <a href="../modules/voice_in/voice-service.html">voice service</a>) keeps the same shape, so <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a> can launch and call any of them:</p>
 <ol>
 <li>Its own package under <code>src/</code>, run with <code>python -m &lt;app&gt;</code>; never imports <code>assistant</code>.</li>
 <li>Listens on <code>127.0.0.1</code> only, refuses another host, and refuses browser requests from another origin (WebSocket <code>Origin</code>, JSON-only POSTs). One shared check does it: <a href="../api/app_kit.html#local_guard"><code>app_kit.local_guard</code></a>.</li>
@@ -72,7 +72,7 @@
 <li>Config with <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a>: its TOML file plus a <code>.local</code> override.</li>
 <li>A thin module in the main app built on <code>CompanionApp</code>: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it. On a reload, hand the <code>CompanionApp</code> over in <code>export_state</code>, unless <code>code_changed()</code>: then quit it with <code>stop(adopted=True)</code> so the new copy runs the new code.</li>
 </ol>
-<p>An app we don't own (another project's script, like the job project's job UI) can't follow points 1, 3 and 4. <code>CompanionApp</code> still launches it, with <code>command</code> (its command line), <code>plain_ping</code> (any 200 from a page) and <code>quit=None</code> (stop ends the process it launched) (<a href="../modules/job_search.html">job_search</a>).</p>
+<p>An app we don't own (another project's script, like the job project's job UI) can't follow points 1, 3 and 4. <code>CompanionApp</code> still launches it, with <code>command</code> (its command line), <code>plain_ping</code> (any 200 from a page) and <code>quit=None</code> (stop ends the process it launched) (<a href="../modules/job_search/index.html">job_search</a>).</p>
 <h2 id="adding-a-reusable-part">Adding a reusable part</h2>
 <ol>
 <li>Check the <a href="../api/reusable.html">index</a> first; extend a part that nearly does the job.</li>

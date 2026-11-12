@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Job project</title>
-<!-- Generated from docs/job-project/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<link rel="stylesheet" href="../site.css">
+<!-- Generated from src/assistant/modules/job_search/docs/job-project.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
 </head>
 <body>
 <div class="layout">
-<nav data-root="../" data-page="job-project/index.html"></nav>
+<nav data-root="../../" data-page="modules/job_search/job-project.html"></nav>
 <main>
 <h1 id="job-project">Job project</h1>
 <p>The job project lives in <code>C:\Chang\Jobs\CV</code>, outside this repo. It's a Claude Code project: a <code>CLAUDE.md</code>, six skills in its <code>.claude</code> folder, and files that hold all its state. It applies to jobs, one per Claude session, and runs job searches. This page describes how it's shaped today (read 2026-11-04).</p>
@@ -172,11 +172,11 @@
 <p>A search run is long, mostly HTTP and web searches, and needs Chrome only for some boards and LinkedIn. Applying is short per job but needs Chrome on your logged-in profile and your hand on Submit.</p>
 <h2 id="jobradar">JobRadar</h2>
 <p>JobRadar (<code>C:\Chang\Git_projects\Resume</code>) is a separate code project: a Streamlit app for finding jobs and scoring how well they fit, with its own <code>CLAUDE.md</code> and docs. The job project only borrows its Python environment (<code>.venv</code>, which has jobspy) to run the sweep scripts, and reads its <code>data\jobs.db</code> as leads. It never changes either. JobRadar is a data source, not part of the per-job flow.</p>
-<footer>Generated from <code>docs/job-project/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+<footer>Generated from <code>src/assistant/modules/job_search/docs/job-project.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
-<script src="../nav.js"></script>
+<script src="../../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script src="../site.js"></script>
+<script src="../../site.js"></script>
 </body>
 </html>

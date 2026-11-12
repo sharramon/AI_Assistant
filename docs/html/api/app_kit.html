@@ -115,7 +115,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>docs.toml</code> keys, all optional:</p>
+<p><code>docs.toml</code> keys (the docs build requires <code>group</code> for a module; the rest are optional):</p>
 <table>
 <thead>
 <tr>
@@ -125,8 +125,12 @@
 </thead>
 <tbody>
 <tr>
+<td><code>group</code></td>
+<td><code>"core"</code> or <code>"add-on"</code>: where the module sits in the docs (its tab among the core modules' or the add-ons', its table in the module library), never where its files live</td>
+</tr>
+<tr>
 <td><code>tab</code></td>
-<td>The docs tab it goes in (default: the module's id)</td>
+<td>The docs tab it goes in (default: the module's id); one tab's modules share a group</td>
 </tr>
 <tr>
 <td><code>pages</code></td>

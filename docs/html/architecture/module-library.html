@@ -12,13 +12,41 @@
 <nav data-root="../" data-page="architecture/module-library.html"></nav>
 <main>
 <h1 id="module-library">Module library</h1>
-<p>Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own page. The data types are listed below the table, with links to their API entries. Back to the <a href="index.html">overview</a>.</p>
+<p>Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own docs. The data types are listed below the tables, with links to their API entries. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Generated</strong> (since 2026-11-05): <code>scripts/build_docs.py</code> rewrites the table between the <code>library:start</code> and <code>library:end</code> markers from each module's <code>Manifest</code> (description, contracts, <code>handles</code>, <code>sends</code>, <code>publishes</code>, <code>listens</code>) and its <code>Menu</code>, read without starting the module. "On" is the default config's <code>modules.enabled</code>. Change a module's manifest or menu, not this table; a test (<code>tests/test_module_docs.py</code>) fails when the table is stale or a module has no page. The data types below are still hand-written.</p>
+<p><strong>Generated</strong> (since 2026-11-05): <code>scripts/build_docs.py</code> rewrites the tables between the <code>library:start</code> and <code>library:end</code> markers from each module's <code>Manifest</code> (description, contracts, <code>handles</code>, <code>sends</code>, <code>publishes</code>, <code>listens</code>) and its <code>Menu</code>, read without starting the module, and its group from its <code>docs.toml</code>. "On" is the default config's <code>modules.enabled</code>. Change a module's manifest or menu, not these tables; a test (<code>tests/test_module_docs.py</code>) fails when they are stale or a module has no docs. The data types below are still hand-written.</p>
 </blockquote>
+<h2 id="module-pages">Module pages</h2>
+<p>Every module keeps its docs in its own folder, <code>src/assistant/modules/&lt;id&gt;/docs/</code>, next to its code and tests (decided 2026-11-12; it replaces the 2026-11-06 rule that kept eight modules' pages in the main docs). The main docs hold only the app-wide pages: this architecture, the agents docs, the API reference and the principles.</p>
+<p>Each module's folder has three standard pages, first and in this order, and a <code>docs.toml</code> (<a href="../api/app_kit.html#module_docs"><code>module_docs</code></a>):</p>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Sections</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>README.md</code>, its overview</td>
+<td>Purpose (and its status: on by default, off by default, or planned), Wrapper (its manifest), Config (its <code>[modules.&lt;id&gt;]</code> section), Code and tests (paths only)</td>
+</tr>
+<tr>
+<td><code>architecture.md</code></td>
+<td>Interface (tools, commands it handles and calls, events it publishes and listens to), Owns and launches (processes, windows, ports, files, companion apps), Inner workings (one diagram and a few lines), Planned</td>
+</tr>
+<tr>
+<td><code>tools.md</code></td>
+<td>Its menu, generated from the module's own <code>Menu</code> by the docs build; notes go after the generated part</td>
+</tr>
+</tbody>
+</table>
+<p>Other pages are optional: a module that launches its own app keeps that app's full design there (<a href="../modules/voice_in/voice-service.html">the voice service</a> in <code>voice_in</code>, <a href="../modules/html_viewer/viewer-app.html">the HTML viewer app</a> in <code>html_viewer</code>, and <a href="../modules/job_search/job-project.html">the job project</a> in <code>job_search</code>).</p>
+<p><strong>Groups.</strong> <code>docs.toml</code>'s <code>group</code> places a module in the docs, never its files. <strong>Core modules</strong> are part of the main app and its window: <code>agent_hub</code>, <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code>, <code>usage</code>, <code>voice_in</code>, <code>temp_ui</code>, <code>console_io</code> and <code>assistant_view</code> (for now). <strong>Add-ons</strong> are features on top: <code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>voice_notes</code>, and the <code>echo_orchestrator</code> stand-in. The core modules' tabs come first in the docs, then the add-ons', and the tables below follow the same split.</p>
 <h2 id="modules">Modules</h2>
 <!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->
 
+<h3 id="core-modules">Core modules</h3>
 <table>
 <thead>
 <tr>
@@ -35,7 +63,7 @@
 </thead>
 <tbody>
 <tr>
-<td><a href="../modules/console_io.html"><code>console_io</code></a></td>
+<td><a href="../modules/console_io/index.html"><code>console_io</code></a></td>
 <td>Terminal 1: type and read replies</td>
 <td>yes</td>
 <td>none</td>
@@ -46,7 +74,7 @@
 <td><code>ResponseReady</code></td>
 </tr>
 <tr>
-<td><a href="../modules/agent_hub.html"><code>agent_hub</code></a></td>
+<td><a href="../modules/agent_hub/index.html"><code>agent_hub</code></a></td>
 <td>Task state and routing between the agents, and who you're talking to; hosts the agents' door to the module menus</td>
 <td>yes</td>
 <td><code>hub.agents</code>, <code>hub.status</code>, <code>hub.start</code>, <code>hub.send</code>, <code>hub.cancel</code>, <code>hub.answer</code>, <code>hub.mode</code>, <code>hub.focus</code>, <code>hub.suggest_focus</code></td>
@@ -57,7 +85,7 @@
 <td><code>AgentActivity</code>, <code>AgentNotice</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
-<td><a href="../modules/main_assistant.html"><code>main_assistant</code></a></td>
+<td><a href="../modules/main_assistant/index.html"><code>main_assistant</code></a></td>
 <td>The worker: does the tasks the Talker hands over</td>
 <td>yes</td>
 <td>none</td>
@@ -68,7 +96,7 @@
 <td><code>ResetRequested</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
-<td><a href="../modules/talker.html"><code>talker</code></a></td>
+<td><a href="../modules/talker/index.html"><code>talker</code></a></td>
 <td>Talks with you, one Talker per agent tab; hands work to the Agent Hub</td>
 <td>yes</td>
 <td>none</td>
@@ -79,7 +107,7 @@
 <td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
-<td><a href="../modules/temp_ui.html"><code>temp_ui</code></a></td>
+<td><a href="../modules/temp_ui/index.html"><code>temp_ui</code></a></td>
 <td>Temporary two-pane page: worker and Talker, mic, usage, permissions</td>
 <td>yes</td>
 <td>none</td>
@@ -90,7 +118,7 @@
 <td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>FocusChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code></td>
 </tr>
 <tr>
-<td><a href="../modules/voice_in.html"><code>voice_in</code></a></td>
+<td><a href="../modules/voice_in/index.html"><code>voice_in</code></a></td>
 <td>Speech to text; launches the voice service app</td>
 <td>yes</td>
 <td>none</td>
@@ -101,7 +129,7 @@
 <td>none</td>
 </tr>
 <tr>
-<td><a href="../modules/usage.html"><code>usage</code></a></td>
+<td><a href="../modules/usage/index.html"><code>usage</code></a></td>
 <td>Every agent's tokens since launch, sub-agents under their parent</td>
 <td>yes</td>
 <td><code>usage.total</code>, <code>usage.agents</code>, <code>usage.mine</code></td>
@@ -112,7 +140,7 @@
 <td><code>SessionUsage</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
 </tr>
 <tr>
-<td><a href="../modules/assistant_view.html"><code>assistant_view</code></a></td>
+<td><a href="../modules/assistant_view/index.html"><code>assistant_view</code></a></td>
 <td>Terminal 2: view-only agent activity</td>
 <td>no</td>
 <td>none</td>
@@ -122,6 +150,35 @@
 <td>none</td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>TaskUpdated</code></td>
 </tr>
+<tr>
+<td><a href="../modules/task_agents/index.html"><code>task_agents</code></a></td>
+<td>Helper agents launched by name from kinds in config, each a task agent the Hub can start and focus</td>
+<td>no</td>
+<td><code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>ITaskAgent</code></td>
+<td>none</td>
+<td><code>ReportTask</code>, <code>InvokeTool</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
+<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="add-ons">Add-ons</h3>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>What it does</th>
+<th>On</th>
+<th>Menu</th>
+<th>Contracts</th>
+<th>Handles</th>
+<th>Calls</th>
+<th>Publishes</th>
+<th>Listens to</th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td><a href="../modules/cv/index.html"><code>cv</code></a></td>
 <td>Tailors a CV for one job with Rezi: one clean page, checked by Rezi, your yes; its worker cv_agent</td>
@@ -145,7 +202,7 @@
 <td><code>InputReceived</code></td>
 </tr>
 <tr>
-<td><a href="../modules/html_viewer.html"><code>html_viewer</code></a></td>
+<td><a href="../modules/html_viewer/index.html"><code>html_viewer</code></a></td>
 <td>View, edit, highlight and snip HTML; launches the viewer app</td>
 <td>no</td>
 <td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
@@ -156,7 +213,7 @@
 <td>none</td>
 </tr>
 <tr>
-<td><a href="../modules/job_search.html"><code>job_search</code></a></td>
+<td><a href="../modules/job_search/index.html"><code>job_search</code></a></td>
 <td>The job agent (applies to jobs, runs searches in the job project), with its job.* menu</td>
 <td>no</td>
 <td><code>job.open_ui</code>, <code>job.search</code></td>
@@ -167,18 +224,7 @@
 <td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
 </tr>
 <tr>
-<td><a href="../modules/task_agents.html"><code>task_agents</code></a></td>
-<td>Helper agents launched by name from kinds in config, each a task agent the Hub can start and focus</td>
-<td>no</td>
-<td><code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code></td>
-<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>ITaskAgent</code></td>
-<td>none</td>
-<td><code>ReportTask</code>, <code>InvokeTool</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
-<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
-<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
-</tr>
-<tr>
-<td><a href="../modules/voice_notes.html"><code>voice_notes</code></a></td>
+<td><a href="../modules/voice_notes/index.html"><code>voice_notes</code></a></td>
 <td>Speak into a page of notes; the words never go to the Talker</td>
 <td>no</td>
 <td>none</td>

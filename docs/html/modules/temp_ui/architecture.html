@@ -3,44 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>temp_ui: the temporary two-pane page</title>
-<!-- Generated from docs/modules/temp_ui.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<link rel="stylesheet" href="../site.css">
+<title>temp_ui: architecture</title>
+<!-- Generated from src/assistant/modules/temp_ui/docs/architecture.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
 </head>
 <body>
 <div class="layout">
-<nav data-root="../" data-page="modules/temp_ui.html"></nav>
+<nav data-root="../../" data-page="modules/temp_ui/architecture.html"></nav>
 <main>
-<h1 id="temp_ui-the-temporary-two-pane-page">temp_ui: the temporary two-pane page</h1>
-<h2 id="purpose">Purpose</h2>
-<p>A local web page with the worker's activity on the left and the Talker conversation on the right, with the mic button, usage meters, permission cards and the Manual | Auto toggle. A throwaway stand-in until the UI handler is designed. On by default. Design: <a href="../agents/runtime.html#temp-ui">temp UI</a>.</p>
-<h2 id="wrapper">Wrapper</h2>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>id</td>
-<td><code>temp_ui</code></td>
-</tr>
-<tr>
-<td>provides / requires</td>
-<td>nothing</td>
-</tr>
-<tr>
-<td>optional</td>
-<td><a href="../api/agents.html#iagentnames"><code>IAgentNames</code></a> (which module an agent belongs to, for the tabs' ×)</td>
-</tr>
-<tr>
-<td>permissions</td>
-<td>none declared</td>
-</tr>
-</tbody>
-</table>
+<h1 id="temp_ui-architecture">temp_ui: architecture</h1>
 <h2 id="interface">Interface</h2>
 <table>
 <thead>
@@ -60,22 +31,22 @@
 </tr>
 <tr>
 <td>Calls</td>
-<td><a href="../api/control.html#listmodules"><code>ListModules</code></a>, <a href="../api/agents.html#listagents"><code>ListAgents</code></a>, <a href="../api/agents.html#setfocus"><code>SetFocus</code></a>, <a href="../api/messaging.html#startlistening"><code>StartListening</code></a>, <a href="../api/messaging.html#stoplistening"><code>StopListening</code></a>, <a href="../api/agents.html#answerpermission"><code>AnswerPermission</code></a>, <a href="../api/messaging.html#answerpermissionrequest"><code>AnswerPermissionRequest</code></a>, <a href="../api/agents.html#setpermissionmode"><code>SetPermissionMode</code></a>, <a href="../api/agents.html#gettaskstatus"><code>GetTaskStatus</code></a>, <a href="../api/agents.html#canceltask"><code>CancelTask</code></a>, <a href="../api/tools.html#invoketool"><code>InvokeTool</code></a> <code>viewer.open</code>, <code>permissions.grants</code>, <code>permissions.revoke</code>, <code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code>, <code>modules.on</code>, <code>modules.off</code> (as <code>temp_ui</code>, which is you)</td>
+<td><a href="../../api/control.html#listmodules"><code>ListModules</code></a>, <a href="../../api/agents.html#listagents"><code>ListAgents</code></a>, <a href="../../api/agents.html#setfocus"><code>SetFocus</code></a>, <a href="../../api/messaging.html#startlistening"><code>StartListening</code></a>, <a href="../../api/messaging.html#stoplistening"><code>StopListening</code></a>, <a href="../../api/agents.html#answerpermission"><code>AnswerPermission</code></a>, <a href="../../api/messaging.html#answerpermissionrequest"><code>AnswerPermissionRequest</code></a>, <a href="../../api/agents.html#setpermissionmode"><code>SetPermissionMode</code></a>, <a href="../../api/agents.html#gettaskstatus"><code>GetTaskStatus</code></a>, <a href="../../api/agents.html#canceltask"><code>CancelTask</code></a>, <a href="../../api/tools.html#invoketool"><code>InvokeTool</code></a> <code>viewer.open</code>, <code>permissions.grants</code>, <code>permissions.revoke</code>, <code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code>, <code>modules.on</code>, <code>modules.off</code> (as <code>temp_ui</code>, which is you)</td>
 </tr>
 <tr>
 <td>Publishes</td>
-<td><a href="../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../api/messaging.html#viewerclip"><code>ViewerClip</code></a> (a pasted image), <a href="../api/messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a></td>
+<td><a href="../../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../../api/agents.html#resetrequested"><code>ResetRequested</code></a>, <a href="../../api/messaging.html#viewerclip"><code>ViewerClip</code></a> (a pasted image), <a href="../../api/messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a></td>
 </tr>
 <tr>
 <td>Listens to</td>
-<td><a href="../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../api/messaging.html#responseready"><code>ResponseReady</code></a>, <a href="../api/agents.html#taskupdated"><code>TaskUpdated</code></a>, <a href="../api/agents.html#agentactivity"><code>AgentActivity</code></a>, <a href="../api/agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, <a href="../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>, <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../api/messaging.html#viewerclip"><code>ViewerClip</code></a>, <a href="../api/messaging.html#voicestate"><code>VoiceState</code></a>, <a href="../api/messaging.html#voicetranscript"><code>VoiceTranscript</code></a>, <a href="../api/control.html#modulestatechanged"><code>ModuleStateChanged</code></a>, <a href="../api/agents.html#focuschanged"><code>FocusChanged</code></a>, <a href="../api/messaging.html#permissionrequested"><code>PermissionRequested</code></a>, <a href="../api/messaging.html#permissionchanged"><code>PermissionChanged</code></a></td>
+<td><a href="../../api/messaging.html#inputreceived"><code>InputReceived</code></a>, <a href="../../api/messaging.html#responseready"><code>ResponseReady</code></a>, <a href="../../api/agents.html#taskupdated"><code>TaskUpdated</code></a>, <a href="../../api/agents.html#agentactivity"><code>AgentActivity</code></a>, <a href="../../api/agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, <a href="../../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>, <a href="../../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../../api/messaging.html#viewerclip"><code>ViewerClip</code></a>, <a href="../../api/messaging.html#voicestate"><code>VoiceState</code></a>, <a href="../../api/messaging.html#voicetranscript"><code>VoiceTranscript</code></a>, <a href="../../api/control.html#modulestatechanged"><code>ModuleStateChanged</code></a>, <a href="../../api/agents.html#focuschanged"><code>FocusChanged</code></a>, <a href="../../api/messaging.html#permissionrequested"><code>PermissionRequested</code></a>, <a href="../../api/messaging.html#permissionchanged"><code>PermissionChanged</code></a></td>
 </tr>
 </tbody>
 </table>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
 <li><strong>A page server</strong> on <code>127.0.0.1:8765</code> (standard library): <code>GET /events</code> (Server-Sent Events), <code>GET /grants.js</code>, <code>GET /agent-tabs.js</code>, and <code>POST</code> <code>/say</code>, <code>/permission</code>, <code>/access-answer</code>, <code>/grants</code>, <code>/agent-tabs</code>, <code>/permission-mode</code>, <code>/reset</code>, <code>/focus</code>, <code>/mic</code>, <code>/paste-image</code>, <code>/drop-snip</code>, <code>/open-in-viewer</code>, <code>/open-logs</code>.</li>
-<li><strong>An Edge app window</strong> for the page (<code>window = "app"</code>). <strong>Its taskbar button flashes</strong> (built 2026-11-10, <code>flash_window</code> from <a href="../api/app_kit.html#window"><code>app_kit.window</code></a>) when something needs you while the window isn't in front: any agent's task is done or failed (helpers included, and a task the Hub failed), an agent asks you something (<code>TaskUpdated</code> kind <code>need</code> or <code>permission</code>, held behind a <strong>!</strong> too), or a permissions card arrives (<code>PermissionRequested</code>). It keeps flashing until you bring the window forward. Progress, milestones, replies and a cancelled task don't flash. The flash runs in a background thread, so the panes' items keep their order; <code>_flash</code> is swappable for tests.</li>
+<li><strong>An Edge app window</strong> for the page (<code>window = "app"</code>). <strong>Its taskbar button flashes</strong> (built 2026-11-10, <code>flash_window</code> from <a href="../../api/app_kit.html#window"><code>app_kit.window</code></a>) when something needs you while the window isn't in front: any agent's task is done or failed (helpers included, and a task the Hub failed), an agent asks you something (<code>TaskUpdated</code> kind <code>need</code> or <code>permission</code>, held behind a <strong>!</strong> too), or a permissions card arrives (<code>PermissionRequested</code>). It keeps flashing until you bring the window forward. Progress, milestones, replies and a cancelled task don't flash. The flash runs in a background thread, so the panes' items keep their order; <code>_flash</code> is swappable for tests.</li>
 <li><strong>The Reset buttons</strong> reset the pair of the tab you're in: <code>POST /reset</code> <code>{"agent": "worker" | "talker", "tab"}</code> publishes <code>ResetRequested</code> for that tab's worker (its agent id) or its Talker (<code>talker</code>, or <code>talker:&lt;agent&gt;</code> in a helper's tab), through <code>reset_target</code>.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
@@ -103,21 +74,14 @@
 <p><strong>Snips:</strong> a <code>ViewerClip</code> shows as a thumbnail above the input (up to 3; × posts <code>/drop-snip</code> → <code>ViewerClipDropped</code>). Send works with nothing typed while a snip is waiting: <code>/say</code> publishes the text <code>(snip)</code>. When a message goes out, typed or spoken, the waiting snips move into its "you" bubble at the same thumbnail size, as confirmation; the last 30 sent stay served by <code>GET /snip/&lt;id&gt;</code>. The Talker attaches the images from its own list. Each step (shown, dropped by × or the limit, moved into a sent message) is logged at info level.</p>
 <p><strong>The typing box's height</strong> (built 2026-11-08): a drag handle on the input area's top edge (<code>#grip</code>) sets the box's height, from 40 px up to 60 % of the window while the chat keeps at least 120 px. One size for every tab, kept in the page's <code>localStorage</code> across sends and refreshes; double-click the handle for one line again.</p>
 <p><strong>Pasted images:</strong> Ctrl+V of an image in the chat box (a clipboard holding only an image; text pastes stay text) makes it a snip. The page converts it to PNG and posts it to <code>/paste-image</code>; the server refuses anything over 10 MB or not a PNG (logged, and the box's placeholder says why for a few seconds), saves it as <code>&lt;launch log folder&gt;/snips/paste-&lt;id&gt;.png</code> (<code>ctx.logs.folder()</code>), and publishes <code>ViewerClip</code> with <code>file="(pasted)"</code>. From there it is the snip path above. It goes to the Talker of the tab your next message is in, not to its agent.</p>
-<p>The mic follows only sessions the page started (by the <code>StartListening</code> id), like <a href="voice_notes.html">voice_notes</a>. A stop names the tab it was pressed in (<code>POST /mic {"on": false, "agent"}</code> → <code>StopListening(agent_id)</code>), so the final text goes to that tab. The Manual | Auto toggle sets and shows the agent of the tab you're in (<code>POST /permission-mode {mode, agent}</code>; one mode state item per agent). Both built 2026-11-06.</p>
-<h2 id="config">Config</h2>
-<p><code>[modules.temp_ui]</code>: <code>port</code> (8765), <code>window</code>.</p>
-<h2 id="code-and-tests">Code and tests</h2>
-<ul>
-<li><code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>agent_tabs.py</code>, <code>page.html</code>, <code>static/grants.js</code>, <code>static/agent_tabs.js</code>)</li>
-<li><code>tests/test_temp_ui.py</code>, <code>tests/test_agent_tabs.py</code>, <code>tests/test_access_cards.py</code>, <code>tests/test_taskbar_flash.py</code>, and the snip tests in <code>tests/test_html_viewer.py</code></li>
-</ul>
+<p>The mic follows only sessions the page started (by the <code>StartListening</code> id), like <a href="../voice_notes/index.html">voice_notes</a>. A stop names the tab it was pressed in (<code>POST /mic {"on": false, "agent"}</code> → <code>StopListening(agent_id)</code>), so the final text goes to that tab. The Manual | Auto toggle sets and shows the agent of the tab you're in (<code>POST /permission-mode {mode, agent}</code>; one mode state item per agent). Both built 2026-11-06.</p>
 <h2 id="planned">Planned</h2>
-<p>Replaced by the UI handler and the chat window (<a href="../architecture/decisions.html#open-decisions">decisions</a>); not designed yet.</p>
-<footer>Generated from <code>docs/modules/temp_ui.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+<p>Replaced by the UI handler and the chat window (<a href="../../architecture/decisions.html#open-decisions">decisions</a>); not designed yet.</p>
+<footer>Generated from <code>src/assistant/modules/temp_ui/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
-<script src="../nav.js"></script>
+<script src="../../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script src="../site.js"></script>
+<script src="../../site.js"></script>
 </body>
 </html>

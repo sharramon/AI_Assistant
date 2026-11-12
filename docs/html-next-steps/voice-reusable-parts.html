@@ -13,7 +13,7 @@
 <main>
 <h1 id="voice-streamer-reusable-parts">Voice streamer: reusable parts</h1>
 <blockquote>
-<p><strong>Status: built (waiting on you), 2026-11-03.</strong> All three open questions approved as recommended (<a href="#decided">Decided</a>). It adds to the approved <a href="../html/architecture/voice.html#code-design-phase-1">voice code design</a>; steps 0 to 4 below are built (2026-11-02 to 11-03). Left: step 5's try on your mic, which is step 6 of <a href="index.html#next-voice-in-phase-1">voice in, phase 1</a>.</p>
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> All three open questions approved as recommended (<a href="#decided">Decided</a>). It adds to the approved <a href="../html/modules/voice_in/voice-service.html#code-design-phase-1">voice code design</a>; steps 0 to 4 below are built (2026-11-02 to 11-03). Left: step 5's try on your mic, which is step 6 of <a href="index.html#next-voice-in-phase-1">voice in, phase 1</a>.</p>
 <p><strong>Revised (2026-11-02):</strong> <a href="archive/reusable-parts.html#decided">Reusable parts as a core principle</a> is approved, and three points here changed with it (folded in below):
 1. <strong>Where <code>CompanionApp</code> lives:</strong> <code>app_kit/companion.py</code>, not <code>assistant/infra/companion.py</code>, so other apps can launch <code>voice_service</code> too.
 2. <strong>The voice service's config loader:</strong> <code>app_kit.load_layered</code>, not its own TOML loader.
@@ -22,7 +22,7 @@
 </blockquote>
 <p><strong>Asked:</strong> "Can you make the voice streamer? … it's just a tool to use as a voice to text with the text being able to be received anywhere … we'll just [use] a subscription model. Should we have a 'streamable' class? Can you look at all the things we'll use for it and see what classes and interfaces we want to actually make into reusable parts?"</p>
 <p><strong>Why:</strong> voice text should reach any module that wants it, with the Talker only the first subscriber, and the parts the voice streamer shares with other features should be built once.</p>
-<p><strong>Touches:</strong> <code>src/app_kit/</code> (<code>CompanionApp</code>, built by the reusable-parts note), <code>src/assistant/contracts/voice.py</code> (as planned, plus one field), <code>modules/html_viewer</code> (switches to the helper), the new <code>voice_service</code> and <code>voice_in</code>. Docs: <a href="../html/architecture/voice.html">Voice</a>, App kit API (new, from the reusable-parts note), <a href="../html/api/messaging.html">Messaging API</a>.</p>
+<p><strong>Touches:</strong> <code>src/app_kit/</code> (<code>CompanionApp</code>, built by the reusable-parts note), <code>src/assistant/contracts/voice.py</code> (as planned, plus one field), <code>modules/html_viewer</code> (switches to the helper), the new <code>voice_service</code> and <code>voice_in</code>. Docs: <a href="../html/modules/voice_in/voice-service.html">Voice</a>, App kit API (new, from the reusable-parts note), <a href="../html/api/messaging.html">Messaging API</a>.</p>
 <h2 id="the-streamable-question-no-new-class-the-event-bus-is-the-stream">The "streamable" question: no new class; the Event Bus is the stream</h2>
 <p><strong>Recommendation:</strong> don't add a <code>Streamable</code> contract or helper. Voice text is an event, <code>VoiceTranscript</code>, and any module that wants it calls <code>ctx.subscribe(VoiceTranscript, ...)</code>.</p>
 <ul>
@@ -146,7 +146,7 @@ await app.stop()                  # POST quit, wait 5 s, kill; only if we launch
 <li><strong><code>send_as_input: bool = True</code> on <code>StartListening</code>.</strong> With <code>False</code>, the text goes only to <code>VoiceTranscript</code> subscribers, not to the Talker. (Not a config flag on <code>voice_in</code>, which would be all or nothing.)</li>
 <li><strong><code>html_viewer</code> switches to <code>CompanionApp</code> in the same change</strong>, so the launch code lives in one place.</li>
 </ol>
-<p><strong>When built,</strong> these move into the permanent docs: decisions 1 and 2 into <a href="../html/architecture/voice.html">Voice</a> (the voice_in module section), <code>CompanionApp</code> into the App kit API (per the reusable-parts note), and the <code>send_as_input</code> field into the <a href="../html/api/messaging.html">Messaging API</a>.</p>
+<p><strong>When built,</strong> these move into the permanent docs: decisions 1 and 2 into <a href="../html/modules/voice_in/voice-service.html">Voice</a> (the voice_in module section), <code>CompanionApp</code> into the App kit API (per the reusable-parts note), and the <code>send_as_input</code> field into the <a href="../html/api/messaging.html">Messaging API</a>.</p>
 <footer>Generated from <code>docs/next-steps/voice-reusable-parts.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

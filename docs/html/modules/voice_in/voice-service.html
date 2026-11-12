@@ -4,21 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voice</title>
-<!-- Generated from docs/architecture/voice.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
-<link rel="stylesheet" href="../site.css">
+<!-- Generated from src/assistant/modules/voice_in/docs/voice-service.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
 </head>
 <body>
 <div class="layout">
-<nav data-root="../" data-page="architecture/voice.html"></nav>
+<nav data-root="../../" data-page="modules/voice_in/voice-service.html"></nav>
 <main>
 <h1 id="voice">Voice</h1>
-<p>Speech to text, so you can talk to the assistant instead of typing. It's <strong>Voice in</strong> in the <a href="index.html">overview</a>. Voice out (the Talker speaking back) is a separate, later part.</p>
+<p>Speech to text, so you can talk to the assistant instead of typing. It's <strong>Voice in</strong> in the <a href="../../architecture/index.html">overview</a>. Voice out (the Talker speaking back) is a separate, later part.</p>
 <blockquote>
 <p><strong>Status: being built (designed 2026-10-28; code design added and approved 2026-11-02).</strong> Phase 1 below is built in steps, listed in the next-steps list. The code-level design is under <a href="#code-design-phase-1">Code design (phase 1)</a>.</p>
-<p><strong>Built: step 1, the contracts</strong> (2026-11-03): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
-<p><strong>Built: step 2, the voice service</strong> (2026-11-03): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
+<p><strong>Built: step 1, the contracts</strong> (2026-11-03): <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code> in <code>contracts/voice.py</code>, and the protocol's messages in <code>voice_service/protocol.py</code>, which <code>voice_in</code> will import (<a href="../../api/messaging.html#voice">API</a>). <code>voice_in</code> is next.</p>
+<p><strong>Built: step 2, the voice service</strong> (2026-11-03): <code>src/voice_service/</code> as designed below, run alone with <code>python -m voice_service</code> (or <code>voice-service</code>); <code>python -m voice_service download zipformer</code> fetched the model (310 MB) into <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>, outside the repo. Tested with the fake engine and fake sources (<a href="../../api/messaging.html#the-voice-services-parts">API</a>). On the model's own test recordings, fed at the speed of speech through the whole service, int8 matched both reference texts word for word, with the final 46 to 78 ms after <code>stop</code>. The first partial came about 1.1 s after <code>start</code>; that includes the recording's lead-in, so the real check is your own mic (step 6). The full-precision files gave the same text (only <em>dishonored</em> for <em>dishonoured</em>) and were slower (62 to 93 ms), so int8 stays the default.</p>
 <p><strong>Built: step 3, the <code>voice_in</code> module</strong> (2026-11-03): <code>src/assistant/modules/voice_in/</code>, off by default, as designed in <a href="#the-voice_in-module">the voice_in module</a>, plus two additions you asked for. <strong>A dropped mic is waited for:</strong> the service keeps the session and tries to reopen the mic for <code>mic_recovery_seconds</code> (15 s), sending <code>mic_dropped</code> and then <code>mic_back</code>. If the mic doesn't come back, the session ends and its text is dropped. <strong>A quick <code>/health</code> check</strong> runs before reusing a service that's already running. Tested against the real service app with its fake engine and fake mic on a local port. Your own mic is step 6.</p>
-<p><strong>Built: step 4, the temp UI's mic button</strong> (2026-11-03): the button sends <code>StartListening</code> / <code>StopListening</code> and shows <code>VoiceState</code>; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. <code>voice_in</code> is now in <code>[modules] enabled</code>. Details: <a href="../agents/runtime.html#temp-ui">runtime: temp UI</a>. <strong>Clear button</strong> (2026-11-03): a ✕ next to the mic throws away what was heard (<code>StopListening(discard=True)</code>) and keeps listening in a new session; the voice service is unchanged.</p>
+<p><strong>Built: step 4, the temp UI's mic button</strong> (2026-11-03): the button sends <code>StartListening</code> / <code>StopListening</code> and shows <code>VoiceState</code>; a grey line shows the live text, the dropped mic's countdown and word count, or the failure's reason; spoken messages show in the chat as yours. <code>voice_in</code> is now in <code>[modules] enabled</code>. Details: <a href="../../agents/runtime.html#temp-ui">runtime: temp UI</a>. <strong>Clear button</strong> (2026-11-03): a ✕ next to the mic throws away what was heard (<code>StopListening(discard=True)</code>) and keeps listening in a new session; the voice service is unchanged.</p>
 <p><strong>Built: step 6, the real mic on this laptop</strong> (2026-11-03). <strong><code>python -m voice_service check</code></strong> tells whether this machine is ready. It checks the voice extra, Windows' mic privacy switches (read only), the input devices, the model's load time, and a few seconds of the real mic through <code>MicSource</code>, and it transcribes anything said during the check. Two fixes came out of it:
 - <strong>An unreported unplug counts as a drop.</strong> No chunks at all for <code>[audio] stall_seconds</code> (2 s) starts the same recovery as a reported unplug. Silence and a muted mic still send chunks, so they don't trip it.
 - <strong>The device list is reloaded after a drop.</strong> PortAudio reads it only once, so a replugged or other mic couldn't open. <code>MicSource</code> now reloads it on the next open after a lost or stalled mic.</p>
@@ -77,7 +77,7 @@
 <li><strong>Swappable engine:</strong> the engine is a config value. Nothing outside the engine knows which model runs.</li>
 </ul>
 <h2 id="the-voice-handler-three-parts">The voice handler: three parts</h2>
-<p>Voice input is one <strong>voice handler</strong>, like the <a href="core.html#logging">log handler</a> and the <a href="permissions.html">permissions handler</a>. Its three parts talk only through messages, so each can be swapped on its own.</p>
+<p>Voice input is one <strong>voice handler</strong>, like the <a href="../../architecture/core.html#logging">log handler</a> and the <a href="../../architecture/permissions.html">permissions handler</a>. Its three parts talk only through messages, so each can be swapped on its own.</p>
 <pre><code class="language-mermaid">flowchart LR
     You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;click mic · speak · click&quot;])
     subgraph Svc[&quot;voice_service: its own app, shared&quot;]
@@ -107,7 +107,7 @@
     class Other,Quest later
     class You person
 </code></pre>
-<p><strong>Built (2026-11-03):</strong> the service (recorder and receiver), <code>voice_in</code> (on), and the temp UI's mic button and live line (a stand-in until the <a href="decisions.html#open-decisions">UI handler</a>). <strong>Dashed:</strong> later.</p>
+<p><strong>Built (2026-11-03):</strong> the service (recorder and receiver), <code>voice_in</code> (on), and the temp UI's mic button and live line (a stand-in until the <a href="../../architecture/decisions.html#open-decisions">UI handler</a>). <strong>Dashed:</strong> later.</p>
 <table>
 <thead>
 <tr>
@@ -138,13 +138,13 @@
 <td>Main app: the thin module <code>voice_in</code></td>
 <td>Launching the service, the mic permission, what reaches this app</td>
 <td><code>StartListening</code> / <code>StopListening</code>; text from the service</td>
-<td>Live text to the UI; the final message as <a href="../api/messaging.html#inputreceived"><code>InputReceived</code></a><code>(source="voice")</code> to the Talker</td>
+<td>Live text to the UI; the final message as <a href="../../api/messaging.html#inputreceived"><code>InputReceived</code></a><code>(source="voice")</code> to the Talker</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Why this split:</strong></p>
 <ul>
-<li><strong>The service never knows the assistant.</strong> It runs alone (<code>python -m voice_service</code>) and doesn't import the assistant, like the <a href="html-viewer.html">HTML viewer</a>. This follows the decided rule that a part useful on its own becomes its own app, launched by a thin module (<a href="decisions.html#decided">decisions</a>).</li>
+<li><strong>The service never knows the assistant.</strong> It runs alone (<code>python -m voice_service</code>) and doesn't import the assistant, like the <a href="../html_viewer/viewer-app.html">HTML viewer</a>. This follows the decided rule that a part useful on its own becomes its own app, launched by a thin module (<a href="../../architecture/decisions.html#decided">decisions</a>).</li>
 <li><strong>Clients never know the engine.</strong> The protocol names no models, so the engine can be swapped, given a second pass, or moved off the PC without changing any client.</li>
 <li><strong>The rest of this app sees only messages.</strong> The Talker gets <code>InputReceived</code>, the same event typed text uses. The Talker, the Agent Hub, and the logs don't change.</li>
 </ul>
@@ -366,7 +366,7 @@
 <p>Voice to text is wanted in several apps, so <code>voice_service</code> is shared. Any app connects over the same WebSocket protocol and decides what to do with the text. This app sends the final message to the Talker; another might type it into a box.</p>
 <ul>
 <li><strong>Each app keeps only a thin client.</strong> Everything specific to an app (here: the Talker, the UI events, the permission check) stays in that client, never in the service.</li>
-<li><strong>One listener at a time:</strong> a second <code>start</code> gets <code>busy</code>. Several modules (the mic button, voice notes) share the one service through <code>voice_in</code>: the voice contract <a href="../api/messaging.html#ivoice"><code>IVoice</code></a> (built 2026-11-05) gives each caller its own session id and destination, and the second press wins (<a href="modules.html#chaining-modules">modules</a>).</li>
+<li><strong>One listener at a time:</strong> a second <code>start</code> gets <code>busy</code>. Several modules (the mic button, voice notes) share the one service through <code>voice_in</code>: the voice contract <a href="../../api/messaging.html#ivoice"><code>IVoice</code></a> (built 2026-11-05) gives each caller its own session id and destination, and the second press wins (<a href="../../architecture/modules.html#chaining-modules">modules</a>).</li>
 <li><strong>Localhost only</strong> at first, with no access control between apps.</li>
 </ul>
 <h2 id="the-protocol">The protocol</h2>
@@ -437,18 +437,18 @@
 <p><strong><code>/ws/audio</code></strong> (remote recorders, later): <code>start</code> (format <code>pcm16</code>, rate <code>16000</code>, mono), binary audio frames, <code>stop</code>; the replies are the same as above.</p>
 <h2 id="the-app-side">The app side</h2>
 <ul>
-<li><strong>Contracts</strong> (built, Messaging group; fields in <a href="#the-voice_in-module">the voice_in module</a>): commands <code>StartListening</code> and <code>StopListening</code>, handled by <code>voice_in</code>; events <code>VoiceState</code> (<code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code>, <code>failed</code> with a reason) for the button, and <code>VoiceTranscript</code> (the live text). Any UI can send the commands: the temp UI today, the real <a href="decisions.html#open-decisions">UI handler</a> or the Quest later.</li>
+<li><strong>Contracts</strong> (built, Messaging group; fields in <a href="#the-voice_in-module">the voice_in module</a>): commands <code>StartListening</code> and <code>StopListening</code>, handled by <code>voice_in</code>; events <code>VoiceState</code> (<code>idle</code>, <code>starting</code>, <code>listening</code>, <code>dropped</code>, <code>failed</code> with a reason) for the button, and <code>VoiceTranscript</code> (the live text). Any UI can send the commands: the temp UI today, the real <a href="../../architecture/decisions.html#open-decisions">UI handler</a> or the Quest later.</li>
 <li><strong>The Event Bus is the stream</strong> (decided 2026-11-02): no <code>Streamable</code> class. <code>VoiceTranscript</code> is the public output; any module that wants voice text calls <code>ctx.subscribe(VoiceTranscript, ...)</code>. <code>InputReceived</code> is only the Talker's way in.</li>
 <li><strong><code>send_as_input: bool = True</code></strong> on <code>StartListening</code> (decided 2026-11-02): with <code>False</code> (dictating into a text box, say), the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker.</li>
 <li><strong>Where you see the text:</strong> while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.</li>
-<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>, <code>live_text</code>, <code>final_timeout_on_send</code>), on (in <code>[modules] enabled</code> since step 4); the service has its own config file for the engine and model path, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
+<li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>, <code>live_text</code>, <code>final_timeout_on_send</code>), on (in <code>[modules] enabled</code> since step 4); the service has its own config file for the engine and model path, read with the shared <a href="../../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
 <li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) go in an optional <code>voice</code> extra, so the app installs without them. Model files download once.</li>
 </ul>
 <h2 id="the-mic-permission">The mic permission</h2>
 <p>The <strong>voice handler</strong> asks, once, when you click the mic and before it sends <code>start</code>. The service never asks; it only needs Windows' mic access (<em>Settings → Privacy → Microphone → Let desktop apps access your microphone</em>).</p>
 <ul>
 <li>From day one, <code>voice_in</code> declares <code>microphone</code> as an optional permission in its manifest and asks <code>ctx.permissions</code> at that point (revised 2026-11-02).</li>
-<li>Until the <a href="permissions.html">permissions handler</a> is built, the <code>ctx.permissions</code> stand-in applies its decided rule: allow and log a warning. Your click is the consent, each start is logged, and nothing listens in the background. When the handler arrives, <code>voice_in</code> doesn't change.</li>
+<li>Until the <a href="../../architecture/permissions.html">permissions handler</a> is built, the <code>ctx.permissions</code> stand-in applies its decided rule: allow and log a warning. Your click is the consent, each start is logged, and nothing listens in the background. When the handler arrives, <code>voice_in</code> doesn't change.</li>
 <li>Other apps do their own check in their own clients. On the Quest, the headset's mic permission applies too.</li>
 </ul>
 <h2 id="code-design-phase-1">Code design (phase 1)</h2>
@@ -618,10 +618,10 @@
 <li><strong>Tests</strong> build the app with <code>create_app(config, FakeEngine(...), lambda: FakeSource(...))</code> and drive <code>/ws/listen</code> with FastAPI's test client. No mic, no model.</li>
 <li><strong><code>/health</code></strong> answers <code>{"app": "voice_service", "engine": "zipformer", "ready": true|false, "error": null|"...", "final": "whisper"|"", "final_ready": true|false, "final_error": null|"..."}</code> (the <code>final</code> fields added 2026-11-03). <code>voice_in</code> uses it as its ping, like the viewer's <code>/api/ping</code>.</li>
 <li><strong><code>/quit</code></strong> (POST, JSON body like the viewer's; anything else gets 415) ends the current session and shuts the server down.</li>
-<li><strong>Local only (2026-11-08):</strong> the service refuses other hosts and other origins with <a href="../api/app_kit.html#local_guard"><code>app_kit.local_guard</code></a>: every request and WebSocket whose <code>Host</code> isn't this machine, or whose browser <code>Origin</code> is another site, gets 403 (a WebSocket is closed with 1008), so a web page you visit can't open the mic or quit the service. <code>python -m voice_service</code> refuses a non-local <code>--host</code>.</li>
+<li><strong>Local only (2026-11-08):</strong> the service refuses other hosts and other origins with <a href="../../api/app_kit.html#local_guard"><code>app_kit.local_guard</code></a>: every request and WebSocket whose <code>Host</code> isn't this machine, or whose browser <code>Origin</code> is another site, gets 403 (a WebSocket is closed with 1008), so a web page you visit can't open the mic or quit the service. <code>python -m voice_service</code> refuses a non-local <code>--host</code>.</li>
 </ul>
 <h3 id="the-voice-service-config">The voice service: config</h3>
-<p>Its own TOML file, read with the shared <a href="../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (revised 2026-11-02; no loader of its own, and still no <code>assistant</code> import): <code>config/voice_service.toml</code> in the repo, overridden by <code>config/voice_service.local.toml</code> (not committed), then by command-line flags. <code>--config</code> points at another file.</p>
+<p>Its own TOML file, read with the shared <a href="../../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (revised 2026-11-02; no loader of its own, and still no <code>assistant</code> import): <code>config/voice_service.toml</code> in the repo, overridden by <code>config/voice_service.local.toml</code> (not committed), then by command-line flags. <code>--config</code> points at another file.</p>
 <pre><code class="language-toml">[server]
 host = &quot;127.0.0.1&quot;
 port = 8767                 # temp_ui is 8765, the HTML viewer 8766
@@ -757,7 +757,7 @@ file = &quot;&quot;                   # &quot;&quot; = stderr only
 </code></pre>
 <ul>
 <li><strong>Provides nothing, requires nothing, uses nothing optional.</strong> It talks only through commands and events: it handles <code>StartListening</code> and <code>StopListening</code>, publishes <code>VoiceState</code>, <code>VoiceTranscript</code>, and <code>InputReceived</code>. The Talker already subscribes to <code>InputReceived</code>, so it needs no contract from it. Not an <code>IToolProvider</code>: agents don't turn on your mic.</li>
-<li><strong>Permissions, from day one:</strong> <code>microphone</code>, declared <strong>optional</strong> (the module starts and shows its button without it), and asked in the moment with <code>ctx.permissions.request("microphone", reason="You clicked the mic")</code> on each <code>StartListening</code>. A denial returns <code>Status.FAILED</code> with "microphone not allowed" and <code>VoiceState(failed)</code>. The core's <a href="permissions.html">permissions handler</a> doesn't check single names yet, so <code>ctx.permissions</code> allows it and logs the warning; <code>voice_in</code> logs none of its own.</li>
+<li><strong>Permissions, from day one:</strong> <code>microphone</code>, declared <strong>optional</strong> (the module starts and shows its button without it), and asked in the moment with <code>ctx.permissions.request("microphone", reason="You clicked the mic")</code> on each <code>StartListening</code>. A denial returns <code>Status.FAILED</code> with "microphone not allowed" and <code>VoiceState(failed)</code>. The core's <a href="../../architecture/permissions.html">permissions handler</a> doesn't check single names yet, so <code>ctx.permissions</code> allows it and logs the warning; <code>voice_in</code> logs none of its own.</li>
 </ul>
 <p><strong>Commands</strong> (Messaging group, <code>src/assistant/contracts/voice.py</code>):</p>
 <table>
@@ -824,7 +824,7 @@ cleanup = true            # sentence case and one end mark per final (false = th
 terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&quot;, &quot;Unitree&quot;, &quot;Zipformer&quot;]  # written back as given; your own list in config/local.toml
 </code></pre>
 <p>The wait for a dropped mic is the service's setting (<code>[audio] mic_recovery_seconds</code>), since only the service can reopen the mic; <code>voice_in</code> gets it in <code>mic_dropped</code>'s <code>wait_seconds</code>.</p>
-<p><strong>How it launches and watches the service</strong> (the <a href="reusable-parts.html#companion-app-checklist">companion app</a> pattern, through the shared <a href="../api/app_kit.html#companionapp"><code>CompanionApp</code></a>, revised 2026-11-02; no launch code of its own):</p>
+<p><strong>How it launches and watches the service</strong> (the <a href="../../architecture/reusable-parts.html#companion-app-checklist">companion app</a> pattern, through the shared <a href="../../api/app_kit.html#companionapp"><code>CompanionApp</code></a>, revised 2026-11-02; no launch code of its own):</p>
 <ul>
 <li><strong><code>CompanionApp.ensure_running</code></strong>, on each <code>StartListening</code>, under a lock: ping <code>/health</code>. If it answers, use it (a service you started yourself is used and left running). Otherwise launch <code>sys.executable -m voice_service --host --port [--config]</code> with no console, and poll <code>/health</code> every 100 ms until <code>start_timeout</code>, failing early if the process exits. <code>ready: false</code> with an error is <code>engine_failed</code>, not a timeout.</li>
 <li><strong>A quick health check when reusing a running service</strong> (added 2026-11-03): when <code>ensure_running</code> didn't launch it just now, <code>GET /health</code> (2 s). <code>ready: false</code> with an error fails at once with <code>engine_failed</code>, without opening a WebSocket. Still loading: carry on, because the service buffers the audio. No answer: <code>ensure_running</code> again, which relaunches it. A fresh launch skips the check, since <code>CompanionApp</code> has just pinged it.</li>
@@ -832,7 +832,7 @@ terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&q
 <li><strong>Watching:</strong> there's no separate watchdog in phase 1. A crash mid-session shows up as the socket closing without a final: <code>VoiceState(failed, "service_stopped")</code>, nothing sent. The next click runs <code>ensure_running</code> again, which relaunches it; that's the lazy launch, not the left-out auto-restart.</li>
 <li><strong>Logging:</strong> each session logs its start (the stand-in logs the permission warning), the final's length, <code>latency_ms</code>, and how it ended, plus one line with the raw and the cleaned final (<code>raw: '…' -&gt; clean: '…'</code>); the service's <code>detail</code> on every error. The service's own log has the audio length and the text (the protocol doesn't carry the audio length, so <code>voice_in</code> doesn't log it).</li>
 <li><strong><code>stop()</code></strong> (app shutdown or deactivation): abort an open session (close the socket, no <code>InputReceived</code>), then <code>CompanionApp.stop()</code>: only if this module launched the service, <code>POST /quit</code>, wait 5 s, then kill.</li>
-<li><strong>Reload</strong> (<a href="core.html#reloading-a-modules-code"><code>ReloadModule</code></a>, built 2026-11-03): <code>export_state()</code> hands its <code>CompanionApp</code> and its key (service, host, port, args) to the new code, so <code>stop()</code> leaves the voice app running and the new <code>init</code> reuses it if the key matches. An open mic session still ends and its words are dropped; the chat and the Talker aren't touched. While it swaps, the temp UI's mic is crossed out with the reason.</li>
+<li><strong>Reload</strong> (<a href="../../architecture/core.html#reloading-a-modules-code"><code>ReloadModule</code></a>, built 2026-11-03): <code>export_state()</code> hands its <code>CompanionApp</code> and its key (service, host, port, args) to the new code, so <code>stop()</code> leaves the voice app running and the new <code>init</code> reuses it if the key matches. An open mic session still ends and its words are dropped; the chat and the Talker aren't touched. While it swaps, the temp UI's mic is crossed out with the reason.</li>
 <li><strong>The <code>websockets</code> client</strong> is in the optional <code>voice</code> extra and imported in <code>init</code>; without it the module fails to start with "install the voice extra: pip install -e .[voice]", and the rest of the app runs.</li>
 </ul>
 <pre><code class="language-mermaid">sequenceDiagram
@@ -1003,7 +1003,7 @@ terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&q
 <p><strong>Later:</strong> hands-free. The mic stays on, Silero VAD (included in sherpa-onnx) cuts at pauses, and each piece is sent as it comes. A <code>mode</code> setting (<code>toggle</code>, <code>hands_free</code>) on <code>voice_in</code> selects it. Also later: a wake word, not transcribing the assistant's own voice once voice out exists, and a floating mic widget that types into whatever window is focused.</p>
 <h2 id="open">Open</h2>
 <ul>
-<li><strong>Phase 2 and the gateway:</strong> the Quest is meant to connect through the <a href="remote-clients.html">gateway</a>, but streaming audio straight to the service goes around it. The lean is: audio straight to the service, text through the gateway. Decide when phase 2 starts.</li>
+<li><strong>Phase 2 and the gateway:</strong> the Quest is meant to connect through the <a href="../../architecture/remote-clients.html">gateway</a>, but streaming audio straight to the service goes around it. The lean is: audio straight to the service, text through the gateway. Decide when phase 2 starts.</li>
 <li><strong>Several apps at once:</strong> sharing one mic between listeners is left for when a second app exists.</li>
 <li><strong>Engine swapping and whisper:</strong> decided and built 2026-11-03 under <a href="#hot-swappable-engines">Hot-swappable engines</a>. A swap trigger beyond the config file (a picker, say) is a possible later option; nothing is built for it.</li>
 </ul>
@@ -1015,11 +1015,11 @@ terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&q
 <li>One voice handler in three parts. The recorder and receiver live in <code>voice_service</code>, its own shared app. Each app keeps a thin client; in this app that's <code>voice_in</code>.</li>
 <li>Engines through sherpa-onnx: Streaming Zipformer first, then Nemotron Speech Streaming EN 0.6B INT8. Parakeet Unified postponed, Vosk as the fallback, no Whisper. (Refined 2026-11-03: no Whisper <em>for live partial text</em>; whisper is used as an on-send engine, see <a href="#hot-swappable-engines">Hot-swappable engines</a>.)</li>
 </ol>
-<footer>Generated from <code>docs/architecture/voice.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+<footer>Generated from <code>src/assistant/modules/voice_in/docs/voice-service.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>
-<script src="../nav.js"></script>
+<script src="../../nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script src="../site.js"></script>
+<script src="../../site.js"></script>
 </body>
 </html>

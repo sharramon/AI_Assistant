@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>voice_in: architecture</title>
+<!-- Generated from src/assistant/modules/voice_in/docs/architecture.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/voice_in/architecture.html"></nav>
+<main>
+<h1 id="voice_in-architecture">voice_in: architecture</h1>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td>none (its menu is empty)</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td><a href="../../api/messaging.html#startlistening"><code>StartListening</code></a> (<code>send_as_input</code>), <a href="../../api/messaging.html#stoplistening"><code>StopListening</code></a> (<code>discard</code>); the result has the final text</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td><a href="../../api/messaging.html#voicestate"><code>VoiceState</code></a>, <a href="../../api/messaging.html#voicetranscript"><code>VoiceTranscript</code></a> (live and final, with <code>settled_chars</code>), <a href="../../api/messaging.html#inputreceived"><code>InputReceived</code></a> (<code>source="voice"</code>, only with <code>send_as_input</code>)</td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>To the service</td>
+<td>the <a href="../../api/messaging.html#the-voice-service-protocol"><code>/ws/listen</code> protocol</a>, from <code>voice_service.protocol</code> (the only import from the service)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<ul>
+<li><strong>Launches the voice service</strong> on the first mic click, through <a href="../../api/app_kit.html#companionapp"><code>CompanionApp</code></a> (<code>python -m voice_service</code>, port 8767), and quits it when the module stops. A service you started yourself is left running. <strong>On a reload</strong> the running service is handed to the new copy (no model reload), unless the service's own code changed: then it's quit, and the next mic click launches the new code.</li>
+<li><strong>One mic session at a time</strong>, one WebSocket each. The second press wins: a new <code>StartListening</code> ends the open one with <code>VoiceState(idle, reason="taken_over")</code> and an empty final.</li>
+<li><strong>The service owns</strong> the mic (<code>MicSource</code>, or <code>FileSource</code> / <code>FakeSource</code>), the engines (Zipformer for live text, whisper for the sent text, or two passes cleaned piece by piece by <code>PieceCutter</code>), and mic-drop recovery. Its config is <code>config/voice_service.toml</code>.</li>
+</ul>
+<h2 id="inner-workings">Inner workings</h2>
+<pre><code class="language-mermaid">flowchart LR
+    Btn[&quot;&lt;b&gt;Mic button&lt;/b&gt;&lt;br/&gt;temp UI&quot;]
+    Rec[&quot;&lt;b&gt;Record button&lt;/b&gt;&lt;br/&gt;voice_notes&quot;]
+    subgraph VI[&quot;voice_in (thin module)&quot;]
+        Cmd[&quot;StartListening /&lt;br/&gt;StopListening&quot;]
+        Line[&quot;LiveLine&lt;br/&gt;settled + live text&quot;]
+        Clean[&quot;cleanup&lt;br/&gt;case, terms, end mark&quot;]
+    end
+    subgraph VS[&quot;voice service (own app, port 8767)&quot;]
+        Ws[&quot;WebSocket&lt;br/&gt;ws/listen&quot;]
+        Mic[&quot;MicSource&quot;]
+        Eng[&quot;engines&lt;br/&gt;Zipformer · whisper&lt;br/&gt;PieceCutter (two passes)&quot;]
+    end
+    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
+    Subs[&quot;temp UI · voice_notes&quot;]
+
+    Btn -- StartListening --&gt; Cmd
+    Rec -- &quot;StartListening&lt;br/&gt;send_as_input=False&quot; --&gt; Cmd
+    Cmd -- &quot;launch (CompanionApp)&lt;br/&gt;start · stop&quot; --&gt; Ws
+    Mic --&gt; Eng --&gt; Ws
+    Ws -- &quot;partial · cleaned · final&quot; --&gt; Line --&gt; Clean
+    Clean -- &quot;VoiceState · VoiceTranscript&quot; --&gt; Subs
+    Clean -- &quot;InputReceived&lt;br/&gt;(send_as_input)&quot; --&gt; Talker
+</code></pre>
+<p>A session: <code>StartListening</code> launches the service if needed and opens a socket; the service streams live text, which <code>LiveLine</code> keeps as a settled (cleaned) start and a live rest; <code>StopListening</code> asks for the final, which is cleaned and published, and sent to the Talker only if the session asked for it. Details: <a href="voice-service.html#the-voice_in-module">the voice_in module</a>, <a href="voice-service.html#the-voice-service-threads-and-audio-flow">threads and audio flow</a>.</p>
+<h2 id="planned">Planned</h2>
+<p>Built 2026-11-05: <code>voice_in</code> provides the voice contract <code>IVoice</code>, sessions each owned by their caller with a destination. Still later: the service taking several listeners at once, so two sessions could run together.</p>
+<footer>Generated from <code>src/assistant/modules/voice_in/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

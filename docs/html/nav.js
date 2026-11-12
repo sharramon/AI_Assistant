@@ -13,7 +13,6 @@
         "architecture/core.html",
         "architecture/modules.html",
         "architecture/module-library.html",
-        "modules/index.html",
         "architecture/communication.html",
         "architecture/agents.html",
         "architecture/agents-code.html",
@@ -67,10 +66,6 @@
             {
               "name": "Module library",
               "href": "architecture/module-library.html"
-            },
-            {
-              "name": "Module pages",
-              "href": "modules/index.html"
             },
             {
               "name": "Communication",
@@ -168,38 +163,108 @@
     },
     {
       "name": "Agents",
-      "href": "modules/talker.html",
+      "href": "modules/agent_hub/index.html",
       "home": [
-        "modules/talker.html",
-        "modules/main_assistant.html",
-        "modules/agent_hub.html",
-        "modules/task_agents.html",
-        "modules/job_search.html"
+        "modules/agent_hub/index.html",
+        "modules/agent_hub/architecture.html",
+        "modules/agent_hub/tools.html",
+        "modules/main_assistant/index.html",
+        "modules/main_assistant/architecture.html",
+        "modules/main_assistant/tools.html",
+        "modules/talker/index.html",
+        "modules/talker/architecture.html",
+        "modules/talker/tools.html",
+        "modules/task_agents/index.html",
+        "modules/task_agents/architecture.html",
+        "modules/task_agents/tools.html",
+        "modules/usage/index.html",
+        "modules/usage/architecture.html",
+        "modules/usage/tools.html"
       ],
       "sep": true,
       "groups": [
         {
-          "label": "Agents",
+          "label": "agent_hub",
           "pages": [
             {
-              "name": "talker: the agents' Talkers, one per agent tab",
-              "href": "modules/talker.html"
+              "name": "Overview",
+              "href": "modules/agent_hub/index.html"
             },
             {
-              "name": "main_assistant: the worker agent",
-              "href": "modules/main_assistant.html"
+              "name": "Architecture",
+              "href": "modules/agent_hub/architecture.html"
             },
             {
-              "name": "agent_hub: who is doing what",
-              "href": "modules/agent_hub.html"
+              "name": "Tools",
+              "href": "modules/agent_hub/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "main_assistant",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/main_assistant/index.html"
             },
             {
-              "name": "task_agents: helper agents launched by name from kinds in config",
-              "href": "modules/task_agents.html"
+              "name": "Architecture",
+              "href": "modules/main_assistant/architecture.html"
             },
             {
-              "name": "job_search: the job agent and its menu",
-              "href": "modules/job_search.html"
+              "name": "Tools",
+              "href": "modules/main_assistant/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "talker",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/talker/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/talker/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/talker/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "task_agents",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/task_agents/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/task_agents/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/task_agents/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "usage",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/usage/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/usage/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/usage/tools.html"
             }
           ]
         },
@@ -241,44 +306,7 @@
             {
               "name": "SessionTaskAgent (API)",
               "href": "api/infra.html#sessiontaskagent"
-            }
-          ]
-        },
-        {
-          "label": "App-wide",
-          "pages": [
-            {
-              "name": "Architecture overview",
-              "href": "architecture/index.html"
             },
-            {
-              "name": "Module library",
-              "href": "architecture/module-library.html"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "usage",
-      "href": "modules/usage.html",
-      "home": [
-        "modules/usage.html"
-      ],
-      "sep": false,
-      "groups": [
-        {
-          "label": "usage",
-          "pages": [
-            {
-              "name": "usage: every agent's tokens since launch",
-              "href": "modules/usage.html"
-            }
-          ]
-        },
-        {
-          "label": "Related",
-          "pages": [
             {
               "name": "SessionUsage (API)",
               "href": "api/agents.html#sessionusage"
@@ -305,206 +333,69 @@
       ]
     },
     {
-      "name": "voice_in",
-      "href": "modules/voice_in.html",
+      "name": "Terminals and temp UI",
+      "href": "modules/assistant_view/index.html",
       "home": [
-        "modules/voice_in.html",
-        "architecture/voice.html"
+        "modules/assistant_view/index.html",
+        "modules/assistant_view/architecture.html",
+        "modules/assistant_view/tools.html",
+        "modules/console_io/index.html",
+        "modules/console_io/architecture.html",
+        "modules/console_io/tools.html",
+        "modules/temp_ui/index.html",
+        "modules/temp_ui/architecture.html",
+        "modules/temp_ui/tools.html"
       ],
       "sep": false,
       "groups": [
         {
-          "label": "voice_in",
-          "pages": [
-            {
-              "name": "voice_in: voice input and the voice service",
-              "href": "modules/voice_in.html"
-            },
-            {
-              "name": "Voice",
-              "href": "architecture/voice.html"
-            }
-          ]
-        },
-        {
-          "label": "Related",
-          "pages": [
-            {
-              "name": "Voice messages (API)",
-              "href": "api/messaging.html#voice"
-            },
-            {
-              "name": "Voice service protocol (API)",
-              "href": "api/messaging.html#the-voice-service-protocol"
-            },
-            {
-              "name": "Voice service parts (API)",
-              "href": "api/messaging.html#the-voice-services-parts"
-            }
-          ]
-        },
-        {
-          "label": "App-wide",
-          "pages": [
-            {
-              "name": "Architecture overview",
-              "href": "architecture/index.html"
-            },
-            {
-              "name": "Module library",
-              "href": "architecture/module-library.html"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "voice_notes",
-      "href": "modules/voice_notes.html",
-      "home": [
-        "modules/voice_notes.html"
-      ],
-      "sep": false,
-      "groups": [
-        {
-          "label": "voice_notes",
-          "pages": [
-            {
-              "name": "voice_notes: speak into a page of notes",
-              "href": "modules/voice_notes.html"
-            }
-          ]
-        },
-        {
-          "label": "Related",
-          "pages": [
-            {
-              "name": "Voice messages (API)",
-              "href": "api/messaging.html#voice"
-            },
-            {
-              "name": "Chaining modules",
-              "href": "architecture/modules.html#chaining-modules"
-            }
-          ]
-        },
-        {
-          "label": "App-wide",
-          "pages": [
-            {
-              "name": "Architecture overview",
-              "href": "architecture/index.html"
-            },
-            {
-              "name": "Module library",
-              "href": "architecture/module-library.html"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "html_viewer",
-      "href": "modules/html_viewer.html",
-      "home": [
-        "modules/html_viewer.html",
-        "architecture/html-viewer.html"
-      ],
-      "sep": false,
-      "groups": [
-        {
-          "label": "html_viewer",
-          "pages": [
-            {
-              "name": "html_viewer: the HTML viewer and its app",
-              "href": "modules/html_viewer.html"
-            },
-            {
-              "name": "HTML viewer",
-              "href": "architecture/html-viewer.html"
-            }
-          ]
-        },
-        {
-          "label": "Related",
-          "pages": [
-            {
-              "name": "Viewer tools (API)",
-              "href": "api/tools.html#tools-offered-today"
-            },
-            {
-              "name": "Viewer events (API)",
-              "href": "api/messaging.html#viewertabschanged"
-            },
-            {
-              "name": "CompanionApp (API)",
-              "href": "api/app_kit.html#companionapp"
-            },
-            {
-              "name": "The viewer in the runtime",
-              "href": "agents/runtime.html#html-viewer"
-            }
-          ]
-        },
-        {
-          "label": "App-wide",
-          "pages": [
-            {
-              "name": "Architecture overview",
-              "href": "architecture/index.html"
-            },
-            {
-              "name": "Module library",
-              "href": "architecture/module-library.html"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Stand-ins and terminals",
-      "href": "modules/temp_ui.html",
-      "home": [
-        "modules/temp_ui.html",
-        "modules/console_io.html",
-        "modules/assistant_view.html",
-        "modules/echo_orchestrator/index.html",
-        "modules/echo_orchestrator/architecture.html",
-        "modules/echo_orchestrator/tools.html"
-      ],
-      "sep": false,
-      "groups": [
-        {
-          "label": "Stand-ins and terminals",
-          "pages": [
-            {
-              "name": "temp_ui: the temporary two-pane page",
-              "href": "modules/temp_ui.html"
-            },
-            {
-              "name": "console_io: terminal 1",
-              "href": "modules/console_io.html"
-            },
-            {
-              "name": "assistant_view: terminal 2",
-              "href": "modules/assistant_view.html"
-            }
-          ]
-        },
-        {
-          "label": "echo_orchestrator",
+          "label": "assistant_view",
           "pages": [
             {
               "name": "Overview",
-              "href": "modules/echo_orchestrator/index.html"
+              "href": "modules/assistant_view/index.html"
             },
             {
               "name": "Architecture",
-              "href": "modules/echo_orchestrator/architecture.html"
+              "href": "modules/assistant_view/architecture.html"
             },
             {
               "name": "Tools",
-              "href": "modules/echo_orchestrator/tools.html"
+              "href": "modules/assistant_view/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "console_io",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/console_io/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/console_io/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/console_io/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "temp_ui",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/temp_ui/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/temp_ui/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/temp_ui/tools.html"
             }
           ]
         },
@@ -541,6 +432,70 @@
       ]
     },
     {
+      "name": "voice_in",
+      "href": "modules/voice_in/index.html",
+      "home": [
+        "modules/voice_in/index.html",
+        "modules/voice_in/architecture.html",
+        "modules/voice_in/tools.html",
+        "modules/voice_in/voice-service.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "voice_in",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/voice_in/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/voice_in/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/voice_in/tools.html"
+            },
+            {
+              "name": "Voice",
+              "href": "modules/voice_in/voice-service.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "Voice messages (API)",
+              "href": "api/messaging.html#voice"
+            },
+            {
+              "name": "Voice service protocol (API)",
+              "href": "api/messaging.html#the-voice-service-protocol"
+            },
+            {
+              "name": "Voice service parts (API)",
+              "href": "api/messaging.html#the-voice-services-parts"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "cv",
       "href": "modules/cv/index.html",
       "home": [
@@ -548,7 +503,7 @@
         "modules/cv/architecture.html",
         "modules/cv/tools.html"
       ],
-      "sep": false,
+      "sep": true,
       "groups": [
         {
           "label": "cv",
@@ -596,19 +551,229 @@
       ]
     },
     {
-      "name": "Job project",
-      "href": "job-project/index.html",
+      "name": "echo_orchestrator",
+      "href": "modules/echo_orchestrator/index.html",
       "home": [
-        "job-project/index.html"
+        "modules/echo_orchestrator/index.html",
+        "modules/echo_orchestrator/architecture.html",
+        "modules/echo_orchestrator/tools.html"
       ],
-      "sep": true,
+      "sep": false,
       "groups": [
         {
-          "label": "Job project",
+          "label": "echo_orchestrator",
           "pages": [
             {
               "name": "Overview",
-              "href": "job-project/index.html"
+              "href": "modules/echo_orchestrator/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/echo_orchestrator/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/echo_orchestrator/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "html_viewer",
+      "href": "modules/html_viewer/index.html",
+      "home": [
+        "modules/html_viewer/index.html",
+        "modules/html_viewer/architecture.html",
+        "modules/html_viewer/tools.html",
+        "modules/html_viewer/viewer-app.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "html_viewer",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/html_viewer/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/html_viewer/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/html_viewer/tools.html"
+            },
+            {
+              "name": "HTML viewer",
+              "href": "modules/html_viewer/viewer-app.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "Viewer tools (API)",
+              "href": "api/tools.html#tools-offered-today"
+            },
+            {
+              "name": "Viewer events (API)",
+              "href": "api/messaging.html#viewertabschanged"
+            },
+            {
+              "name": "CompanionApp (API)",
+              "href": "api/app_kit.html#companionapp"
+            },
+            {
+              "name": "The viewer in the runtime",
+              "href": "agents/runtime.html#html-viewer"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "job_search",
+      "href": "modules/job_search/index.html",
+      "home": [
+        "modules/job_search/index.html",
+        "modules/job_search/architecture.html",
+        "modules/job_search/tools.html",
+        "modules/job_search/job-project.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "job_search",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/job_search/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/job_search/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/job_search/tools.html"
+            },
+            {
+              "name": "Job project",
+              "href": "modules/job_search/job-project.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "Agents (architecture)",
+              "href": "architecture/agents.html"
+            },
+            {
+              "name": "Agents API",
+              "href": "api/agents.html"
+            },
+            {
+              "name": "SessionTaskAgent (API)",
+              "href": "api/infra.html#sessiontaskagent"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "voice_notes",
+      "href": "modules/voice_notes/index.html",
+      "home": [
+        "modules/voice_notes/index.html",
+        "modules/voice_notes/architecture.html",
+        "modules/voice_notes/tools.html"
+      ],
+      "sep": false,
+      "groups": [
+        {
+          "label": "voice_notes",
+          "pages": [
+            {
+              "name": "Overview",
+              "href": "modules/voice_notes/index.html"
+            },
+            {
+              "name": "Architecture",
+              "href": "modules/voice_notes/architecture.html"
+            },
+            {
+              "name": "Tools",
+              "href": "modules/voice_notes/tools.html"
+            }
+          ]
+        },
+        {
+          "label": "Related",
+          "pages": [
+            {
+              "name": "Voice messages (API)",
+              "href": "api/messaging.html#voice"
+            },
+            {
+              "name": "Chaining modules",
+              "href": "architecture/modules.html#chaining-modules"
+            }
+          ]
+        },
+        {
+          "label": "App-wide",
+          "pages": [
+            {
+              "name": "Architecture overview",
+              "href": "architecture/index.html"
+            },
+            {
+              "name": "Module library",
+              "href": "architecture/module-library.html"
             }
           ]
         }

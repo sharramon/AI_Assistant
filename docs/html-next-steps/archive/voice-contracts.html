@@ -23,10 +23,10 @@
 <li><code>src/assistant/contracts/__init__.py</code>: export them.</li>
 <li><code>src/voice_service/__init__.py</code> (new, empty) and <code>src/voice_service/protocol.py</code> (new): the WebSocket protocol's messages. See open question 1.</li>
 <li><code>tests/test_voice_contracts.py</code> (new).</li>
-<li>Docs: <a href="../../html/api/messaging.html">Messaging API</a> (four entries, plus the protocol), the <a href="../../html/api/index.html">API index</a>, the <a href="../../html/api/reusable.html">reusable parts index</a>, <a href="../../html/architecture/voice.html">Voice</a> (status line; <code>VoiceState.state</code> becomes <code>ListeningState</code>), and <a href="../index.html">Next steps</a> (step 1 done; step 3's text still says "copy <code>_ensure_running</code>, log its own warning", which I'd fix to say <code>CompanionApp</code> and <code>ctx.permissions</code>, as already decided). Then rebuild.</li>
+<li>Docs: <a href="../../html/api/messaging.html">Messaging API</a> (four entries, plus the protocol), the <a href="../../html/api/index.html">API index</a>, the <a href="../../html/api/reusable.html">reusable parts index</a>, <a href="../../html/modules/voice_in/voice-service.html">Voice</a> (status line; <code>VoiceState.state</code> becomes <code>ListeningState</code>), and <a href="../index.html">Next steps</a> (step 1 done; step 3's text still says "copy <code>_ensure_running</code>, log its own warning", which I'd fix to say <code>CompanionApp</code> and <code>ctx.permissions</code>, as already decided). Then rebuild.</li>
 <li>No module, config, or <code>pyproject.toml</code> changes. Nothing uses the new types yet.</li>
 </ul>
-<p><strong>Approach:</strong> the fields are the ones already approved in <a href="../../html/architecture/voice.html#the-voice_in-module">the voice_in module</a>, as frozen pydantic models like every other message.</p>
+<p><strong>Approach:</strong> the fields are the ones already approved in <a href="../../html/modules/voice_in/voice-service.html#the-voice_in-module">the voice_in module</a>, as frozen pydantic models like every other message.</p>
 <pre><code class="language-python"># assistant/contracts/voice.py
 class StartListening(Command):
     send_as_input: bool = True      # False: text only to VoiceTranscript subscribers, never the Talker
@@ -72,7 +72,7 @@ def dump(msg) -&gt; str                                         # one JSON text 
 <p><strong>Tests</strong> (<code>tests/test_voice_contracts.py</code>, no mic, no model, no network):</p>
 <ul>
 <li>The contracts: defaults (<code>send_as_input=True</code>, <code>final=False</code>), frozen, <code>ListeningState</code> has exactly the four values, a bad <code>state</code> rejected, a plain <code>"listening"</code> accepted and turned into <code>ListeningState.LISTENING</code>, all exported from <code>assistant.contracts</code>.</li>
-<li>The protocol: each message dumps and parses back unchanged; JSON matches the <a href="../../html/architecture/voice.html#the-protocol">protocol table</a> exactly (<code>{"type": "start"}</code>, etc.); unknown <code>type</code>, bad JSON, or a missing field raises <code>ProtocolError</code>; a client parser refuses service messages and the reverse; the error codes are exactly the five listed.</li>
+<li>The protocol: each message dumps and parses back unchanged; JSON matches the <a href="../../html/modules/voice_in/voice-service.html#the-protocol">protocol table</a> exactly (<code>{"type": "start"}</code>, etc.); unknown <code>type</code>, bad JSON, or a missing field raises <code>ProtocolError</code>; a client parser refuses service messages and the reverse; the error codes are exactly the five listed.</li>
 <li><code>voice_service.protocol</code> imports nothing from <code>assistant</code> (checked in the test).</li>
 <li>Then all of <code>pytest</code> and <code>ruff</code>.</li>
 </ul>
@@ -86,7 +86,7 @@ def dump(msg) -&gt; str                                         # one JSON text 
 <p><strong>Decided by you (2026-11-03):</strong></p>
 <ol>
 <li><strong>The protocol's shapes live in <code>voice_service/protocol.py</code></strong>, built now, and <code>voice_in</code> imports that one file, so the service and the client share one definition and can't drift. <code>voice_service/__init__.py</code> stays empty, so the import doesn't pull in FastAPI or sherpa-onnx. <strong>Approved.</strong></li>
-<li><strong>The voice state is a named enum, <code>ListeningState</code></strong> (a <code>StrEnum</code>, like <code>TaskState</code>), not the design's <code>Literal</code> of plain strings: these are real states, and an enum is easier to edit later. The JSON is unchanged (<code>"listening"</code> etc.). <a href="../../html/architecture/voice.html#the-voice_in-module">Voice</a> and the Messaging API get updated to match. <strong>Changed as you asked.</strong></li>
+<li><strong>The voice state is a named enum, <code>ListeningState</code></strong> (a <code>StrEnum</code>, like <code>TaskState</code>), not the design's <code>Literal</code> of plain strings: these are real states, and an enum is easier to edit later. The JSON is unchanged (<code>"listening"</code> etc.). <a href="../../html/modules/voice_in/voice-service.html#the-voice_in-module">Voice</a> and the Messaging API get updated to match. <strong>Changed as you asked.</strong></li>
 </ol>
 <p><strong>Open questions:</strong> none.</p>
 <footer>Generated from <code>docs/next-steps/archive/voice-contracts.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

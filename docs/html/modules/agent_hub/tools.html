@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent_hub: tools</title>
+<!-- Generated from src/assistant/modules/agent_hub/docs/tools.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/agent_hub/tools.html"></nav>
+<main>
+<h1 id="agent_hub-tools">agent_hub: tools</h1>
+<!-- tools:start (generated from the module's menu by scripts/build_docs.py; don't edit) -->
+
+<p>Its menu, as the main AI sees it (<code>modules.menu</code>). Every item is called with <code>modules.use_item</code>.</p>
+<h2 id="hubagents"><code>hub.agents</code></h2>
+<p>The big agents: state (active or idle; an idle one takes work, whatever it asked), focused (the one the user talks to), holding a question (!), and their open task</p>
+<p>No arguments.</p>
+<h2 id="hubstatus"><code>hub.status</code></h2>
+<p>Task status without disturbing the agent: one task, or the open and recent ones</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task_id</code></td>
+<td>string</td>
+<td>no</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubstart"><code>hub.start</code></h2>
+<p>Start a task on a free agent (or the one named); your open task becomes its parent</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>string</td>
+<td>no</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubsend"><code>hub.send</code></h2>
+<p>Pass words to a task or an agent. task_id: your own child task (the Talker: any), straight in. agent_id: message that agent; its open task if it's your child, else it arrives when its turn ends (into its open task or as a new task), and the first message to it asks the user once on a card (Allow once / Always / Deny; the reply says 'waiting on the user's card'). The Talker with neither: the focused agent</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>task_id</code></td>
+<td>string</td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>pause</code></td>
+<td>boolean</td>
+<td>no</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubcancel"><code>hub.cancel</code></h2>
+<p>Stop a task, like Esc (the Talker: any task; others: their child tasks)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubanswer"><code>hub.answer</code></h2>
+<p>Allow or deny a task's open permission request, once (the Talker, after the user answered)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>allow</code></td>
+<td>boolean</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubmode"><code>hub.mode</code></h2>
+<p>Switch an agent to Manual (only the user switches to Auto, with the app's button)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubfocus"><code>hub.focus</code></h2>
+<p>Move the focus to an agent, after the user said so (empty: back to the main one)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hubsuggest_focus"><code>hub.suggest_focus</code></h2>
+<p>Suggest the user talks to an agent directly (the coordinator only); the Talker asks them</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td>no</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<!-- tools:end -->
+<footer>Generated from <code>src/assistant/modules/agent_hub/docs/tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

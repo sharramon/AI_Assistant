@@ -180,7 +180,7 @@
     classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     class Video planned
 </code></pre>
-<p>Solid: built (the mic button's flow, and voice notes v1, which follows its own sessions by the <code>StartListening</code> id; see <a href="../modules/voice_notes.html">voice_notes</a>). Purple, dashed: planned. Today the voice service takes one listener at a time (a second <code>start</code> gets <code>busy</code>) and <code>StartListening</code> only chooses whether the Talker gets the text (<code>send_as_input</code>). The video case feeds a file instead of the mic; the service already has a file source and <code>transcribe_file</code> (<a href="voice.html#a-shared-service">voice</a>).</p>
+<p>Solid: built (the mic button's flow, and voice notes v1, which follows its own sessions by the <code>StartListening</code> id; see <a href="../modules/voice_notes/index.html">voice_notes</a>). Purple, dashed: planned. Today the voice service takes one listener at a time (a second <code>start</code> gets <code>busy</code>) and <code>StartListening</code> only chooses whether the Talker gets the text (<code>send_as_input</code>). The video case feeds a file instead of the mic; the service already has a file source and <code>transcribe_file</code> (<a href="../modules/voice_in/voice-service.html#a-shared-service">voice</a>).</p>
 <h2 id="dependencies">Dependencies</h2>
 <blockquote>
 <p><strong>Status:</strong> built, by contract, including the voice contract (2026-11-05).</p>

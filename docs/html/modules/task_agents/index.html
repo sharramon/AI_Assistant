@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>task_agents: helper agents launched by name from kinds in config</title>
+<!-- Generated from src/assistant/modules/task_agents/docs/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/task_agents/index.html"></nav>
+<main>
+<h1 id="task_agents-helper-agents-launched-by-name-from-kinds-in-config">task_agents: helper agents launched by name from kinds in config</h1>
+<h2 id="purpose">Purpose</h2>
+<p>Builds the helper agents beside the Main Assistant from <em>kinds</em> of helper in config. Each helper is a task agent the Agent Hub can start, focus and hold questions for. A helper is launched by name for one task, only with your yes; a kind with <code>autostart = true</code> also starts at launch. Off at launch (turn it on with <code>modules.on</code>). Design: <a href="../../architecture/agents.html#working-together">working together</a>, <a href="../../architecture/agents.html#launching-a-helper">launching a helper</a>.</p>
+<h2 id="wrapper">Wrapper</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td><code>task_agents</code></td>
+</tr>
+<tr>
+<td>provides</td>
+<td><a href="../../api/agents.html#itaskagent"><code>ITaskAgent</code></a>, once per helper (only the Hub calls them)</td>
+</tr>
+<tr>
+<td>requires / optional</td>
+<td>none (uses <a href="../../api/agents.html#iagentnames"><code>IAgentNames</code></a> when the Hub runs)</td>
+</tr>
+<tr>
+<td>permissions</td>
+<td><code>agent.access</code>: each kind's access list is asked for on one card (<a href="../../architecture/permissions.html#access-lists-built">access lists</a>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="config">Config</h2>
+<p><code>[modules.task_agents]</code>: defaults for every kind. <code>[modules.task_agents.agents.&lt;kind&gt;]</code>: one kind, with the keys of <code>[modules.main_assistant]</code> plus <code>description</code>, <code>prompt</code>, <code>autostart</code> (start at launch; default false) and <code>instances</code> (how many to autostart). The shipped <code>helper</code> kind works in <code>../assistant-helper</code> (outside the repo, which the Main Assistant writes) and isn't autostarted.</p>
+<h2 id="code-and-tests">Code and tests</h2>
+<ul>
+<li><code>src/assistant/modules/task_agents/module.py</code>; <code>src/assistant/infra/profile_agent.py</code></li>
+<li><code>tests/test_task_agents.py</code> (two agents at once, <code>STATUS:</code> to the coordinator, <code>NEED:</code> held until focused, the cap refusing a fourth extra agent, the door under each agent's name, a kind's grant reaching all its helpers, an idle session restarting on a grant and a busy one waiting)</li>
+<li><code>tests/test_agent_names.py</code> (launch proposes, allowed, denied, refused from the Talker or with no task)</li>
+<li><code>tests/test_agent_tabs.py</code> (opened by you: idle or with a task, free names, a denied access card, closing)</li>
+<li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>
+</ul>
+<footer>Generated from <code>src/assistant/modules/task_agents/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

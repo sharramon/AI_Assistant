@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>main_assistant: architecture</title>
+<!-- Generated from src/assistant/modules/main_assistant/docs/architecture.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../../" data-page="modules/main_assistant/architecture.html"></nav>
+<main>
+<h1 id="main_assistant-architecture">main_assistant: architecture</h1>
+<h2 id="interface">Interface</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Handles</td>
+<td>nothing: it is called through <code>ITaskAgent</code> (<code>assign</code>, <code>message</code>, <code>cancel</code>, <code>answer_permission</code>, <code>set_permission_mode</code>, <code>note</code>)</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td><a href="../../api/agents.html#reporttask"><code>ReportTask</code></a> (<code>progress</code>, <code>milestone</code> from its <code>STATUS:</code> lines, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code>); the <a href="../../api/agents.html#the-hubs-menu">Hub's menu</a> through the door</td>
+</tr>
+<tr>
+<td>Publishes</td>
+<td><a href="../../api/agents.html#agentactivity"><code>AgentActivity</code></a>, <a href="../../api/agents.html#agentstatechanged"><code>AgentStateChanged</code></a>, <a href="../../api/agents.html#sessionusage"><code>SessionUsage</code></a>, <a href="../../api/agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a></td>
+</tr>
+<tr>
+<td>Listens to</td>
+<td><a href="../../api/agents.html#resetrequested"><code>ResetRequested</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="owns-and-launches">Owns and launches</h2>
+<ul>
+<li><strong>A <code>claude -p</code> process</strong> per task (<code>fresh_sessions</code>), through the shared <a href="../../api/infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> and <a href="../../api/infra.html#claudesession"><code>ClaudeSession</code></a>. It starts with the module and stops with it.</li>
+<li><strong>Its transcript</strong> in the launch's log folder.</li>
+<li><strong>Its setup</strong> through the shared <a href="../../api/infra.html#profileagent"><code>ProfileAgent</code></a> (like every big agent) and its <a href="../../api/infra.html#agentprofile"><code>AgentProfile</code></a> (<code>coordinator=True</code>): folders (<code>write_folders</code>, for the Hub's folder check), rules, command line, and the prompt with the shared block on <code>STATUS:</code> and <code>NEED:</code>. Its id <code>main_assistant</code> is claimed from the Hub on start (<a href="../../architecture/agents.html#agent-names">agent names</a>); as its module's own id, it's allowed.</li>
+<li><strong>Launching helpers</strong> (built 2026-11-05): the coordinator's block tells it to use <code>agents.kinds</code> / <code>agents.launch</code> / <code>agents.close</code> on <code>task_agents</code>' menu, only when you asked for a helper, naming it from the task. <code>agents.launch</code> puts the question to you as the permission card on its task (<code>request_approval</code>); it ends its turn and gets the outcome as its next message (<a href="../../architecture/agents.html#launching-a-helper">launching a helper</a>).</li>
+<li><strong>The module door</strong> in each new session (built 2026-11-05): <code>IModuleDoor.mcp_config("main_assistant")</code>, read at each session start, becomes <code>--mcp-config</code>. Its tools <code>list_modules</code> and <code>show_menu</code> are allowed; <code>use_item</code> asks with the card in Manual. The prompt tells it to use them. <code>door = false</code> in its config turns it off. It doesn't list <code>IModuleDoor</code> as <code>optional</code> (the Hub lists <code>ITaskAgent</code>, and the two would be circular), so its first session may start before the door is up; the next task's fresh session has it.</li>
+</ul>
+<h2 id="inner-workings">Inner workings</h2>
+<pre><code class="language-mermaid">flowchart LR
+    Hub[&quot;&lt;b&gt;Agent Hub&lt;/b&gt;&quot;]
+    STA[&quot;SessionTaskAgent&lt;br/&gt;task · handoffs · mode&quot;]
+    Claude[&quot;claude -p&lt;br/&gt;built for Manual or Auto&quot;]
+    Out[&quot;AgentActivity · usage ·&lt;br/&gt;state · mode&quot;]
+
+    Hub -- &quot;ITaskAgent.assign / message&quot; --&gt; STA
+    STA --&gt; Claude
+    Claude -- &quot;stream events&quot; --&gt; STA
+    STA -- ReportTask --&gt; Hub
+    STA --&gt; Out
+</code></pre>
+<p>Each session's command line and prompt are built for the permission mode at that moment: Manual at every launch, Auto only from the UI button. A <code>HANDOFF:</code> line starts a fresh session from a note (<a href="../../agents/runtime.html#fresh-sessions-and-handoffs">fresh sessions and handoffs</a>).</p>
+<h2 id="planned">Planned</h2>
+<p>From the module-shape refactor: it calls module tools through the <strong>directory and menu</strong> (its SHOW lines are sent as <code>InvokeTool</code> by its <code>SessionTaskAgent</code>), and module control becomes core tools it can use with your approval.</p>
+<footer>Generated from <code>src/assistant/modules/main_assistant/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../../site.js"></script>
+</body>
+</html>

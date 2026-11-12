@@ -13,7 +13,7 @@
 <main>
 <h1 id="voice-two-passes-live-text-while-you-talk-whisper-cleans-it-piece-by-piece">Voice: two passes (live text while you talk, whisper cleans it piece by piece)</h1>
 <blockquote>
-<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Loaded at the relaunch of 2026-11-03 16:02. You approved every recommendation in the <a href="#open-questions">open questions</a>; the answers are recorded there. The real check passed (<a href="#results">Results</a>). The design now lives on the voice page: <a href="../html/architecture/voice.html#two-passes-live-text-cleaned-piece-by-piece">Two passes</a>. Then your check (step 3.5).</p>
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Loaded at the relaunch of 2026-11-03 16:02. You approved every recommendation in the <a href="#open-questions">open questions</a>; the answers are recorded there. The real check passed (<a href="#results">Results</a>). The design now lives on the voice page: <a href="../html/modules/voice_in/voice-service.html#two-passes-live-text-cleaned-piece-by-piece">Two passes</a>. Then your check (step 3.5).</p>
 <p><strong>Revised:</strong> whisper now works on pieces while you talk ("chunked whisper"), instead of only once after you stop. This replaces the earlier answer to open question 9 ("no background decoding"). It's now <a href="#decided-in-this-revision">decided</a>.</p>
 </blockquote>
 <p><strong>Asked (in your words, spoken):</strong> "I want the first pass to show the words as I talk, and then I want whisper to clean up when I press the mic button, so that it cleans it up and sends." Then: "a real-time update, since it does show my words going up, but that whisper replaces the parts as it goes, and when I press the send button it just finishes the task of sending the entire message."</p>
@@ -26,7 +26,7 @@
 <li>If whisper fails or is slow on a piece, that part keeps the Zipformer words. The 20 s timeout after stop falls back to the live text for anything still not cleaned.</li>
 </ul>
 <p><strong>Why:</strong> each engine alone falls short. The Zipformer gives words as you speak but in capitals with no punctuation, and it makes more mistakes on long talk. Whisper is more accurate and comes cased and punctuated, but it gives nothing until it has the audio. Pieces give both: live words at once, clean text a second or two later, and a short wait after stop however long you talked.</p>
-<p><strong>What changes from the whisper build:</strong> decision 4 on the <a href="../html/architecture/voice.html#hot-swappable-engines">voice page</a> ("whisper is used for the live mic too, with the text on send") becomes "the live engine listens, the final engine cleans each piece and writes the text you send". One-engine mode stays: leave the final engine empty and the service behaves exactly as today.</p>
+<p><strong>What changes from the whisper build:</strong> decision 4 on the <a href="../html/modules/voice_in/voice-service.html#hot-swappable-engines">voice page</a> ("whisper is used for the live mic too, with the text on send") becomes "the live engine listens, the final engine cleans each piece and writes the text you send". One-engine mode stays: leave the final engine empty and the service behaves exactly as today.</p>
 <h2 id="touches">Touches</h2>
 <ul>
 <li><strong><code>src/voice_service/</code></strong> (still never imports <code>assistant</code>):</li>
@@ -322,7 +322,7 @@ cut_search_seconds = 3.0      # a forced cut looks this far back for the quietes
 </ul>
 <h2 id="docs-to-update">Docs to update</h2>
 <ul>
-<li><strong><a href="../html/architecture/voice.html">Voice</a>:</strong></li>
+<li><strong><a href="../html/modules/voice_in/voice-service.html">Voice</a>:</strong></li>
 <li>Layers: the session connects a source to a live engine and an optional final engine, with the piece cutter. The diagram gets both.</li>
 <li>Hot-swappable engines: decision 4 revised (two passes with pieces; one engine still possible). <code>final</code> is in the swap.</li>
 <li>Threads: the <code>voice-clean</code> thread and the piece queue. Files and classes: <code>pieces.py</code>, <code>SttStream.cancel</code>, <code>ListenSession</code>'s two engines, in the class diagram.</li>

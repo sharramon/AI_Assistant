@@ -13,7 +13,7 @@
 <main>
 <h1 id="voice-the-layers-in-code-and-whisper-as-a-second-engine">Voice: the layers in code, and whisper as a second engine</h1>
 <blockquote>
-<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Loaded at the relaunch of 2026-11-03 16:02. You checked the note and answered its <a href="#open-questions">open questions</a>. The design it builds is on the voice page: <a href="../html/architecture/voice.html#layers">Layers</a> and <a href="../html/architecture/voice.html#hot-swappable-engines">Hot-swappable engines</a>. Measured waits are under <a href="#results">Results</a>. Your check: set <code>[engine] name = "whisper"</code> in <code>config/voice_service.local.toml</code>, talk, stop, and see the text arrive on send.</p>
+<p><strong>Status: built (waiting on you), 2026-11-03.</strong> Loaded at the relaunch of 2026-11-03 16:02. You checked the note and answered its <a href="#open-questions">open questions</a>. The design it builds is on the voice page: <a href="../html/modules/voice_in/voice-service.html#layers">Layers</a> and <a href="../html/modules/voice_in/voice-service.html#hot-swappable-engines">Hot-swappable engines</a>. Measured waits are under <a href="#results">Results</a>. Your check: set <code>[engine] name = "whisper"</code> in <code>config/voice_service.local.toml</code>, talk, stop, and see the text arrive on send.</p>
 <p><strong>Decision 4 revised (2026-11-03):</strong> whisper is now by default the final engine of <a href="voice-two-pass.html">two passes</a>, cleaning the Zipformer's live text piece by piece.</p>
 </blockquote>
 <h2 id="results">Results</h2>
@@ -253,7 +253,7 @@ StopListening = 120.0       # an on-send final may take a while to decode
 </ul>
 <h2 id="docs-to-update">Docs to update</h2>
 <ul>
-<li><strong><a href="../html/architecture/voice.html">Voice</a>:</strong></li>
+<li><strong><a href="../html/modules/voice_in/voice-service.html">Voice</a>:</strong></li>
 <li>The Layers table and diagram: file source, whisper and the utility move from planned to built.</li>
 <li>The files tree and class diagram: <code>FileSource</code>, <code>transcribe.py</code>, <code>engines/whisper.py</code>, <code>live_partials</code>.</li>
 <li>The config block, the protocol table (<code>start.partials</code>, <code>started.partials</code>), the voice_in config, and the cleanup rule.</li>

@@ -22,7 +22,7 @@
 <li><strong>A grey line above the input</strong> shows, in order of what's happening:</li>
 <li><em>listening:</em> the live text from <code>VoiceTranscript</code> partials ("Listening…" before the first one);</li>
 <li><em>dropped:</em> "⦸ Mic dropped, waiting 12 s for it to come back · 8 words so far", the countdown ticking down;</li>
-<li><em>failed:</em> "Mic: " and the state's <code>detail</code> (already a short plain sentence, from <a href="../../html/architecture/voice.html#the-voice_in-module-how-errors-reach-the-button">the error table</a>); it stays until the next click;</li>
+<li><em>failed:</em> "Mic: " and the state's <code>detail</code> (already a short plain sentence, from <a href="../../html/modules/voice_in/voice-service.html#the-voice_in-module-how-errors-reach-the-button">the error table</a>); it stays until the next click;</li>
 <li><em>idle after a silence stop:</em> "Mic: mic turned off after a long silence".</li>
 <li><strong>Your spoken message</strong> shows in the chat as your own message, like typed text, marked "spoken" next to its time (<code>InputReceived(source="voice")</code>; the temp UI already showed every <code>InputReceived</code>).</li>
 <li><strong><code>voice_in</code> is on:</strong> added to <code>[modules] enabled</code> in <code>config/default.toml</code>. Without the voice extra its <code>init</code> fails and the core skips it; the rest of the app runs, and the button says "voice input is off".</li>
@@ -42,7 +42,7 @@
 <li><code>src/assistant/modules/temp_ui/module.py</code> (<code>POST /mic</code>, <code>VoiceState</code> and <code>VoiceTranscript</code> subscribers, the <code>voice</code> state item, <code>voice: true</code> on spoken input), <code>page.html</code> (button, line, countdown).</li>
 <li><code>config/default.toml</code> (<code>voice_in</code> in <code>enabled</code>).</li>
 <li><code>tests/test_temp_ui.py</code> (the mic round trip, stale sessions, the dropped countdown, voice input off).</li>
-<li>Docs: <a href="../../html/agents/runtime.html#temp-ui">runtime: temp UI</a>, <a href="../../html/architecture/voice.html">Voice</a> (status, flowcharts), the overview, <a href="../index.html">Next steps</a>.</li>
+<li>Docs: <a href="../../html/agents/runtime.html#temp-ui">runtime: temp UI</a>, <a href="../../html/modules/voice_in/voice-service.html">Voice</a> (status, flowcharts), the overview, <a href="../index.html">Next steps</a>.</li>
 </ul>
 <footer>Generated from <code>docs/next-steps/archive/voice-temp-ui.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
