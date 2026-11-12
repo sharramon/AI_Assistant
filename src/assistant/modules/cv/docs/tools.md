@@ -86,7 +86,7 @@ One job's full details from rezi.search_jobs
 
 ## `cv.task`
 
-Checks one job (the JD as text, the base CV as a CV_Test_*.pdf) and starts cv_agent on it as your child task; at the user's Submit the one-page PDF and its score come back to you as a message (the job agent's hand-off)
+Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv_agent on it as your child task; at the user's Submit the one-page PDF and its score come back to you as a message (the job agent's hand-off)
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|
@@ -94,7 +94,7 @@ Checks one job (the JD as text, the base CV as a CV_Test_*.pdf) and starts cv_ag
 | `role` | string | yes | The job's title |
 | `jd_text` | string | no | The job description as text; or give jd_file |
 | `jd_file` | string | no | The job description as a .txt, .md or .html file in cv_dir, output_dir or work_dir (read into jd_text) |
-| `base_cv` | string | yes | The base CV: the CV_Test_*.pdf you recommend, in cv_dir (read only; an .odt is refused) |
+| `base_cv` | string | yes | The base CV: the <cv_prefix>*.pdf you recommend, in cv_dir (read only; an .odt is refused) |
 | `jd_url` | string | no | The posting |
 | `degree_first` | boolean | no | Education under Skills (unset: the worker decides from the JD) |
 | `target_score` | integer | no | Overrides the config's target |
@@ -185,7 +185,7 @@ Reads a CV PDF (the base CV's copy in the job's folder) as its sections, with th
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|
-| `pdf` | string | yes | A CV_Test_*.pdf in work_dir, cv_dir or output_dir (an .odt is refused) |
+| `pdf` | string | yes | A <cv_prefix>*.pdf in work_dir, cv_dir or output_dir (an .odt is refused) |
 
 ## `cv.build`
 
@@ -194,8 +194,8 @@ Builds and exports the one-page PDF of a CV into the job's folder (job_dir), fit
 | Argument | Type | Required | What it is |
 |---|---|---|---|
 | `company` | string | yes | The job's company; names the folder and the files |
-| `base_cv` | string | no | A CV_Test_*.pdf to build from (read only; an .odt is refused); or give `sections` |
-| `job_dir` | string | no | The job's folder (CV_JOB's work_dir): the final PDF is exported there as CV_Test_<Company>.pdf. Unset: <output_dir>/<date>_<Company>/ |
+| `base_cv` | string | no | A <cv_prefix>*.pdf to build from (read only; an .odt is refused); or give `sections` |
+| `job_dir` | string | no | The job's folder (CV_JOB's work_dir): the final PDF is exported there as <cv_prefix><Company>.pdf. Unset: <output_dir>/<date>_<Company>/ |
 | `sections` | object | no | The CV as section -> list of lines (contact, summary, skills, experience, projects, education, awards, publications); `• ` starts a bullet, `left \| dates` an entry line; the first contact line is the name |
 | `jd_text` | string | no | The job description: a master's in it puts Education under Skills |
 | `degree_first` | boolean | no | Education under Skills (overrides the guess from jd_text) |

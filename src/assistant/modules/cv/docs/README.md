@@ -290,7 +290,8 @@ Defaults in `module.toml` in this module's folder; `[modules.cv]` in the app's c
 | `max_rounds` | 5 | ATS Loop rounds before it stops and reports |
 | `paper` | `letter` | US Letter; `a4` later |
 | `output_dir` | `C:\Chang\Jobs\rezi\rezi\out` | Where each job's folder goes |
-| `cv_dir` | `C:\Chang\Jobs\CV` | Your CVs, read only: `cv.read` reads `CV_Test_*.pdf` files here, in `output_dir` and in `work_dir`; never an `.odt` |
+| `cv_dir` | `C:\Chang\Jobs\CV` | Your CVs, read only: `cv.read` reads `<cv_prefix>*.pdf` files here, in `output_dir` and in `work_dir`; never an `.odt` |
+| `cv_prefix` | `CV_Test_` | The start of your CV file names: base CVs are found by it (`<cv_prefix>*.pdf`) and the PDFs made are named with it (`<cv_prefix><Company>.pdf`). Letters, digits, `_`, `-`. Your real prefix goes in the gitignored `config/local.toml` (`[modules.cv]`) and `src/cv_tool/cv_tool.local.toml`; the module passes it to the CV Tool (`--cv-prefix`). This page's examples use `CV_Test_` |
 | `work_dir` | `""`: `<agent.workspace>\work` | Where each job's folder is made, `<date>_<Company>_<Role>` (folder-safe), with its copy of the base CV, `jd.txt` and `job_start.json`. Must be in the workspace, never in `cv_dir` or the repo |
 | `rules_dir` | `.claude/skills/cv-writing` (in the workspace) | The cv module's general rules: `SKILL.md`, then every `rules/*.md`, read in full into every job's task. Listed at each job, so a new rule file needs no reload. No `SKILL.md` refuses the job; `""` loads none |
 | `job_skills` | `data/confirmed_facts.json` | More files read in full into every job, after the rules: your confirmed facts, kept as data. A missing or empty one refuses the job. Relative paths are from the workspace; `~` is your home folder |

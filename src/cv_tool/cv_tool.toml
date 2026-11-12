@@ -5,6 +5,7 @@ port = 8771                                             # fixed: 8765-8767 and 8
 window = "app"                                          # "none" when the cv module launches it
 data_dir = "C:/Chang/Jobs/CV_Module/cv_tool"            # jobs, inbox, outbox, rezi_requests
 cv_dir = "C:/Chang/Jobs/CV"                             # the base CVs, read only
+cv_prefix = "CV_Test_"                                  # the CV file names' start; the real one in .local
 rules_dir = "C:/Chang/Jobs/CV_Module/.claude/skills/cv-writing"  # the cv module's rules: read, never copied
 agent_work = "C:/Chang/Jobs/CV_Module/work"             # cv_agent's job folders (saved Rezi ATS data)
 facts = "C:/Chang/Jobs/CV_Module/data/confirmed_facts.json"

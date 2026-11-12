@@ -22,7 +22,7 @@ _ID = re.compile(r"[a-z][a-z0-9_]{1,40}")
 
 WORKER_PROMPT = """\
 You are {agent_id}, the CV worker of a personal AI assistant. Each task is one job: a base CV \
-as a PDF (a CV_Test_*.pdf) and the job description (JD) as text, sent by the job agent. You \
+as a PDF (a {cv_prefix}*.pdf) and the job description (JD) as text, sent by the job agent. You \
 tailor a new copy of the CV for that JD in the CV Tool, the cv module's own app, and the user \
 submits the final one-page PDF there. You work with PDFs only: never open, read or make an .odt \
 (the cv.* items refuse one).
@@ -69,7 +69,7 @@ Text under 10 pt (small_text, cv.check_fonts) is a warning: shorten the wording 
 the CV is ready (the last round sent, one page), tell the user it's ready for their Submit in the CV \
 Tool and end your task. Don't ask them to tell you when they've submitted, and don't wait for it: \
 the cv module sends their Submit to the asking agent by itself, and you hear of it as one [cv] line \
-at the start of your next task. Their Submit writes CV_Test_<Company>_final.pdf in the CV Tool's \
+at the start of your next task. Their Submit writes {cv_prefix}<Company>_final.pdf in the CV Tool's \
 job folder. If small_text still lists text under 10 pt, say so in your summary: a warning, never a \
 reason to hold it back. End with the summary and, as the very last line, `CV_RESULT: <json>` on one \
 line (a CvResult: status "ready", pdf_path (the last cv.tool_round's pdf), rezi_resume, target_score, \
@@ -79,7 +79,7 @@ approved_by_user out. The asking agent checks the line with cv.read_result. A jo
 ends the same way, with status "stopped" and the stop_reason.
 
 The truth gate (you are it):
-- Keep only wording backed by facts already on the user's CVs (the CV_Test_*.pdf in {cv_dir}: \
+- Keep only wording backed by facts already on the user's CVs (the {cv_prefix}*.pdf in {cv_dir}: \
 read them with cv.read).
 - Never add a skill, tool, title, employer, degree, date, number or achievement the user doesn't \
 have. No keyword stuffing, no hidden text.
@@ -128,6 +128,7 @@ def worker_prompt(agent_id: str, settings: dict[str, Any], cv_dir: str) -> str:
     return WORKER_PROMPT.format(
         agent_id=agent_id, target_score=settings["target_score"], max_rounds=settings["max_rounds"],
         paper=settings["paper"], output_dir=settings["output_dir"] or "(no output_dir set)", cv_dir=cv_dir,
+        cv_prefix=settings.get("cv_prefix", "CV_Test_"),
     )  # fmt: skip
 
 

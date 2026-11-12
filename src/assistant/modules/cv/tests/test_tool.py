@@ -56,7 +56,8 @@ def test_the_content_comes_in_the_apps_shape():
 def test_the_tool_settings_are_checked():
     checked = tool_settings({}, "C:/CV", "C:/rules", "C:/home")
     assert checked == {"host": "127.0.0.1", "port": 8771, "data_dir": str(Path("C:/home/cv_tool")),
-                       "facts": str(Path("C:/home/data/confirmed_facts.json")), "cv_dir": "C:/CV", "rules_dir": "C:/rules"}
+                       "facts": str(Path("C:/home/data/confirmed_facts.json")), "cv_dir": "C:/CV", "rules_dir": "C:/rules",
+                       "cv_prefix": "CV_Test_"}
     for bad, reason in (({"host": "0.0.0.0"}, "this machine"), ({"port": 0}, "port"), ("x", "table")):
         with pytest.raises(ValueError, match=reason):
             tool_settings(bad, "", "", "")

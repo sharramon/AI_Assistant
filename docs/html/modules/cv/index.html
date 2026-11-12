@@ -346,7 +346,12 @@
 <tr>
 <td><code>cv_dir</code></td>
 <td><code>C:\Chang\Jobs\CV</code></td>
-<td>Your CVs, read only: <code>cv.read</code> reads <code>CV_Test_*.pdf</code> files here, in <code>output_dir</code> and in <code>work_dir</code>; never an <code>.odt</code></td>
+<td>Your CVs, read only: <code>cv.read</code> reads <code>&lt;cv_prefix&gt;*.pdf</code> files here, in <code>output_dir</code> and in <code>work_dir</code>; never an <code>.odt</code></td>
+</tr>
+<tr>
+<td><code>cv_prefix</code></td>
+<td><code>CV_Test_</code></td>
+<td>The start of your CV file names: base CVs are found by it (<code>&lt;cv_prefix&gt;*.pdf</code>) and the PDFs made are named with it (<code>&lt;cv_prefix&gt;&lt;Company&gt;.pdf</code>). Letters, digits, <code>_</code>, <code>-</code>. Your real prefix goes in the gitignored <code>config/local.toml</code> (<code>[modules.cv]</code>) and <code>src/cv_tool/cv_tool.local.toml</code>; the module passes it to the CV Tool (<code>--cv-prefix</code>). This page's examples use <code>CV_Test_</code></td>
 </tr>
 <tr>
 <td><code>work_dir</code></td>

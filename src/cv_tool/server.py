@@ -43,6 +43,7 @@ CONFIG_DEFAULTS: dict[str, Any] = {
     "window": "app",  # "app" (Edge app window) or "none" (the cv module opens it with /api/window)
     "data_dir": cvlib.DEFAULT_DATA,
     "cv_dir": r"C:\Chang\Jobs\CV",
+    "cv_prefix": "CV_Test_",  # the start of the CV file names; the real one in cv_tool.local.toml
     "rules_dir": cvlib.DEFAULT_RULES,
     "agent_work": "",
     "facts": "",
@@ -363,12 +364,13 @@ def settings(argv: list[str] | None = None) -> dict[str, Any]:
     p.add_argument("--port", type=int)
     p.add_argument("--window", choices=["app", "none"])
     p.add_argument("--no-window", action="store_true", help="same as --window none")
-    for key in ("data-dir", "cv-dir", "rules-dir", "agent-work", "facts", "profile"):
+    for key in ("data-dir", "cv-dir", "cv-prefix", "rules-dir", "agent-work", "facts", "profile"):
         p.add_argument(f"--{key}")
     a = p.parse_args(argv)
     file = a.config or CONFIG
     s = merge(dict(CONFIG_DEFAULTS), load_layered(file) if file.exists() or a.config else {})
-    for key in ("host", "port", "window", "data_dir", "cv_dir", "rules_dir", "agent_work", "facts", "profile"):
+    for key in ("host", "port", "window", "data_dir", "cv_dir", "cv_prefix", "rules_dir", "agent_work", "facts",
+                "profile"):  # fmt: skip
         if getattr(a, key) is not None:
             s[key] = getattr(a, key)
     if a.no_window:
@@ -381,7 +383,7 @@ def settings(argv: list[str] | None = None) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     s = settings(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    cvlib.configure(s["data_dir"], s["cv_dir"], s["rules_dir"], s["agent_work"], s["facts"])
+    cvlib.configure(s["data_dir"], s["cv_dir"], s["rules_dir"], s["agent_work"], s["facts"], s["cv_prefix"])
     tool = Tool(s["host"], s["port"], s["profile"], s["window"])
     tool.start()
     try:

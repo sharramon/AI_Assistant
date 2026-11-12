@@ -12,7 +12,10 @@ max_rounds = 5      # ATS Loop rounds before it stops and reports
 paper = "letter"    # US Letter; "a4" later
 
 output_dir = "C:/Chang/Jobs/rezi/rezi/out"
-cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs: a base CV is a CV_Test_*.pdf here; cv.* refuses an .odt
+cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs: a base CV is a <cv_prefix>*.pdf here; cv.* refuses an .odt
+# The start of your CV file names: base CVs are found by it and the PDFs made are named with it.
+# Your real prefix goes in the gitignored config/local.toml ([modules.cv] cv_prefix = "...").
+cv_prefix = "CV_Test_"
 soffice = "C:/Program Files/LibreOffice/program/soffice.exe"
 
 # The job start (job_start.py): each new job (a CV_REQUEST) gets <work_dir>/<date>_<Company>_<Role>

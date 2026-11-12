@@ -218,7 +218,7 @@
 </tbody>
 </table>
 <h2 id="cvtask"><code>cv.task</code></h2>
-<p>Checks one job (the JD as text, the base CV as a CV_Test_*.pdf) and starts cv_agent on it as your child task; at the user's Submit the one-page PDF and its score come back to you as a message (the job agent's hand-off)</p>
+<p>Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv_agent on it as your child task; at the user's Submit the one-page PDF and its score come back to you as a message (the job agent's hand-off)</p>
 <table>
 <thead>
 <tr>
@@ -257,7 +257,7 @@
 <td><code>base_cv</code></td>
 <td>string</td>
 <td>yes</td>
-<td>The base CV: the CV_Test_*.pdf you recommend, in cv_dir (read only; an .odt is refused)</td>
+<td>The base CV: the <cv_prefix>*.pdf you recommend, in cv_dir (read only; an .odt is refused)</td>
 </tr>
 <tr>
 <td><code>jd_url</code></td>
@@ -551,7 +551,7 @@
 <td><code>pdf</code></td>
 <td>string</td>
 <td>yes</td>
-<td>A CV_Test_*.pdf in work_dir, cv_dir or output_dir (an .odt is refused)</td>
+<td>A <cv_prefix>*.pdf in work_dir, cv_dir or output_dir (an .odt is refused)</td>
 </tr>
 </tbody>
 </table>
@@ -577,13 +577,13 @@
 <td><code>base_cv</code></td>
 <td>string</td>
 <td>no</td>
-<td>A CV_Test_*.pdf to build from (read only; an .odt is refused); or give <code>sections</code></td>
+<td>A <cv_prefix>*.pdf to build from (read only; an .odt is refused); or give <code>sections</code></td>
 </tr>
 <tr>
 <td><code>job_dir</code></td>
 <td>string</td>
 <td>no</td>
-<td>The job's folder (CV_JOB's work_dir): the final PDF is exported there as CV_Test_<Company>.pdf. Unset: <output_dir>/<date>_<Company>/</td>
+<td>The job's folder (CV_JOB's work_dir): the final PDF is exported there as <cv_prefix><Company>.pdf. Unset: <output_dir>/<date>_<Company>/</td>
 </tr>
 <tr>
 <td><code>sections</code></td>

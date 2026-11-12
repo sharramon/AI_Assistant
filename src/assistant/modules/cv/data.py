@@ -16,7 +16,30 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from assistant.modules.cv.content import check_sections
 
-BASE_CV_NAME = re.compile(r"CV_Test_.+\.pdf", re.IGNORECASE)  # the base CV: a PDF, never an .odt
+CV_PREFIX = "CV_Test_"  # the repo default; the real one is `cv_prefix` in the gitignored local config
+_PREFIX = re.compile(r"[A-Za-z0-9_-]{1,40}")
+BASE_CV_NAME = re.compile(re.escape(CV_PREFIX) + r".+\.pdf", re.IGNORECASE)  # the base CV: a PDF, never an .odt
+
+
+def cv_prefix() -> str:
+    """The prefix of the user's CV file names (`cv_prefix` in the config): base CVs and the PDFs made."""
+    return CV_PREFIX
+
+
+def check_cv_prefix(value: Any) -> str:
+    """`value` if it's a usable prefix (letters, digits, `_`, `-`). ValueError otherwise."""
+    if not (isinstance(value, str) and _PREFIX.fullmatch(value)):
+        raise ValueError(f"cv: cv_prefix must be letters, digits, _ or - (like 'CV_Test_'), not {value!r}")
+    return value
+
+
+def set_cv_prefix(value: str) -> None:
+    """Use `value` as the prefix from now on (the module's init, from its config)."""
+    global CV_PREFIX, BASE_CV_NAME
+    CV_PREFIX = check_cv_prefix(value)
+    BASE_CV_NAME = re.compile(re.escape(CV_PREFIX) + r".+\.pdf", re.IGNORECASE)
+
+
 ToolPick = Literal["Internal", "Rezi"]  # the CV Tool's pick (its tab 2): who drafts and scores
 TOOL_PICKS: tuple[str, ...] = get_args(ToolPick)
 
@@ -42,7 +65,7 @@ class CvRequest(BaseModel):
     company: str = Field(min_length=1)
     role: str = Field(min_length=1)
     jd_text: str = Field(min_length=1)
-    base_cv: str = Field(min_length=1, description="Path to the CV_Test_*.pdf (read only)")
+    base_cv: str = Field(min_length=1, description="Path to the <cv_prefix>*.pdf (read only)")
     jd_file: str | None = None
     jd_url: str | None = None
     degree_first: bool | None = None  # None: decided from the JD (order.wants_masters), the worker may set it
@@ -55,7 +78,7 @@ class CvRequest(BaseModel):
     @classmethod
     def _pdf(cls, value: str) -> str:
         if not BASE_CV_NAME.fullmatch(PureWindowsPath(value).name):
-            raise ValueError(f"base_cv must be a CV_Test_*.pdf, not {PureWindowsPath(value).name}")
+            raise ValueError(f"base_cv must be a {CV_PREFIX}*.pdf, not {PureWindowsPath(value).name}")
         return value
 
 

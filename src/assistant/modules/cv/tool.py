@@ -37,10 +37,11 @@ class ToolError(Exception):
     """The CV Tool answered with an error: its text."""
 
 
-def tool_settings(section: Any, cv_dir: str, rules_dir: str, workspace: str) -> dict[str, Any]:
+def tool_settings(section: Any, cv_dir: str, rules_dir: str, workspace: str,
+                  cv_prefix: str = "CV_Test_") -> dict[str, Any]:  # fmt: skip
     """The checked `[tool]` table: host (this machine only), port, `data_dir` (default
     `<workspace>/cv_tool`), `facts` (default `<workspace>/data/confirmed_facts.json`), plus the CV
-    folder and the rules folder the app reads. ValueError if one is wrong."""
+    folder, the CV file names' prefix and the rules folder the app reads. ValueError if one is wrong."""
     if not isinstance(section, dict):
         raise ValueError(f"cv: [tool] must be a table, not {section!r}")
     host = str(section.get("host", "127.0.0.1"))
@@ -52,7 +53,8 @@ def tool_settings(section: Any, cv_dir: str, rules_dir: str, workspace: str) -> 
     base = Path(workspace) if workspace else None
     data_dir = str(section.get("data_dir") or (base / "cv_tool" if base else ""))
     facts = str(section.get("facts") or (base / "data" / "confirmed_facts.json" if base else ""))
-    return {"host": host, "port": port, "data_dir": data_dir, "facts": facts, "cv_dir": cv_dir, "rules_dir": rules_dir}
+    return {"host": host, "port": port, "data_dir": data_dir, "facts": facts, "cv_dir": cv_dir, "rules_dir": rules_dir,
+            "cv_prefix": cv_prefix}
 
 
 def tool_content(content: CvContent) -> tuple[dict[str, Any], list[str]]:
@@ -118,7 +120,7 @@ class CvTool:
         self._max_rounds = max_rounds  # 0: no cap here
         args =["--port", str(checked["port"]), "--host", checked["host"], "--window", "none"]
         for flag, key in (("--data-dir", "data_dir"), ("--cv-dir", "cv_dir"), ("--rules-dir", "rules_dir"),
-                          ("--facts", "facts")):  # fmt: skip
+                          ("--facts", "facts"), ("--cv-prefix", "cv_prefix")):  # fmt: skip
             if checked.get(key):
                 args += [flag, str(checked[key])]
         if work_dir:

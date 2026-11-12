@@ -24,12 +24,17 @@ DEFAULT_DATA = r"C:\Chang\Jobs\CV_Module\cv_tool"
 DEFAULT_RULES = r"C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing"
 
 
-def configure(data_dir=DEFAULT_DATA, cv_dir=r"C:\Chang\Jobs\CV", rules_dir=DEFAULT_RULES, agent_work="", facts=""):
-    """Point the app at its data folder, the base CVs, the cv module's rules and the confirmed facts.
-    Called at start. `facts` defaults to <data_dir>\\..\\data\\confirmed_facts.json when that exists
-    (the cv module's workspace), else <data_dir>\\data\\confirmed_facts.json."""
-    global ROOT, CV_DIR, JOBS, DATA, FACTS, INBOX, REZI_REQ, REZI_RES, OUTBOX, AGENT_WORK, RULES_DIR, _corpus
+CV_PREFIX = "CV_Test_"  # the start of the user's CV file names (`cv_prefix`; the real one in the local config)
+
+
+def configure(data_dir=DEFAULT_DATA, cv_dir=r"C:\Chang\Jobs\CV", rules_dir=DEFAULT_RULES, agent_work="", facts="",
+              cv_prefix="CV_Test_"):  # fmt: skip
+    """Point the app at its data folder, the base CVs (named `<cv_prefix>*`), the cv module's rules and
+    the confirmed facts. Called at start. `facts` defaults to <data_dir>\\..\\data\\confirmed_facts.json
+    when that exists (the cv module's workspace), else <data_dir>\\data\\confirmed_facts.json."""
+    global ROOT, CV_DIR, JOBS, DATA, FACTS, INBOX, REZI_REQ, REZI_RES, OUTBOX, AGENT_WORK, RULES_DIR, CV_PREFIX, _corpus
     _corpus = None  # the CV folder may have changed: read it again
+    CV_PREFIX = cv_prefix
     ROOT = os.path.abspath(data_dir)
     CV_DIR = os.path.abspath(cv_dir)
     RULES_DIR = os.path.abspath(rules_dir)
@@ -165,7 +170,7 @@ def font():
 # ---------- base CVs
 
 def list_cvs():
-    return sorted(f for f in os.listdir(CV_DIR) if f.startswith("CV_Test_") and f.endswith(CV_TYPES))
+    return sorted(f for f in os.listdir(CV_DIR) if f.startswith(CV_PREFIX) and f.endswith(CV_TYPES))
 
 
 CV_TYPES = (".pdf", ".odt", ".docx")  # the cv module sends PDFs; .odt and .docx still open by hand
@@ -344,13 +349,13 @@ _corpus = None
 
 
 def corpus():
-    """All base CV text (every CV_Test_* .pdf, .odt and .docx in the CV folder), lowercased, plus the set of its words."""
+    """All base CV text (every <cv_prefix>* .pdf, .odt and .docx in the CV folder), lowercased, plus the set of its words."""
     global _corpus
     if _corpus is None:
         text = []
         for d, _, files in os.walk(CV_DIR):  # older CVs in subfolders hold facts too
             for n in files:
-                if n.startswith("CV_Test_") and n.lower().endswith(CV_TYPES):
+                if n.startswith(CV_PREFIX) and n.lower().endswith(CV_TYPES):
                     try:
                         text.extend(odt_paras(os.path.join(d, n)))
                     except Exception:  # noqa: BLE001 - an unreadable CV just adds nothing
@@ -689,13 +694,13 @@ def save_job(job):
 
 
 def export_pdf(job):
-    """Print the job's content to a new CV_Test_<Company>_vN.pdf. Never overwrites."""
+    """Print the job's content to a new <cv_prefix><Company>_vN.pdf. Never overwrites."""
     d = job_dir(job["id"])
     n = len(job.get("versions", [])) + 1
-    stem = f"CV_Test_{_slug(job['company'])}_v{n}"
+    stem = f"{CV_PREFIX}{_slug(job['company'])}_v{n}"
     while os.path.exists(os.path.join(d, stem + ".pdf")):
         n += 1
-        stem = f"CV_Test_{_slug(job['company'])}_v{n}"
+        stem = f"{CV_PREFIX}{_slug(job['company'])}_v{n}"
     html_path, pdf_path = os.path.join(d, stem + ".html"), os.path.join(d, stem + ".pdf")
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(render(job["content"], embed_font=True))
@@ -1133,7 +1138,7 @@ def _copy_pdf_in(job, pdf, tag):
     d = job_dir(job["id"])
     if os.path.dirname(os.path.abspath(pdf)).lower() == os.path.abspath(d).lower():
         return os.path.abspath(pdf)
-    dest = os.path.join(d, f"CV_Test_{_slug(job['company'])}_{tag}.pdf")
+    dest = os.path.join(d, f"{CV_PREFIX}{_slug(job['company'])}_{tag}.pdf")
     shutil.copyfile(pdf, dest)
     return dest
 
@@ -1457,7 +1462,7 @@ def submit(job):
         if os.path.exists(os.path.join(d, f)):
             os.remove(os.path.join(d, f))
     last = rounds[-1]
-    final = os.path.join(d, f"CV_Test_{_slug(job['company'])}_final.pdf")
+    final = os.path.join(d, f"{CV_PREFIX}{_slug(job['company'])}_final.pdf")
     shutil.copyfile(pdf["file"], final)
     min_pt = layout()["min_pt"]
     try:  # a warning only: the user's Submit is never refused for it (2026-11-10)

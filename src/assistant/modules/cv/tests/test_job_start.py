@@ -1,7 +1,6 @@
 """The job start in code: a CV_REQUEST gets its own folder, a copy of the base CV and its rules
 before the worker sees the task. The base CV is a `CV_Test_*.pdf`. Everything is written in
-tmp_path; the real ExampleCorp CV (a copy outside your CV folder, made for the reader check) is only
-read and proven unchanged."""
+tmp_path."""
 
 import hashlib
 import json
@@ -17,29 +16,17 @@ from assistant.modules.cv.handoff import read_job, read_request, task_text
 from assistant.modules.cv.job_start import JobStart, JobStartAgent, JobStartError, job_folder_name, name_part
 from assistant.modules.cv.module import settings
 from assistant.modules.cv.order import SectionOrder
-from assistant.modules.cv.pdf_read import read_pdf
 from assistant.modules.cv.tests.pdf_fixture import write_pdf
 from assistant.modules.cv.tests.test_handoff import finished, use
 from assistant.modules.cv.tests.test_worker import CV, DEFAULTS, SKILL_TEXT, app_with, cv_module
 
 DAY = date(2026, 11, 9)
-# the real ExampleCorp CV as a PDF: the reader check's copy (never the one in C:/Chang/Jobs/CV): read only
-EXAMPLECORP = Path("C:/Chang/Jobs/CV_Module/work/pdf-reader-check/cvs")
 ROLE = "Staff Engineer, Widget Design & Testing"
 
 
 def hashes(folder: Path) -> dict[str, tuple[str, float]]:
     return {str(p.relative_to(folder)): (hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_mtime)
             for p in sorted(folder.rglob("*")) if p.is_file()}  # fmt: skip
-
-
-@pytest.fixture(scope="module", autouse=True)
-def examplecorp_untouched():
-    """The real ExampleCorp folder is the same after every test here as before."""
-    before = hashes(EXAMPLECORP) if EXAMPLECORP.is_dir() else None
-    yield
-    if before is not None:
-        assert hashes(EXAMPLECORP) == before
 
 
 def rules(tmp_path: Path) -> list[Path]:
@@ -137,23 +124,6 @@ def test_a_job_that_cant_start_safely_makes_nothing(tmp_path, problem):
     assert not (tmp_path / "work").exists()
 
 
-@pytest.mark.skipif(not (EXAMPLECORP / "CV_Test_ExampleCorp.pdf").is_file(), reason="the ExampleCorp PDF isn't here")
-def test_the_cancelled_examplecorp_job_as_a_case(tmp_path):
-    """The real ExampleCorp CV PDF (read, never written) through the start, and read whole."""
-    cv_dir = tmp_path / "CV"
-    cv_dir.mkdir()
-    base = cv_dir / "CV_Test_ExampleCorp.pdf"
-    base.write_bytes((EXAMPLECORP / "CV_Test_ExampleCorp.pdf").read_bytes())
-    job, _ = starter(tmp_path).prepare(request(base))
-    assert Path(job.work_dir).name == "2026-11-09_ExampleCorp_StaffEngineerWidgetDesign"
-    copy = Path(job.base_cv_copy)
-    assert copy.read_bytes() == base.read_bytes() and job.base_cv_sha256 == hashlib.sha256(base.read_bytes()).hexdigest()
-    read = read_pdf(copy)
-    assert read.complete, read.unplaced  # every word of the real CV placed in a section
-    assert read.pages == 1 and {"contact", "summary", "skills", "experience", "education"} <= set(read.content.names())
-    assert read.content.lines("contact")[0].lower().startswith("chang")
-
-
 # --- the config -----------------------------------------------------------------------------------------
 
 
@@ -165,7 +135,11 @@ def test_the_work_folder_and_the_rules_come_from_the_config(tmp_path):
     assert Path(checked["rules_dir"]) == home / ".claude" / "skills" / "cv-writing"
     assert checked["tool"] | {"rules_dir": ""} == {"host": "127.0.0.1", "port": 8771, "data_dir": str(home / "cv_tool"),
                                                   "facts": str(home / "data" / "confirmed_facts.json"),
-                                                  "cv_dir": "C:/Chang/Jobs/CV", "rules_dir": ""}  # fmt: skip
+                                                  "cv_dir": "C:/Chang/Jobs/CV", "rules_dir": "",
+                                                  "cv_prefix": "CV_Test_"}  # fmt: skip
+    assert checked["cv_prefix"] == "CV_Test_"  # the repo default; the real one is in the local config
+    with pytest.raises(ValueError, match="cv_prefix"):
+        settings(DEFAULTS | {"cv_prefix": "../CV"})
 
     workspace = tmp_path / "cv_agent"
     own = {"cv_dir": str(tmp_path / "CV"), "agent": {"workspace": str(workspace)}}

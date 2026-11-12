@@ -50,8 +50,11 @@ def test_main_docs_never_link_into_next_steps():
     assert all("notes" not in spec for spec in docs.MODULE_TABS.values())
     pages = [md for section in docs.SECTIONS for md in (docs.DOCS / section).rglob("*.md")]
     pages += [md for folder in docs.module_doc_folders().values() for md in folder.rglob("*.md")]
+    # The one allowed link (the user's call, 2026-11-12): the overview's "Currently fixing" plan.
+    allowed = {("docs/architecture/README.md", "../../html-next-steps/module-folders.html")}
     for md in pages:
         links = re.findall(r"\]\(([^)\s]*next-steps/[^)\s]*)\)", md.read_text(encoding="utf-8"))
+        links = [h for h in links if (md.relative_to(ROOT).as_posix(), h) not in allowed]
         assert not links, f"{md.relative_to(ROOT)} links into docs/next-steps/: {links}"
 
 

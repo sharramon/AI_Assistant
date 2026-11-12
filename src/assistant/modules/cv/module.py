@@ -51,7 +51,7 @@ from assistant.infra import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_U
 from assistant.modules.cv.build import build_cv
 from assistant.modules.cv.compare import Comparison, FieldCompare
 from assistant.modules.cv.content import SECTIONS, CvContent
-from assistant.modules.cv.data import TOOL_PICKS, CvRequest, CvResult
+from assistant.modules.cv.data import TOOL_PICKS, CvRequest, CvResult, check_cv_prefix, cv_prefix, set_cv_prefix
 from assistant.modules.cv.guard import ResumeGuard
 from assistant.modules.cv.handoff import read_jd_file, read_request, read_result, result_view, task_text
 from assistant.modules.cv.job_start import COMPANY_WORDS, JobStart, JobStartAgent, job_notes, name_part
@@ -91,10 +91,10 @@ REPO = Path(__file__).resolve().parents[4]  # src/assistant/modules/cv -> the re
 
 _BUILD_ARGS = {
     "company": {"type": "string", "minLength": 1, "description": "The job's company; names the folder and the files"},
-    "base_cv": {"type": "string", "description": "A CV_Test_*.pdf to build from (read only; an .odt is refused); "
+    "base_cv": {"type": "string", "description": "A <cv_prefix>*.pdf to build from (read only; an .odt is refused); "
                 "or give `sections`"},
     "job_dir": {"type": "string", "description": "The job's folder (CV_JOB's work_dir): the final PDF is exported "
-                "there as CV_Test_<Company>.pdf. Unset: <output_dir>/<date>_<Company>/"},
+                "there as <cv_prefix><Company>.pdf. Unset: <output_dir>/<date>_<Company>/"},
     "sections": {"type": "object", "description": f"The CV as section -> list of lines ({', '.join(SECTIONS)}); "
                  "`• ` starts a bullet, `left | dates` an entry line; the first contact line is the name"},
     "jd_text": {"type": "string", "description": "The job description: a master's in it puts Education under Skills"},
@@ -147,7 +147,7 @@ _TASK_ARGS = {
     "jd_text": {"type": "string", "description": "The job description as text; or give jd_file"},
     "jd_file": {"type": "string", "description": "The job description as a .txt, .md or .html file in cv_dir, output_dir or work_dir "
                 "(read into jd_text)"},
-    "base_cv": {"type": "string", "minLength": 1, "description": "The base CV: the CV_Test_*.pdf you recommend, in "
+    "base_cv": {"type": "string", "minLength": 1, "description": "The base CV: the <cv_prefix>*.pdf you recommend, in "
                 "cv_dir (read only; an .odt is refused)"},
     "jd_url": {"type": "string", "description": "The posting"},
     "degree_first": {"type": "boolean", "description": "Education under Skills (unset: the worker decides from the JD)"},
@@ -215,6 +215,7 @@ class CvModule(ModuleProtocol):
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         self.settings = settings(with_defaults(ctx.config))  # a bad config stops the module here, with the reason
+        set_cv_prefix(self.settings["cv_prefix"])
         self._export = PdfExport(self.settings["soffice"])
         self.rezi = rezi_client(self.settings, self.http_transport)  # connects only when a rezi.* item uses it
         # a reload hands over {"guard", "tool"}; a copy from before the CV Tool handed over the guard's value only
@@ -356,7 +357,7 @@ class CvModule(ModuleProtocol):
 
     # --- cv.task / cv.read_result: the job agent's hand-off ------------------------------------------------
 
-    @menu.item("cv.task", "Checks one job (the JD as text, the base CV as a CV_Test_*.pdf) and starts cv_agent "
+    @menu.item("cv.task", "Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv_agent "
                "on it as your child task; at the user's Submit the one-page PDF and its score come back to you "
                "as a message (the job agent's hand-off)",
                _TASK_ARGS, required=["company", "role", "base_cv"])  # fmt: skip
@@ -565,7 +566,7 @@ class CvModule(ModuleProtocol):
 
     @menu.item("cv.read", "Reads a CV PDF (the base CV's copy in the job's folder) as its sections, with the read "
                "check: every word placed, or the unplaced text to ask you about",
-               {"pdf": {"type": "string", "minLength": 1, "description": "A CV_Test_*.pdf in work_dir, cv_dir or "
+               {"pdf": {"type": "string", "minLength": 1, "description": "A <cv_prefix>*.pdf in work_dir, cv_dir or "
                         "output_dir (an .odt is refused)"}},
                required=["pdf"])  # fmt: skip
     async def read(self, pdf: str) -> Result:
@@ -634,7 +635,7 @@ class CvModule(ModuleProtocol):
         return Result.ok(built.as_value())
 
     def _pdf_target(self, company: str, job_dir: str) -> Path | None:
-        """Where cv.build saves the PDF: `<job_dir>/CV_Test_<Company>.pdf` (job_dir must be a job's
+        """Where cv.build saves the PDF: `<job_dir>/<cv_prefix><Company>.pdf` (job_dir must be a job's
         folder in work_dir), else `output_path`; None with neither. Never over the job's copy of
         its base CV (that name gets `_tailored`). ValueError if job_dir isn't allowed."""
         if not job_dir:
@@ -728,7 +729,7 @@ def _check_pdf(path: str, arg: str) -> None:
     """ValueError unless `path` is a PDF that exists (an `.odt` is refused: the cv module takes PDFs only)."""
     suffix = Path(path).suffix.lower()
     if suffix == ".odt":
-        raise ValueError(f"{arg}: an .odt isn't read; give the CV_Test_*.pdf")
+        raise ValueError(f"{arg}: an .odt isn't read; give the {cv_prefix()}*.pdf")
     if suffix != ".pdf":
         raise ValueError(f"{arg} must be a .pdf, not {Path(path).name}")
     if not Path(path).is_file():
@@ -761,12 +762,12 @@ def _content(pdf: str, sections: dict[str, Any] | None, pdf_arg: str = "base_cv"
     return CvContent(sections=lines)
 
 
-def output_path(output_dir: str | Path, company: str, today: date | None = None) -> Path:
-    """`<output_dir>/<date>_<Company>/CV_Test_<Company>.pdf`, the company made safe for a file
-    name the way the job's work folder names it (`name_part`)."""
+def output_path(output_dir: str | Path, company: str, today: date | None = None, prefix: str | None = None) -> Path:
+    """`<output_dir>/<date>_<Company>/<cv_prefix><Company>.pdf`, the company made safe for a file
+    name the way the job's work folder names it (`name_part`). `prefix` None: the configured one."""
     safe = name_part(company, COMPANY_WORDS, "Company")
     day = (today or date.today()).isoformat()
-    return Path(output_dir) / f"{day}_{safe}" / f"CV_Test_{safe}.pdf"
+    return Path(output_dir) / f"{day}_{safe}" / f"{cv_prefix() if prefix is None else prefix}{safe}.pdf"
 
 
 DEFAULTS = Path(__file__).with_name("module.toml")
@@ -806,6 +807,7 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"cv: callback_port must be 1 to 65535, not {port!r}")
     output_dir = str(config.get("output_dir", ""))
     cv_dir = str(config.get("cv_dir", ""))
+    prefix = check_cv_prefix(config.get("cv_prefix", "CV_Test_"))
     agent = worker_config(config.get("agent", {"enabled": False}), output_dir)  # no table: the menu only
     work_dir, job_skills = job_folders(config, agent, cv_dir)
     workspace = str(agent["config"].get("workspace") or "")
@@ -817,7 +819,8 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
     return {
         "hand_off": {"callers": tuple(callers)},
         "rules_dir": rules_dir,  # the cv module's general rules (SKILL.md + rules/*.md), loaded at every job
-        "tool": tool_settings(config.get("tool", {}), cv_dir, rules_dir, workspace),
+        "tool": tool_settings(config.get("tool", {}), cv_dir, rules_dir, workspace, prefix),
+        "cv_prefix": prefix,  # the user's CV file names: base CVs and the PDFs made
         "order": SectionOrder.from_config(config),
         "paper": paper,
         "target_score": target,
