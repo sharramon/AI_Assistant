@@ -218,7 +218,7 @@
 </tbody>
 </table>
 <h2 id="cvtask"><code>cv.task</code></h2>
-<p>Checks one job and gives the text to send to cv_agent with hub.start (the job agent's hand-off)</p>
+<p>Checks one job (the JD as text, the base CV as a CV_Test_*.pdf) and starts cv_agent on it as your child task; at the user's Submit the one-page PDF and its score come back to you as a message (the job agent's hand-off)</p>
 <table>
 <thead>
 <tr>
@@ -251,13 +251,13 @@
 <td><code>jd_file</code></td>
 <td>string</td>
 <td>no</td>
-<td>The job description as a .txt, .md or .html file in cv_dir or output_dir</td>
+<td>The job description as a .txt, .md or .html file in cv_dir, output_dir or work_dir (read into jd_text)</td>
 </tr>
 <tr>
 <td><code>base_cv</code></td>
 <td>string</td>
 <td>yes</td>
-<td>The CV_Test_*.odt you recommend, in cv_dir (read only)</td>
+<td>The base CV: the CV_Test_*.pdf you recommend, in cv_dir (read only; an .odt is refused)</td>
 </tr>
 <tr>
 <td><code>jd_url</code></td>
@@ -283,6 +283,12 @@
 <td>no</td>
 <td>Anything else for the worker</td>
 </tr>
+<tr>
+<td><code>tool</code></td>
+<td>string</td>
+<td>no</td>
+<td>The CV Tool's pick (unset: the user picks Internal or Rezi in its tab 2)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="cvread_result"><code>cv.read_result</code></h2>
@@ -305,8 +311,8 @@
 </tr>
 </tbody>
 </table>
-<h2 id="cvread"><code>cv.read</code></h2>
-<p>Reads a CV .odt (in the CV folder or the output folder) as its sections, for the worker</p>
+<h2 id="cvopen_tool"><code>cv.open_tool</code></h2>
+<p>Opens a job the job start set up (its folder) in the CV Tool, starting the app if needed; gives the app's job_id. Call it only when the user tells you to start</p>
 <table>
 <thead>
 <tr>
@@ -318,15 +324,239 @@
 </thead>
 <tbody>
 <tr>
-<td><code>odt</code></td>
+<td><code>job_dir</code></td>
 <td>string</td>
 <td>yes</td>
-<td>A CV_Test_*.odt in cv_dir or output_dir</td>
+<td>The job's folder (CV_JOB's work_dir)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvtool_status"><code>cv.tool_status</code></h2>
+<p>One CV Tool job: the pick (Internal or Rezi, empty: not picked yet), the CV's content and text, a pending Rezi request, the loop (score, issues, rounds) and Submit's state</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV Tool's job id (cv.open_tool's)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvtool_round"><code>cv.tool_round</code></h2>
+<p>Sends one round to the CV Tool: the edited content (prints the local PDF) and/or the score read for it; gives the PDF, its text under 10 pt, the loop and the rules checklist</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV Tool's job id (cv.open_tool's)</td>
+</tr>
+<tr>
+<td><code>content</code></td>
+<td>object</td>
+<td>no</td>
+<td>The whole CV in the app's shape (cv.tool_status's content, edited): name, contact, summary, skills [[label, text]], experience [{title, company, dates, bullets}], education [{degree, detail}], awards, publications, education_first. Prints a new local PDF</td>
+</tr>
+<tr>
+<td><code>export</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Print a new local PDF (default: true when content is given)</td>
+</tr>
+<tr>
+<td><code>score</code></td>
+<td>integer</td>
+<td>no</td>
+<td>The ATS score read for this PDF</td>
+</tr>
+<tr>
+<td><code>categories</code></td>
+<td>object</td>
+<td>no</td>
+<td>The score's categories, name -&gt; score</td>
+</tr>
+<tr>
+<td><code>matched</code></td>
+<td>array</td>
+<td>no</td>
+<td>Matched keywords</td>
+</tr>
+<tr>
+<td><code>missing</code></td>
+<td>array</td>
+<td>no</td>
+<td>Missing keywords</td>
+</tr>
+<tr>
+<td><code>issues</code></td>
+<td>array</td>
+<td>no</td>
+<td>The scorer's biggest issues</td>
+</tr>
+<tr>
+<td><code>changes</code></td>
+<td>string</td>
+<td>no</td>
+<td>What changed in this round</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>string</td>
+<td>no</td>
+<td>A note for the round</td>
+</tr>
+<tr>
+<td><code>request_id</code></td>
+<td>string</td>
+<td>no</td>
+<td>The pending Rezi request this round answers (cv.tool_status)</td>
+</tr>
+<tr>
+<td><code>tool</code></td>
+<td>string</td>
+<td>no</td>
+<td>Who scored it (default the job's pick)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvtool_draft"><code>cv.tool_draft</code></h2>
+<p>The Internal First Draft, with no agent: the proposals (Skills reordered by JD rank, backed JD terms to add, terms that need the user's yes); with apply, the reorder and the named backed terms are put in and an Internal round scores it</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV Tool's job id (cv.open_tool's)</td>
+</tr>
+<tr>
+<td><code>apply</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Put the proposals in and score (default false: proposals only)</td>
+</tr>
+<tr>
+<td><code>reorder</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>With apply: reorder the Skills items (default true)</td>
+</tr>
+<tr>
+<td><code>add</code></td>
+<td>array</td>
+<td>no</td>
+<td>With apply: backed terms from the proposals' add list to put in (a term not on the CVs is refused: it needs the user's yes in the app)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvtool_internal_round"><code>cv.tool_internal_round</code></h2>
+<p>One Internal ATS Loop round, with no agent: prints the current CV, scores it with the Internal estimate and gives the loop with the matched and missing keywords</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV Tool's job id (cv.open_tool's)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvcheck_fonts"><code>cv.check_fonts</code></h2>
+<p>The CV Tool job's current PDF: any text under 10 pt (measured from the PDF; a warning)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV Tool's job id (cv.open_tool's)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvtool_result"><code>cv.tool_result</code></h2>
+<p>The user's Submit in the CV Tool: result.json once they submitted (ready), never refused; small_text (text under 10 pt) is a warning only. The module already told the asking agent when the user submitted</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>job_id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The CV Tool's job id (cv.open_tool's)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cvread"><code>cv.read</code></h2>
+<p>Reads a CV PDF (the base CV's copy in the job's folder) as its sections, with the read check: every word placed, or the unplaced text to ask you about</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdf</code></td>
+<td>string</td>
+<td>yes</td>
+<td>A CV_Test_*.pdf in work_dir, cv_dir or output_dir (an .odt is refused)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="cvbuild"><code>cv.build</code></h2>
-<p>Builds the one-page .odt and PDF of a CV in the output folder, fitted and checked</p>
+<p>Builds and exports the one-page PDF of a CV into the job's folder (job_dir), fitted and checked; no .odt comes out</p>
 <table>
 <thead>
 <tr>
@@ -347,7 +577,13 @@
 <td><code>base_cv</code></td>
 <td>string</td>
 <td>no</td>
-<td>A CV_Test_*.odt to build from (read only); or give <code>sections</code></td>
+<td>A CV_Test_*.pdf to build from (read only; an .odt is refused); or give <code>sections</code></td>
+</tr>
+<tr>
+<td><code>job_dir</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job's folder (CV_JOB's work_dir): the final PDF is exported there as CV_Test_<Company>.pdf. Unset: <output_dir>/<date>_<Company>/</td>
 </tr>
 <tr>
 <td><code>sections</code></td>
@@ -400,10 +636,10 @@
 </thead>
 <tbody>
 <tr>
-<td><code>edited_odt</code></td>
+<td><code>edited_pdf</code></td>
 <td>string</td>
 <td>no</td>
-<td>The edited CV as an .odt (the one cv.build made); or give <code>edited</code></td>
+<td>The edited CV as a PDF (the one cv.build made); or give <code>edited</code></td>
 </tr>
 <tr>
 <td><code>edited</code></td>
@@ -459,7 +695,7 @@
 <td><code>result</code></td>
 <td>object</td>
 <td>yes</td>
-<td>The job's CvResult: status, stop_reason, pdf_path, odt_path, report_path, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user</td>
+<td>The job's CvResult: status, stop_reason, pdf_path, report_path, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user</td>
 </tr>
 <tr>
 <td><code>rounds</code></td>
@@ -491,14 +727,15 @@
 
 <h2 id="notes">Notes</h2>
 <p>Everything above is built: the hand-off (<code>cv.task</code>, <code>cv.read_result</code>), the nine <code>rezi.*</code> items over the Rezi connection (<code>mcp.py</code>), and <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code> and <code>cv.report</code>. The worker <code>cv_agent</code> uses them through the door, like any caller. They're tested against a fake Rezi and a fake <code>claude</code>; the sign-in, the live tool list and the reads have also run against the real Rezi (chunk 9). How the connection and the guard work: <a href="architecture.html#the-rezi-connection-mcppy">Architecture</a>.</p>
-<p>Keyword Targeting, the Rezi Score and the PDF import aren't items: the worker does them in Chrome. A job isn't an item either: it's a task sent to <code>cv_agent</code> through the Hub (<code>hub.start</code>). <code>cv.task</code> gives that task's text, and <code>cv.read_result</code> checks its answer.</p>
+<p><strong>The interface is PDF in, PDF out</strong> (since 2026-11-09): the job description comes in as text (<code>jd_text</code>, or a <code>.txt</code>, <code>.md</code> or <code>.html</code> file), the base CV as a <code>CV_Test_*.pdf</code>, and the tailored CV goes out as a one-page PDF in the job's folder. Every <code>cv.*</code> item refuses an <code>.odt</code>. The module still writes an <code>.odt</code> on the way to the PDF, but only in a temporary folder that's removed after the build.</p>
+<p>Keyword Targeting, the Rezi Score and the PDF import aren't items: the worker does them in Chrome. A job isn't an item either: it's a task on <code>cv_agent</code> that <code>cv.task</code> starts through the Hub (<code>StartTask</code>, as the caller's child task), and <code>cv.read_result</code> checks its answer.</p>
 <h3 id="the-hand-off-cvtask-and-cvread_result">The hand-off: <code>cv.task</code> and <code>cv.read_result</code></h3>
-<p>The module stands alone: any caller (later the job agent) reaches the worker in three calls. Nothing else in the app has to change.</p>
+<p>The module stands alone: a caller in <code>hand_off.callers</code> (the job agent, the Main Assistant) hands a job to the worker with one call, and the result comes back to it as a message at your Submit. Nothing else in the app has to change.</p>
 <ol>
-<li><strong><code>cv.task</code></strong> with the job: <code>company</code>, <code>role</code>, the CV file <code>base_cv</code> (an existing <code>.odt</code> in <code>cv_dir</code>), and the job description as <strong>either</strong> <code>jd_text</code> (text) <strong>or</strong> <code>jd_file</code> (a <code>.txt</code>, <code>.md</code> or <code>.html</code> file in <code>cv_dir</code> or <code>output_dir</code>; HTML is read as its visible text). Optional: <code>jd_url</code>, <code>degree_first</code>, <code>target_score</code> (1 to 100) and <code>notes</code>, as in <code>CvRequest</code> below.
-   - It returns <code>agent_id</code> (<code>cv_agent</code>), <code>text</code> and <code>next</code>, a reminder of steps 2 and 3. The text is a first line saying what to do, then <code>CV_REQUEST: &lt;json&gt;</code> on one line, with the JD text read from the file and <code>jd_file</code> naming it.
-   - Refused (<code>invalid_arguments</code>): both or neither of <code>jd_text</code> and <code>jd_file</code>, a JD file of another kind, missing, empty or outside those folders, a <code>base_cv</code> that isn't an existing <code>.odt</code> in <code>cv_dir</code>, or a bad field. With the worker off: <code>not_available</code>.</li>
-<li><strong><code>hub.start</code></strong> with that <code>text</code> and <code>agent_id</code>. The worker runs the 8 steps and ends its task with the line <code>CV_RESULT: &lt;json&gt;</code>, a <code>CvResult</code>.</li>
+<li><strong><code>cv.task</code></strong> with the job: <code>company</code>, <code>role</code>, the CV file <code>base_cv</code> (an existing <code>CV_Test_*.pdf</code> in <code>cv_dir</code>), and the job description as <strong>either</strong> <code>jd_text</code> (text) <strong>or</strong> <code>jd_file</code> (a <code>.txt</code>, <code>.md</code> or <code>.html</code> file in <code>cv_dir</code>, <code>output_dir</code> or <code>work_dir</code>; HTML is read as its visible text). Optional: <code>jd_url</code>, <code>degree_first</code>, <code>target_score</code> (1 to 100) and <code>notes</code>, as in <code>CvRequest</code> below.
+   - It starts <code>cv_agent</code> on the job itself (<code>StartTask</code>, with the caller's newest open task as parent, so the caller may <code>hub.send</code> to it as its child) and returns <code>agent_id</code> (<code>cv_agent</code>), <code>task_id</code>, <code>text</code> and <code>next</code> (nothing more to call). The text is a first line saying what to do, then <code>CV_REQUEST: &lt;json&gt;</code> on one line, with the JD text read from the file and <code>jd_file</code> naming it, and the caller as <code>reply_to</code>.
+   - Refused (<code>invalid_arguments</code>): both or neither of <code>jd_text</code> and <code>jd_file</code>, a JD file of another kind, missing, empty or outside those folders, a <code>base_cv</code> that isn't an existing <code>CV_Test_*.pdf</code> in <code>cv_dir</code> (an <code>.odt</code> gets "base_cv must be a CV_Test_*.pdf"), or a bad field. With the worker off: <code>not_available</code>. With <code>cv_agent</code> busy on another job: the Hub's refusal, naming that job and who it's for ("it's on the CV for <role> at <company> (task <id>, for <asker>)"), and "Nothing was queued; try again when it's free".</li>
+<li><strong>The work.</strong> The worker runs the CV Tool's steps and ends its task before your Submit with the line <code>CV_RESULT: &lt;json&gt;</code>, a <code>CvResult</code> with status <code>ready</code> (or <code>stopped</code>). At your Submit in the CV Tool, the module sends the result to the caller (<code>reply_to</code>) with <a href="../../api/agents.html#delivermessage"><code>DeliverMessage</code></a>: into its open task, or a new task, never into a turn (<a href="architecture.html#the-hand-off-handoffpy">Architecture</a>).</li>
 <li><strong><code>cv.read_result</code></strong> with the task's result text (from <code>hub.status</code>). It returns the new CV and PDF with their metadata:</li>
 </ol>
 <table>
@@ -511,11 +748,11 @@
 <tbody>
 <tr>
 <td><code>status</code>, <code>stop_reason</code>, <code>approved_by_user</code></td>
-<td><code>approved</code> (your yes) or <code>stopped</code>, and why</td>
+<td><code>ready</code> (everything but your Submit, which reaches the caller as the cv module's message), <code>approved</code> (older results: your yes) or <code>stopped</code>, and why</td>
 </tr>
 <tr>
 <td><code>files</code></td>
-<td><code>odt_path</code>, <code>pdf_path</code>, <code>report_path</code>, each with <code>…_exists</code> (the file is there now)</td>
+<td><code>pdf_path</code> and <code>report_path</code>, each with <code>…_exists</code> (the file is there now); no <code>.odt</code> comes out</td>
 </tr>
 <tr>
 <td><code>rezi</code></td>
@@ -543,8 +780,8 @@
 </tr>
 </tbody>
 </table>
-<p><code>cv.read_result</code> refuses (<code>invalid_arguments</code>) a text with no line starting <code>CV_RESULT:</code>, or one whose line isn't a JSON object or a valid <code>CvResult</code>. A result that contradicts itself is not valid: <code>approved</code> without your yes, one page, Rezi's match and the PDF; scores that aren't the rounds' scores; or <code>match_ok</code> with a compare that found issues.</p>
-<p><strong>Tested end to end through the real Hub</strong> (<code>tests/test_handoff.py</code>), with a fake <code>claude</code> standing in for the worker. The caller sends <code>cv.task</code> with a JD file and the CV's path, then <code>hub.start</code> to <code>cv_agent</code>. The job arrives intact, and <code>cv.read_result</code> on the task's result gives the files, the rounds against the target, the keywords, the recommendations, the one-page check and the compare. The real run with Rezi comes in chunk 9, with your yes.</p>
+<p><code>cv.read_result</code> refuses (<code>invalid_arguments</code>) a text with no line starting <code>CV_RESULT:</code>, or one whose line isn't a JSON object or a valid <code>CvResult</code>. A result that contradicts itself is not valid: <code>ready</code> without one page and the PDF, or with <code>approved_by_user</code>; <code>approved</code> without your yes, one page and the PDF; scores that aren't the rounds' scores; or <code>match_ok</code> with a compare that found issues.</p>
+<p><strong>Tested end to end through the real Hub</strong> (<code>tests/test_handoff.py</code>), with a fake <code>claude</code> standing in for the worker. The caller sends <code>cv.task</code> with a JD file and the CV's path, which starts <code>cv_agent</code> (no coordinator in between). The job arrives intact, and <code>cv.read_result</code> on the task's result gives the files, the rounds against the target, the keywords, the recommendations, the one-page check and the compare. The real run with Rezi comes in chunk 9, with your yes.</p>
 <h3 id="the-rezi-items">The <code>rezi.*</code> items</h3>
 <ul>
 <li><strong>Errors, for every item:</strong> not signed in, or the token ran out → <code>not_available</code> (use <code>rezi.sign_in</code>); a write the guard refuses → <code>invalid_arguments</code>; Rezi's error → <code>failed</code>; no answer → <code>failed</code> (retryable).</li>
@@ -566,32 +803,89 @@
 <li><strong>Never used:</strong> Rezi's <code>auto_apply_job</code>, <code>duplicate_resume</code> and the cover-letter tools.</li>
 <li><strong><code>rezi.search_jobs</code></strong> (<code>role</code>, optional <code>location</code>) and <strong><code>rezi.get_job_details</code></strong> (<code>job_id</code>): Rezi's job listings.</li>
 </ul>
-<h3 id="cvread-an-odt-as-sections"><code>cv.read</code>: an <code>.odt</code> as sections</h3>
+<h3 id="cvread-a-cv-pdf-as-sections-with-the-read-check"><code>cv.read</code>: a CV PDF as sections, with the read check</h3>
 <ul>
-<li><strong>Input:</strong> <code>odt</code>, a CV <code>.odt</code> in <code>cv_dir</code> (your CVs) or <code>output_dir</code>; any other folder is refused. This is how the worker reads the base CV (step 1) and checks the facts on your other CVs (the truth gate), since its own tools can't read an <code>.odt</code>.</li>
-<li><strong>Returns:</strong> <code>odt</code>, <code>sections</code> (section → lines, in the <code>cv.build</code> form) and <code>names</code> (the sections the CV has).</li>
-<li><strong>Errors:</strong> outside those folders, not an <code>.odt</code>, not found, or an unknown heading → <code>invalid_arguments</code>.</li>
+<li><strong>Input:</strong> <code>pdf</code>, a <code>CV_Test_*.pdf</code> in <code>work_dir</code> (the job's copy of its base CV), <code>cv_dir</code> (your CVs) or <code>output_dir</code>; any other folder is refused. This is how the worker reads the base CV (step 1) and checks the facts on your other CVs (the truth gate).</li>
+<li><strong>How</strong> (<code>pdf_read.py</code>): pypdf's layout reader gives each piece of text with its place and size. Pieces on one baseline make a line (a wide gap is the entry's <code>|</code> before the dates), a bullet glyph makes a <code>•</code> line, small caps are lower-cased, and a wrapped line joins the one above. The headings map to the eight sections as before ("Introduction" is Summary, "Additional Experience" joins Experience, "Accomplishments &amp; Publications" is Awards).</li>
+<li><strong>The read check:</strong> every word of the PDF's plain text must be in what was read. A big heading it doesn't know, the text under it, and any word not placed are listed in <code>unplaced</code>.</li>
+<li><strong>Returns:</strong> <code>pdf</code>, <code>sections</code> (section → lines, in the <code>cv.build</code> form), <code>names</code>, <code>pages</code>, <code>complete</code> and <code>unplaced</code>. When <code>complete</code> is false it adds <code>next</code>: stop and ask you with NEED:, naming the unplaced text.</li>
+<li><strong>Errors:</strong> outside those folders, an <code>.odt</code> ("an .odt isn't read; give the CV_Test_*.pdf"), not a <code>.pdf</code>, not found, or not a readable PDF → <code>invalid_arguments</code>; pypdf's layout reader changed → <code>not_available</code>.</li>
 </ul>
 <h3 id="cvbuild-what-it-does-and-returns"><code>cv.build</code>: what it does and returns</h3>
 <ul>
-<li><strong>Input:</strong> the base <code>CV_Test_*.odt</code> (read only, never changed) or the CV as <code>sections</code>. Headings on the CVs map to the eight sections ("Introduction" is Summary, "Additional Experience" joins Experience, "Accomplishments &amp; Publications" is Awards); an unknown heading is refused by name.</li>
-<li><strong>Output:</strong> <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\CV_Test_&lt;Company&gt;.odt</code> and the <code>.pdf</code> next to it, exported with headless LibreOffice. A second build the same day replaces them.</li>
+<li><strong>Input:</strong> the base <code>CV_Test_*.pdf</code> (read only, never changed; refused unless every word is placed) or the CV as <code>sections</code>, and <code>job_dir</code>, the job's folder (CV_JOB's <code>work_dir</code>).</li>
+<li><strong>Output:</strong> the PDF only, exported with headless LibreOffice. With <code>job_dir</code> (a folder inside <code>work_dir</code> that exists): <code>&lt;job_dir&gt;\CV_Test_&lt;Company&gt;.pdf</code>, or <code>…_tailored.pdf</code> when that name is the job's copy of its base CV (from <code>job_start.json</code>), so the copy is never overwritten. Without <code>job_dir</code>: <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\CV_Test_&lt;Company&gt;.pdf</code>. The <code>.odt</code> and LibreOffice's export are made in a temporary folder outside the agent's folders and removed; only the checked PDF is copied out. A second build the same day replaces the PDF.</li>
 <li><strong>The fit:</strong> the roomiest layout that gives one page (10.5 pt and 0.6 in margins, down to 9.5 pt and 0.45 in), then, unless <code>auto_drop</code> is false, Publications and then Awards are left out. If it's still over a page, the tightest try comes back with <code>one_page: false</code>, and the worker tightens older bullets and builds again.</li>
-<li><strong>Returns:</strong> <code>odt_path</code>, <code>pdf_path</code>, <code>pages</code>, <code>one_page</code>, <code>problems</code> (wrong page size, no text, unreadable characters, a heading or the name not found in the PDF's text), <code>paper</code>, <code>layout</code>, <code>tries</code>, <code>section_order</code>, <code>order_reason</code>, <code>dropped</code>, and <code>text</code> (the PDF's text, for the compare later).</li>
-<li><strong>Errors:</strong> bad arguments → <code>invalid_arguments</code>; LibreOffice not found → <code>not_available</code>; LibreOffice gave no PDF → <code>failed</code> (retryable).</li>
+<li><strong>Returns:</strong> <code>pdf_path</code>, <code>pages</code>, <code>one_page</code>, <code>problems</code> (wrong page size, no text, unreadable characters, a heading or the name not found in the PDF's text), <code>paper</code>, <code>layout</code>, <code>tries</code>, <code>section_order</code>, <code>order_reason</code>, <code>dropped</code>, and <code>text</code> (the PDF's text, for the compare later).</li>
+<li><strong>Errors:</strong> bad arguments (an <code>.odt</code>, a <code>job_dir</code> outside <code>work_dir</code> or missing, text the read check can't place) → <code>invalid_arguments</code>; LibreOffice not found → <code>not_available</code>; LibreOffice gave no PDF → <code>failed</code> (retryable).</li>
 </ul>
 <h3 id="cvcompare-step-6-what-rezi-read-against-the-edited-cv"><code>cv.compare</code>: step 6, what Rezi read against the edited CV</h3>
 <ul>
-<li><strong>Input:</strong> the edited CV as <code>edited_odt</code> (the <code>.odt</code> <code>cv.build</code> made) or <code>edited</code> (sections), and what Rezi read from the imported PDF as <code>parsed_resume</code> (<code>rezi.read_resume</code>'s <code>data</code> for the check copy), <code>parsed</code> (sections) or <code>parsed_text</code> (one text: Rezi's, or <code>cv.build</code>'s <code>text</code> as a self-check). One of each.</li>
+<li><strong>Input:</strong> the edited CV as <code>edited_pdf</code> (the PDF <code>cv.build</code> made, in <code>work_dir</code>, <code>output_dir</code> or <code>cv_dir</code>) or <code>edited</code> (sections), and what Rezi read from the imported PDF as <code>parsed_resume</code> (<code>rezi.read_resume</code>'s <code>data</code> for the check copy), <code>parsed</code> (sections) or <code>parsed_text</code> (one text: Rezi's, or <code>cv.build</code>'s <code>text</code> as a self-check). One of each.</li>
 <li><strong>How:</strong> each line is split at <code>|</code> and each part checked: found when 90% of its words are there (any order; dashes, quotes, case and punctuation don't count) and every number is.</li>
 <li><strong>Returns:</strong> <code>match_ok</code>, <code>mode</code> (<code>sections</code> or <code>text</code>), <code>checked</code> (lines), <code>summary</code>, and <code>issues</code>, each <code>{kind, section, line, found_in}</code>: <code>missing_section</code>, <code>missing</code>, <code>moved</code> (with <code>found_in</code>), <code>extra</code> (sections only). Every issue is a parse problem: back to step 5.</li>
 </ul>
 <h3 id="cvreport-step-8-reportmd"><code>cv.report</code>: step 8, <code>report.md</code></h3>
 <ul>
 <li><strong>Input:</strong> <code>company</code>, <code>result</code> (the job's <code>CvResult</code>, below), and optionally <code>role</code>, <code>rounds</code> (each <code>{score, added, missing, note}</code>), <code>compare</code> (<code>cv.compare</code>'s value), <code>notes</code>, <code>target_score</code> (1 to 100, else the config's).</li>
-<li><strong>Output:</strong> <code>report.md</code> in the folder of <code>result.pdf_path</code> (or <code>odt_path</code>; with neither, today's job folder), replacing an older one. <code>rounds</code> and <code>compare</code> default to the result's own, and the target to the result's, else the config's. Sections: Files, Rezi Score (last, target, rounds table), Keywords (still missing, left out), Recommendations, The page (one page, Rezi's match, the compare's issues, section order, your yes), Notes.</li>
+<li><strong>Output:</strong> <code>report.md</code> in the folder of <code>result.pdf_path</code> (the job's folder in <code>work_dir</code>, or a folder in <code>output_dir</code>; without a <code>pdf_path</code>, today's folder in <code>output_dir</code>), replacing an older one. <code>rounds</code> and <code>compare</code> default to the result's own, and the target to the result's, else the config's. Sections: Files, Rezi Score (last, target, rounds table), Keywords (still missing, left out), Recommendations, The page (one page, Rezi's match, the compare's issues, section order, your yes), Notes.</li>
 <li><strong>Returns:</strong> <code>report_path</code> and <code>text</code> (the report).</li>
-<li><strong>Refused</strong> (<code>invalid_arguments</code>): a result that isn't a valid <code>CvResult</code>, a folder outside <code>output_dir</code>, scores that aren't the rounds' scores, or <code>match_ok</code> with a compare that found issues.</li>
+<li><strong>Refused</strong> (<code>invalid_arguments</code>): a result that isn't a valid <code>CvResult</code> (one with the old <code>odt_path</code> too), a folder outside <code>output_dir</code> and <code>work_dir</code>, scores that aren't the rounds' scores, or <code>match_ok</code> with a compare that found issues.</li>
+</ul>
+<h3 id="the-cv-tool-cvopen_tool-cvtool_status-cvtool_round-cvcheck_fonts-cvtool_result">The CV Tool: <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.check_fonts</code>, <code>cv.tool_result</code></h3>
+<p>The module's link to its UI half, the CV Tool app (<code>src/cv_tool</code>, <code>python -m cv_tool</code> on <code>127.0.0.1:8771</code>). Each item starts the app if it isn't running (<code>CompanionApp.ensure_running</code>, no window) and uses only its JSON API. Built and tested, live with the <code>cv</code> reload.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Calls</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cv.open_tool(job_dir)</code></td>
+<td>Reads the job's <code>job_start.json</code>, the JD and the base CV's copy (<code>read_pdf</code> → the app's content shape); <code>POST /api/job/import</code>, then <code>POST /api/window</code></td>
+<td><code>job_id</code>, <code>tool</code> (the request's pick, or <code>""</code>: the user picks in tab 2), <code>window</code> (opened or raised), <code>unplaced</code> (text the reader couldn't place: ask), <code>left_out</code> (sections the app has no place for, e.g. projects)</td>
+</tr>
+<tr>
+<td><code>cv.tool_status(job_id)</code></td>
+<td><code>GET /api/job/status</code></td>
+<td><code>tool</code>, <code>content</code> (the app's shape), <code>text</code>, a pending <code>rezi_request</code>, <code>loop</code> (score, issues, rounds), <code>ready</code> (submitted)</td>
+</tr>
+<tr>
+<td><code>cv.tool_round(job_id, …)</code></td>
+<td><code>POST /api/round</code></td>
+<td><code>pdf</code> (the new local PDF), <code>small_text</code> (text under 10 pt), <code>state</code>, <code>rules</code> (the checklist: each rule file and its first rule)</td>
+</tr>
+<tr>
+<td><code>cv.check_fonts(job_id)</code></td>
+<td><code>POST /api/round</code> with nothing in it</td>
+<td>the current <code>pdf</code> and its <code>small_text</code></td>
+</tr>
+<tr>
+<td><code>cv.tool_draft(job_id, apply?, reorder?, add?)</code></td>
+<td><code>POST /api/draft/internal</code>; with <code>apply</code>, <code>POST /api/draft/internal/apply</code></td>
+<td>The Internal First Draft with no agent: the proposals (<code>reorder</code>, <code>add</code>: backed terms, <code>ask</code>: terms that need your yes, <code>declined</code>, <code>matched</code>); with <code>apply</code>, the Skills reorder and the named backed terms put in, then an Internal round (<code>state</code>). A term not on your CVs is refused here: it needs your yes in the app</td>
+</tr>
+<tr>
+<td><code>cv.tool_internal_round(job_id)</code></td>
+<td><code>POST /api/loop/internal</code></td>
+<td>One Internal round with no agent: the PDF printed, the Internal score, and the loop with the matched and missing keywords (<code>state.keywords</code>, from that round)</td>
+</tr>
+<tr>
+<td><code>cv.tool_result(job_id)</code></td>
+<td><code>GET /api/job/result</code></td>
+<td><code>{ready: false}</code> until your Submit; then <code>result</code> (<code>result.json</code>: <code>pdf_path</code> <code>CV_Test_&lt;Company&gt;_final.pdf</code>, the rounds, the keywords)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong><code>cv.tool_round</code>'s arguments:</strong> <code>content</code> (the whole CV in the app's shape: <code>name</code>, <code>contact</code>, <code>summary</code>, <code>skills</code> <code>[[label, text]]</code>, <code>experience</code> <code>[{title, company, dates, bullets}]</code>, <code>education</code> <code>[{degree, detail}]</code>, <code>awards</code>, <code>publications</code>, <code>education_first</code>) prints a new local PDF (<code>export</code>, default true with content). With the Internal pick and no score given, the app scores it. The score fields are <code>score</code>, <code>categories</code>, <code>matched</code>, <code>missing</code>, <code>issues</code>, <code>changes</code> and <code>note</code>, plus <code>request_id</code> when they answer a pending Rezi request. They're saved as a round. Rezi's PDF is never taken.</li>
+<li><strong>The Internal path needs no agent:</strong> <code>cv.open_tool</code>, <code>cv.tool_draft</code> (with <code>apply</code>), <code>cv.tool_internal_round</code>, <code>cv.check_fonts</code> and <code>cv.tool_result</code> run a whole Internal job through the module; rewording bullets and the Summary is still an editor's work (yours in the app, or cv_agent's with <code>cv.tool_round</code>).</li>
+<li><strong>The truth check</strong> (the app's "not on your CVs" flags) reads every <code>CV_Test_*</code> <code>.pdf</code>, <code>.odt</code> and <code>.docx</code> in your CV folder, plus the confirmed facts' <code>words</code> and each word of their <code>phrases</code>; a hyphenated term like "sim-to-real" is backed when every part is. It never reads the facts' <code>notes</code> or a job's notes: those also say what not to claim. (Fixed 2026-11-09: before, it read only <code>.odt</code> CVs and <code>words</code>, so "modular" and "sim-to-real" were flagged.)</li>
+<li><strong>9 pt, a warning:</strong> whenever <code>small_text</code> isn't empty, the answer's <code>next</code> says to shorten the wording or ask, never shrink the font. A Submit is never refused: <code>cv.tool_result</code> returns a submitted PDF with text under 9 pt with its <code>small_text</code> as a warning.</li>
+<li><strong>Refused:</strong> <code>job_dir</code> outside the work folder, or with no readable <code>job_start.json</code> → <code>invalid_arguments</code>. The app answering an error → <code>failed</code> ("the CV Tool says …"). The app not starting or not answering → <code>not_available</code>.</li>
 </ul>
 <h3 id="request-one-per-job-cvrequest-in-datapy">Request (one per job): <code>CvRequest</code> in <code>data.py</code></h3>
 <table>
@@ -616,7 +910,7 @@
 </tr>
 <tr>
 <td><code>base_cv</code></td>
-<td>Path to the <code>CV_Test_*.odt</code> to start from, in <code>cv_dir</code> (read only; must be an <code>.odt</code>)</td>
+<td>Path to the <code>CV_Test_*.pdf</code> to start from, in <code>cv_dir</code> (read only; any other name, an <code>.odt</code> too, is refused)</td>
 </tr>
 <tr>
 <td><code>jd_url</code></td>
@@ -634,6 +928,10 @@
 <td><code>notes</code></td>
 <td>Optional: anything from the caller</td>
 </tr>
+<tr>
+<td><code>tool</code></td>
+<td>Optional: the CV Tool's pick, <code>Internal</code> or <code>Rezi</code>. Unset: you pick it in the CV Tool's tab 2</td>
+</tr>
 </tbody>
 </table>
 <h3 id="result-cvresult-in-datapy">Result: <code>CvResult</code> in <code>data.py</code></h3>
@@ -647,15 +945,11 @@
 <tbody>
 <tr>
 <td><code>status</code>, <code>stop_reason</code></td>
-<td><code>approved</code> or <code>stopped</code>, and why it stopped (required when stopped)</td>
+<td><code>ready</code> (cv_agent's end: everything but your Submit), <code>approved</code> (older results) or <code>stopped</code>, and why it stopped (required when stopped)</td>
 </tr>
 <tr>
 <td><code>pdf_path</code></td>
-<td>The exact PDF that passed Rezi's check</td>
-</tr>
-<tr>
-<td><code>odt_path</code></td>
-<td>The <code>.odt</code> it came from</td>
+<td>With <code>ready</code>, the last local PDF from <code>cv.tool_round</code> (your Submit copies it to <code>CV_Test_&lt;Company&gt;_final.pdf</code>, named in the cv module's message); on the old path, the one <code>cv.build</code> exported (there's no <code>odt_path</code>: a result with one is refused)</td>
 </tr>
 <tr>
 <td><code>report_path</code></td>
@@ -703,11 +997,11 @@
 </tr>
 <tr>
 <td><code>approved_by_user</code></td>
-<td>Your yes at step 7</td>
+<td>Your yes on the old path (step 7); false with <code>ready</code>, since your Submit comes after</td>
 </tr>
 </tbody>
 </table>
-<p>Scores that aren't the rounds' scores, and <code>match_ok</code> with a compare that found issues, are refused. <code>approved</code> is refused unless <code>approved_by_user</code>, <code>one_page</code>, <code>match_ok</code> and <code>pdf_path</code> are all set.</p>
+<p>Scores that aren't the rounds' scores, and <code>match_ok</code> with a compare that found issues, are refused. <code>ready</code> is refused unless <code>one_page</code> and <code>pdf_path</code> are set, and with <code>approved_by_user</code>. <code>approved</code> is refused unless <code>approved_by_user</code>, <code>one_page</code> and <code>pdf_path</code> are all set. Rezi's match (<code>match_ok</code>) is no longer needed: the CV Tool's own page is the final PDF, with no Rezi import check.</p>
 <footer>Generated from <code>src/assistant/modules/cv/docs/tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

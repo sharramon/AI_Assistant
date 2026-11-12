@@ -17,6 +17,7 @@
 <p><strong>Status: first piece built (2026-11-05).</strong> The permissions handler is part of the core (<code>src/assistant/core/permissions/</code>), always on. Built: <a href="#access-lists-built">access lists</a> for task agents (one card per list, saved grants per kind of agent, the Main Assistant's review, the <code>permissions.*</code> grant calls). Built from the agent-permissions note (in next steps). Not built yet: single permissions (<code>location</code>, <code>microphone</code>) are still allowed and logged, permission sources, and required permissions checked at start.</p>
 <p><strong>Built: <code>ctx.permissions</code></strong> (2026-11-02) on every module's context, with <code>has</code> and <code>request</code>, and the manifest's <code>permissions</code> / <code>optional_permissions</code> fields. Since 2026-11-05 it's a <code>PermissionsPort</code> bound to the module, forwarding to the handler; <code>request_set</code> asks for a whole access list (<a href="../api/modules.html#modulecontextpermissions">API</a>).</p>
 <p><strong>Built: the <a href="#permission-mode-built">permission mode</a></strong> (2026-11-02): Manual or Auto for the Main Assistant, switched with a button.</p>
+<p><strong>Built: <a href="#messages-between-agents">messages between agents</a></strong> (2026-11-10): the Agent Hub's message gate asks with a <code>message:&lt;receiver&gt;</code> item, answered Allow once, Always allow or Deny.</p>
 </blockquote>
 <h2 id="the-idea">The idea</h2>
 <p>Permissions are per module, not per app. A map module may get your location; a notes module doesn't. If a module lacks something it needs, only that module stops or loses a feature; everything else runs.</p>
@@ -53,7 +54,7 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
 <ul>
 <li><strong>Refused:</strong> a write to a folder in the <a href="#repo-zones">protected zone</a> (or one holding part of it) is taken off the list and shown as refused.</li>
 <li><strong>Rule warnings</strong>, fixed and predictable: writing plus Chrome; reading outside the working folder plus Chrome; Python.</li>
-<li><strong>The review:</strong> the Main Assistant gets the list and the rule warnings as a short task and adds one line per further risk. If it's busy or doesn't answer in time (90 s), the card says "not reviewed".</li>
+<li><strong>The review:</strong> the Main Assistant gets the list and the rule warnings as a short task and adds one line per further risk. If it's active on other work or doesn't answer in time (90 s), the card says "not reviewed".</li>
 <li><strong>Fixed rules:</strong> never submit or send anything (a prompt rule, not enforced in code); protected paths are never granted; sessions start in Manual.</li>
 <li><strong>Sessions always start in Manual.</strong> A list can't start an agent in Auto: <code>permission_mode</code> in config is clamped to <code>default</code>, <code>acceptEdits</code> or <code>plan</code> (<a href="../api/infra.html#agentprofile"><code>manual_claude_mode</code></a>). Auto stays your button.</li>
 <li>A denied card, or no answer in 10 minutes, leaves the module off. A denial is saved too, so the same list asks again only when it changes.</li>
@@ -77,7 +78,7 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
     else new or changed list
         P--&gt;&gt;M: AccessPending (start ends, module off)
         P-&gt;&gt;R: StartTask(review)
-        R--&gt;&gt;P: TaskUpdated(done, notes), or busy / late: not reviewed
+        R--&gt;&gt;P: TaskUpdated(done, notes), or active / late: not reviewed
         P--&gt;&gt;U: PermissionRequested(items, notes, rules)
         U-&gt;&gt;You: card with tick boxes
         You-&gt;&gt;U: Allow (ticked items)
@@ -91,6 +92,16 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
 <p>Built 2026-11-05.</p>
 <h3 id="grants-per-kind-of-agent">Grants per kind of agent</h3>
 <p>A grant is saved per module and <strong>subject</strong>: the kind of agent, not each copy. The job agent's subject is <code>job_search_agent</code>. For <code>task_agents</code> the subject is the kind: <code>helper_2</code> shares <code>helper</code>'s grant, and so does every helper launched from that kind. One section of <code>data/permissions.toml</code> per module and subject holds the fingerprint, the asked and granted keys, whether it was denied, and the date. It changes only through the handler's calls.</p>
+<h3 id="messages-between-agents">Messages between agents</h3>
+<p>Built 2026-11-10. When an agent messages another agent that isn't its own child task (<code>hub.send</code> with <code>agent_id</code>), the Agent Hub's message gate (<code>agent_hub/gate.py</code>, <code>MessageGate</code>) asks first, with one item, <code>message:&lt;receiver&gt;</code> (<code>AccessKind.MESSAGE</code>).</p>
+<ul>
+<li><strong>The check:</strong> <code>ctx.permissions.granted(item, sender)</code> reads the Hub's saved grant for the sender's kind (the handler's <code>kind_of</code>: <code>helper_2</code> shares <code>helper</code>'s). Granted: the message goes through with no card.</li>
+<li><strong>The card</strong> (<code>ctx.permissions.ask(item, sender, reason)</code>, action <code>message</code>): "job_search_agent wants to message cv_agent", with the start of the text. Three buttons: <strong>Allow once</strong> (<code>AnswerPermissionRequest.remember=False</code>: this message only, nothing saved), <strong>Always allow</strong> (saved), <strong>Deny</strong>. The Talker's ALLOW is Allow once; Always is only the button.</li>
+<li><strong>Saved:</strong> under module <code>agent_hub</code>, subject = the sender's kind, item <code>message:&lt;receiver&gt;</code>. One grant per direction: job → cv and cv → job are each asked once. It shows in <code>permissions.grants</code> and the Grants panel.</li>
+<li><strong>While the card is open,</strong> the message and any later ones from the same sender to the same receiver wait behind it. On Allow they're delivered (never into a running turn); on Deny or no answer nothing is sent and the sender gets a <code>[messages]</code> note.</li>
+<li><strong>Revoke:</strong> <code>permissions.revoke</code> of only <code>message:</code> items keeps <code>agent_hub</code> on; the next message asks again.</li>
+<li><strong>Never asked:</strong> the Talker (you), and a message into one's own child task.</li>
+</ul>
 <h3 id="managing-grants">Managing grants</h3>
 <p>The calls are on the core's menu, with no UI in them, so any UI and any agent use the same ones. Each knows its caller (<code>InvokeTool.caller</code>).</p>
 <table>
@@ -146,8 +157,12 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
 <td>The grant is removed; the module asks again when turned on</td>
 </tr>
 <tr>
-<td>Any revoke</td>
+<td>Any other revoke</td>
 <td>The module turns off right away and its running tasks are stopped (like Esc). A running session would keep the old access, since its rules are fixed when it starts</td>
+</tr>
+<tr>
+<td>A revoke of only <code>message:</code> items</td>
+<td>The module stays on; the next message between those agents asks again (<a href="#messages-between-agents">messages between agents</a>)</td>
 </tr>
 </tbody>
 </table>
@@ -240,6 +255,8 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
         +has(name) bool
         +request(name, reason) bool
         +request_set(items, reason, subject, wait) items
+        +granted(item, agent_id) bool
+        +ask(item, agent_id, reason) bool
     }
     class PermissionsPort {
         &lt;&lt;built, core&gt;&gt;
@@ -250,6 +267,7 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
         +request_set(module_id, subject, items, reason, wait)
         +answer(AnswerPermissionRequest)
         +grants() / grant() / revoke()
+        +kind_of(agent_id) / granted() / ask()
     }
     class GrantStore {
         &lt;&lt;built, core&gt;&gt;
@@ -289,12 +307,12 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
 <tr>
 <td><code>PermissionRequested(request_id, module_id, subject, action, reason, items, notes, reviewed, rules, caller)</code></td>
 <td>event</td>
-<td>A card for you: an access list, or an agent's grant or revoke; UIs and the Talker show it</td>
+<td>A card for you: an access list, an agent's grant or revoke, or an agent's message to another (<code>message</code>); UIs and the Talker show it</td>
 </tr>
 <tr>
-<td><code>AnswerPermissionRequest(request_id, allow, keep)</code></td>
+<td><code>AnswerPermissionRequest(request_id, allow, keep, remember)</code></td>
 <td>command</td>
-<td>Your answer; <code>keep</code> is the ticked items (none: all)</td>
+<td>Your answer; <code>keep</code> is the ticked items (none: all); <code>remember=False</code> is a message card's Allow once</td>
 </tr>
 <tr>
 <td><code>PermissionChanged(module_id, subject, granted, request_id, text)</code></td>

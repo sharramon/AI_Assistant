@@ -94,7 +94,7 @@
 <blockquote>
 <p><strong>Temporary.</strong> A throwaway stand-in until a real <strong>UI handler</strong> and its UI configurations are designed, in a conversation of their own (an <a href="../architecture/decisions.html#open-decisions">open decision</a>). Kept small so it's easy to throw away; don't build on it.</p>
 </blockquote>
-<p>The <code>temp_ui</code> module serves a local web page at <code>http://127.0.0.1:8765/</code>: the <strong>Main Assistant's</strong> activity on the left (its text, tool calls, task updates, and an idle / working / waiting badge), the <strong>Talker</strong> conversation on the right (with an input box). Terminal 1 still works alongside it; type <code>exit</code> there to quit.</p>
+<p>The <code>temp_ui</code> module serves a local web page at <code>http://127.0.0.1:8765/</code>: the <strong>Main Assistant's</strong> activity on the left (its text, tool calls, task updates, and an idle / working badge: working while the agent is active, idle otherwise, also when it has asked you something), the <strong>Talker</strong> conversation on the right (with an input box). Terminal 1 still works alongside it; type <code>exit</code> there to quit.</p>
 <p>It opens in its own window using Edge's app mode (<code>msedge --app=URL</code>: no tabs or address bar). Set <code>[modules.temp_ui] window</code> to <code>"browser"</code> for a normal tab, or <code>"none"</code> to open nothing. Without Edge it falls back to a tab. Closing the window doesn't stop the app. The window runs on its own Edge profile (<code>window_profile</code>, default <code>%LOCALAPPDATA%\AI_Assistant\temp_ui_window</code>), so it's separate from your normal Edge and the app can close it.</p>
 <pre><code class="language-mermaid">flowchart LR
     Browser[&quot;&lt;b&gt;Page in its own window&lt;/b&gt;&lt;br/&gt;Main Assistant | Talker&quot;]
@@ -108,7 +108,7 @@
 </code></pre>
 <ul>
 <li>It's an ordinary module: it publishes <code>InputReceived</code>, sends <code>AnswerPermission</code> and <code>SetPermissionMode</code>, and listens to events, so nothing else knows it exists.</li>
-<li><strong>Permission requests</strong> show in the Talker pane, in line with the conversation, as a card with <strong>Allow</strong> / <strong>Deny</strong> (<code>POST /permission</code>). Answering the Talker in words instead settles the card too. The Main Assistant pane only logs the request and its answer, with no buttons.</li>
+<li><strong>Permission requests</strong> show in the Talker pane, in line with the conversation, as a card with <strong>Allow</strong> / <strong>Deny</strong> (<code>POST /permission</code>). A card for one agent messaging another has <strong>Allow once</strong> / <strong>Always allow</strong> / <strong>Deny</strong> (<code>POST /access-answer</code> with <code>remember</code>). Answering the Talker in words instead settles the card too. The Main Assistant pane only logs the request and its answer, with no buttons.</li>
 <li><strong>Permission mode toggle (a stand-in):</strong> <code>&lt;agent&gt;: Manual | Auto</code> in the Talker pane's header sets what the agent of the tab you're in may do (<code>POST /permission-mode {mode, agent}</code> → <code>SetPermissionMode(agent_id=that agent)</code>; the Main Assistant when no agent is given). Each tab's button shows its own agent's mode (built 2026-11-06; before, every press went to the Main Assistant). Its tooltip and code comment mark it as a stand-in until the control panel or chat window. Switching to Auto first shows a confirm dialog naming the agent: full permissions except <code>git push</code>, it pauses before risky steps on its own judgment only, and this is not a guarantee. Switching back to Manual is one click. While Auto is on, the Talker pane's header turns amber and reads "<agent>: AUTO, no permission prompts", and the worker pane shows an <code>AUTO</code> tag; a switch that waits says "(from the next task)". Each <code>PermissionModeChanged</code> is logged as a <code>note</code> line in both panes of that agent's tab. Each agent's mode is a "current state" item (<code>{"kind": "mode", "agent", "mode", "applies"}</code>), so a reconnect shows it like the usage meters.</li>
 <li><strong>Risky-step card:</strong> in Auto, a <code>need</code> whose text starts with <code>Risky:</code> (the Hub types it <code>question_kind</code> <code>risky</code>; the temp UI checks the kind) shows in the Talker pane as an amber card, "⚠ Risky step, paused: …", with <strong>Go ahead</strong> / <strong>Don't</strong>. The buttons send "Go ahead" or "Don't do it" through <code>/say</code>, the same as typing it. The worker pane logs "paused: risky step".</li>
 <li><strong>Logs</strong> button in the header opens the current session's log folder in Explorer, or <code>logs/</code> before your first message, when the folder doesn't exist yet (<code>POST /open-logs</code>; the temp UI asks <code>ctx.logs.folder()</code>).</li>
@@ -424,7 +424,7 @@
 <p><strong>Peek, don't interrupt.</strong> Every message to the running task interrupts it and costs it a full step at its whole context, plus the automatic "continue". So questions about what it's doing ("what's going on?", "why is it editing that?") are a <code>LOOK</code>: the <code>[Status]</code> carries the task's last 15 activity lines (its text, and tool calls with their file or command, from <a href="../api/agents.html#taskinfo"><code>TaskInfo.activity</code></a>). <code>ASK</code> is only for answering its question or changing what it does, and never just to say "continue".</p>
 <p><strong>One change per task.</strong> A new request gets its own <code>WORK</code> once the running task is done; it isn't folded into the running task with <code>ASK</code>, which is what let one task grow to four features and 273k tokens of context (the 2026-10-27 logs). If you ask for new work while a task runs, the Talker says what's running and what pausing or cancelling it would leave unfinished, and you choose: wait, pause it, or cancel it.</p>
 <p><strong>Reset.</strong> <code>ResetRequested("talker")</code> (the temp UI's Reset button, or <code>&lt;&lt;RESET: talker&gt;&gt;</code>) goes into the inbox, so it happens between turns: the session restarts, and the next message to it starts with <code>[Context] Your session was just reset…</code> and the last few exchanges.</p>
-<p><strong>Restart.</strong> When you ask for a restart, the Talker's <code>&lt;&lt;RESTART&gt;&gt;</code> asks the worker for <strong>reset instructions</strong>: what was being worked on, what is done, what is left, which notes to read, every change in the Pending changes table of <code>docs/next-steps/README.md</code> that waits on a restart (its note and the hand checks now due), and which helpers it started. Under them the Talker adds a state section of its own (<code>_app_state</code>): the tab you were in, every agent with its description and mode, each open task with its state and any question waiting on you (behind a <strong>!</strong> or not), then what a restart does (everyone back in Manual, no task carried over, launched helpers gone, autostart ones back idle, usage from zero, the waiting changes loaded). If a task is running, this goes as <code>SendToTask(resume=false)</code>; with no task, as a small <code>StartTask</code>. If the task is waiting on you (a <code>need</code> or a permission), a <code>[Status]</code> says so first, and only <code>&lt;&lt;RESTART: anyway&gt;&gt;</code>, after you say yes, goes ahead. The worker updates the task's change note, then replies with the instructions and a last line <code>RESTART_READY</code> (read with <code>agent_tags.last_line</code>). The Talker saves the reply to <code>restart_note</code> (<code>.claude/state/reset-instructions.md</code>) and publishes <code>ShutdownRequested(restart=True)</code>. If the worker can't be reached, its task fails, or it doesn't answer within <code>restart_timeout</code> (120 s), the Talker saves its own last few exchanges instead and restarts anyway. At the next start the note is the Talker's first input (<code>[Restart] The app was just restarted…</code>). The Talker tells you where things stand and waits for your go, then deletes the note. Any stop that isn't a restart also deletes a leftover note. This builds on the <code>HANDOFF:</code> lines and the worker reset (both stay within one launch). A restart carries the same kind of note across launches.</p>
+<p><strong>Restart.</strong> When you ask for a restart, the Talker's <code>&lt;&lt;RESTART&gt;&gt;</code> asks the worker for <strong>reset instructions</strong>: what was being worked on, what is done, what is left, which notes to read, every change in the Pending changes table of <code>docs/next-steps/README.md</code> that waits on a restart (its note and the hand checks now due), and which helpers it started. Under them the Talker adds a state section of its own (<code>_app_state</code>): the tab you were in, every agent with its description and mode, each open task with its state and any question waiting on you (behind a <strong>!</strong> or not, with <code>(context: &lt;key&gt;)</code> when it has a context key), then what a restart does (everyone back in Manual, no task carried over, launched helpers gone, autostart ones back idle, usage from zero, the waiting changes loaded). If the worker holds a task, this goes as <code>SendToTask(resume=false)</code> into it; with no task, or when its task only holds a question for you, as a small <code>StartTask</code> of its own (the question stays open and is listed in the note). Open questions never stop a restart (since 2026-11-10; there's no <code>&lt;&lt;RESTART: anyway&gt;&gt;</code> any more). The worker updates the task's change note, then replies with the instructions and a last line <code>RESTART_READY</code> (read with <code>agent_tags.last_line</code>). The Talker saves the reply to <code>restart_note</code> (<code>.claude/state/reset-instructions.md</code>) and publishes <code>ShutdownRequested(restart=True)</code>. If the worker can't be reached, its task fails, or it doesn't answer within <code>restart_timeout</code> (120 s), the Talker saves its own last few exchanges instead and restarts anyway. At the next start the note is the Talker's first input (<code>[Restart] The app was just restarted…</code>). The Talker tells you where things stand and waits for your go, then deletes the note. Any stop that isn't a restart also deletes a leftover note. This builds on the <code>HANDOFF:</code> lines and the worker reset (both stay within one launch). A restart carries the same kind of note across launches.</p>
 <pre><code class="language-mermaid">flowchart TB
     Wait[&quot;Wait for the next inbox item&quot;] --&gt; Send[&quot;Send it to the Talker session&quot;]
     Send --&gt; Reply[&quot;Turn ends (result)&quot;]
@@ -457,7 +457,7 @@
 <td>Not a Hub command: publishes <code>ResetRequested</code> for itself or the worker, only when you ask</td>
 </tr>
 <tr>
-<td><code>&lt;&lt;RESTART&gt;&gt;</code> / <code>&lt;&lt;RESTART: anyway&gt;&gt;</code></td>
+<td><code>&lt;&lt;RESTART&gt;&gt;</code></td>
 <td><code>SendToTask</code> or <code>StartTask</code> asking for reset instructions, then <code>ShutdownRequested(restart=True)</code> (<a href="#the-talker-on-its-own">Restart</a> above), only when you ask for a restart</td>
 </tr>
 <tr>
@@ -496,31 +496,36 @@
 </table>
 <p><strong>Talker prompt, in short:</strong> you're the voice of a personal assistant; keep replies short and conversational; you can't do work yourself, so hand anything substantial over with <code>WORK</code>; never claim work is done until a <code>[Task update: done]</code> arrives; infer from context whether the user means continue, pause, or cancel, and never ask them for keywords. You and the Main Assistant are one assistant to the user. It also gets the facts about the system: what the Main Assistant can read and write, that nobody can grant permissions by chat, the worker's permission mode (Manual at launch; only the user switches to Auto), and where the logs are. It must not state anything about the system beyond those facts. HTML files always open in the HTML viewer: it writes the path (the chat shows an Open in viewer button) and never offers or asks for the default browser. A <code>[Viewer] snip</code> line means an image of part of a page is attached; it answers about the image, and hands real work on it to the Main Assistant with the snip's path.</p>
 <h2 id="the-main-assistant-on-its-own">The Main Assistant on its own</h2>
-<p><code>SessionTaskAgent</code> turns <code>ITaskAgent</code> calls into session messages and session events into reports. It keeps an internal <strong>mode</strong>; the Hub's <code>TaskState</code> is the outside view of the same thing.</p>
+<p><code>SessionTaskAgent</code> turns <code>ITaskAgent</code> calls into session messages and session events into reports. It keeps an internal <strong>mode</strong>; outside it is only <code>active</code> or <code>idle</code> (<a href="../api/agents.html#agentstate"><code>AgentState</code></a>: idle in <code>idle</code> and <code>paused</code>, active otherwise), and the Hub's <code>TaskState</code> is the task's view.</p>
 <pre><code class="language-mermaid">stateDiagram-v2
     [*] --&gt; idle
-    idle --&gt; working: assign → send task
+    idle --&gt; working: assign → send task (or an answer: the same task id)
+    paused --&gt; working: assign → drops the stopped task for the new one
     working --&gt; idle: result, no NEED → report done
     working --&gt; idle: result is an error we didn't cause → report failed
-    working --&gt; waiting: result ends with NEED → report need
+    working --&gt; asking: result ends with NEED → report need, drop the task
+    asking --&gt; idle: the Hub has the report
     working --&gt; interrupting: message() or cancel()
     interrupting --&gt; replying: interrupted result (message) → send wrapped message
     interrupting --&gt; idle: interrupted result (cancel)
     replying --&gt; working: result → report reply, then send &quot;continue&quot; (resume)
     replying --&gt; paused: result → report reply (no resume)
-    waiting --&gt; working: message() → send your answer
     paused --&gt; working: message(resume) → send it
-    waiting --&gt; idle: cancel()
     paused --&gt; idle: cancel()
 </code></pre>
 <ul>
-<li><strong>Interrupt isn't failure:</strong> in <code>interrupting</code> the agent knows it caused the <code>error_during_execution</code> result (<a href="spike.html#findings">spike finding</a>) and doesn't report <code>failed</code>.</li>
+<li>
+<p><strong>A question is a message:</strong> after a <code>NEED</code> the agent holds no task and takes new work. The answer comes back as <code>assign</code> of the same task id with <code>question_key</code> set: in the live session if that still has the question (nothing ran since), otherwise in a fresh one, whose first message adds the module's notes for the key (<code>set_context</code>; by default the handoff note). Design: <a href="../architecture/agents.html#questions-are-messages">questions are messages</a>.</p>
+</li>
+<li>
+<p><strong>Interrupt isn't failure:</strong> in <code>interrupting</code> the agent knows it caused the <code>error_during_execution</code> result (<a href="spike.html#findings">spike finding</a>) and doesn't report <code>failed</code>.</p>
+</li>
 <li><strong><code>message</code> and <code>cancel</code> return as soon as the interrupt is sent</strong>; the rest happens as events arrive. So the Hub never waits on the agent while the agent is reporting to the Hub.</li>
 <li><strong>Cancel fallback:</strong> if no <code>result</code> arrives within a few seconds of the interrupt, close the process; the next task starts a fresh session.</li>
 <li><strong>Reports and events while working:</strong></li>
 <li>every <code>assistant</code> text or tool call → <code>AgentActivity</code> (terminal 2)</li>
 <li>a text note mid-turn → <code>ReportTask(progress)</code></li>
-<li><code>working</code> / <code>busy</code> changes → <code>AgentStateChanged</code></li>
+<li><code>state</code> changes (active / idle) → <code>AgentStateChanged</code></li>
 <li>every call (and each turn's result) → <a href="../api/agents.html#sessionusage"><code>SessionUsage</code></a>, when the numbers changed</li>
 </ul>
 <h3 id="fresh-sessions-and-handoffs">Fresh sessions and handoffs</h3>
@@ -528,8 +533,10 @@
 <ul>
 <li><strong>A fresh session per task</strong> (<code>fresh_sessions = true</code>): <code>assign</code> closes a used session and starts a new one, back at the fixed ~31k (system prompt and tools). The task text and its change note in <code>docs/next-steps/</code> carry what it needs; decisions live in the docs, not in an old conversation.</li>
 <li><strong>Handoffs inside a task:</strong> the prompt asks it to judge whether a task holds separate, big parts. If so, after each part it updates the docs, writes what's done and next into the change note, and ends with <code>HANDOFF: &lt;note&gt;</code>. The agent closes the session, starts a fresh one, and sends <code>Task, continued in a fresh session: &lt;text&gt; … read the handoff in &lt;note&gt; first</code>. Same task id, so the Hub and Talker see a <code>progress</code> report, not a new task. After <code>max_handoffs</code> (3) in one task it asks you (<code>need</code>) instead.</li>
+<li><strong>Chrome agents hand off in place</strong> (built 2026-11-10): Chrome ties an agent's tab group to its <code>claude</code> session id, so a new process loses the tabs while <code>/compact</code> keeps them (a spike on 2026-11-10: <code>/clear</code> gave a new id and lost the tab, <code>/compact</code> kept both). An agent started with <code>--chrome</code> (the job agent) answers a <code>HANDOFF:</code> by compacting its running session, then sends "Task, continued after your context was compacted …" with the note; messages that arrive meanwhile go in after it. If the compact fails, it starts a fresh session as above, and the note's URLs reopen the tabs. Every agent's prompt says to put each tab's URL and state in the note and save form work before a <code>HANDOFF:</code>. A new task still starts fresh.</li>
+<li><strong>Chrome agents close their tabs</strong> (built 2026-11-10): every agent's prompt says to close a tab (<code>tabs_close_mcp</code>) once its page is done, and the rest before the final reply, except one the user should act on (a filled form for you to submit), named in the reply. Tabs stay across a handoff, while a question is open, and when a task is cancelled or fails, so you can see where it stopped. If a task used Chrome and its last turn closed no tab, the app sends one short turn asking it to close what it no longer needs before it reports the task done. Listing and closing its own tabs asks no card.</li>
 <li><strong>Reset</strong> (<a href="../api/infra.html#sessiontaskagent"><code>SessionTaskAgent.reset</code></a>, from <code>ResetRequested</code>): idle, the session closes now; mid-task, it gets a message asking for a handoff note, and its <code>HANDOFF:</code> reply hands off as above.</li>
-<li><strong>Context reminder</strong> (<code>[modules.main_assistant] context_reminder = 150000</code>, 0 = off): the first time the worker's context passes it during a task, <code>SessionTaskAgent</code> sends a <code>[Context check]</code> message the same way as a mid-task message (it interrupts the current step, then carries on): find a safe point, write what's done and next into the change note, and end with <code>HANDOFF:</code>, which hands off as above. Once per crossing (the shared <a href="../api/infra.html#contextwatch"><code>ContextWatch</code></a>); a fresh session re-arms it. While the task waits on you (a <code>NEED</code> or a permission request) it's held and sent once the task works again. You hear about it through the Talker's own warning and the <code>progress</code> "Handed off…" report.</li>
+<li><strong>Context reminder</strong> (<code>[modules.main_assistant] context_reminder = 150000</code>, 0 = off): the first time the worker's context passes it during a task, <code>SessionTaskAgent</code> sends a <code>[Context check]</code> message the same way as a mid-task message (it interrupts the current step, then carries on): find a safe point, write what's done and next into the change note, and end with <code>HANDOFF:</code>, which hands off as above. Once per crossing (the shared <a href="../api/infra.html#contextwatch"><code>ContextWatch</code></a>); a fresh session re-arms it. While the task waits on you (a permission request) it's held and sent once the task works again. You hear about it through the Talker's own warning and the <code>progress</code> "Handed off…" report.</li>
 <li><strong>Batching</strong>, with no interrupts and no extra steps: an interrupt costs a full step and balloons the context, which is what batching is meant to prevent. (1) The worker's prompt always says to read each file once and make all its changes in one pass, and that this never means skipping the architecture-check, tests or ruff. (2) The edit hook (<code>scripts/hooks/edit_tracker.py</code>, <code>.claude/settings.json</code> matcher <code>Edit|Write|MultiEdit|NotebookEdit</code>) adds a note to the edit itself on the second edit to a file in a task, once per file. The worker's process carries <code>ASSISTANT_AGENT</code>, <code>ASSISTANT_TASK_FILE</code> and <code>ASSISTANT_EDIT_NOTE</code> (from <code>hook_env</code>); <code>SessionTaskAgent</code> writes the task id to that file at each <code>assign</code> (<code>.claude/state/main_assistant-task.txt</code>), so the count survives handoffs. <code>SessionTaskAgent</code> logs the same moment (main log, and <code>batching note: a.md</code> in the worker's pane). Off switch: <code>[modules.main_assistant] edit_note = false</code> (the prompt line stays). Your own Claude Code sessions keep the hook as before: <code>Edit</code> and <code>Write</code> only, a note on every repeat.</li>
 <li><strong>Debugging and broad searches</strong> go to the <code>debugger</code> subagent (Claude Code's own subagents, <code>.claude/agents/debugger.md</code>, sonnet): it loops in its own small context and returns only the cause, the fix, and the proof. It runs inside the Main Assistant's process, so the Hub doesn't see it as a task; stopping the Main Assistant stops it too.</li>
 </ul>
@@ -546,7 +553,7 @@
     working --&gt; restarting: result ends with HANDOFF (under max) → report progress
     replying --&gt; restarting: reply ends with HANDOFF (asked to reset, or the context reminder)
     restarting --&gt; working: fresh session → send &quot;continued… read &lt;note&gt;&quot;
-    working --&gt; waiting: HANDOFF after max handoffs → report need
+    working --&gt; asking: HANDOFF after max handoffs → report need (the answer: a fresh session on the note)
 </code></pre>
 <h3 id="permission-mode">Permission mode</h3>
 <p>The Main Assistant runs in one of two <a href="../api/agents.html#permissionmode"><code>PermissionMode</code></a>s. The mode lives in memory in <code>SessionTaskAgent</code>, and every launch starts in <strong>Manual</strong>: it isn't saved.</p>
@@ -615,7 +622,11 @@
 <td><code>[Context check] Your context is at &lt;n&gt;k, past &lt;limit&gt;k: … Find a good reset point … end with HANDOFF: &lt;that note's path&gt;.</code></td>
 </tr>
 <tr>
-<td>Answer to NEED, or resume from pause</td>
+<td>Answer to a NEED (the same task, assigned again)</td>
+<td><code>Answer to your question in task &lt;id&gt; ("&lt;question&gt;"): &lt;answer&gt;</code>; in a fresh session plus <code>[App] This is a fresh session: …</code> and the module's notes for the question's key</td>
+</tr>
+<tr>
+<td>Resume from pause</td>
 <td>the text as is</td>
 </tr>
 </tbody>
@@ -638,7 +649,7 @@
     H-&gt;&gt;M: assign(task)
     M--&gt;&gt;H: ok (returns at once)
     H--&gt;&gt;T: ok(task_id)
-    M--&gt;&gt;V: AgentStateChanged(busy, working)
+    M--&gt;&gt;V: AgentStateChanged(active)
     loop while it works
         M--&gt;&gt;V: AgentActivity (text, tool calls)
         M-&gt;&gt;H: ReportTask(progress)
@@ -647,14 +658,15 @@
     C-&gt;&gt;T: InputReceived
     T-&gt;&gt;C: ResponseReady (joke)
     M-&gt;&gt;H: ReportTask(need, &quot;Modern or traditional style?&quot;)
-    H--&gt;&gt;T: TaskUpdated(need)
+    Note over M: drops the task: idle, free for other work
+    H--&gt;&gt;T: TaskUpdated(need, idle)
     Note over T: inbox: [Task update: need] → turn
     T-&gt;&gt;C: ResponseReady &quot;Quick question: modern or traditional?&quot;
     You-&gt;&gt;C: &quot;Modern&quot;
     C-&gt;&gt;T: InputReceived
     Note over T: turn: ASK tag &quot;modern&quot;
     T-&gt;&gt;H: SendToTask(&quot;modern&quot;, resume)
-    H-&gt;&gt;M: message → send answer (it was waiting, no interrupt)
+    H-&gt;&gt;M: assign(same task id, &quot;Answer to your question …&quot;): no interrupt
     M-&gt;&gt;H: ReportTask(done, &quot;Wrote 3 poems to poems.txt&quot;)
     H--&gt;&gt;T: TaskUpdated(done)
     T-&gt;&gt;C: ResponseReady &quot;Done: three poems are in poems.txt.&quot;
@@ -666,7 +678,9 @@
 <li><strong>Nobody waits on a <code>claude</code> turn inside a handler.</strong> Event handlers queue; <code>assign</code>, <code>message</code> and <code>cancel</code> return once their message or interrupt is written.</li>
 <li><strong>The Hub is the only one that changes task state</strong>, and only from commands (<code>StartTask</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>), so dropped events never corrupt it.</li>
 <li><strong>One turn at a time per session.</strong> The Talker's inbox and the agent's mode guarantee nothing is written to a session mid-turn except an interrupt.</li>
-<li><strong>The Talker waits on nobody:</strong> while the Main Assistant works, waits for you, or is paused, the Talker keeps chatting.</li>
+<li><strong>The Talker waits on nobody:</strong> while the Main Assistant works or is paused, the Talker keeps chatting.</li>
+<li><strong>Nobody waits on a question:</strong> an agent that asked you something has ended its turn and takes other work; your answer goes back as a message whenever you give it.</li>
+<li><strong>A message never cuts into a turn</strong> unless it's a parent's own <code>hub.send</code> to its child: other agents' messages and modules' <code>DeliverMessage</code> wait for the turn's end.</li>
 </ul>
 <footer>Generated from <code>docs/agents/runtime.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

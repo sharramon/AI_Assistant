@@ -168,7 +168,7 @@ The core owns the paths ([logging](../architecture/core.md#logging)); a module n
 
 ### `ModuleContext.permissions`
 
-**Reusable** · Used by: `voice_in` first (`microphone`, built 2026-11-03); `job_search`, `task_agents` (`request_set`, through [`request_access`](infra.md#agent_access)); the core's `CoreMenu`; every module that needs a permission · built 2026-11-02, backed by the core's handler since 2026-11-05
+**Reusable** · Used by: `voice_in` first (`microphone`, built 2026-11-03); `job_search`, `task_agents` (`request_set`, through [`request_access`](infra.md#agent_access)); `agent_hub` (`granted` / `ask`, its message gate); the core's `CoreMenu`; every module that needs a permission · built 2026-11-02, backed by the core's handler since 2026-11-05
 
 `class ModulePermissions(ABC)`, in `assistant.contracts`.
 
@@ -178,6 +178,8 @@ The core owns the paths ([logging](../architecture/core.md#logging)); a module n
 | `async request(name, reason) -> bool` | Ask in the moment; `reason` is shown to you |
 | `own_agent(agent_id, subject)` | Say that this module's agent `agent_id` holds `subject`'s grant, so that agent may ask for more with `permissions.request` (called by [`ProfileAgent.start`](infra.md#profileagent) when given a `subject`). Non-abstract; does nothing by default |
 | `async request_set(items, reason="", subject="", wait=False) -> tuple[AccessItem, ...]` | Ask for a whole access list ([`AccessItem`](messaging.md#accessitem)s) in one request, for `subject` (its agent's kind; default: the module). Returns the items you allowed: the saved grant if the list is unchanged, else your answer on one card. Raises [`AccessDenied`](messaging.md#accessdenied-accesspending) on Deny. With `wait=False` (a module's `start`), raises [`AccessPending`](messaging.md#accessdenied-accesspending) while the card is open, and the handler turns the module on after your Allow; with `wait=True` (inside an approved run) it waits for your answer |
+| `granted(item, agent_id) -> bool` | Whether this module's saved grant for `agent_id`'s kind (`helper_2` shares `helper`'s) holds `item`, so it goes without a card. Non-abstract. Used by the Agent Hub's message gate with `message:<receiver>` (built 2026-11-10) |
+| `async ask(item, agent_id, reason="") -> bool` | Ask you on a one-item card whether `agent_id` may have `item` (Allow once · Always allow · Deny) and wait. True if allowed, at once if already granted; Always also saves it under this module and the agent's kind. False on Deny or no answer in time. Cancelling the call closes the card. Non-abstract (built 2026-11-10) |
 
 The caller's id is filled in by the core; a module never passes it. Every module's `ctx.permissions` is a [`PermissionsPort`](core.md#permissionsport) forwarding to the core's [permissions handler](../architecture/permissions.md). `request_set` is checked: a module that uses it declares `agent.access` in its manifest. `has` and `request` aren't checked yet: they allow, and log a warning the first time each module uses each name ("not checked yet: allowing voice_in microphone (You clicked the mic)"), then debug lines. Required permissions aren't checked at start yet.
 

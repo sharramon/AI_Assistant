@@ -52,7 +52,7 @@
 <td>interface</td>
 <td><code>has</code> / <code>request</code> a permission (not checked yet: allowed, warned once per module and name); <code>request_set</code> a whole access list on one card. The core backs it with a <a href="core.html#permissionsport"><code>PermissionsPort</code></a> forwarding to its <a href="core.html#permissionshandler"><code>PermissionsHandler</code></a></td>
 <td><code>contracts/module.py</code>, <code>core/permissions/</code>, <code>core/context.py</code></td>
-<td>every module's context (<code>ScopedContext</code>); callers: <code>voice_in</code> (<code>microphone</code>, on each start), the core's <code>CoreMenu</code>, <code>job_search</code> and <code>task_agents</code> (<code>request_set</code>, through <code>request_access</code>), every module that asks</td>
+<td>every module's context (<code>ScopedContext</code>); callers: <code>voice_in</code> (<code>microphone</code>, on each start), the core's <code>CoreMenu</code>, <code>job_search</code> and <code>task_agents</code> (<code>request_set</code>, through <code>request_access</code>), <code>agent_hub</code> (<code>granted</code> / <code>ask</code>, its message gate), every module that asks</td>
 </tr>
 <tr>
 <td><a href="messaging.html#accessitem"><code>AccessItem</code></a>, <a href="messaging.html#accesskind"><code>AccessKind</code></a>, <a href="messaging.html#accessnote"><code>AccessNote</code></a>, <a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code>, <code>AccessPending</code></a></td>
@@ -129,7 +129,7 @@
 <td>contract</td>
 <td>An agent that takes tasks, with an optional permission mode, <code>note</code> (words for its next turn) and <code>request_approval</code></td>
 <td><code>contracts/agents.py</code></td>
-<td><code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code> (through <code>SessionTaskAgent</code>) → <code>agent_hub</code></td>
+<td><code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>, <code>cv</code> (through <code>SessionTaskAgent</code>) → <code>agent_hub</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></a></td>
@@ -165,6 +165,13 @@
 <td>A task agent's mode: <code>manual</code>, <code>auto</code></td>
 <td><code>contracts/agents.py</code></td>
 <td><code>SessionTaskAgent</code>, <code>main_assistant</code>, <code>talker</code>, <code>temp_ui</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#agentstate"><code>AgentState</code></a></td>
+<td>enum</td>
+<td>An agent is <code>active</code> (in a turn) or <code>idle</code> (takes work, whatever it asked); on <code>AgentInfo.state</code> and <code>AgentStateChanged.state</code>; replaced <code>busy</code> / <code>working</code></td>
+<td><code>contracts/agents.py</code></td>
+<td><code>SessionTaskAgent</code> sets it; <code>cv</code> (<code>JobStartAgent</code>, starting); <code>agent_hub</code>, <code>talker</code>, <code>temp_ui</code>, <code>assistant_view</code>, <code>task_agents</code> read it</td>
 </tr>
 <tr>
 <td><a href="agents.html#setpermissionmode"><code>SetPermissionMode</code></a></td>
@@ -206,7 +213,42 @@
 <td>event</td>
 <td>A module's callback for an agent (a slow item's result); the Hub passes it to that agent's <code>note</code></td>
 <td><code>contracts/agents.py</code></td>
-<td><code>job_search</code> (<code>job.search</code>) → <code>agent_hub</code></td>
+<td><code>job_search</code> (<code>job.search</code>), <code>cv</code> (cv_agent's line about a delivered Submit) → <code>agent_hub</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#delivermessage"><code>DeliverMessage</code></a>, <code>Delivery</code></td>
+<td>command, class</td>
+<td>A message for an agent that never interrupts a turn: into its open task, else a new task; waits while the agent is in a turn or not running, in order, kept across a Hub reload. Value <code>message &lt;task&gt;</code>, <code>task &lt;id&gt;</code> or <code>pending</code></td>
+<td><code>contracts/agents.py</code>, <code>modules/agent_hub/delivery.py</code></td>
+<td><code>cv</code> (Submit's result to the asker) → <code>agent_hub</code>; the agent-to-agent message gate</td>
+</tr>
+<tr>
+<td><code>ctx.permissions.granted</code> / <code>ask</code>, <code>AccessKind.MESSAGE</code>, <code>AnswerPermissionRequest.remember</code> (<a href="modules.html#modulecontextpermissions">modules</a>)</td>
+<td>port methods</td>
+<td>One item a module asks for one agent, saved under the module and the agent's kind: is it granted; else a <code>message</code> card (Allow once · Always allow · Deny), awaited. A revoke of only <code>message:</code> items leaves the module on</td>
+<td><code>contracts/module.py</code>, <code>core/permissions/handler.py</code></td>
+<td><code>agent_hub</code>'s message gate</td>
+</tr>
+<tr>
+<td><code>MessageGate</code></td>
+<td>class</td>
+<td>An agent's message to another agent that isn't its child task: delivered if granted, else held behind one card per direction, then through <code>Delivery</code>; Deny notes the sender</td>
+<td><code>modules/agent_hub/gate.py</code></td>
+<td><code>agent_hub</code> (<code>hub.send</code> with <code>agent_id</code>)</td>
+</tr>
+<tr>
+<td><code>Delivery.later</code> (<a href="agents.html#sendtotask">agents</a>)</td>
+<td>method</td>
+<td>An answer for a task's question whose agent is in a turn or not running: waits behind that agent's other messages, goes into that task when the agent is free (<code>ok "pending"</code>)</td>
+<td><code>modules/agent_hub/delivery.py</code></td>
+<td><code>agent_hub</code> (<code>AgentHubModule._send</code>, for <code>SendToTask</code> and <code>hub.send</code>)</td>
+</tr>
+<tr>
+<td><code>TaskBoard.export_questions</code> / <code>restore</code> (<a href="../architecture/agents.html#questions-are-messages">agents</a>)</td>
+<td>methods</td>
+<td>The tasks holding a question waiting on you, handed to the next copy of the Hub (<code>export_state</code> <code>"questions"</code>), so a question outlives a Hub reload</td>
+<td><code>modules/agent_hub/tasks.py</code></td>
+<td><code>agent_hub</code> (<code>export_state</code>, <code>init</code>)</td>
 </tr>
 <tr>
 <td><a href="agents.html#the-hubs-menu">The Hub's menu</a> (<code>hub.*</code>)</td>
@@ -385,6 +427,20 @@
 <td><code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>, <code>cv</code> (through <code>ProfileAgent</code>)</td>
 </tr>
 <tr>
+<td><a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.set_context</code></a></td>
+<td>method</td>
+<td>The owning module's hook for questions: <code>key(task_id)</code> (a question's context key), <code>notes(key)</code> (what a fresh session needs when the answer comes)</td>
+<td><code>infra/session_agent.py</code></td>
+<td><code>cv</code> (<code>JobStartAgent.question_key</code>, <code>job_notes</code>); other agents keep the default</td>
+</tr>
+<tr>
+<td><a href="infra.html#sessiontaskagent"><code>default_context</code></a></td>
+<td>function</td>
+<td>A question's notes when its module has none: "read your last handoff note <key> first"</td>
+<td><code>infra/session_agent.py</code></td>
+<td><code>SessionTaskAgent</code> (<code>set_context</code>'s default), <code>cv</code> (<code>job_notes</code>, for a key that isn't a job folder)</td>
+</tr>
+<tr>
 <td><a href="infra.html#permissiongate"><code>PermissionGate</code></a></td>
 <td>class</td>
 <td>A task agent's one open question: tool requests, approvals, the timer, the Auto policy and the <code>git push</code> block</td>
@@ -527,16 +583,16 @@
 <tr>
 <td><a href="app_kit.html#window"><code>window</code></a></td>
 <td>functions</td>
-<td>Edge app window: open, close, raise, DevTools port; <code>window_profile(name)</code>, the window's profile folder</td>
+<td>Edge app window: open, close, raise, flash the taskbar button, DevTools port; <code>window_profile(name)</code>, the window's profile folder</td>
 <td><code>app_kit/window.py</code></td>
-<td><code>temp_ui</code>, HTML viewer app (<code>viewer.py</code>, <code>snip.py</code>); <code>window_profile</code>: <code>temp_ui</code>, <code>voice_notes</code>, <code>html_viewer</code> (module and app)</td>
+<td><code>temp_ui</code> (open, close, flash), HTML viewer app (<code>viewer.py</code>, <code>snip.py</code>), CV Tool app (<code>cv_tool/server.py</code>: open, raise, close); <code>window_profile</code>: <code>temp_ui</code>, <code>voice_notes</code>, <code>html_viewer</code> (module and app), CV Tool app</td>
 </tr>
 <tr>
 <td><a href="app_kit.html#load_layered"><code>load_layered</code></a></td>
 <td>function</td>
 <td>A TOML file plus its <code>.local</code> override</td>
 <td><code>app_kit/config.py</code></td>
-<td><code>load_config</code>, <code>voice_service</code> (<code>config.py</code>)</td>
+<td><code>load_config</code>, <code>voice_service</code> (<code>config.py</code>), CV Tool app (<code>cv_tool/server.py</code>: <code>cv_tool.toml</code>)</td>
 </tr>
 <tr>
 <td><a href="app_kit.html#local_path"><code>local_path</code></a></td>
@@ -550,7 +606,7 @@
 <td>function</td>
 <td>Deep-merge one dict over another (tables key by key, the rest replaced)</td>
 <td><code>app_kit/config.py</code></td>
-<td><code>load_layered</code>, <code>App</code> (a module's <code>module.toml</code> under its config section)</td>
+<td><code>load_layered</code>, <code>App</code> (a module's <code>module.toml</code> under its config section), CV Tool app (its defaults under <code>cv_tool.toml</code>)</td>
 </tr>
 <tr>
 <td><a href="app_kit.html#module_docs"><code>module_docs</code></a></td>
@@ -562,23 +618,23 @@
 <tr>
 <td><a href="app_kit.html#companionapp"><code>CompanionApp</code></a></td>
 <td>class</td>
-<td>Launch, call, stream, and quit a companion app; <code>code_changed()</code> and <code>stop(adopted=True)</code> restart it with new code on a reload; <code>last_answer</code>, the last ping's answer</td>
+<td>Launch, call, stream, and quit a companion app; <code>code_changed()</code> and <code>stop(adopted=True)</code> restart it with new code on a reload; <code>last_answer</code>, the last ping's answer; for an app outside the convention, <code>command</code>, <code>plain_ping</code> and <code>quit=None</code></td>
 <td><code>app_kit/companion.py</code></td>
-<td><code>html_viewer</code> module, <code>voice_in</code> (launches <code>voice_service</code> on the first click; <code>voice_service</code> answers its <code>/health</code> ping and its JSON-only <code>POST /quit</code>; reads <code>last_answer</code> instead of a second ping)</td>
+<td><code>html_viewer</code> module, <code>voice_in</code> (launches <code>voice_service</code> on the first click; <code>voice_service</code> answers its <code>/health</code> ping and its JSON-only <code>POST /quit</code>; reads <code>last_answer</code> instead of a second ping), <code>cv</code> module (<code>tool.py</code>, through <code>CompanionHandover</code>: the CV Tool, launched by the first <code>cv.open_tool</code> / <code>cv.tool_*</code> call), <code>job_search</code> (<code>ui.py</code>, through <code>CompanionHandover</code>: the job project's job UI by its command line, launched by <code>job.open_ui</code>)</td>
 </tr>
 <tr>
 <td><a href="app_kit.html#companionapp"><code>CompanionHandover</code></a></td>
 <td>class</td>
 <td>A module copy's companion app across a reload: take the handed-over <code>CompanionApp</code> or make one; <code>export()</code> hands it over unless its code changed; <code>stop()</code> quits it unless handed over</td>
 <td><code>app_kit/companion.py</code></td>
-<td><code>html_viewer</code> module, <code>voice_in</code></td>
+<td><code>html_viewer</code> module, <code>voice_in</code>, <code>cv</code> module (<code>tool.py</code>: <code>CvTool</code>, the CV Tool), <code>job_search</code> (<code>ui.py</code>: <code>JobUi</code>, the job UI)</td>
 </tr>
 <tr>
 <td><a href="app_kit.html#local_guard"><code>local_guard</code></a></td>
 <td>functions</td>
 <td>Refuse other hosts and other origins: <code>require_loopback(host)</code> before listening, <code>local_request(host, origin)</code> per request; <code>LOOPBACK_HOSTS</code></td>
 <td><code>app_kit/local_guard.py</code></td>
-<td><code>voice_service</code> (<code>server.py</code>, <code>__main__.py</code>), HTML viewer app (<code>viewer.py</code>)</td>
+<td><code>voice_service</code> (<code>server.py</code>, <code>__main__.py</code>), HTML viewer app (<code>viewer.py</code>), CV Tool app (<code>cv_tool/server.py</code>: every request; JSON-only posts), <code>cv</code> module (<code>tool.py</code>: <code>LOOPBACK_HOSTS</code> checks <code>tool.host</code>)</td>
 </tr>
 </tbody>
 </table>

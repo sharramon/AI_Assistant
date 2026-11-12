@@ -53,7 +53,7 @@
 <p>Dependency direction: the core and modules both depend on contracts; contracts depend on nothing. The core never references a concrete module, and modules never reference each other.</p>
 <h2 id="responsibility">Responsibility</h2>
 <p>The core controls communication and lifecycle: it validates which modules can run together, starts and stops them in dependency order, routes commands, delivers events, and resolves contracts.</p>
-<p>It also holds the <strong>permissions handler</strong> (<code>core/permissions/</code>), so it's always on and no module or agent can turn it off or reload it. The handler uses only the core's generic parts (the router's <code>send</code>, the bus's <code>publish</code>, the container's <code>get_one</code>) and the shared contracts, and knows no module by code; only its defaults name agents. Each module's <code>ctx.permissions</code> is a <code>PermissionsPort</code> bound to its id. Design: <a href="permissions.html#part-of-the-core">permissions</a>.</p>
+<p>It also holds the <strong>permissions handler</strong> (<code>core/permissions/</code>), so it's always on and no module or agent can turn it off or reload it. The handler uses only the core's generic parts (the router's <code>send</code>, the bus's <code>publish</code>, the container's <code>get_one</code>) and the shared contracts, and knows no module by code; only its defaults name agents. Each module's <code>ctx.permissions</code> is a <code>PermissionsPort</code> bound to its id. The Agent Hub's message gate uses it like any module (<code>granted</code> / <code>ask</code> with a <code>message:</code> item); the handler knows nothing about agents' messages beyond the item kind. Design: <a href="permissions.html#part-of-the-core">permissions</a>.</p>
 <p>It is <strong>not</strong> responsible for any capability. It contains no input, output, AI, or tool logic, and never imports anything from <code>assistant.modules</code>. The only place that names concrete modules is the composition root, <code>src/assistant/__main__.py</code>.</p>
 <h2 id="structure">Structure</h2>
 <pre><code class="language-mermaid">classDiagram
@@ -168,7 +168,7 @@
 </tr>
 <tr>
 <td><code>permissions/</code></td>
-<td>The permissions handler: <code>PermissionsHandler</code> (<code>handler.py</code>), <code>PermissionsPort</code> (<code>port.py</code>, each module's <code>ctx.permissions</code>), <code>PermissionsMenu</code> (<code>menu.py</code>, <code>permissions.*</code>), the saved grants (<code>store.py</code>) and the guardrails (<code>rules.py</code>). In the protected zone</td>
+<td>The permissions handler: <code>PermissionsHandler</code> (<code>handler.py</code>: access lists, grant and revoke cards, and one-item <code>message</code> cards through <code>kind_of</code> / <code>granted</code> / <code>ask</code>, Allow once or Always), <code>PermissionsPort</code> (<code>port.py</code>, each module's <code>ctx.permissions</code>), <code>PermissionsMenu</code> (<code>menu.py</code>, <code>permissions.*</code>), the saved grants (<code>store.py</code>) and the guardrails (<code>rules.py</code>). In the protected zone</td>
 </tr>
 </tbody>
 </table>

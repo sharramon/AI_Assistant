@@ -39,6 +39,8 @@ Every independent app the main app launches (the [HTML viewer](html-viewer.md), 
 5. Config with [`app_kit.load_layered`](../api/app_kit.md#load_layered): its TOML file plus a `.local` override.
 6. A thin module in the main app built on `CompanionApp`: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it. On a reload, hand the `CompanionApp` over in `export_state`, unless `code_changed()`: then quit it with `stop(adopted=True)` so the new copy runs the new code.
 
+An app we don't own (another project's script, like the job project's job UI) can't follow points 1, 3 and 4. `CompanionApp` still launches it, with `command` (its command line), `plain_ping` (any 200 from a page) and `quit=None` (stop ends the process it launched) ([job_search](../modules/job_search.md)).
+
 ## Adding a reusable part
 
 1. Check the [index](../api/reusable.md) first; extend a part that nearly does the job.

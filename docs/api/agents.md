@@ -16,26 +16,26 @@ In v1 an agent runs one task at a time.
 
 `info(self) -> AgentInfo`
 
-Abstract. Who this agent is and whether it's busy. Called on every lookup, never cached.
+Abstract. Who this agent is and whether it's active. Called on every lookup, never cached.
 
 ### `ITaskAgent.assign`
 
 `async assign(self, task: Task) -> Result`
 
-Abstract. Accept or refuse a task. **Returns at once and never waits for the work**; the agent reports back with [`ReportTask`](#reporttask). Starts the agent's process first if it isn't running.
+Abstract. Accept or refuse a task. **Returns at once and never waits for the work**; the agent reports back with [`ReportTask`](#reporttask). Starts the agent's process first if it isn't running. An idle agent takes it whatever questions it has open; a task it was stopped on (paused) is dropped for it. A task with `question_key` set is the answer to a question the agent asked in that task id: it carries on in its live session if that still has the question, else in a fresh one with its module's notes for the key ([`SessionTaskAgent.set_context`](infra.md#sessiontaskagent)).
 
 **Returns**
 | Status | When |
 |--------|------|
 | `ok` | Accepted; the work has started |
-| `not_available` | Busy with another task |
+| `not_available` | Active (in a turn) |
 | `failed` | The agent couldn't start (e.g. its process didn't launch) |
 
 ### `ITaskAgent.message`
 
 `async message(self, task_id: str, text: str, resume: bool = True) -> Result`
 
-Abstract. Like typing into Claude Code while it works. If the task is running, interrupt the current turn and send `text`; the answer comes back as `ReportTask(kind="reply")`. Then, if `resume` is true, continue the task; if false, stay paused. If the task is waiting for input or paused, `text` is simply the next message (your answer, or "carry on"). Returns once the message is delivered, not when it's answered.
+Abstract. Like typing into Claude Code while it works. If the task is active, interrupt the current turn and send `text`; the answer comes back as `ReportTask(kind="reply")`. Then, if `resume` is true, continue the task; if false, stay stopped (the task is `idle`, still held). If the task is stopped, `text` is simply the next message ("carry on"). An answer to a question doesn't come here: the agent dropped that task, and the Hub assigns it again ([`assign`](#itaskagentassign)). Returns once the message is delivered, not when it's answered.
 
 **Parameters**
 | Name | Type | Required | Description |
@@ -49,6 +49,7 @@ Abstract. Like typing into Claude Code while it works. If the task is running, i
 |--------|------|
 | `ok` | Delivered |
 | `invalid_arguments` | Not this agent's current task |
+| `not_available` | It has just asked a question in this task (the report is on its way to the Hub) |
 | `failed` | The session couldn't be interrupted or written to |
 
 ### `ITaskAgent.cancel`
@@ -138,7 +139,7 @@ The claims survive a Hub reload (handed over as `claims`, and shown in its `expo
 
 ## `Task`
 
-`Task(id: str, text: str, context: str = "")`
+`Task(id: str, text: str, context: str = "", question_key: str | None = None)`
 
 A unit of work the Hub assigns. Frozen. The other data types and all commands and events below are defined in `src/assistant/contracts/agents.py` too.
 
@@ -147,10 +148,19 @@ A unit of work the Hub assigns. Frozen. The other data types and all commands an
 | `id` | `str` | Set by the Hub |
 | `text` | `str` | What to do |
 | `context` | `str` | Relevant conversation context from the Talker |
+| `question_key` | `str \| None` | Set when the task answers a question the agent asked in it (the same id, active again): the question's context key (`""` for none). None for a new task |
+
+## `AgentState`
+
+**Reusable** · Used by: `SessionTaskAgent` sets it; `agent_hub`, `talker`, `temp_ui`, `assistant_view`, `usage`, `cv` read it · built 2026-11-10
+
+`class AgentState(StrEnum)`: `ACTIVE` (`"active"`), `IDLE` (`"idle"`).
+
+An agent is `active` while it's in a turn, or held in one by a permission card, and `idle` otherwise. An idle agent takes new work, whatever questions it has open: a question never keeps it busy. It replaced the old `busy` and `working` flags.
 
 ## `AgentInfo`
 
-`AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), busy: bool = False, working: bool = False, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = ())`
+`AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), state: AgentState = AgentState.IDLE, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = ())`
 
 Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 
@@ -159,10 +169,9 @@ Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 | `agent_id` | `str` | Unique id |
 | `description` | `str` | What it does |
 | `capabilities` | `tuple[str, ...]` | What kinds of tasks it takes |
-| `busy` | `bool` | It has an unfinished task: running, paused, or waiting for input |
-| `working` | `bool` | Its session is in a turn right now (generating or running tools). True from sending a message until the turn's `result` arrives. Always false when `busy` is false |
+| `state` | [`AgentState`](#agentstate) | `active` (in a turn) or `idle`. `info.active` (property) is `state is AgentState.ACTIVE` |
 | `permission_mode` | `PermissionMode` | The mode its next session starts in; Manual at every launch |
-| `write_folders` | `tuple[str, ...]` | Every folder it may write, resolved (its workspace and `write_dirs`, from [`AgentProfile.write_folders`](infra.md#agentprofile)). The Hub refuses to start a task whose agent writes a folder another open task's agent writes, or one inside it |
+| `write_folders` | `tuple[str, ...]` | Every folder it may write, resolved (its workspace and `write_dirs`, from [`AgentProfile.write_folders`](infra.md#agentprofile)). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it |
 
 ## `PermissionMode`
 
@@ -181,11 +190,11 @@ Design: [permission mode](../agents/runtime.md#permission-mode).
 
 ## `TaskState`
 
-`class TaskState(StrEnum)`: `RUNNING`, `PAUSED`, `WAITING_FOR_INPUT`, `DONE`, `FAILED`, `CANCELLED`. Values are the lowercase names. `PAUSED` means you stopped it on purpose; `WAITING_FOR_INPUT` means it asked you something. The last three are final: `state.is_final`. Transitions: [task state](../architecture/agents.md#task-state).
+`class TaskState(StrEnum)`: `ACTIVE`, `IDLE`, `DONE`, `FAILED`, `CANCELLED`. Values are the lowercase names. `ACTIVE`: its agent is in a turn on it (a permission card mid-turn keeps it active). `IDLE`: stopped after a reply (`hub.send` with pause; its agent still holds it), or holding the question its agent asked (a `need`; the agent dropped it and is free, and the answer makes it active again). The last three are final: `state.is_final`. Transitions: [task state](../architecture/agents.md#task-state). Changed 2026-11-10: `running`, `paused` and `waiting_for_input` are gone.
 
 ## `TaskInfo`
 
-`TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), activity: tuple[str, ...] = (), question: str | None = None, result: str | None = None, parent_task_id: str | None = None, held: bool = False, reply: str | None = None, question_kind: QuestionKind = QuestionKind.NONE)`
+`TaskInfo(id: str, agent_id: str, text: str, state: TaskState, recent: tuple[str, ...] = (), activity: tuple[str, ...] = (), question: str | None = None, result: str | None = None, parent_task_id: str | None = None, held: bool = False, reply: str | None = None, question_kind: QuestionKind = QuestionKind.NONE, question_key: str = "")`
 
 Frozen. A task as the Hub knows it.
 
@@ -197,8 +206,9 @@ Frozen. A task as the Hub knows it.
 | `state` | `TaskState` | Authoritative state |
 | `recent` | `tuple[str, ...]` | Latest reports, newest last |
 | `activity` | `tuple[str, ...]` | The agent's last 15 [`AgentActivity`](#agentactivity) lines for this task (its text, and tool calls with their file or command), newest last. What lets the Talker answer "what is it doing?" without interrupting it |
-| `question` | `str \| None` | The open question while `WAITING_FOR_INPUT`: the agent's own text, with no prefix added |
+| `question` | `str \| None` | The open question or permission request: the agent's own text, with no prefix added |
 | `question_kind` | [`QuestionKind`](#questionkind) | What `question` is: `permission`, `risky`, `need`, or `none` (`""`, the default). Set by the Hub; readers check it instead of parsing the text |
+| `question_key` | `str` | The question's context key, from its agent's report ([`ReportTask.key`](#reporttask); cv: the job's folder), so a late answer finds its context again. `""` for none |
 | `result` | `str \| None` | Final text when `DONE` or `FAILED` |
 | `parent_task_id` | `str \| None` | The task that started this one (an agent's child task, through `hub.start`) |
 | `held` | `bool` | Its `question`, its `reply` or its end (`result`) waits behind its agent's **!** until you focus that agent ([`SetFocus`](#setfocus)). Each is stored once, here; held is only a flag |
@@ -216,22 +226,32 @@ Frozen. A task as the Hub knows it.
 
 `ListAgents()` (command)
 
-Every registered agent, whether it's busy or working, and its permission mode. Handled by the Agent Hub, which reads [`ITaskAgent.info`](#itaskagentinfo) from each provider. For UIs and the Talker.
+Every registered agent, whether it's active or idle, and its permission mode. Handled by the Agent Hub, which reads [`ITaskAgent.info`](#itaskagentinfo) from each provider. For UIs and the Talker.
 
 **Returns:** `Result.ok(list[AgentInfo])`.
 
 **Example**
 
     result = await ctx.send(ListAgents())
-    working = [a.agent_id for a in result.value if a.working]
+    active = [a.agent_id for a in result.value if a.active]
 
 ## `StartTask`
 
 `StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None)` (command)
 
-Give work to a free agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task. Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an open task; past that, `not_available`.
+Give work to a free (idle) agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task, or by a module that starts an agent for a caller (`cv.task`). Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an active task; past that, `not_available`. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no `agent_id`) skips the agents in `[modules.agent_hub] named_only` (and `start_only_by`).
 
-**Returns:** `Result.ok(task_id)`; `not_available` if no agent is free, the cap is reached, or the agent would write a folder another open task's agent writes ([`AgentInfo.write_folders`](#agentinfo)); `invalid_arguments` for an unknown `agent_id`.
+**Returns:** `Result.ok(task_id)`; `not_available` if no agent is free, the cap is reached, or the agent would write a folder another active task's agent writes ([`AgentInfo.write_folders`](#agentinfo)); `invalid_arguments` for an unknown `agent_id`.
+
+## `DeliverMessage`
+
+**Reusable** · Used by: `cv` sends (the result at Submit); `agent_hub` handles (`Delivery`, `delivery.py`) and its message gate delivers through it · built 2026-11-10
+
+`DeliverMessage(agent_id: str, text: str, sender: str)` (command)
+
+A message for an agent from a module (or the Hub's own message gate), delivered **without ever interrupting a turn**. Handled by the Agent Hub. The text reaches the agent as `[Message from <sender>] <text>`: into its open task if it has one (which also answers a question it waits on), else as a new task. An agent in a turn gets it when the turn ends; one that isn't running gets it when it starts. Messages to one agent keep their order. What waits is handed over on a Hub reload and lost on an app restart. Unlike an [`AgentNotice`](#agentnotice), it wakes the agent.
+
+**Returns:** `Result.ok(how)`, `how` one of `"message <task id>"` (into its open task), `"task <task id>"` (a new task) or `"pending"` (delivered later); `failed` if the agent refused the task for good.
 
 ## `GetTaskStatus`
 
@@ -245,15 +265,17 @@ Task status from the Hub, without disturbing the agent.
 
 `SendToTask(task_id: str, text: str, resume: bool = True)` (command)
 
-A question, extra instruction, or your answer for a task. The Hub calls [`ITaskAgent.message`](#itaskagentmessage) and updates the state: `resume=False` makes it `PAUSED`, otherwise `RUNNING`.
+A question, extra instruction, or your answer for a task. The Hub calls [`ITaskAgent.message`](#itaskagentmessage) and updates the state: `resume=False` makes it `IDLE`, otherwise `ACTIVE`.
 
-**Returns:** the agent's `Result`, or `invalid_arguments` for an unknown or finished task.
+Into a task that holds its agent's question, the text is the answer: the Hub assigns the same task id to the agent again ([`ITaskAgent.assign`](#itaskagentassign) with `question_key`), with the text `Answer to your question in task <id> ("<question>"): <text>`, and the task is `ACTIVE` again. If the agent is in a turn on other work (or not running), the answer waits and goes in when it's free: `ok("pending")` (the Hub's `Delivery.later`).
+
+**Returns:** the agent's `Result`, `ok("pending")` for an answer that waits, or `invalid_arguments` for an unknown or finished task.
 
 ## `CancelTask`
 
 `CancelTask(task_id: str)` (command)
 
-Stop a task, like Esc. The Hub calls [`ITaskAgent.cancel`](#itaskagentcancel) and marks it `CANCELLED`.
+Stop a task, like Esc. The Hub calls [`ITaskAgent.cancel`](#itaskagentcancel) and marks it `CANCELLED`. A task holding a question is cancelled without calling the agent (it dropped the task already).
 
 **Returns:** the agent's `Result`, or `invalid_arguments` for an unknown or finished task.
 
@@ -261,7 +283,7 @@ Stop a task, like Esc. The Hub calls [`ITaskAgent.cancel`](#itaskagentcancel) an
 
 `AnswerPermission(task_id: str, allow: bool)` (command)
 
-Allow or deny the task's open permission request, once. Sent by a UI (the temp UI's buttons); the Talker (`<<ALLOW>>` / `<<DENY>>`) uses the Hub's `hub.answer` item, which does the same. The Hub calls [`ITaskAgent.answer_permission`](#itaskagentanswer_permission), sets the task back to `RUNNING`, and publishes `TaskUpdated` with `kind=None` and `text` "permission allowed" or "permission denied".
+Allow or deny the task's open permission request, once. Sent by a UI (the temp UI's buttons); the Talker (`<<ALLOW>>` / `<<DENY>>`) uses the Hub's `hub.answer` item, which does the same. The Hub calls [`ITaskAgent.answer_permission`](#itaskagentanswer_permission), keeps the task `ACTIVE`, and publishes `TaskUpdated` with `kind=None` and `text` "permission allowed" or "permission denied".
 
 **Returns:** the agent's `Result`, or `invalid_arguments` for an unknown or finished task.
 
@@ -277,16 +299,16 @@ Switch a task agent between Manual and Auto. Handled by the Agent Hub, which cal
 
 ## `ReportTask`
 
-`ReportTask(task_id: str, kind: ReportKind, text: str)` (command)
+`ReportTask(task_id: str, kind: ReportKind, text: str, key: str = "")` (command)
 
-Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it.
+Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it. `key`: with a `need`, the question's context key (the agent's module decides it, through [`SessionTaskAgent.set_context`](infra.md#sessiontaskagent); `""` for none). The Hub keeps it as [`TaskInfo.question_key`](#taskinfo).
 
 | `kind` | Means | State becomes |
 |--------|-------|---------------|
 | `progress` | What it's doing | unchanged |
 | `reply` | Answer to a `message` | unchanged |
-| `need` | A question for you; the turn has ended. In Auto, a `need` starting with `Risky:` is a pause before a risky step (`question_kind` `risky`, else `need`) | `WAITING_FOR_INPUT` |
-| `permission` | Wants to use a tool its rules don't allow, e.g. `Write C:\…\SKILL.md`; the turn waits for [`AnswerPermission`](#answerpermission) | `WAITING_FOR_INPUT` (`question_kind` `permission`) |
+| `need` | A question for you; the turn has ended, and the agent dropped the task and is free. In Auto, a `need` starting with `Risky:` is a pause before a risky step (`question_kind` `risky`, else `need`). The answer gives the same task back ([`SendToTask`](#sendtotask)) | `IDLE` (with its question) |
+| `permission` | Wants to use a tool its rules don't allow, e.g. `Write C:\…\SKILL.md`; the turn waits for [`AnswerPermission`](#answerpermission) | `ACTIVE` (`question_kind` `permission`) |
 | `milestone` | A `STATUS: <one line>` line in its text ([`status_lines`](infra.md#agent_tags)). From an agent that isn't the coordinator, the Hub passes `[<agent>] <line>` to the coordinator's [`note`](#itaskagentnote) | unchanged |
 | `done` | Finished; `text` is the result | `DONE` |
 | `failed` | Gave up; `text` says why | `FAILED` |
@@ -341,23 +363,23 @@ The `agent_hub` module's [`Menu`](modules.md#menu), id prefix `hub.`. Every item
 
 | Item | Who may use it | Does |
 |------|----------------|------|
-| `hub.agents` | anyone | The task agents: `agent_id`, `description`, `busy`, `working`, `permission_mode`, `focused`, `held` (a question, reply or finished task waiting behind its **!**), `task_id` (its open task) |
+| `hub.agents` | anyone | The task agents: `agent_id`, `description`, `state` (`active` or `idle`; an idle one takes work, whatever it asked), `permission_mode`, `focused`, `held` (a question, reply or finished task waiting behind its **!**), `task_id` (its open task, else its newest task holding a question) |
 | `hub.status(task_id?)` | anyone | [`GetTaskStatus`](#gettaskstatus), without disturbing the agent |
 | `hub.start(text, agent_id?, context?)` | anyone | [`StartTask`](#starttask); the caller's open task becomes the new task's parent |
-| `hub.send(text, task_id?, agent_id?, pause?)` | the Talker any task; others only their child tasks | [`SendToTask`](#sendtotask). With no `task_id` (the Talker only): to `agent_id`'s open task (its tab's agent; default the focused agent), or a new task on it. `ok({"agent_id", "task_id"})` |
+| `hub.send(text, task_id?, agent_id?, pause?)` | the Talker any task; others: `task_id` only for their child tasks, `agent_id` for any agent | [`SendToTask`](#sendtotask). The Talker with no `task_id`: to `agent_id`'s open task (its tab's agent; default the focused agent), or a new task on it. Another agent with `agent_id` (not itself): into that agent's open task straight away if it's the caller's child (interrupts, as before); otherwise through the message gate: a card the first time ("X wants to message Y": Allow once · Always allow · Deny), then [`DeliverMessage`](#delivermessage) (never into a turn). `ok({"agent_id", "task_id"})`; plus `"delivered": "when its agent is free"` for an answer that waits; `ok({"agent_id", "how"})` through the gate, `how` being `"waiting on the user's card"` or the delivery's value. Design: [permissions](../architecture/permissions.md#messages-between-agents) |
 | `hub.cancel(task_id)` | the Talker any task; others only their child tasks | [`CancelTask`](#canceltask) |
 | `hub.focus(agent_id)` | the Talker only (`callers=("talker",)`) | [`SetFocus`](#setfocus), after you said so; empty is back to the coordinator |
 | `hub.suggest_focus(agent_id, reason?)` | the coordinator only | Publishes [`FocusSuggested`](#focussuggested) |
 | `hub.answer(task_id, allow)` | the Talker only | [`AnswerPermission`](#answerpermission), after you said yes or no to a task's permission card |
 | `hub.mode(agent_id, mode)` | the Talker only | [`SetPermissionMode`](#setpermissionmode) to Manual; `auto` is refused (`not_available`): only you switch to Auto, with the button |
 
-Refused callers get `not_available`. The UI's own buttons still send `AnswerPermission` and `SetPermissionMode` as commands. Code: `AgentHubModule` (`module.py`) wires a `TaskBoard` (`tasks.py`), a `Focus` (`focus.py`) and `AgentNames` (`names.py`); tests in `tests/test_agent_hub_parts.py`.
+Refused callers get `not_available`. The UI's own buttons still send `AnswerPermission` and `SetPermissionMode` as commands. Code: `AgentHubModule` (`module.py`) wires a `TaskBoard` (`tasks.py`), a `Focus` (`focus.py`), `AgentNames` (`names.py`), a `Delivery` (`delivery.py`) and a `MessageGate` (`gate.py`); tests in `tests/test_agent_hub_parts.py` and `agent_hub/tests/`.
 
 ## `AgentStateChanged`
 
-`AgentStateChanged(agent_id: str, busy: bool, working: bool, change: Literal["state", "opened", "closed"] = "state")` (event)
+`AgentStateChanged(agent_id: str, state: AgentState = AgentState.IDLE, change: Literal["state", "opened", "closed"] = "state")` (event)
 
-Published by the agent module whenever `busy` or `working` changes, so a UI can show it live without polling. `change` says what happened: `"state"` (the default), or `"opened"` / `"closed"` for an agent that isn't a module of its own (a helper inside `task_agents`), so UIs add or drop its tab (built 2026-11-08; it used to be a plain state event with both flags off). May be dropped; [`ListAgents`](#listagents) is authoritative.
+Published by the agent module whenever its [`state`](#agentstate) changes (active or idle), so a UI can show it live without polling. `change` says what happened: `"state"` (the default), or `"opened"` / `"closed"` for an agent that isn't a module of its own (a helper inside `task_agents`), so UIs add or drop its tab (built 2026-11-08; it used to be a plain state event with both flags off). May be dropped; [`ListAgents`](#listagents) is authoritative.
 
 ## `PermissionModeChanged`
 

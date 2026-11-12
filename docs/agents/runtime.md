@@ -53,7 +53,7 @@ Each command line is built by [`claude_command`](../api/infra.md#claude_command)
 
 > **Temporary.** A throwaway stand-in until a real **UI handler** and its UI configurations are designed, in a conversation of their own (an [open decision](../architecture/decisions.md#open-decisions)). Kept small so it's easy to throw away; don't build on it.
 
-The `temp_ui` module serves a local web page at `http://127.0.0.1:8765/`: the **Main Assistant's** activity on the left (its text, tool calls, task updates, and an idle / working / waiting badge), the **Talker** conversation on the right (with an input box). Terminal 1 still works alongside it; type `exit` there to quit.
+The `temp_ui` module serves a local web page at `http://127.0.0.1:8765/`: the **Main Assistant's** activity on the left (its text, tool calls, task updates, and an idle / working badge: working while the agent is active, idle otherwise, also when it has asked you something), the **Talker** conversation on the right (with an input box). Terminal 1 still works alongside it; type `exit` there to quit.
 
 It opens in its own window using Edge's app mode (`msedge --app=URL`: no tabs or address bar). Set `[modules.temp_ui] window` to `"browser"` for a normal tab, or `"none"` to open nothing. Without Edge it falls back to a tab. Closing the window doesn't stop the app. The window runs on its own Edge profile (`window_profile`, default `%LOCALAPPDATA%\AI_Assistant\temp_ui_window`), so it's separate from your normal Edge and the app can close it.
 
@@ -70,7 +70,7 @@ flowchart LR
 ```
 
 - It's an ordinary module: it publishes `InputReceived`, sends `AnswerPermission` and `SetPermissionMode`, and listens to events, so nothing else knows it exists.
-- **Permission requests** show in the Talker pane, in line with the conversation, as a card with **Allow** / **Deny** (`POST /permission`). Answering the Talker in words instead settles the card too. The Main Assistant pane only logs the request and its answer, with no buttons.
+- **Permission requests** show in the Talker pane, in line with the conversation, as a card with **Allow** / **Deny** (`POST /permission`). A card for one agent messaging another has **Allow once** / **Always allow** / **Deny** (`POST /access-answer` with `remember`). Answering the Talker in words instead settles the card too. The Main Assistant pane only logs the request and its answer, with no buttons.
 - **Permission mode toggle (a stand-in):** `<agent>: Manual | Auto` in the Talker pane's header sets what the agent of the tab you're in may do (`POST /permission-mode {mode, agent}` → `SetPermissionMode(agent_id=that agent)`; the Main Assistant when no agent is given). Each tab's button shows its own agent's mode (built 2026-11-06; before, every press went to the Main Assistant). Its tooltip and code comment mark it as a stand-in until the control panel or chat window. Switching to Auto first shows a confirm dialog naming the agent: full permissions except `git push`, it pauses before risky steps on its own judgment only, and this is not a guarantee. Switching back to Manual is one click. While Auto is on, the Talker pane's header turns amber and reads "<agent>: AUTO, no permission prompts", and the worker pane shows an `AUTO` tag; a switch that waits says "(from the next task)". Each `PermissionModeChanged` is logged as a `note` line in both panes of that agent's tab. Each agent's mode is a "current state" item (`{"kind": "mode", "agent", "mode", "applies"}`), so a reconnect shows it like the usage meters.
 - **Risky-step card:** in Auto, a `need` whose text starts with `Risky:` (the Hub types it `question_kind` `risky`; the temp UI checks the kind) shows in the Talker pane as an amber card, "⚠ Risky step, paused: …", with **Go ahead** / **Don't**. The buttons send "Go ahead" or "Don't do it" through `/say`, the same as typing it. The worker pane logs "paused: risky step".
 - **Logs** button in the header opens the current session's log folder in Explorer, or `logs/` before your first message, when the folder doesn't exist yet (`POST /open-logs`; the temp UI asks `ctx.logs.folder()`).
@@ -347,7 +347,7 @@ Tokens only: the `claude` tool's dollar estimate is at pay-as-you-go API prices,
 
 **Reset.** `ResetRequested("talker")` (the temp UI's Reset button, or `<<RESET: talker>>`) goes into the inbox, so it happens between turns: the session restarts, and the next message to it starts with `[Context] Your session was just reset…` and the last few exchanges.
 
-**Restart.** When you ask for a restart, the Talker's `<<RESTART>>` asks the worker for **reset instructions**: what was being worked on, what is done, what is left, which notes to read, every change in the Pending changes table of `docs/next-steps/README.md` that waits on a restart (its note and the hand checks now due), and which helpers it started. Under them the Talker adds a state section of its own (`_app_state`): the tab you were in, every agent with its description and mode, each open task with its state and any question waiting on you (behind a **!** or not), then what a restart does (everyone back in Manual, no task carried over, launched helpers gone, autostart ones back idle, usage from zero, the waiting changes loaded). If a task is running, this goes as `SendToTask(resume=false)`; with no task, as a small `StartTask`. If the task is waiting on you (a `need` or a permission), a `[Status]` says so first, and only `<<RESTART: anyway>>`, after you say yes, goes ahead. The worker updates the task's change note, then replies with the instructions and a last line `RESTART_READY` (read with `agent_tags.last_line`). The Talker saves the reply to `restart_note` (`.claude/state/reset-instructions.md`) and publishes `ShutdownRequested(restart=True)`. If the worker can't be reached, its task fails, or it doesn't answer within `restart_timeout` (120 s), the Talker saves its own last few exchanges instead and restarts anyway. At the next start the note is the Talker's first input (`[Restart] The app was just restarted…`). The Talker tells you where things stand and waits for your go, then deletes the note. Any stop that isn't a restart also deletes a leftover note. This builds on the `HANDOFF:` lines and the worker reset (both stay within one launch). A restart carries the same kind of note across launches.
+**Restart.** When you ask for a restart, the Talker's `<<RESTART>>` asks the worker for **reset instructions**: what was being worked on, what is done, what is left, which notes to read, every change in the Pending changes table of `docs/next-steps/README.md` that waits on a restart (its note and the hand checks now due), and which helpers it started. Under them the Talker adds a state section of its own (`_app_state`): the tab you were in, every agent with its description and mode, each open task with its state and any question waiting on you (behind a **!** or not, with `(context: <key>)` when it has a context key), then what a restart does (everyone back in Manual, no task carried over, launched helpers gone, autostart ones back idle, usage from zero, the waiting changes loaded). If the worker holds a task, this goes as `SendToTask(resume=false)` into it; with no task, or when its task only holds a question for you, as a small `StartTask` of its own (the question stays open and is listed in the note). Open questions never stop a restart (since 2026-11-10; there's no `<<RESTART: anyway>>` any more). The worker updates the task's change note, then replies with the instructions and a last line `RESTART_READY` (read with `agent_tags.last_line`). The Talker saves the reply to `restart_note` (`.claude/state/reset-instructions.md`) and publishes `ShutdownRequested(restart=True)`. If the worker can't be reached, its task fails, or it doesn't answer within `restart_timeout` (120 s), the Talker saves its own last few exchanges instead and restarts anyway. At the next start the note is the Talker's first input (`[Restart] The app was just restarted…`). The Talker tells you where things stand and waits for your go, then deletes the note. Any stop that isn't a restart also deletes a leftover note. This builds on the `HANDOFF:` lines and the worker reset (both stay within one launch). A restart carries the same kind of note across launches.
 
 ```mermaid
 flowchart TB
@@ -368,7 +368,7 @@ flowchart TB
 | `<<WORK: task>>` | `StartTask(task, context)`, context = the last few exchanges |
 | `<<LOOK>>` | `GetTaskStatus()`; the result, with recent activity, comes back as a `[Status]` item |
 | `<<RESET: talker \| worker>>` | Not a Hub command: publishes `ResetRequested` for itself or the worker, only when you ask |
-| `<<RESTART>>` / `<<RESTART: anyway>>` | `SendToTask` or `StartTask` asking for reset instructions, then `ShutdownRequested(restart=True)` ([Restart](#the-talker-on-its-own) above), only when you ask for a restart |
+| `<<RESTART>>` | `SendToTask` or `StartTask` asking for reset instructions, then `ShutdownRequested(restart=True)` ([Restart](#the-talker-on-its-own) above), only when you ask for a restart |
 | `<<ASK: text>>` | `SendToTask(text, resume=true)`: a question, extra instruction, or your answer to a NEED |
 | `<<PAUSE: text>>` | `SendToTask(text, resume=false)` |
 | `<<CANCEL>>` | `CancelTask()` |
@@ -382,25 +382,27 @@ flowchart TB
 
 ## The Main Assistant on its own
 
-`SessionTaskAgent` turns `ITaskAgent` calls into session messages and session events into reports. It keeps an internal **mode**; the Hub's `TaskState` is the outside view of the same thing.
+`SessionTaskAgent` turns `ITaskAgent` calls into session messages and session events into reports. It keeps an internal **mode**; outside it is only `active` or `idle` ([`AgentState`](../api/agents.md#agentstate): idle in `idle` and `paused`, active otherwise), and the Hub's `TaskState` is the task's view.
 
 ```mermaid
 stateDiagram-v2
     [*] --> idle
-    idle --> working: assign → send task
+    idle --> working: assign → send task (or an answer: the same task id)
+    paused --> working: assign → drops the stopped task for the new one
     working --> idle: result, no NEED → report done
     working --> idle: result is an error we didn't cause → report failed
-    working --> waiting: result ends with NEED → report need
+    working --> asking: result ends with NEED → report need, drop the task
+    asking --> idle: the Hub has the report
     working --> interrupting: message() or cancel()
     interrupting --> replying: interrupted result (message) → send wrapped message
     interrupting --> idle: interrupted result (cancel)
     replying --> working: result → report reply, then send "continue" (resume)
     replying --> paused: result → report reply (no resume)
-    waiting --> working: message() → send your answer
     paused --> working: message(resume) → send it
-    waiting --> idle: cancel()
     paused --> idle: cancel()
 ```
+
+- **A question is a message:** after a `NEED` the agent holds no task and takes new work. The answer comes back as `assign` of the same task id with `question_key` set: in the live session if that still has the question (nothing ran since), otherwise in a fresh one, whose first message adds the module's notes for the key (`set_context`; by default the handoff note). Design: [questions are messages](../architecture/agents.md#questions-are-messages).
 
 - **Interrupt isn't failure:** in `interrupting` the agent knows it caused the `error_during_execution` result ([spike finding](spike.md#findings)) and doesn't report `failed`.
 - **`message` and `cancel` return as soon as the interrupt is sent**; the rest happens as events arrive. So the Hub never waits on the agent while the agent is reporting to the Hub.
@@ -408,7 +410,7 @@ stateDiagram-v2
 - **Reports and events while working:**
   - every `assistant` text or tool call → `AgentActivity` (terminal 2)
   - a text note mid-turn → `ReportTask(progress)`
-  - `working` / `busy` changes → `AgentStateChanged`
+  - `state` changes (active / idle) → `AgentStateChanged`
   - every call (and each turn's result) → [`SessionUsage`](../api/agents.md#sessionusage), when the numbers changed
 
 ### Fresh sessions and handoffs
@@ -417,8 +419,10 @@ Every call resends the session's whole conversation, so the cost of a step grows
 
 - **A fresh session per task** (`fresh_sessions = true`): `assign` closes a used session and starts a new one, back at the fixed ~31k (system prompt and tools). The task text and its change note in `docs/next-steps/` carry what it needs; decisions live in the docs, not in an old conversation.
 - **Handoffs inside a task:** the prompt asks it to judge whether a task holds separate, big parts. If so, after each part it updates the docs, writes what's done and next into the change note, and ends with `HANDOFF: <note>`. The agent closes the session, starts a fresh one, and sends `Task, continued in a fresh session: <text> … read the handoff in <note> first`. Same task id, so the Hub and Talker see a `progress` report, not a new task. After `max_handoffs` (3) in one task it asks you (`need`) instead.
+- **Chrome agents hand off in place** (built 2026-11-10): Chrome ties an agent's tab group to its `claude` session id, so a new process loses the tabs while `/compact` keeps them (a spike on 2026-11-10: `/clear` gave a new id and lost the tab, `/compact` kept both). An agent started with `--chrome` (the job agent) answers a `HANDOFF:` by compacting its running session, then sends "Task, continued after your context was compacted …" with the note; messages that arrive meanwhile go in after it. If the compact fails, it starts a fresh session as above, and the note's URLs reopen the tabs. Every agent's prompt says to put each tab's URL and state in the note and save form work before a `HANDOFF:`. A new task still starts fresh.
+- **Chrome agents close their tabs** (built 2026-11-10): every agent's prompt says to close a tab (`tabs_close_mcp`) once its page is done, and the rest before the final reply, except one the user should act on (a filled form for you to submit), named in the reply. Tabs stay across a handoff, while a question is open, and when a task is cancelled or fails, so you can see where it stopped. If a task used Chrome and its last turn closed no tab, the app sends one short turn asking it to close what it no longer needs before it reports the task done. Listing and closing its own tabs asks no card.
 - **Reset** ([`SessionTaskAgent.reset`](../api/infra.md#sessiontaskagent), from `ResetRequested`): idle, the session closes now; mid-task, it gets a message asking for a handoff note, and its `HANDOFF:` reply hands off as above.
-- **Context reminder** (`[modules.main_assistant] context_reminder = 150000`, 0 = off): the first time the worker's context passes it during a task, `SessionTaskAgent` sends a `[Context check]` message the same way as a mid-task message (it interrupts the current step, then carries on): find a safe point, write what's done and next into the change note, and end with `HANDOFF:`, which hands off as above. Once per crossing (the shared [`ContextWatch`](../api/infra.md#contextwatch)); a fresh session re-arms it. While the task waits on you (a `NEED` or a permission request) it's held and sent once the task works again. You hear about it through the Talker's own warning and the `progress` "Handed off…" report.
+- **Context reminder** (`[modules.main_assistant] context_reminder = 150000`, 0 = off): the first time the worker's context passes it during a task, `SessionTaskAgent` sends a `[Context check]` message the same way as a mid-task message (it interrupts the current step, then carries on): find a safe point, write what's done and next into the change note, and end with `HANDOFF:`, which hands off as above. Once per crossing (the shared [`ContextWatch`](../api/infra.md#contextwatch)); a fresh session re-arms it. While the task waits on you (a permission request) it's held and sent once the task works again. You hear about it through the Talker's own warning and the `progress` "Handed off…" report.
 - **Batching**, with no interrupts and no extra steps: an interrupt costs a full step and balloons the context, which is what batching is meant to prevent. (1) The worker's prompt always says to read each file once and make all its changes in one pass, and that this never means skipping the architecture-check, tests or ruff. (2) The edit hook (`scripts/hooks/edit_tracker.py`, `.claude/settings.json` matcher `Edit|Write|MultiEdit|NotebookEdit`) adds a note to the edit itself on the second edit to a file in a task, once per file. The worker's process carries `ASSISTANT_AGENT`, `ASSISTANT_TASK_FILE` and `ASSISTANT_EDIT_NOTE` (from `hook_env`); `SessionTaskAgent` writes the task id to that file at each `assign` (`.claude/state/main_assistant-task.txt`), so the count survives handoffs. `SessionTaskAgent` logs the same moment (main log, and `batching note: a.md` in the worker's pane). Off switch: `[modules.main_assistant] edit_note = false` (the prompt line stays). Your own Claude Code sessions keep the hook as before: `Edit` and `Write` only, a note on every repeat.
 - **Debugging and broad searches** go to the `debugger` subagent (Claude Code's own subagents, `.claude/agents/debugger.md`, sonnet): it loops in its own small context and returns only the cause, the fix, and the proof. It runs inside the Main Assistant's process, so the Hub doesn't see it as a task; stopping the Main Assistant stops it too.
 
@@ -437,7 +441,7 @@ stateDiagram-v2
     working --> restarting: result ends with HANDOFF (under max) → report progress
     replying --> restarting: reply ends with HANDOFF (asked to reset, or the context reminder)
     restarting --> working: fresh session → send "continued… read <note>"
-    working --> waiting: HANDOFF after max handoffs → report need
+    working --> asking: HANDOFF after max handoffs → report need (the answer: a fresh session on the note)
 ```
 
 ### Permission mode
@@ -469,7 +473,8 @@ The Main Assistant runs in one of two [`PermissionMode`](../api/agents.md#permis
 | After a handoff (in a fresh session) | `Task, continued in a fresh session: <text>` … `wrote a handoff in <note>. Read it first…` plus `Context: <context>` |
 | Reset mid-task (as a mid-task message) | `The user asked to reset your session. … end with the line HANDOFF: <that note's path>.` |
 | Context reminder (as a mid-task message) | `[Context check] Your context is at <n>k, past <limit>k: … Find a good reset point … end with HANDOFF: <that note's path>.` |
-| Answer to NEED, or resume from pause | the text as is |
+| Answer to a NEED (the same task, assigned again) | `Answer to your question in task <id> ("<question>"): <answer>`; in a fresh session plus `[App] This is a fresh session: …` and the module's notes for the question's key |
+| Resume from pause | the text as is |
 
 ## Talking to each other: a whole conversation
 
@@ -492,7 +497,7 @@ sequenceDiagram
     H->>M: assign(task)
     M-->>H: ok (returns at once)
     H-->>T: ok(task_id)
-    M-->>V: AgentStateChanged(busy, working)
+    M-->>V: AgentStateChanged(active)
     loop while it works
         M-->>V: AgentActivity (text, tool calls)
         M->>H: ReportTask(progress)
@@ -501,14 +506,15 @@ sequenceDiagram
     C->>T: InputReceived
     T->>C: ResponseReady (joke)
     M->>H: ReportTask(need, "Modern or traditional style?")
-    H-->>T: TaskUpdated(need)
+    Note over M: drops the task: idle, free for other work
+    H-->>T: TaskUpdated(need, idle)
     Note over T: inbox: [Task update: need] → turn
     T->>C: ResponseReady "Quick question: modern or traditional?"
     You->>C: "Modern"
     C->>T: InputReceived
     Note over T: turn: ASK tag "modern"
     T->>H: SendToTask("modern", resume)
-    H->>M: message → send answer (it was waiting, no interrupt)
+    H->>M: assign(same task id, "Answer to your question …"): no interrupt
     M->>H: ReportTask(done, "Wrote 3 poems to poems.txt")
     H-->>T: TaskUpdated(done)
     T->>C: ResponseReady "Done: three poems are in poems.txt."
@@ -522,4 +528,6 @@ The mid-task question flow (interrupt → reply → continue) is on the [archite
 - **Nobody waits on a `claude` turn inside a handler.** Event handlers queue; `assign`, `message` and `cancel` return once their message or interrupt is written.
 - **The Hub is the only one that changes task state**, and only from commands (`StartTask`, `SendToTask`, `CancelTask`, `ReportTask`), so dropped events never corrupt it.
 - **One turn at a time per session.** The Talker's inbox and the agent's mode guarantee nothing is written to a session mid-turn except an interrupt.
-- **The Talker waits on nobody:** while the Main Assistant works, waits for you, or is paused, the Talker keeps chatting.
+- **The Talker waits on nobody:** while the Main Assistant works or is paused, the Talker keeps chatting.
+- **Nobody waits on a question:** an agent that asked you something has ended its turn and takes other work; your answer goes back as a message whenever you give it.
+- **A message never cuts into a turn** unless it's a parent's own `hub.send` to its child: other agents' messages and modules' `DeliverMessage` wait for the turn's end.

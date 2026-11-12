@@ -619,9 +619,23 @@
       "href": "index.html",
       "home": [
         "index.html",
+        "you-means-the-pair.html",
+        "agent-talk-and-questions.html",
+        "cv-submit-delivers.html",
+        "cv-submit-notice.html",
+        "cv-rezi-click-signal.html",
+        "hub-folder-check-parent.html",
         "permissions-handler.html",
         "markdown-write-back.html",
         "voice-in.html",
+        "handoff-repeat-fix.html",
+        "cv-pdf-only.html",
+        "handoff-b31b8901.html",
+        "cv-uses-cv-tool.html",
+        "cv-agent-folders.html",
+        "handoff-2389decf.html",
+        "cv-path-hardening.html",
+        "cv-module-flow.html",
         "handoff-voice-in.html",
         "voice-reusable-parts.html",
         "voice-text-cleanup.html",
@@ -656,11 +670,20 @@
         "helper-context-reset.html",
         "restart-note-complete.html",
         "temp-ui-box-resize.html",
+        "two-agent-states.html",
+        "chrome-tab-after-reset.html",
+        "chrome-tabs-close.html",
+        "taskbar-flash.html",
         "usage-tokens-only.html",
+        "handoff-20c1d08e.html",
+        "handoff-3720fc90.html",
         "handoff-73fc479c.html",
         "handoff-8c52a851.html",
         "handoff-99c9ff7c.html",
+        "handoff-9bc35422.html",
+        "handoff-cv-tool-build.html",
         "handoff-d729a7ef.html",
+        "handoff-e519644c.html",
         "live-permission-mode.html",
         "archive/index.html",
         "archive/logs-button.html",
@@ -704,6 +727,30 @@
               "href": "index.html"
             },
             {
+              "name": "\"You\" means the Talker and its worker together",
+              "href": "you-means-the-pair.html"
+            },
+            {
+              "name": "Agents talk to each other freely, and a question never makes an agent busy",
+              "href": "agent-talk-and-questions.html"
+            },
+            {
+              "name": "The Submit reaches the job agent by itself, and is never refused",
+              "href": "cv-submit-delivers.html"
+            },
+            {
+              "name": "cv_agent hears about the Submit, without being woken; the font floor back to 9 pt",
+              "href": "cv-submit-notice.html"
+            },
+            {
+              "name": "The \"Send JD and CV to Rezi\" click reaches cv_agent",
+              "href": "cv-rezi-click-signal.html"
+            },
+            {
+              "name": "The Hub's folder check skips the starting task",
+              "href": "hub-folder-check-parent.html"
+            },
+            {
               "name": "Permissions handler",
               "href": "permissions-handler.html"
             },
@@ -714,6 +761,38 @@
             {
               "name": "Voice in",
               "href": "voice-in.html"
+            },
+            {
+              "name": "Handoff question stops repeating",
+              "href": "handoff-repeat-fix.html"
+            },
+            {
+              "name": "cv module: PDF in, PDF out",
+              "href": "cv-pdf-only.html"
+            },
+            {
+              "name": "Handoff: CV Tool as the cv module's UI (task b31b8901)",
+              "href": "handoff-b31b8901.html"
+            },
+            {
+              "name": "cv module: the CV Tool is its UI",
+              "href": "cv-uses-cv-tool.html"
+            },
+            {
+              "name": "cv agent: everything in one folder",
+              "href": "cv-agent-folders.html"
+            },
+            {
+              "name": "Handoff: cv module, one folder plus the CV Tool build (task 2389decf)",
+              "href": "handoff-2389decf.html"
+            },
+            {
+              "name": "cv path: only cv.task / cv.read_result for the job agent, and a return address that survives a relaunch",
+              "href": "cv-path-hardening.html"
+            },
+            {
+              "name": "The cv module at a glance",
+              "href": "cv-module-flow.html"
             },
             {
               "name": "Handoff: voice in, after step 3 (the voice_in module)",
@@ -852,8 +931,32 @@
               "href": "temp-ui-box-resize.html"
             },
             {
+              "name": "Agents and tasks: only two states, active and idle",
+              "href": "two-agent-states.html"
+            },
+            {
+              "name": "Keep a worker's Chrome tab across a reset",
+              "href": "chrome-tab-after-reset.html"
+            },
+            {
+              "name": "Close an agent's Chrome tabs when it's done with them",
+              "href": "chrome-tabs-close.html"
+            },
+            {
+              "name": "Flash the app's taskbar icon when an agent needs you",
+              "href": "taskbar-flash.html"
+            },
+            {
               "name": "Usage: tokens only, clearer labels, two token fixes",
               "href": "usage-tokens-only.html"
+            },
+            {
+              "name": "Handoff 20c1d08e: cv module, PDF in and PDF out (build)",
+              "href": "handoff-20c1d08e.html"
+            },
+            {
+              "name": "Handoff: hand checks 1, 2, 4 of agent-talk-and-questions (task 3720fc90)",
+              "href": "handoff-3720fc90.html"
             },
             {
               "name": "Handoff: the agent-permissions build (task 73fc479c)",
@@ -868,8 +971,20 @@
               "href": "handoff-99c9ff7c.html"
             },
             {
+              "name": "Handoff: building agent-talk-and-questions (task 9bc35422)",
+              "href": "handoff-9bc35422.html"
+            },
+            {
+              "name": "Handoff: build the CV Tool into the cv module, then run ExampleCorp to First Draft",
+              "href": "handoff-cv-tool-build.html"
+            },
+            {
               "name": "Handoff: multi-agent build, docs and final checks (task d729a7ef)",
               "href": "handoff-d729a7ef.html"
+            },
+            {
+              "name": "Handoff e519644c: CV page layout settings, read per print (cv_agent, 2026-11-10)",
+              "href": "handoff-e519644c.html"
             },
             {
               "name": "Auto / Manual applies at once",

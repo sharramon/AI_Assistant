@@ -48,7 +48,7 @@ Dependency direction: the core and modules both depend on contracts; contracts d
 
 The core controls communication and lifecycle: it validates which modules can run together, starts and stops them in dependency order, routes commands, delivers events, and resolves contracts.
 
-It also holds the **permissions handler** (`core/permissions/`), so it's always on and no module or agent can turn it off or reload it. The handler uses only the core's generic parts (the router's `send`, the bus's `publish`, the container's `get_one`) and the shared contracts, and knows no module by code; only its defaults name agents. Each module's `ctx.permissions` is a `PermissionsPort` bound to its id. Design: [permissions](permissions.md#part-of-the-core).
+It also holds the **permissions handler** (`core/permissions/`), so it's always on and no module or agent can turn it off or reload it. The handler uses only the core's generic parts (the router's `send`, the bus's `publish`, the container's `get_one`) and the shared contracts, and knows no module by code; only its defaults name agents. Each module's `ctx.permissions` is a `PermissionsPort` bound to its id. The Agent Hub's message gate uses it like any module (`granted` / `ask` with a `message:` item); the handler knows nothing about agents' messages beyond the item kind. Design: [permissions](permissions.md#part-of-the-core).
 
 It is **not** responsible for any capability. It contains no input, output, AI, or tool logic, and never imports anything from `assistant.modules`. The only place that names concrete modules is the composition root, `src/assistant/__main__.py`.
 
@@ -133,7 +133,7 @@ classDiagram
 | `bus.py` | `EventBus`, `Subscription`: event delivery |
 | `container.py` | `Container`, `is_shared_contract`: DI restricted to shared contracts |
 | `tools.py` | `dispatch_tool`: the `InvokeTool` handler |
-| `permissions/` | The permissions handler: `PermissionsHandler` (`handler.py`), `PermissionsPort` (`port.py`, each module's `ctx.permissions`), `PermissionsMenu` (`menu.py`, `permissions.*`), the saved grants (`store.py`) and the guardrails (`rules.py`). In the protected zone |
+| `permissions/` | The permissions handler: `PermissionsHandler` (`handler.py`: access lists, grant and revoke cards, and one-item `message` cards through `kind_of` / `granted` / `ask`, Allow once or Always), `PermissionsPort` (`port.py`, each module's `ctx.permissions`), `PermissionsMenu` (`menu.py`, `permissions.*`), the saved grants (`store.py`) and the guardrails (`rules.py`). In the protected zone |
 
 Modules only ever see the `ModuleContext` interface (defined in `assistant.contracts`), never `App` or these classes.
 

@@ -12,9 +12,9 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 
 **Check the [reusable parts index](reusable.md) before writing a helper.** One line per part (name, kind, purpose, where, used by), sorted by where it lives:
 
-- **Contracts** (`assistant.contracts`): `ModuleProtocol`, `Menu`, `ModuleContext`, `ctx.logs`, `ctx.permissions` (with `request_set`), `Manifest`, the Event Bus, `AccessItem` and the access cards (`PermissionRequested`, `AnswerPermissionRequest`, `PermissionChanged`), `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent` (with `request_approval`), `IAgentNames`, `ModuleContext.withdraw`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `SetFocus`, `FocusChanged`, `FocusSuggested`, `AgentNotice`, `QuestionKind` (with `RISKY_PREFIX`), `MAX_SNIPS`, `PASTED_FILE`, the Hub's menu, `IVoice`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
+- **Contracts** (`assistant.contracts`): `ModuleProtocol`, `Menu`, `ModuleContext`, `ctx.logs`, `ctx.permissions` (with `request_set`), `Manifest`, the Event Bus, `AccessItem` and the access cards (`PermissionRequested`, `AnswerPermissionRequest`, `PermissionChanged`), `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent` (with `request_approval`), `AgentState`, `DeliverMessage`, `IAgentNames`, `ModuleContext.withdraw`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `SetFocus`, `FocusChanged`, `FocusSuggested`, `AgentNotice`, `QuestionKind` (with `RISKY_PREFIX`), `MAX_SNIPS`, `PASTED_FILE`, the Hub's menu, `IVoice`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
-- **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent`, `PermissionGate`, `HandoffKeeper`, `LastLineTags`, `UsageMeter`, `AgentKit` (with `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`), `AgentProfile`, `manual_claude_mode`, `access_items`, `granted_config`, `request_access`, `MilestoneFeed`, `session_usage`, `ContextWatch`, `agent_tags`, `show_page`, `mcp_door`, `check_agent_id`, `free_agent_id`
+- **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent` (with `set_context`), `default_context`, `PermissionGate`, `HandoffKeeper`, `LastLineTags`, `UsageMeter`, `AgentKit` (with `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`), `AgentProfile`, `manual_claude_mode`, `access_items`, `granted_config`, `request_access`, `MilestoneFeed`, `session_usage`, `ContextWatch`, `agent_tags`, `show_page`, `mcp_door`, `check_agent_id`, `free_agent_id`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window` (with `window_profile`), `load_layered`, `local_path`, `merge`, `module_docs`, `CompanionApp`, `CompanionHandover`, `local_guard`
 
 ## Groups
@@ -29,7 +29,7 @@ Writing a module: lifecycle, manifest, and its context. `from assistant.contract
 | [`Manifest`](modules.md#manifest) | data | ♻ Module id, one-line description, its contracts (`uses`: looked up at each call, no start order), the commands it handles and sends, the events it publishes and listens to, its permissions |
 | [`ModuleContext`](modules.md#modulecontext) | interface | ♻ A module's only access to the app: events, commands, contracts (`provide`, `withdraw` one back), config, logging |
 | [`ctx.logs`](modules.md#modulecontextlogs) | interface | ♻ This launch's log `folder()` and files (`sink(name)`), owned by the core (`ModuleLogs`) |
-| [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission, `request_set` a whole access list (`ModulePermissions`); forwards to the core's permissions handler |
+| [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission, `request_set` a whole access list, `granted` / `ask` one item for an agent (`ModulePermissions`); forwards to the core's permissions handler |
 | [`Contract`](modules.md#contract) | base class | Base for capability interfaces resolvable through DI |
 
 ### [Messaging](messaging.md)
@@ -49,10 +49,10 @@ Commands, events, and results. `from assistant.contracts import ...`
 | [`ViewerTabsChanged`](messaging.md#viewertabschanged) | event | The HTML viewer's open tabs or highlights changed |
 | [`ViewerClip`](messaging.md#viewerclip) | event | You snipped part of a page in the HTML viewer: an image for the Talker |
 | [`ViewerClipDropped`](messaging.md#viewerclipdropped) | event | You dropped a snip before sending it |
-| [`AccessKind`](messaging.md#accesskind), [`AccessItem`](messaging.md#accessitem), [`AccessNote`](messaging.md#accessnote) | data | ♻ One line of an access list (`workspace`, `read`, `write`, `python`, `command`, `chrome`) and a card's notes |
+| [`AccessKind`](messaging.md#accesskind), [`AccessItem`](messaging.md#accessitem), [`AccessNote`](messaging.md#accessnote) | data | ♻ One line of an access list (`workspace`, `read`, `write`, `python`, `command`, `chrome`, `message`) and a card's notes |
 | [`AccessDenied`, `AccessPending`](messaging.md#accessdenied-accesspending) | exceptions | ♻ From `request_set`: you denied the list; the list waits on a card |
 | [`PermissionRequested`](messaging.md#permissionrequested) | event | ♻ A card for you: an access list, or an agent's grant or revoke |
-| [`AnswerPermissionRequest`](messaging.md#answerpermissionrequest) | command | ♻ Your answer to a card; `keep` is the ticked items |
+| [`AnswerPermissionRequest`](messaging.md#answerpermissionrequest) | command | ♻ Your answer to a card; `keep` is the ticked items, `remember=False` a message card's Allow once |
 | [`PermissionChanged`](messaging.md#permissionchanged) | event | ♻ A grant was saved, denied or revoked; closes the card |
 | [`IVoice`](messaging.md#ivoice) | contract | ♻ The voice contract: `listen(session_id, destination)`, `finish(session_id)`; `voice_notes` requires it |
 | [`StartListening`](messaging.md#startlistening) | command | ♻ Turn the mic on; `send_as_input` decides whether the Talker gets the text |
@@ -97,16 +97,18 @@ Task agents and the Agent Hub. `from assistant.contracts import ...`
 |------|------|---------|
 | [`ITaskAgent`](agents.md#itaskagent) | contract | ♻ An agent that takes tasks: `info`, `assign`, `message`, `cancel`, `answer_permission`, `set_permission_mode`, `note`, `request_approval` (ask you with the permission card) |
 | [`IAgentNames`](agents.md#iagentnames) | contract | ♻ The agent ids in use (`check`, `claim`, `release`, `taken`), so no two agents share one; `agent_hub` provides |
-| [`Task`](agents.md#task) | data | A unit of work: id, text, context |
-| [`AgentInfo`](agents.md#agentinfo) | data | An agent's id, description, capabilities, `busy` (has a task), `working` (in a turn now), `permission_mode` |
+| [`Task`](agents.md#task) | data | A unit of work: id, text, context, `question_key` (an answer to its question) |
+| [`AgentState`](agents.md#agentstate) | enum | ♻ `active` (in a turn) or `idle` (takes work, whatever questions it has open) |
+| [`AgentInfo`](agents.md#agentinfo) | data | An agent's id, description, capabilities, `state` (`AgentState`; `.active`), `permission_mode` |
 | [`TaskInfo`](agents.md#taskinfo) | data | A task as the Hub knows it, with its recent activity and its question's kind |
 | [`QuestionKind`](agents.md#questionkind) | enum | ♻ What a task's open question is: `permission`, `risky`, `need` or none; set by the Hub, so nobody parses the text |
-| [`TaskState`](agents.md#taskstate) | enum | `running`, `paused`, `waiting_for_input`, `done`, `failed`, `cancelled` |
+| [`TaskState`](agents.md#taskstate) | enum | `active`, `idle` (stopped, or holding its agent's question), `done`, `failed`, `cancelled` |
 | [`PermissionMode`](agents.md#permissionmode) | enum | ♻ `manual` (asks outside its rules; every launch) or `auto` (no prompts, `git push` blocked) |
-| [`ListAgents`](agents.md#listagents) | command | Every agent and whether it's busy or working |
+| [`ListAgents`](agents.md#listagents) | command | Every agent and whether it's active or idle |
 | [`StartTask`](agents.md#starttask) | command | Give work to a free agent |
+| [`DeliverMessage`](agents.md#delivermessage) | command | ♻ A message for an agent, never into a turn: its open task, a new task, or `pending` until it's free |
 | [`GetTaskStatus`](agents.md#gettaskstatus) | command | Task status without disturbing the agent |
-| [`SendToTask`](agents.md#sendtotask) | command | Question, instruction, or answer; interrupts, then continues unless paused |
+| [`SendToTask`](agents.md#sendtotask) | command | Question, instruction, or answer; interrupts, then continues unless paused. Into a task holding a question: the answer, the same task given back |
 | [`CancelTask`](agents.md#canceltask) | command | Stop a task, like Esc |
 | [`AnswerPermission`](agents.md#answerpermission) | command | Allow or deny a task's open permission request, once |
 | [`SetPermissionMode`](agents.md#setpermissionmode) | command | ♻ Switch a task agent between Manual and Auto (only you switch to Auto) |
@@ -117,7 +119,7 @@ Task agents and the Agent Hub. `from assistant.contracts import ...`
 | [`FocusSuggested`](agents.md#focussuggested) | event | ♻ The coordinator suggests you talk to an agent directly |
 | [`AgentNotice`](agents.md#agentnotice) | event | ♻ A module's callback for an agent, passed to its `note` |
 | [The Hub's menu](agents.md#the-hubs-menu) | menu | ♻ `hub.agents / status / start / send / cancel / focus / suggest_focus / answer / mode`, each knowing its caller |
-| [`AgentStateChanged`](agents.md#agentstatechanged) | event | An agent's `busy` or `working` changed (for UIs) |
+| [`AgentStateChanged`](agents.md#agentstatechanged) | event | An agent's `state` (active or idle) changed (for UIs) |
 | [`PermissionModeChanged`](agents.md#permissionmodechanged) | event | ♻ A task agent's mode was set: `now` or `next_task` (for UIs and the Talker) |
 | [`AgentActivity`](agents.md#agentactivity) | event | ♻ An agent's raw activity (for terminal 2, the temp UI, the viewer) |
 | [`SessionUsage`](agents.md#sessionusage) | event | ♻ One agent's usage, worker or Talker apart: context now, tokens since launch |
@@ -159,7 +161,7 @@ Shared by the main app and the independent apps; standard library only. `from ap
 
 | Item | Kind | Summary |
 |------|------|---------|
-| [`window`](app_kit.md#window) | functions | ♻ Edge app window: `open_app_window`, `close_app_windows`, `raise_window`, `devtools_port` |
+| [`window`](app_kit.md#window) | functions | ♻ Edge app window: `open_app_window`, `close_app_windows`, `raise_window`, `flash_window`, `devtools_port` |
 | [`load_layered`](app_kit.md#load_layered) | function | ♻ A TOML file plus its `.local` override, deep-merged |
 | [`local_path`](app_kit.md#local_path) | function | ♻ A config file's `.local` override path |
 | [`merge`](app_kit.md#merge) | function | ♻ Deep-merge one dict over another (a module's `module.toml` under its config section) |

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Next steps</title>
+<title>README</title>
 <!-- Generated from docs/next-steps/README.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
 <link rel="stylesheet" href="site.css">
 </head>
@@ -11,7 +11,7 @@
 <div class="layout">
 <nav data-root="" data-page="index.html"></nav>
 <main>
-<h1 id="next-steps">Next steps</h1>
+<p>﻿# Next steps</p>
 <p>What we're working on now. This page changes as the work moves on.</p>
 <h2 id="where-we-are">Where we are</h2>
 <p><strong>Decided earlier:</strong></p>
@@ -50,6 +50,36 @@
 </thead>
 <tbody>
 <tr>
+<td><a href="you-means-the-pair.html">"You" means the Talker and its worker together</a></td>
+<td>built (waiting on you): <code>RELOAD: talker</code>, then ask a tab "can you look over the files" and check it hands the work over</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="agent-talk-and-questions.html">Agents talk to each other freely, and a question never makes an agent busy</a></td>
+<td>built (waiting on you): hand checks 1 and 4 passed; 2 failed, then passed when redone with the fix in <a href="cv-submit-delivers.html">cv-submit-delivers</a>; cv_agent's repo write grants revoked (<a href="handoff-3720fc90.html">handoff</a>)</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="cv-submit-delivers.html">The Submit reaches the job agent by itself, and is never refused</a></td>
+<td>done: hand check passed 2026-11-10 (delivered by itself, once, with PDF and score); the small-text warning is covered by its automated test only</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="cv-submit-notice.html">cv_agent hears about the Submit, without being woken; the font floor back to 9 pt</a></td>
+<td>built (waiting on you): one <code>AgentNotice</code> line for cv_agent's next turn when the watch delivers a Submit; 9 pt, a warning only; follow-up 1 as design A (cv_agent ends with status <code>"ready"</code> before your Submit, no NEED, no <code>cv.tool_result</code>). Waits on <code>RELOAD: cv</code>, then tested on your next real job</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="cv-rezi-click-signal.html">The "Send JD and CV to Rezi" click reaches cv_agent</a></td>
+<td>parked: the user will ask for it after the current job application; fix agreed (publish <code>rezi_request</code>, the cv watcher delivers it to cv_agent as your yes), nothing built</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="hub-folder-check-parent.html">The Hub's folder check skips the starting task</a></td>
+<td>cancelled, never built: replaced by agent-talk-and-questions</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
 <td><a href="permissions-handler.html">Permissions handler</a></td>
 <td>proposed; its first piece (access lists, in the core) is built by agent-permissions</td>
 <td>2026-10-26</td>
@@ -63,6 +93,46 @@
 <td><a href="voice-in.html">Voice in</a></td>
 <td>building; design moved to <a href="../html/architecture/voice.html">Voice</a></td>
 <td>2026-10-28</td>
+</tr>
+<tr>
+<td><a href="handoff-repeat-fix.html">Handoff question stops repeating</a></td>
+<td>built (waiting on you): app restart (infra) and job_search reload left</td>
+<td>2026-11-08</td>
+</tr>
+<tr>
+<td><a href="cv-pdf-only.html">cv module: PDF in, PDF out</a></td>
+<td>built (waiting on you): a <code>cv</code> reload, and your yes for the job agent's 3 files</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
+<td><a href="handoff-b31b8901.html">Handoff: CV Tool as the cv module's UI</a></td>
+<td>superseded by handoff-2389decf</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
+<td><a href="cv-uses-cv-tool.html">cv module: the CV Tool is its UI</a></td>
+<td>built (waiting on you): live since the cv reload; the later fixes (Internal items, truth check, sign-in prompt) load with this restart; ExampleCorp First Draft waits for your review</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
+<td><a href="cv-agent-folders.html">cv agent: everything in one folder</a></td>
+<td>built (waiting on you): <code>C:\Chang\Jobs\CV_Module</code> is cv_agent's workspace (copies; the originals stay until you say)</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
+<td><a href="handoff-2389decf.html">Handoff: cv one folder + CV Tool build</a></td>
+<td>built (waiting on the restart): the stale-task Hub fix, <code>cv.tool_draft</code>, <code>cv.tool_internal_round</code>, the truth check, the sign-in prompt; then the hand checks in its last section</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
+<td><a href="cv-path-hardening.html">cv path: only cv.task for the job agent, a return address that survives a relaunch</a></td>
+<td>built: part 1 (caller checks, <code>start_only_by</code>, the coordinator hand-off, the archive) and part 2 (<code>reply_to</code>, cleanup, round cap); loaded by the app restart; the four hand checks in its Build status are due</td>
+<td>2026-11-09</td>
+</tr>
+<tr>
+<td><a href="cv-module-flow.html">The cv module at a glance</a></td>
+<td>built (waiting on you): merged into the cv module's overview page; kept until you say it can go</td>
+<td>2026-11-09</td>
 </tr>
 <tr>
 <td><a href="voice-in.html#code-design-2026-11-02">Voice in: code design</a></td>
@@ -238,6 +308,26 @@
 <td><a href="temp-ui-box-resize.html">Temp UI: drag the typing box taller or shorter</a></td>
 <td>built, waiting on the batched restart (a <code>RELOAD: temp_ui</code> would also do): a drag handle on the box's top edge, one size for every tab, kept after sending; six hand checks</td>
 <td>2026-11-08</td>
+</tr>
+<tr>
+<td><a href="two-agent-states.html">Agents and tasks: only two states, active and idle</a></td>
+<td>built as part of <a href="agent-talk-and-questions.html">agent-talk-and-questions</a> (step 3), waiting on the restart</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="chrome-tab-after-reset.html">A Chrome agent keeps its tab across a context reset</a></td>
+<td>built, waiting on the restart (2026-11-10 batch): a Chrome agent's handoff compacts the session instead of starting fresh; hand check: a Chrome task past a handoff still reaches its tab</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="chrome-tabs-close.html">Close an agent's Chrome tabs when it's done with them</a></td>
+<td>built, waiting on the restart (2026-11-10 batch): the prompt rule plus one close turn at a Chrome task's end; tabs stay on a cancel or failure; hand check: a finished Chrome task leaves only the tabs you should act on</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td><a href="taskbar-flash.html">Flash the app's taskbar icon when an agent needs you</a></td>
+<td>built, waiting on the restart (2026-11-10 batch): <code>flash_window</code> in <code>app_kit</code>, called by <code>temp_ui</code>; hand check: with the window in the back, a done or failed task, a question and a card each flash it; progress, replies and a cancel don't</td>
+<td>2026-11-10</td>
 </tr>
 <tr>
 <td><a href="usage-tokens-only.html">Usage: tokens only, clearer labels, two token fixes</a></td>

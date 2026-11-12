@@ -121,11 +121,14 @@ The [permissions handler](../architecture/permissions.md#part-of-the-core), part
 | `async on_task_updated(event)` | Takes the reviewer's final `TaskUpdated` |
 | `grants() -> list[dict]` | Every saved grant and every list waiting on a card: `module_id`, `subject`, `granted`, `labels`, `asked`, `denied`, `date`, `matches`, `waiting` |
 | `async grant(module_id, keys, subject="", caller="") -> Result` | Widen a grant with asked-for keys. From `you`: applied (a module that's off is turned on). From an agent: a card, and the answer reaches it as an `AgentNotice` |
-| `async revoke(module_id, subject="", keys=None, caller="") -> Result` | Take back all or some items; the module turns off and its running tasks are cancelled. From an agent: a card first |
+| `async revoke(module_id, subject="", keys=None, caller="") -> Result` | Take back all or some items; the module turns off and its running tasks are cancelled. A revoke of only `message:` items keeps the module on ("it stays on, and the next message asks again"). From an agent: a card first |
+| `kind_of(agent_id) -> str` | The subject an agent's grants are saved under: its kind (from `own_agent`; `helper_2` → `helper`), else its id |
+| `granted(module_id, agent_id, item) -> bool` | Whether `module_id`'s saved grant for the agent's kind holds `item` (and isn't denied) |
+| `async ask(module_id, agent_id, item, reason="") -> bool` | A one-item `message` card (Allow once · Always allow · Deny), awaited; True at once if granted. Allow once saves nothing; Always adds the item to the grant for the agent's kind. Cancelling the call closes the card. Built 2026-11-10 for the Agent Hub's message gate |
 | `open_cards() -> int` | How many cards are open |
 | `async close()` | Cancel open cards (each settles as denied) |
 
-**Card actions** (built 2026-11-08). A card's action is a `CardAction` (`ACCESS`, `GRANT`, `REVOKE`; a `StrEnum` inside the core whose values are `PermissionRequested.action`'s). An answered card is applied by its action's handler from a table (principle 20): `access` saves the list (and turns the module on); `grant` and `revoke` carry out an agent's call and tell it with an `AgentNotice`. Every `PermissionChanged` is built in one place.
+**Card actions** (built 2026-11-08). A card's action is a `CardAction` (`ACCESS`, `GRANT`, `REVOKE`, `MESSAGE`; a `StrEnum` inside the core whose values are `PermissionRequested.action`'s). An answered card is applied by its action's handler from a table (principle 20): `access` saves the list (and turns the module on); `grant` and `revoke` carry out an agent's call and tell it with an `AgentNotice`; `message` settles the waiting `ask` (`_apply_message`, with `Card.remember` from the answer). Every `PermissionChanged` is built in one place.
 
 Saved grants: `GrantStore` and `Grant` (`store.py`), one section per module and subject in `data/permissions.toml`, written whole and atomically; `fingerprint(items)` hashes a list's keys. Guardrails: `PROTECTED`, `refusals`, `rule_warnings` and `FIXED_RULES` (`rules.py`).
 
@@ -135,7 +138,7 @@ Saved grants: `GrantStore` and `Grant` (`store.py`), one section per module and 
 
 `PermissionsPort(module_id: str, handler: PermissionsHandler | None = None)` (a `ModulePermissions`)
 
-Each module's [`ctx.permissions`](modules.md#modulecontextpermissions), bound to its id, so no module asks in another's name. `request_set` forwards to the handler with the module id (and `subject`, default the module id). `has` and `request` aren't checked yet: they return `True`, and the first use of each name logs a warning on `assistant.core.permissions` ("not checked yet: allowing voice_in microphone (You clicked the mic)"), later ones at debug. Without a handler (a bare context in a test), `request_set` allows the whole list the same way. `CoreMenu` gets `PermissionsPort("core", handler)`.
+Each module's [`ctx.permissions`](modules.md#modulecontextpermissions), bound to its id, so no module asks in another's name. `request_set` forwards to the handler with the module id (and `subject`, default the module id). `has` and `request` aren't checked yet: they return `True`, and the first use of each name logs a warning on `assistant.core.permissions` ("not checked yet: allowing voice_in microphone (You clicked the mic)"), later ones at debug. `granted` and `ask` forward with the module id too. Without a handler (a bare context in a test), `request_set` allows the whole list the same way, and `granted` / `ask` allow and log. `CoreMenu` gets `PermissionsPort("core", handler)`.
 
 **Defined in:** `src/assistant/core/permissions/port.py`
 

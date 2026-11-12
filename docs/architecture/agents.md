@@ -183,16 +183,16 @@ sequenceDiagram
     actor You
     participant T as Talker
     participant H as Hub
-    participant A as Waiting agent
-    A->>H: human input needed
+    participant A as Agent
+    A->>H: ReportTask need (its turn ends; it's free)
     H->>T: clarification request
     T->>You: "Realistic or stylized?"
     You->>T: "Stylized"
-    T->>H: clarification response
-    H->>A: continue: stylized
+    T->>H: SendToTask (your answer)
+    H->>A: assign the same task: "Answer to your question …"
 ```
 
-Communication is two-way: agents can ask the human for information, and the Talker stays responsive while an agent waits.
+Communication is two-way: agents can ask the human for information, and the Talker stays responsive. A question never keeps an agent busy: it ends its turn, takes other work meanwhile, and your answer comes back as a message to the same task, whenever you give it ([questions are messages](#questions-are-messages)).
 
 ## Task agents
 
@@ -204,7 +204,7 @@ Any agent that takes tasks provides **`ITaskAgent`** (`multiple = True`): the Ma
 
 | Method | Does | Like in Claude Code |
 |--------|------|---------------------|
-| `info()` | Id, description, capabilities, `busy` (has an unfinished task), `working` (its session is in a turn right now). Read on every lookup | |
+| `info()` | Id, description, capabilities, `state`: `active` (in a turn, or held in one by a permission card) or `idle` (takes new work, whatever questions it has open). Read on every lookup | |
 | `assign(task)` | Accept or refuse a task. Returns at once, never waits for the work | Typing a new request |
 | `message(task_id, text, resume)` | Interrupt, answer quickly, then continue the task unless `resume` is false (stop or pause) | Typing while it works |
 | `cancel(task_id)` | Stop the task now. The session and its memory survive | Pressing Esc |
@@ -239,9 +239,9 @@ Solid: commands and contract calls, which always return a `Result`. Dotted: even
 
 - **Talker → Hub:** commands `StartTask`, `GetTaskStatus` (status without bothering the agent), `SendToTask` (a question, extra instruction, or your answer), `CancelTask`. In v1 the `talker` module turns tags in the Talker's text (`<<WORK: …>>`, `<<ASK: …>>`, `<<PAUSE: …>>`, `<<CANCEL>>` etc.) into these commands. Planned: both agents find module tools through the [directory, then menu](modules.md#find-a-module-then-open-its-menu) instead of hardcoded tags.
 - **You never use keywords or flags.** You just talk; the Talker (a Claude too) infers from context whether you meant continue, pause, or cancel, and emits the matching tag.
-- **Agent → any UI:** the `AgentStateChanged` event whenever `busy` or `working` changes, so a UI shows it live. `ListAgents` (Hub) is the authoritative read.
+- **Agent → any UI:** the `AgentStateChanged` event whenever its `state` (active or idle) changes, so a UI shows it live. `ListAgents` (Hub) is the authoritative read.
 - **Hub → agent:** the `ITaskAgent` methods.
-- **Agent → Hub:** the `ReportTask(task_id, kind, text)` command, with `kind` = `progress` / `reply` / `need` / `done` / `failed`. A command, not an event, because the Hub's state must not miss it.
+- **Agent → Hub:** the `ReportTask(task_id, kind, text, key)` command, with `kind` = `progress` / `reply` / `need` / `done` / `failed`, and with a `need` its context `key`. A command, not an event, because the Hub's state must not miss it.
 - **Hub → Talker:** the `TaskUpdated` event on every report and state change. The Talker can always re-read with `GetTaskStatus`.
 - **Agent → terminal 2:** the `AgentActivity` event, the agent's raw text and tool calls. Published by the agent module directly, since it's high-volume and only for viewing.
 
@@ -266,8 +266,8 @@ sequenceDiagram
 ```
 
 - **`resume=true`** (default): after the reply, the agent sends "continue the task" to its session itself.
-- **`resume=false`**: you said stop or pause. The agent replies and stays paused; a later `SendToTask` with `resume=true` (e.g. "carry on") continues it. To abandon the task, use `CancelTask`.
-- **Waiting for input:** if the agent asked you something (`need`), its turn has already ended, so there's nothing to interrupt. Your answer goes in as the next message and the work continues.
+- **`resume=false`**: you said stop or pause. The agent replies and the task goes `idle`, still held by its agent; a later `SendToTask` with `resume=true` (e.g. "carry on") continues it. A new task for that agent drops it. To abandon the task, use `CancelTask`.
+- **Answering a question:** if the agent asked you something (`need`), its turn has ended and it dropped the task, so there's nothing to interrupt. Your answer gives the same task back to it ([questions are messages](#questions-are-messages)).
 - The Talker infers `resume` from context; you never say a keyword. The reply is how it (and you) decide whether to cancel.
 
 **`cancel`** works like Esc: interrupt the turn, mark the task `cancelled`, keep the session (and its memory) for the next task. Killing the process is only the fallback if the interrupt doesn't stop it; the next task then starts a fresh session or resumes it by id.
@@ -278,22 +278,32 @@ The Hub owns the authoritative state. An accepted assignment is not a finished t
 
 ```mermaid
 stateDiagram-v2
-    [*] --> running: assign accepted
-    running --> waiting_for_input: ReportTask need
-    waiting_for_input --> running: SendToTask (your answer)
-    running --> paused: SendToTask resume=false
-    paused --> running: SendToTask resume=true
-    running --> done: ReportTask done
-    running --> failed: ReportTask failed
-    running --> cancelled: CancelTask
-    waiting_for_input --> cancelled: CancelTask
-    paused --> cancelled: CancelTask
+    [*] --> active: assign accepted
+    active --> idle: ReportTask need (the agent drops it, keeps nothing)
+    idle --> active: SendToTask (your answer: assigned again, same id)
+    active --> idle: SendToTask resume=false (the agent still holds it)
+    idle --> active: SendToTask resume=true
+    active --> done: ReportTask done
+    active --> failed: ReportTask failed
+    active --> cancelled: CancelTask
+    idle --> cancelled: CancelTask
+    idle --> done: a new task for its agent (a paused one only)
     done --> [*]
     failed --> [*]
     cancelled --> [*]
 ```
 
-`progress`, `milestone` and `reply` reports don't change the state. Each agent runs **one task at a time**; `assign` to a busy agent is refused and `StartTask` returns `not_available`. No queues, priorities, progress percentages, or crash resume yet.
+Two live states: **active** (its agent is in a turn on it; a permission card mid-turn keeps it active) and **idle**. An idle task is either paused (you stopped it; its agent still holds it, and a new task for that agent ends it as done) or holds its agent's question (a `need`; the agent dropped it and is free). `progress`, `milestone` and `reply` reports don't change the state. Each agent runs **one task at a time**; `assign` to an active agent is refused and `StartTask` returns `not_available`. An idle agent takes new work, whatever questions it has open. No queues, priorities, progress percentages, or crash resume yet.
+
+### Questions are messages
+
+A question never makes an agent busy (built 2026-11-10; the change note: `docs/next-steps/agent-talk-and-questions.md`).
+
+- **A `NEED:` ends the turn.** The agent reports `need` with the question's context **key** (`ReportTask.key`; its module decides it: cv uses the job's folder, others the task's last handoff note), drops the task and is idle. The Hub keeps the task `idle` with its question (`TaskInfo.question_key`), behind the tab's **!** as before.
+- **Your answer is a message,** whenever you give it: the Hub assigns the same task id to the agent again, with "Answer to your question in task <id> (…): <answer>" and the key (`Task.question_key`). If the agent is in a turn on other work, the answer waits and goes in when it's free (`hub.send` says "delivered: when its agent is free").
+- **The agent finds the context again.** If its session still has the question, it carries on there. If not (a relaunch, a reset, other work in between), it starts a fresh session and adds its module's notes for the key: the hook `SessionTaskAgent.set_context(key, notes)`, by default the handoff note ([`default_context`](../api/infra.md#sessiontaskagent)); cv adds the job's `job_start.json` summary and its handoff note.
+- **A permission card** (a tool call mid-turn) is unchanged: the turn stays active, and Allow or Deny lets it carry on.
+- **Open questions survive a Hub reload** (handed over in `export_state`) and don't hold up the reload. An app restart doesn't wait for them either: they're listed in the reset note with their context.
 
 ### Working together
 
@@ -302,8 +312,10 @@ Several task agents can run at once (built 2026-11-05). The helpers beside the M
 - **The focus:** the Hub keeps which agent you're talking to. At launch it's the coordinator (`[modules.agent_hub] coordinator`, the Main Assistant). Only the Talker moves it (`hub.focus`, after you said so) or a UI (`SetFocus`); the coordinator can only suggest a move (`hub.suggest_focus`), which the Talker asks you about.
 - **Held questions:** a `need` or `permission` from an agent out of focus is held on its task (the **!** on its tab) until you focus it; `FocusChanged` then releases it.
 - **Milestones to the coordinator:** each agent's prompt (the shared block from `AgentProfile`) asks for `STATUS:` lines at milestones, reported as `milestone`. The Hub feeds every other agent's milestones and ends, and each focus move, to the coordinator's `note`, read at the end of its next message. Never an interrupt.
-- **One road to the Hub:** agents and the Talker reach the Hub through its menu on the module door; every item knows its caller (`InvokeTool.caller`, set by the door from the session's token, never by the session). Others may send to and cancel only their own child tasks.
-- **Limits:** besides the coordinator (not counted), at most `[modules.agent_hub] max_extra_agents` agents (3 by default) with an open task at once, and no two running agents writing the same folders.
+- **One road to the Hub:** agents and the Talker reach the Hub through its menu on the module door; every item knows its caller (`InvokeTool.caller`, set by the door from the session's token, never by the session). Others may cancel only their own child tasks.
+- **Agents message each other** (built 2026-11-10): `hub.send` with `agent_id` works for every agent. Into its own child task a message goes straight in (it interrupts, as before). Anything else goes through the Hub's **message gate**: the first message from A to B opens a permission card, "A wants to message B", with **Allow once** · **Always allow** · **Deny**. Always saves a grant under `agent_hub` for A's kind, one per direction ([permissions](permissions.md#messages-between-agents)). On Allow the message is delivered; on Deny or no answer A gets a `[messages]` note and nothing is sent. The Talker is never asked.
+- **Delivery never interrupts a turn** (`DeliverMessage`, handled by the Hub's `Delivery`): the text arrives as `[Message from <sender>] …`, into the agent's open task, or as a new task if it has none. An agent in a turn gets it when the turn ends; one that isn't running gets it when it starts. Messages to one agent keep their order. Modules use it too: the cv module's result at Submit ([cv](../../src/assistant/modules/cv/docs/architecture.md)).
+- **Limits:** besides the coordinator (not counted), at most `[modules.agent_hub] max_extra_agents` agents (3 by default) with an active task at once, and no two active agents writing the same folders. An idle agent, or one whose task only holds a question, holds no folder. `[modules.agent_hub] named_only` lists agents a free pick (`hub.start` with no `agent_id`) never lands on; anyone may still name them (cv_agent: `cv.task` starts it).
 - **The Talker's part** ([talker](../modules/talker.md)): one `TalkerSession` per agent tab, each with its partner agent; the module routes your input by its tab (else the focus) and each `TaskUpdated` to its agent's session. A session's tags act on its partner, it hears only its partner's updates, and it reaches the Hub through its menu with `InvokeTool` (its tags are a shorthand). PASS sends your words to its own agent unchanged (`hub.send(agent_id)`); a bare "yes" answers that tab's card when it has only one, and asks which when it has more.
 - **The coordinator delegates:** its prompt block tells it to use `hub.agents`, `hub.start` (a child task), `hub.status` / `hub.send` / `hub.cancel` on its own children, and `hub.suggest_focus`; only you move the focus. It launches a helper (`agents.launch`) only when you asked for one.
 - **In the temp UI** ([temp_ui](../modules/temp_ui.md)): one tab per big agent with a state dot and the **!**, the Main Assistant's in its own colour; a click moves the focus and brings the held items. A chat per tab under a "Talker · agent" header, the last 300 items of each replayed, not saved across a relaunch.

@@ -7,6 +7,8 @@ Who may use what: location, the microphone, files, accounts. Back to the [overvi
 > **Built: `ctx.permissions`** (2026-11-02) on every module's context, with `has` and `request`, and the manifest's `permissions` / `optional_permissions` fields. Since 2026-11-05 it's a `PermissionsPort` bound to the module, forwarding to the handler; `request_set` asks for a whole access list ([API](../api/modules.md#modulecontextpermissions)).
 >
 > **Built: the [permission mode](#permission-mode-built)** (2026-11-02): Manual or Auto for the Main Assistant, switched with a button.
+>
+> **Built: [messages between agents](#messages-between-agents)** (2026-11-10): the Agent Hub's message gate asks with a `message:<receiver>` item, answered Allow once, Always allow or Deny.
 
 ## The idea
 
@@ -55,7 +57,7 @@ A task agent asks for its whole access list in one request when its module is tu
 
 - **Refused:** a write to a folder in the [protected zone](#repo-zones) (or one holding part of it) is taken off the list and shown as refused.
 - **Rule warnings**, fixed and predictable: writing plus Chrome; reading outside the working folder plus Chrome; Python.
-- **The review:** the Main Assistant gets the list and the rule warnings as a short task and adds one line per further risk. If it's busy or doesn't answer in time (90 s), the card says "not reviewed".
+- **The review:** the Main Assistant gets the list and the rule warnings as a short task and adds one line per further risk. If it's active on other work or doesn't answer in time (90 s), the card says "not reviewed".
 - **Fixed rules:** never submit or send anything (a prompt rule, not enforced in code); protected paths are never granted; sessions start in Manual.
 - **Sessions always start in Manual.** A list can't start an agent in Auto: `permission_mode` in config is clamped to `default`, `acceptEdits` or `plan` ([`manual_claude_mode`](../api/infra.md#agentprofile)). Auto stays your button.
 - A denied card, or no answer in 10 minutes, leaves the module off. A denial is saved too, so the same list asks again only when it changes.
@@ -83,7 +85,7 @@ sequenceDiagram
     else new or changed list
         P-->>M: AccessPending (start ends, module off)
         P->>R: StartTask(review)
-        R-->>P: TaskUpdated(done, notes), or busy / late: not reviewed
+        R-->>P: TaskUpdated(done, notes), or active / late: not reviewed
         P-->>U: PermissionRequested(items, notes, rules)
         U->>You: card with tick boxes
         You->>U: Allow (ticked items)
@@ -100,6 +102,17 @@ Built 2026-11-05.
 ### Grants per kind of agent
 
 A grant is saved per module and **subject**: the kind of agent, not each copy. The job agent's subject is `job_search_agent`. For `task_agents` the subject is the kind: `helper_2` shares `helper`'s grant, and so does every helper launched from that kind. One section of `data/permissions.toml` per module and subject holds the fingerprint, the asked and granted keys, whether it was denied, and the date. It changes only through the handler's calls.
+
+### Messages between agents
+
+Built 2026-11-10. When an agent messages another agent that isn't its own child task (`hub.send` with `agent_id`), the Agent Hub's message gate (`agent_hub/gate.py`, `MessageGate`) asks first, with one item, `message:<receiver>` (`AccessKind.MESSAGE`).
+
+- **The check:** `ctx.permissions.granted(item, sender)` reads the Hub's saved grant for the sender's kind (the handler's `kind_of`: `helper_2` shares `helper`'s). Granted: the message goes through with no card.
+- **The card** (`ctx.permissions.ask(item, sender, reason)`, action `message`): "job_search_agent wants to message cv_agent", with the start of the text. Three buttons: **Allow once** (`AnswerPermissionRequest.remember=False`: this message only, nothing saved), **Always allow** (saved), **Deny**. The Talker's ALLOW is Allow once; Always is only the button.
+- **Saved:** under module `agent_hub`, subject = the sender's kind, item `message:<receiver>`. One grant per direction: job → cv and cv → job are each asked once. It shows in `permissions.grants` and the Grants panel.
+- **While the card is open,** the message and any later ones from the same sender to the same receiver wait behind it. On Allow they're delivered (never into a running turn); on Deny or no answer nothing is sent and the sender gets a `[messages]` note.
+- **Revoke:** `permissions.revoke` of only `message:` items keeps `agent_hub` on; the next message asks again.
+- **Never asked:** the Talker (you), and a message into one's own child task.
 
 ### Managing grants
 
@@ -122,7 +135,8 @@ The calls are on the core's menu, with no UI in them, so any UI and any agent us
 | Added items | Saved under `added` in its section. The fingerprint stays the config list's, so an unchanged config still matches and the next start keeps them; `granted_config` adds them to the config |
 | A narrowed revoke (some items) | The grant keeps its fingerprint, so the same list isn't asked again; it starts with fewer items |
 | A full revoke, or a revoke of the workspace | The grant is removed; the module asks again when turned on |
-| Any revoke | The module turns off right away and its running tasks are stopped (like Esc). A running session would keep the old access, since its rules are fixed when it starts |
+| Any other revoke | The module turns off right away and its running tasks are stopped (like Esc). A running session would keep the old access, since its rules are fixed when it starts |
+| A revoke of only `message:` items | The module stays on; the next message between those agents asks again ([messages between agents](#messages-between-agents)) |
 
 **Your snips:** every task agent built on `ProfileAgent` may read this launch's snips folder (`logs/<launch>/snips/`, your snips and pasted images) with no card: a read rule added at each session start, not on any access list.
 
@@ -170,6 +184,8 @@ classDiagram
         +has(name) bool
         +request(name, reason) bool
         +request_set(items, reason, subject, wait) items
+        +granted(item, agent_id) bool
+        +ask(item, agent_id, reason) bool
     }
     class PermissionsPort {
         <<built, core>>
@@ -180,6 +196,7 @@ classDiagram
         +request_set(module_id, subject, items, reason, wait)
         +answer(AnswerPermissionRequest)
         +grants() / grant() / revoke()
+        +kind_of(agent_id) / granted() / ask()
     }
     class GrantStore {
         <<built, core>>
@@ -211,8 +228,8 @@ classDiagram
 
 | Item | Kind | Purpose |
 |------|------|---------|
-| `PermissionRequested(request_id, module_id, subject, action, reason, items, notes, reviewed, rules, caller)` | event | A card for you: an access list, or an agent's grant or revoke; UIs and the Talker show it |
-| `AnswerPermissionRequest(request_id, allow, keep)` | command | Your answer; `keep` is the ticked items (none: all) |
+| `PermissionRequested(request_id, module_id, subject, action, reason, items, notes, reviewed, rules, caller)` | event | A card for you: an access list, an agent's grant or revoke, or an agent's message to another (`message`); UIs and the Talker show it |
+| `AnswerPermissionRequest(request_id, allow, keep, remember)` | command | Your answer; `keep` is the ticked items (none: all); `remember=False` is a message card's Allow once |
 | `PermissionChanged(module_id, subject, granted, request_id, text)` | event | A grant was saved, denied or revoked; closes the card |
 | `ListPermissions()` | command | Every module's needs and grants, for the control panel (planned; `permissions.grants` covers access lists) |
 

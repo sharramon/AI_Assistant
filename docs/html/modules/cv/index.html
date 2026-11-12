@@ -13,27 +13,236 @@
 <main>
 <h1 id="cv-tailor-a-cv-for-one-job-with-rezi-one-clean-page-your-yes">cv: tailor a CV for one job with Rezi, one clean page, your yes</h1>
 <h2 id="purpose">Purpose</h2>
-<p>Takes a CV (<code>CV_Test_*.odt</code>) and a job description (JD). Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through <code>cv.task</code>.</p>
+<p>Takes a CV as a PDF (<code>CV_Test_*.pdf</code>) and a job description (JD) as text. Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the one-page PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through <code>cv.task</code>.</p>
 <p><strong>Status (2026-11-07):</strong> built and tested, chunks 1 to 8. That covers the menu (<code>rezi.*</code>, <code>cv.*</code>), the Rezi connection with its resume guard, the one-page build and checks, the worker <code>cv_agent</code>, and the in-and-out contract below. Everything is tested against a fake Rezi and a fake <code>claude</code>. Chunk 9, the real run, is under way: the real Rezi sign-in, live tool list and reads work, and the module now reads and writes Rezi's real resume format. Off by default; turning it on asks for the worker's access on one card.</p>
+<p><strong>PDF in, PDF out (2026-11-09, built, waiting on a <code>cv</code> reload):</strong> the base CV comes in as a <code>CV_Test_*.pdf</code> and an <code>.odt</code> is refused everywhere; the JD stays text; <code>cv.build</code> exports the final PDF into the job's folder, and no <code>.odt</code> comes out (<code>odt_path</code> is gone from the result). The plan: <code>docs/next-steps/cv-pdf-only.md</code>. Left out at your request: cutting the worker's read access to <code>C:\Chang\Jobs\CV</code>.</p>
+<p><strong>The CV Tool build (2026-11-09, building):</strong> the module side is built and tested, but not live yet: <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.check_fonts</code> and <code>cv.tool_result</code>, the CV Tool launched through <code>CompanionHandover</code> (<code>tool.py</code>), the rules folder loaded at every job, <code>CvRequest.tool</code>, and the 5-step prompt. They go live with a <code>cv</code> reload. The app itself (<code>src/cv_tool/</code>) runs and is tested; <code>pymupdf</code> 1.28.2 is in the repo's <code>.venv</code> (installed 2026-11-09 with your yes). The plan: <code>docs/next-steps/cv-uses-cv-tool.md</code>.</p>
 <p>How it works inside: <a href="architecture.html">Architecture</a>. Its menu, and what a job sends in and gets back: <a href="tools.html">Tools</a>.</p>
 <h2 id="in-and-out">In and out</h2>
 <ul>
-<li><strong>In</strong> (<code>cv.task</code>): the job's company and role, the job description as text or as a <code>.txt</code>, <code>.md</code> or <code>.html</code> file, and the CV file (<code>CV_Test_*.odt</code> in <code>C:\Chang\Jobs\CV</code>). Optional: the posting's URL, Education first, a target score, notes.</li>
-<li><strong>Out</strong> (<code>cv.read_result</code> on the task's result): the new <code>.odt</code>, the PDF and <code>report.md</code>, and with them the Rezi Score after each round against the target, the keywords still missing and those left out because you don't have them, recommendations, the one-page check, and the compare of what Rezi read. Also the new Rezi resume and its check copy, and whether you approved it.</li>
+<li><strong>In</strong> (<code>cv.task</code>): the job's company and role, the job description as text or as a <code>.txt</code>, <code>.md</code> or <code>.html</code> file, and the CV file (<code>CV_Test_*.pdf</code> in <code>C:\Chang\Jobs\CV</code>; an <code>.odt</code> is refused). Optional: the posting's URL, Education first, a target score, notes.</li>
+<li><strong>Out</strong> (<code>cv.read_result</code> on the task's result): the new one-page PDF and <code>report.md</code> (in the job's folder), and with them the Rezi Score after each round against the target, the keywords still missing and those left out because you don't have them, recommendations, the one-page check, and the compare of what Rezi read. Also the new Rezi resume and its check copy, and whether you approved it.</li>
 </ul>
 <p>The calls and every field: <a href="tools.html#the-hand-off-cvtask-and-cvread_result">Tools</a>.</p>
-<h2 id="the-8-steps">The 8 steps</h2>
-<ol>
-<li><strong>Receive</strong> the base CV and the JD from the caller, sent through the Hub (<code>cv.task</code>, then <code>hub.start</code> to <code>cv_agent</code>). Pick the section order.</li>
-<li><strong>Edit in Rezi:</strong> a new resume from the base CV, Keyword Targeting with the JD, keep only true edits, save.</li>
-<li><strong>You read</strong> the edited CV. Changes go back to step 2.</li>
-<li><strong>Rezi Score</strong> and missing keywords: 90 or more (aim 100), at most 5 rounds. Below target goes back to step 2, adding only terms you really have.</li>
-<li><strong>One clean page:</strong> the worker builds the <code>.odt</code> and the PDF.</li>
-<li><strong>Rezi checks the page:</strong> it imports the PDF, the worker compares what Rezi read with the edited resume, and Rezi scores it again. A layout problem goes back to step 5, a content problem to step 2.</li>
-<li><strong>Is this the one?</strong> Your yes, or the step to go back to.</li>
-<li><strong>Return</strong> the PDF, the <code>.odt</code> and the report to the caller: the task ends with a <code>CV_RESULT</code> line, which the caller reads with <code>cv.read_result</code>.</li>
+<h2 id="design-the-cv-tool-flow">Design: the CV Tool flow</h2>
+<blockquote>
+<p><strong>The design:</strong> how the module works once the CV Tool build is in. What is live today is in <a href="#build-state">Build state</a> at the end. The colours in the diagrams mark the same state (2026-11-09): green built and live, yellow built but not live, grey dashed not built.</p>
+</blockquote>
+<p>The CV Tool is the cv module's own UI half. The module owns it: it launches the app, feeds it jobs and stops it. It isn't part of the Main Assistant or the core. The app's code sits in <code>src/cv_tool/</code>, not in the module's folder: <code>CompanionApp</code> starts it with <code>python -m &lt;package&gt;</code>, and from inside <code>cv/</code> that would import the module's code into the app.</p>
+<pre><code class="language-mermaid">flowchart TD
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+    subgraph MainTab[&quot;Main tab&quot;]
+        MTalker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;talks with you&quot;]
+        Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;may send a job too (cv.task)&quot;]
+        MTalker -- &quot;work · questions&quot; --&gt; Main
+        Main -- &quot;progress · questions&quot; --&gt; MTalker
+    end
+    subgraph JobTab[&quot;Job search agent's tab&quot;]
+        JTalker[&quot;&lt;b&gt;Its Talker&lt;/b&gt;&quot;]
+        JobAgent[&quot;&lt;b&gt;Job search agent&lt;/b&gt;&lt;br/&gt;finds the job, sends it&quot;]
+        JTalker -- &quot;work · questions&quot; --&gt; JobAgent
+        JobAgent -- &quot;progress · questions&quot; --&gt; JTalker
+    end
+    You &lt;--&gt; MTalker
+    You &lt;--&gt; JTalker
+    You &lt;--&gt; CTalker
+    Sub -. &quot;the result at Submit&lt;br/&gt;(DeliverMessage, into its open task)&quot; .-&gt; JobAgent
+    In[&quot;&lt;b&gt;Inputs&lt;/b&gt;&lt;br/&gt;JD as text · base CV as a PDF&lt;br/&gt;(cv.task)&quot;]
+    Gate[&quot;&lt;b&gt;Job-start gate&lt;/b&gt;&lt;br/&gt;work folder · copy of the PDF&lt;br/&gt;loads the rule files&quot;]
+    Rules[&quot;&lt;b&gt;rules folder&lt;/b&gt;&lt;br/&gt;style · layout · Rezi · 9 pt&lt;br/&gt;(CV_Module\.claude\skills\cv-writing)&quot;]
+    Facts[&quot;&lt;b&gt;confirmed_facts.json&lt;/b&gt;&lt;br/&gt;your confirmed facts, as data&quot;]
+    Agent[&quot;&lt;b&gt;cv_agent&lt;/b&gt;&lt;br/&gt;the cv module's worker&quot;]
+    Rezi[&quot;&lt;b&gt;Rezi&lt;/b&gt; (a scorer only)&lt;br/&gt;1 · API: write and read the text&lt;br/&gt;2 · your Chrome: read the score + keywords&lt;br/&gt;(sometimes an edit there)&lt;br/&gt;✗ its PDF: never downloaded&quot;]
+
+    subgraph CV[&quot;cv module&quot;]
+        Gate
+        Rules
+        Facts
+        Link[&quot;&lt;b&gt;CompanionApp + cv.tool_* items&lt;/b&gt;&lt;br/&gt;the module's link to its UI&quot;]
+        subgraph CvTab[&quot;cv agent's tab&quot;]
+            CTalker[&quot;&lt;b&gt;Its Talker&lt;/b&gt;&quot;]
+            Agent
+            CTalker -- &quot;work · questions&quot; --&gt; Agent
+            Agent -- &quot;progress · questions&quot; --&gt; CTalker
+        end
+        Rezi
+        Chrome[&quot;&lt;b&gt;Your Chrome&lt;/b&gt;&lt;br/&gt;Claude in Chrome extension&lt;br/&gt;(you watch it here)&quot;]
+        Headless[&quot;&lt;b&gt;Headless Chrome&lt;/b&gt;&lt;br/&gt;on this PC: prints the CV's page&quot;]
+        subgraph UI[&quot;CV Tool: the module's own UI half (its own window)&quot;]
+            T1[&quot;&lt;b&gt;1 · Job &amp; CV&lt;/b&gt;&quot;]
+            T2{&quot;&lt;b&gt;2 · Pick&lt;/b&gt;&lt;br/&gt;Internal or Rezi&quot;}
+            T3[&quot;&lt;b&gt;3 · First Draft&lt;/b&gt;&lt;br/&gt;stop for your review&quot;]
+            T4[&quot;&lt;b&gt;4 · ATS Loop&lt;/b&gt;&lt;br/&gt;to 90+, at most 5 rounds&lt;br/&gt;9 pt check&quot;]
+            Sub[&quot;&lt;b&gt;Submit&lt;/b&gt;&lt;br/&gt;yours, in the app&quot;]
+            T1 --&gt; T2 --&gt; T3 --&gt; T4
+            T4 -- &quot;under 90, round ≤ 5&quot; --&gt; T4
+            T4 --&gt; Sub
+        end
+    end
+
+    Out[&quot;&lt;b&gt;Outputs&lt;/b&gt;&lt;br/&gt;CV_Test_&amp;lt;Company&amp;gt;_final.pdf&lt;br/&gt;result.json · report&quot;]
+
+    JobAgent --&gt; In --&gt; Gate
+    Rules --&gt; Gate
+    Facts -.-&gt; Gate
+    Gate --&gt; Agent
+    Agent -. &quot;opens the job when you say (cv.open_tool)&quot; .-&gt; T1
+    Link -. &quot;launches and controls (CompanionApp) when cv_agent calls cv.open_tool · a window now, headless later&quot; .-&gt; UI
+    Agent -. &quot;cv.tool_round · tool_status · tool_result&quot; .-&gt; Link
+    Link -. &quot;the round in · status and Submit's result out&quot; .-&gt; T4
+    Agent -- &quot;today: request and result files (rezi_requests); you open the app by hand&quot; --&gt; T4
+    T2 -- Rezi --&gt; Rezi
+    Agent -- &quot;First Draft and each round: the CV text in (rezi.write_resume)&quot; --&gt; Rezi
+    Rezi -- &quot;score · categories · keywords out (read in your Chrome)&quot; --&gt; Agent
+    Sub --&gt; Out
+    Agent -- &quot;read the ATS score (Rezi), categories, keywords (sometimes an edit)&quot; --&gt; Chrome
+    Chrome -- &quot;app.rezi.ai, signed in as you&quot; --&gt; Rezi
+    UI -- &quot;the CV's own page in (export_pdf)&quot; --&gt; Headless
+    Agent -- &quot;today: its script build_cv_html.py&quot; --&gt; Headless
+    Headless -- &quot;local PDF out (9 pt check: small_text, cv.check_fonts)&quot; --&gt; T4
+    T3 -. &quot;Send JD and CV to Rezi: the request (file today · via cv.tool_status later)&quot; .-&gt; Link
+    Agent -. &quot;round 1: the CV text + ATS score (Rezi) + keywords (file today · cv.tool_round later)&quot; .-&gt; Link
+    Link -. &quot;round 1&quot; .-&gt; T3
+    T4 -. &quot;ask for a tweak or another run (chat today · cv.tool_status later)&quot; .-&gt; Link
+    Agent -. &quot;each round: score, issues, change notes (file today · cv.tool_round later)&quot; .-&gt; Link
+    T4 -. &quot;Submit's result (ready.flag + result.json · pushed on /api/events)&quot; .-&gt; Link
+    Link -. &quot;to cv_agent: the request · a tweak&quot; .-&gt; Agent
+    T4 -. &quot;Submit: yours&quot; .-&gt; You
+
+    classDef live fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
+    classDef built fill:#fff4d6,stroke:#b08900,color:#1d1d1b
+    classDef notbuilt fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    class You person
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    class MTalker,Main,JTalker,CTalker,JobAgent,In,Gate,Agent,Rezi live
+    class T1,T2,T3,T4,Sub,Rules,Facts,Out,Link built
+    class Chrome,Headless live
+</code></pre>
+<p><strong>Green: built and live. Yellow: built, not live. Grey, dashed: not built.</strong> Dotted arrows are the new links: built and tested, live after the <code>cv</code> reload. The arrows marked "today" are the old path, used until then. The gate and cv_agent are live with the old flow; their new parts (the rules folder, the 5-step prompt) come with the reload.</p>
+<p><strong>Rezi's PDF is never downloaded.</strong> This is your rule (2026-11-08 03:01, memory note <code>rezi-pdf-download-auto.md</code>), and the CV Tool ignores a Rezi PDF if one is sent. Rezi only scores the text; the PDF is always the CV's own page. In the Hooli run, Rezi's PDF was downloaded in rounds 2–4, before the rule.</p>
+<p><strong>The ATS score comes from Rezi,</strong> read in your Chrome. The CV Tool only shows it. With the Internal pick, the CV Tool's own estimate is used instead.</p>
+<h3 id="the-first-draft-and-ats-loop-tabs-close-up">The First Draft and ATS Loop tabs, close up</h3>
+<p>These are the same boxes as above, with the arrows between the tabs, cv_agent and Rezi. Each label ends with its state. Dotted arrows aren't built.</p>
+<p><strong>First Draft (Rezi picked)</strong></p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+    T3[&quot;&lt;b&gt;Tab 3 · First Draft&lt;/b&gt;&quot;]
+    Agent[&quot;&lt;b&gt;cv_agent&lt;/b&gt;&quot;]
+    Rezi[&quot;&lt;b&gt;Rezi&lt;/b&gt;&lt;br/&gt;the ATS score&quot;]
+    Chrome[&quot;&lt;b&gt;Your Chrome&lt;/b&gt;&lt;br/&gt;Claude in Chrome&quot;]
+
+    You -- &quot;Send JD and CV to Rezi · built, not live&quot; --&gt; T3
+    T3 -- &quot;1 · a request: text · JD · rules&lt;br/&gt;by file today, you tell cv_agent · built, not live&quot; --&gt; Agent
+    T3 -. &quot;1 · later: cv.tool_status · not built&quot; .-&gt; Agent
+    Agent -- &quot;2 · rezi.write_resume: the CV text (API) · live&quot; --&gt; Rezi
+    Rezi -- &quot;app.rezi.ai · live&quot; --&gt; Chrome
+    Chrome -- &quot;3 · ATS score (Rezi) + keywords, read · live&quot; --&gt; Agent
+    Agent -- &quot;4 · round 1: ATS score (Rezi) + keywords&lt;br/&gt;results file today · built, not live&quot; --&gt; T3
+    Agent -. &quot;4 · later: cv.tool_round · not built&quot; .-&gt; T3
+
+    classDef live fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
+    classDef built fill:#fff4d6,stroke:#b08900,color:#1d1d1b
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    class You person
+    class Agent,Rezi,Chrome live
+    class T3 built
+</code></pre>
+<p><strong>One ATS Loop round</strong></p>
+<pre><code class="language-mermaid">flowchart LR
+    You([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
+    T4[&quot;&lt;b&gt;Tab 4 · ATS Loop&lt;/b&gt;&quot;]
+    Agent[&quot;&lt;b&gt;cv_agent&lt;/b&gt;&quot;]
+    Rezi[&quot;&lt;b&gt;Rezi&lt;/b&gt;&lt;br/&gt;the ATS score&quot;]
+    Chrome[&quot;&lt;b&gt;Your Chrome&lt;/b&gt;&lt;br/&gt;Claude in Chrome&quot;]
+    Headless[&quot;&lt;b&gt;Headless Chrome&lt;/b&gt;&lt;br/&gt;on this PC&quot;]
+
+    T4 -. &quot;ask for a tweak or another run&lt;br/&gt;today: you, in cv_agent's chat · not built as a link&quot; .-&gt; Agent
+    Agent -- &quot;true edits: rezi.write_resume (API) · live&quot; --&gt; Rezi
+    Rezi -- &quot;app.rezi.ai · live&quot; --&gt; Chrome
+    Chrome -- &quot;ATS score (Rezi) · issues · keywords, read · live&quot; --&gt; Agent
+    Agent -- &quot;each round: ATS score (Rezi), issues, change notes&lt;br/&gt;results file today · built, not live&quot; --&gt; T4
+    Agent -. &quot;later: cv.tool_round · not built&quot; .-&gt; T4
+    Agent -- &quot;the CV's own page in&lt;br/&gt;today: its script · live&quot; --&gt; Headless
+    Headless -- &quot;the PDF · built, not live&quot; --&gt; T4
+    T4 -- &quot;Submit: yours · built, not live&quot; --&gt; You
+
+    classDef live fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
+    classDef built fill:#fff4d6,stroke:#b08900,color:#1d1d1b
+    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
+    class You person
+    class Agent,Rezi,Chrome,Headless live
+    class T4 built
+</code></pre>
+<h3 id="how-cv_agent-reaches-rezi-today">How cv_agent reaches Rezi today</h3>
+<p>There are two ways, and both are live:</p>
+<ul>
+<li><strong>Rezi's MCP API, through the cv module.</strong> The <code>rezi.*</code> items (<code>mcp.py</code>) call <code>https://api.rezi.ai/mcp</code> with your OAuth sign-in token. That covers <code>rezi.write_resume</code> (make or update a resume this module made), <code>rezi.read_resume</code>, <code>rezi.generate_keywords</code>, and <code>rezi.list_resumes</code>. No browser is involved.</li>
+<li><strong>Chrome, through the Claude in Chrome extension</strong> (<code>chrome = true</code> in <code>module.toml</code>). The prompt allows it only on app.rezi.ai, signed in as you. cv_agent uses it to read the <strong>Rezi Score</strong>, its categories, and the matched and missing keywords (prompt step 4), and for AI Keyword Targeting.</li>
+</ul>
+<p>The CV Tool app never talks to Rezi itself (memory note <code>cv-tool-rezi-request.md</code>).</p>
+<p><strong>You watch Rezi in your own Chrome.</strong> cv_agent drives Rezi through the Claude in Chrome extension, in your normal Chrome, where you're signed in to Rezi. You look at that Chrome window to see what it's doing. The CV Tool shows no live view of Rezi.</p>
+<ul>
+<li><strong>Your words (2026-11-07, <code>logs\2026-11-06_04-28-55_open-two-extra-helpers-one\talker-cv_agent.jsonl</code>):</strong></li>
+<li>L418, 21:21: tab 2 was first to have "A live view in chrome of the CV rezi is editying".</li>
+<li>L874, 22:47: "Why not just embed a chrome window into the UI?"</li>
+<li>L886, 22:47: "When it needs to, I can just sign in onto the chrome window on the app when you need me."</li>
+<li>L910, 23:03: "Then the Rezy UX, I'll just look at the chrome broswer. It's cleaner anyway."</li>
+<li><strong>Agreed:</strong> the Talker (L917, 23:03: "You'll watch Rezi in your own Chrome"), and cv_agent (L923, 23:07), which dropped "Arrange windows". It's written in <code>cv_tool\README.md</code> L120 and memory note <code>cv-tool-scope.md</code>. The embedded view in <code>cv_tool_ui_plan.md</code> (its own Chrome over DevTools) is out of date.</li>
+<li><strong>Signing in to Rezi (checked 2026-11-09):</strong> there are two sign-ins, and cv_agent asks for and checks both itself, with no other agent in between:</li>
+<li><strong>The API's</strong> (OAuth, a 30-day token): <code>rezi.status</code> says whether it's signed in. cv_agent asks you with <code>NEED:</code>, then runs <code>rezi.sign_in</code>, which opens your browser, and checks <code>rezi.status</code> again.</li>
+<li><strong>Chrome's</strong> (app.rezi.ai, for reading the score): when the page shows it signed out, cv_agent asks you with <code>NEED:</code> to sign in, as you said ("I can just sign in onto the chrome window", L886). Your answer goes back to cv_agent's own task on its tab, and it reloads the page to check.</li>
+<li><strong>The bug in the ExampleCorp run:</strong> your answer bounced because the Hub sent tab messages to cv_agent's oldest open task, a stale record left by a reload (20c1d08e), not the live one. Fixed in <code>agent_hub/tasks.py</code>: the newest open task wins, and a stale record is closed when the agent says it doesn't hold it. Live after an <code>agent_hub</code> reload.</li>
+<li><strong>When Rezi opens in Chrome:</strong> no log, note or README says. <strong>Proposed:</strong> with the Rezi pick, cv_agent opens the job's Rezi resume in a tab of your Chrome at First Draft and keeps that tab through the ATS Loop. When it writes through the API, it reloads the tab, so you see the same text it scores.</li>
+</ul>
+<h3 id="the-ats-loop-round-by-round">The ATS loop, round by round</h3>
+<pre><code class="language-mermaid">flowchart TD
+    Draft[&quot;&lt;b&gt;First Draft&lt;/b&gt;&lt;br/&gt;in the CV Tool&quot;]
+    Edit[&quot;&lt;b&gt;1 · cv_agent edits&lt;/b&gt;&lt;br/&gt;true edits only, with the module's rules in front of it:&lt;br/&gt;truth · style · layout · 9 pt&quot;]
+    Write[&quot;&lt;b&gt;2 · Write to Rezi&lt;/b&gt;&lt;br/&gt;rezi.write_resume (API)&lt;br/&gt;into the resume cv_agent made&quot;]
+    Score[&quot;&lt;b&gt;3 · Read Rezi's feedback&lt;/b&gt;&lt;br/&gt;in your own Chrome (you watch there):&lt;br/&gt;score · categories · issues · matched · missing&quot;]
+    NoPdf[&quot;✗ &lt;b&gt;Rezi's PDF: never downloaded&lt;/b&gt;&lt;br/&gt;feedback only&quot;]
+    Round[&quot;&lt;b&gt;4 · Send the round to the CV Tool&lt;/b&gt;&lt;br/&gt;cv.tool_round: the edited content + Rezi's score and lists&quot;]
+    Print[&quot;&lt;b&gt;5 · The CV Tool prints its own page&lt;/b&gt;&lt;br/&gt;headless Chrome on this PC → CV_Test_&amp;lt;Co&amp;gt;_vN.pdf&lt;br/&gt;9 pt check on that PDF&quot;]
+    Tab[&quot;&lt;b&gt;6 · ATS Loop tab&lt;/b&gt;&lt;br/&gt;that local PDF · score · issues · rounds&quot;]
+    Check{&quot;90 or more?&lt;br/&gt;or 5 rounds used?&lt;br/&gt;or only unbacked terms left?&quot;}
+    Ask[&quot;A missing term your CVs don't back&lt;br/&gt;→ a question to you, never added&quot;]
+    Submit[&quot;&lt;b&gt;Your Submit&lt;/b&gt;&lt;br/&gt;copies the current local PDF to&lt;br/&gt;CV_Test_&amp;lt;Co&amp;gt;_final.pdf + result.json + ready.flag&quot;]
+    Back[&quot;the cv module's Submit watch →&lt;br/&gt;DeliverMessage to the asker&quot;]
+
+    Draft --&gt; Edit --&gt; Write --&gt; Score --&gt; Round --&gt; Print --&gt; Tab --&gt; Check
+    Score -.- NoPdf
+    Check -- &quot;no&quot; --&gt; Edit
+    Check -- &quot;yes&quot; --&gt; Submit --&gt; Back
+    Score -. &quot;unbacked term&quot; .-&gt; Ask
+
+    classDef live fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
+    classDef built fill:#fff4d6,stroke:#b08900,color:#1d1d1b
+    classDef notbuilt fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
+    classDef rule fill:#fbe9e7,stroke:#b3261e,color:#1d1d1b
+    class Write,Score live
+    class Draft,Tab,Check,Submit,Print built
+    class Edit,Round,Back,Ask notbuilt
+    class NoPdf rule
+</code></pre>
+<p><strong>Where the PDF comes from:</strong> at every round, and for the final PDF, it's the CV Tool's own page. The app's code (<code>export_pdf</code> in <code>cvlib.py</code>) prints it with headless Chrome on this PC. Submit copies that local PDF to <code>_final.pdf</code>. Rezi only scores the text. Its PDF is never downloaded (the rule in memory note <code>rezi-pdf-download-auto.md</code>, 2026-11-08), and the app ignores a Rezi PDF if one is sent (<code>apply_result</code>).</p>
+<p><strong>What each colour means here:</strong></p>
+<ul>
+<li><strong>Green:</strong> writing to Rezi and reading its feedback are live today.</li>
+<li><strong>Yellow:</strong> the First Draft, the printing of the app's own page, the ATS Loop tab and Submit work in the old standalone app, driven by hand through result files.</li>
+<li><strong>Grey, not built:</strong> sending a round with <code>cv.tool_round</code>, <code>cv.tool_result</code>, the 9 pt check, the rules in front of cv_agent each round (the <code>rules/</code> folder), and the prompt that runs this loop.</li>
+</ul>
+<p><strong>The prompt that runs this loop is built (<code>worker.py</code>, the 5 steps below) and goes live with the <code>cv</code> reload.</strong> Until then the live prompt runs the old 8 steps: edit in Rezi, score in Chrome, the final PDF from LibreOffice (<code>cv.build</code>), a Rezi import check, and no Submit.</p>
+<h2 id="the-5-steps">The 5 steps</h2>
+<p>The worker's prompt (<code>worker.py</code>) follows the CV Tool's tabs. They replace the old 8 steps (built; live with the <code>cv</code> reload).</p>
+<ol start="0">
+<li><strong>Set up, in code:</strong> a job comes in through the Hub (<code>cv.task</code>, then <code>hub.start</code> to <code>cv_agent</code>). Before the worker sees it, the gate makes <code>work\&lt;date&gt;_&lt;Company&gt;_&lt;Role&gt;</code> in the worker's workspace, copies the base CV and the JD into it, and puts the rules folder and the confirmed facts into the task in full. The worker says the job is set up and waits until you tell it to start.</li>
+<li><strong>Job &amp; CV:</strong> <code>cv.open_tool</code> starts the CV Tool, opens the job in it (the JD, and the base CV's content read from the copy) and gives the app's job id. Text the reader couldn't place goes to you as a question.</li>
+<li><strong>Pick:</strong> Internal or Rezi, only one. The request's <code>tool</code> decides; else you pick in the CV Tool's tab 2.</li>
+<li><strong>First Draft:</strong> the worker makes true edits to the CV's content and sends them with <code>cv.tool_round</code>, which prints the local PDF and checks it against 9 pt. With Rezi, it writes the job's Rezi resume, opens it in your Chrome and keeps that tab, reads the score and keywords, and sends them in the same way. Then it stops for your review.</li>
+<li><strong>ATS Loop:</strong> true edits each round, a new local PDF, the score read again. It stops at 90 or more, after at most 5 rounds, or when only terms your CVs don't back are left. Such a term comes to you as a question. Text under 9 pt is shortened or asked about, never shrunk.</li>
+<li><strong>Submit:</strong> yours, in the CV Tool. It writes <code>CV_Test_&lt;Company&gt;_final.pdf</code> and <code>result.json</code>. A Submit is never refused: text under 9 pt only shows a warning on screen and in the message. The cv module sees the Submit on the CV Tool's event stream and tells the job's asker itself (<code>DeliverMessage</code>), in the same second. The worker doesn't wait for it: when the CV is ready it tells you so and ends its task with <code>CV_RESULT</code> status <code>ready</code> (everything but your Submit), and hears of your Submit from one <code>[cv]</code> line at its next task (design A, 2026-11-10).</li>
 </ol>
-<p>The loops are drawn on the <a href="architecture.html#conceptual-flow-the-8-steps">Architecture</a> page.</p>
+<p>The code behind it is drawn on the <a href="architecture.html#the-cv-tool-code-as-built">Architecture</a> page.</p>
 <h2 id="who-does-what">Who does what</h2>
 <table>
 <thead>
@@ -45,15 +254,19 @@
 <tbody>
 <tr>
 <td><strong>Rezi</strong> (MCP + web app)</td>
-<td>Holds a new resume for each job (the base is never changed). Keyword Targeting with the JD gives the missing keywords; the Rezi Score rates the CV. Imports the one-page PDF, shows what it read, scores it again. Rezi's AI writer isn't used for now.</td>
+<td>A scorer only, with the Rezi pick: holds a new resume for each job (the base is never changed), and its score, categories and matched and missing keywords are read in your Chrome. Its PDF is never downloaded, and its AI writer isn't used.</td>
+</tr>
+<tr>
+<td><strong>The CV Tool</strong> (<code>src/cv_tool</code>, its own window)</td>
+<td>Shows the four tabs, prints the CV's own page as the local PDF, scores it with the Internal pick, keeps the rounds, and holds your Submit.</td>
 </tr>
 <tr>
 <td><strong>The worker</strong> (<code>cv_agent</code>)</td>
-<td>Drives Rezi: the <code>rezi.*</code> items for data, Chrome for Keyword Targeting, the Score and the PDF import. Is the truth gate: keeps only wording backed by facts already on your CVs, adds no skill, title, tool or number you don't have, no keyword stuffing. Formats the one page itself (<code>cv.build</code>). Reads what Rezi says is wrong and loops back. Asks you at steps 3 and 7, giving the PDF's path (the viewer shows HTML only), and returns the result. Never uploads or submits anything outside Rezi.</td>
+<td>The editor and the truth gate: keeps only wording backed by facts on your CVs or the confirmed facts, adds no skill, title, tool or number you don't have, no keyword stuffing. Drives the CV Tool through the <code>cv.open_tool</code> / <code>cv.tool_*</code> items and Rezi through the <code>rezi.*</code> items and Chrome. Asks you before starting and after the First Draft; tells you when it's ready for your Submit and ends its task. Never uploads or submits anything outside Rezi.</td>
 </tr>
 <tr>
 <td><strong>You</strong></td>
-<td>Check the content after the edit (step 3). Give the final yes on the PDF (step 7).</td>
+<td>Say when to start, pick the tool if the request didn't, review the First Draft, and press Submit.</td>
 </tr>
 </tbody>
 </table>
@@ -113,12 +326,12 @@
 <tr>
 <td><code>target_score</code></td>
 <td>90</td>
-<td>The Rezi Score to reach (aim 100)</td>
+<td>The ATS score to reach in the ATS Loop (aim 100)</td>
 </tr>
 <tr>
 <td><code>max_rounds</code></td>
 <td>5</td>
-<td>Score rounds before it stops and reports</td>
+<td>ATS Loop rounds before it stops and reports</td>
 </tr>
 <tr>
 <td><code>paper</code></td>
@@ -133,7 +346,27 @@
 <tr>
 <td><code>cv_dir</code></td>
 <td><code>C:\Chang\Jobs\CV</code></td>
-<td>Your CVs: <code>cv.read</code> reads <code>.odt</code> files only here and in <code>output_dir</code></td>
+<td>Your CVs, read only: <code>cv.read</code> reads <code>CV_Test_*.pdf</code> files here, in <code>output_dir</code> and in <code>work_dir</code>; never an <code>.odt</code></td>
+</tr>
+<tr>
+<td><code>work_dir</code></td>
+<td><code>""</code>: <code>&lt;agent.workspace&gt;\work</code></td>
+<td>Where each job's folder is made, <code>&lt;date&gt;_&lt;Company&gt;_&lt;Role&gt;</code> (folder-safe), with its copy of the base CV, <code>jd.txt</code> and <code>job_start.json</code>. Must be in the workspace, never in <code>cv_dir</code> or the repo</td>
+</tr>
+<tr>
+<td><code>rules_dir</code></td>
+<td><code>.claude/skills/cv-writing</code> (in the workspace)</td>
+<td>The cv module's general rules: <code>SKILL.md</code>, then every <code>rules/*.md</code>, read in full into every job's task. Listed at each job, so a new rule file needs no reload. No <code>SKILL.md</code> refuses the job; <code>""</code> loads none</td>
+</tr>
+<tr>
+<td><code>job_skills</code></td>
+<td><code>data/confirmed_facts.json</code></td>
+<td>More files read in full into every job, after the rules: your confirmed facts, kept as data. A missing or empty one refuses the job. Relative paths are from the workspace; <code>~</code> is your home folder</td>
+</tr>
+<tr>
+<td><code>[tool]</code></td>
+<td><code>host</code> 127.0.0.1, <code>port</code> 8771, <code>data_dir</code> <code>&lt;workspace&gt;\cv_tool</code>, <code>facts</code> <code>&lt;workspace&gt;\data\confirmed_facts.json</code></td>
+<td>The CV Tool: where it listens (this machine only) and the folders it's given at launch. It also gets <code>cv_dir</code>, <code>rules_dir</code> and <code>work_dir</code></td>
 </tr>
 <tr>
 <td><code>soffice</code></td>
@@ -179,8 +412,8 @@
 </tr>
 <tr>
 <td><code>workspace</code></td>
-<td><code>C:\Chang\Jobs\rezi\cv_agent</code></td>
-<td>Its working folder (the only one it writes)</td>
+<td><code>C:\Chang\Jobs\CV_Module</code></td>
+<td>Its working folder and home (the only one it writes): <code>work\</code>, <code>applied\</code>, <code>data\</code>, <code>cv_tool\</code>, <code>.claude\skills\cv-writing\</code>. A change here asks you again on the access card</td>
 </tr>
 <tr>
 <td><code>read_dirs</code></td>
@@ -207,12 +440,91 @@
 <h2 id="code-and-tests">Code and tests</h2>
 <p>Everything is in this module's folder, <code>src/assistant/modules/cv/</code>:</p>
 <ul>
-<li>Built: <code>module.py</code> (the wrapper, its config check, the worker's wiring, the <code>rezi.*</code> items, <code>cv.task</code>, <code>cv.read_result</code>, <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code>, <code>cv.report</code>), <code>module.toml</code> (the defaults), <code>worker.py</code> (the worker's prompt and its <code>[agent]</code> check), <code>handoff.py</code> (the <code>CV_REQUEST</code> and <code>CV_RESULT</code> lines, <code>read_jd_file</code>, <code>result_view</code>), <code>content.py</code> (<code>CvContent</code>, the eight sections), <code>rezi.py</code> (<code>ReziTools</code>: the <code>rezi.*</code> items' work, <code>check_tools</code>, the error mapping), <code>guard.py</code> (<code>ResumeGuard</code>), <code>rezi_json.py</code> (<code>read_rezi</code>: Rezi's resume JSON as sections; <code>write_rezi</code>: sections into Rezi's real format), <code>order.py</code> (<code>SectionOrder</code>, <code>wants_masters</code>), <code>data.py</code> (<code>CvRequest</code>, <code>CvResult</code>, <code>Round</code>, <code>ResumeRef</code>), <code>odt.py</code> (<code>read_odt</code>, <code>OdtWriter</code>, <code>LAYOUTS</code>), <code>pdf.py</code> (<code>PdfExport</code>, <code>PageCheck</code>), <code>build.py</code> (<code>build_cv</code>: write, export, check, fit to one page), <code>compare.py</code> (<code>FieldCompare</code>, <code>Comparison</code>), <code>report.py</code> (<code>ReportWriter</code>), <code>mcp.py</code> (the Rezi connection: <code>McpClient</code>, <code>TokenStore</code>, <code>LoopbackCallback</code>)</li>
+<li>Built: <code>module.py</code> (the wrapper, its config check, the worker's wiring, the <code>rezi.*</code> items, <code>cv.task</code>, <code>cv.read_result</code>, <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code>, <code>cv.report</code>), <code>module.toml</code> (the defaults), <code>worker.py</code> (the worker's prompt and its <code>[agent]</code> check), <code>job_start.py</code> (<code>JobStart</code>: the job's folder, the copy and the rules; <code>JobStartAgent</code>: the gate the Hub reaches the worker through), <code>handoff.py</code> (the <code>CV_REQUEST</code> and <code>CV_RESULT</code> lines, <code>read_jd_file</code>, <code>result_view</code>), <code>content.py</code> (<code>CvContent</code>, the eight sections; <code>from_pdf</code>), <code>pdf_read.py</code> (<code>read_pdf</code>: a CV PDF as sections, with the read check), <code>rezi.py</code> (<code>ReziTools</code>: the <code>rezi.*</code> items' work, <code>check_tools</code>, the error mapping), <code>guard.py</code> (<code>ResumeGuard</code>), <code>rezi_json.py</code> (<code>read_rezi</code>: Rezi's resume JSON as sections; <code>write_rezi</code>: sections into Rezi's real format), <code>order.py</code> (<code>SectionOrder</code>, <code>wants_masters</code>), <code>data.py</code> (<code>CvRequest</code>, <code>CvResult</code>, <code>Round</code>, <code>ResumeRef</code>), <code>odt.py</code> (<code>OdtWriter</code>, <code>LAYOUTS</code>; <code>read_odt</code> only for the writer's own tests), <code>pdf.py</code> (<code>PdfExport</code>, <code>PageCheck</code>), <code>build.py</code> (<code>build_cv</code>: write, export, check, fit to one page; the <code>.odt</code> stays in a temporary folder, only the PDF comes out), <code>compare.py</code> (<code>FieldCompare</code>, <code>Comparison</code>), <code>report.py</code> (<code>ReportWriter</code>), <code>mcp.py</code> (the Rezi connection: <code>McpClient</code>, <code>TokenStore</code>, <code>LoopbackCallback</code>), <code>tool.py</code> (the CV Tool's side: <code>tool_settings</code>, <code>tool_content</code>, <code>CvTool</code> on <code>CompanionHandover</code>)</li>
+<li>The CV Tool app, the module's UI half: <code>src/cv_tool/</code> (<code>server.py</code>, <code>cvlib.py</code>, <code>static/</code>, <code>assets/</code>, <code>cv_tool.toml</code>; <code>python -m cv_tool</code>). It sits outside the module's folder because <code>CompanionApp</code> runs <code>python -m &lt;package&gt;</code>, and inside <code>cv/</code> that would import the module's code into the app</li>
 <li>Planned: the real run end to end (chunk 9, with your yes); after it passes, as a separate step, retiring the separate Rezi helper. Other modules (the job agent) connect through <code>cv.task</code> later; cv doesn't change them</li>
-<li>Needs: LibreOffice (<code>soffice</code>) for the PDF, the <code>pypdf</code> package for the page check, and the <code>mcp</code> package for Rezi</li>
+<li>Needs: LibreOffice (<code>soffice</code>) for <code>cv.build</code>, the <code>pypdf</code> package for the page check and for reading the base CV, the <code>mcp</code> package for Rezi, and for the CV Tool app the <code>pymupdf</code> package (the <code>cv</code> extra in <code>pyproject.toml</code>; in <code>.venv</code>) and Chrome for printing</li>
 <li><code>docs/</code>: this page, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> and <code>docs.toml</code>. These are the module's docs; the old plan page <code>cv_module_workflow.html</code> in <code>C:\Chang\Jobs\CV\Recruiters\docs</code> is left as it was</li>
-<li><code>tests/</code>: its own tests, run with <code>pytest src/assistant/modules/cv/tests</code>. <code>fake_rezi.py</code> is a fake Rezi: the <code>mcp</code> package's own server with an in-memory OAuth sign-in and Rezi's tools in its real format, reached without the network. <code>test_cv.py</code> covers the config, order and data; <code>test_build.py</code> the one page (one test uses real LibreOffice); <code>test_compare_report.py</code> the compare and the report; <code>test_rezi_mcp.py</code> the connection; <code>test_rezi_items.py</code> the <code>rezi.*</code> items and the guard; <code>test_worker.py</code> the worker and <code>cv.read</code>; <code>test_handoff.py</code> the contract, end to end through the Hub with a fake <code>claude</code></li>
+<li><code>tests/</code>: its own tests, run with <code>pytest src/assistant/modules/cv/tests</code>. <code>fake_rezi.py</code> is a fake Rezi: the <code>mcp</code> package's own server with an in-memory OAuth sign-in and Rezi's tools in its real format, reached without the network. <code>test_cv.py</code> covers the config, order and data; <code>test_build.py</code> the one page (one test uses real LibreOffice); <code>test_compare_report.py</code> the compare and the report; <code>test_rezi_mcp.py</code> the connection; <code>test_rezi_items.py</code> the <code>rezi.*</code> items and the guard; <code>test_worker.py</code> the worker and <code>cv.read</code>; <code>test_pdf_read.py</code> the PDF reader (lines, joins, small caps, the read check, real PDFs; one test uses LibreOffice); <code>pdf_fixture.py</code> writes a test CV as a real text PDF; <code>test_handoff.py</code> the contract, end to end through the Hub with a fake <code>claude</code>; <code>test_job_start.py</code> the job start: names, copy, refusals, the gate, end to end through the Hub; <code>test_tool.py</code> the CV Tool's side: the content in the app's shape, the rules folder, the pick, and the five items against a fake CV Tool; <code>test_cv_tool.py</code> the CV Tool app itself: a job from the module, a round, Submit's final PDF, every style at 9 pt or more, the 9 pt measure, and the server's guard, JSON-only posts and quit</li>
 </ul>
+<h2 id="build-state">Build state</h2>
+<p><em>As of 2026-11-09; update this table as parts go live.</em></p>
+<table>
+<thead>
+<tr>
+<th>Box</th>
+<th>State</th>
+<th>What the code shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Main tab: Talker and Main Assistant</td>
+<td>Built, live</td>
+<td><code>talker</code> and <code>main_assistant</code> are on; <code>hub.agents</code> lists <code>main_assistant</code>. It no longer starts cv_agent: <code>cv.task</code> starts it itself, as the caller's child task, and the result goes back at Submit with <code>DeliverMessage</code> (built 2026-11-10, live after the app restart)</td>
+</tr>
+<tr>
+<td>Each agent's own Talker (job search agent, cv agent)</td>
+<td>Built, live</td>
+<td>Every agent tab is a pair, its own Talker and its own worker (<code>talker</code>: "one Talker per agent tab"). A tab's Talker starts the first time you use the tab</td>
+</tr>
+<tr>
+<td>Job search agent</td>
+<td>Built, live</td>
+<td><code>job_search</code> is on; <code>hub.agents</code> lists <code>job_search_agent</code>. Its <code>save_jd.py</code> names the base CV as a <code>.pdf</code></td>
+</tr>
+<tr>
+<td>Inputs (cv.task)</td>
+<td>Built, live</td>
+<td><code>cv.task</code> takes the JD as text and a <code>CV_Test_*.pdf</code>; <code>cv</code> is on</td>
+</tr>
+<tr>
+<td>Job-start gate</td>
+<td>Built, live (old rules); new rules built, not live</td>
+<td>Live: loads <code>job_skills</code> from the old folders. Built: <code>rules_dir</code> (<code>SKILL.md</code> + <code>rules/*.md</code>) and the facts, live with the <code>cv</code> reload</td>
+</tr>
+<tr>
+<td>Rules folder</td>
+<td>Built, not live</td>
+<td>Copied into <code>C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\</code> (the originals stay); loaded by the gate after the reload</td>
+</tr>
+<tr>
+<td>confirmed_facts.json</td>
+<td>Built, not live</td>
+<td>A copy in <code>C:\Chang\Jobs\CV_Module\data\</code>, in <code>job_skills</code>; loaded after the reload</td>
+</tr>
+<tr>
+<td>cv_agent</td>
+<td>Live with the old flow; the 5-step prompt built, not live</td>
+<td>The new prompt is in <code>worker.py</code> and tested; the running worker has the old 8 steps until the reload</td>
+</tr>
+<tr>
+<td>Rezi</td>
+<td>Built, live</td>
+<td>The <code>rezi.*</code> items</td>
+</tr>
+<tr>
+<td>CV Tool, four tabs, the pick, First Draft, ATS Loop, Submit</td>
+<td>Built, not live</td>
+<td><code>src/cv_tool/</code> has the server (port 8771, the local-only guard, JSON-only posts, <code>/api/quit</code>, the <code>app_kit</code> window) and the engine; it runs and is tested (<code>test_cv_tool.py</code>, a real Chrome print included). The module starts it after the reload</td>
+</tr>
+<tr>
+<td>Links: open the job, <code>cv.tool_*</code> items</td>
+<td>Built, not live</td>
+<td><code>tool.py</code> (<code>CvTool</code> on <code>CompanionHandover</code>) and the items in <code>module.py</code>, tested against a fake CV Tool; live with the reload</td>
+</tr>
+<tr>
+<td>9 pt check</td>
+<td>Built, not live</td>
+<td>The app measures every text span (<code>font_sizes</code>); <code>cv.tool_round</code> and <code>cv.check_fonts</code> give it back; at Submit it's a warning only (<code>small_text</code> in <code>result.json</code>, on screen and in the message), never a refusal</td>
+</tr>
+<tr>
+<td>Outputs: final PDF, result.json</td>
+<td>Built, not live</td>
+<td>Submit writes <code>CV_Test_&lt;Company&gt;_final.pdf</code>, <code>result.json</code> and <code>ready.flag</code>; the module's Submit watch delivers them to the asker at once, and <code>cv.tool_result</code> returns them. The old <code>cv.build</code> and <code>cv.report</code> are still on the menu</td>
+</tr>
+</tbody>
+</table>
 <footer>Generated from <code>src/assistant/modules/cv/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

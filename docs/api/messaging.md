@@ -153,7 +153,7 @@ Access lists and the messages of the core's [permissions handler](../architectur
 
 ### `AccessKind`
 
-`class AccessKind(StrEnum)`: `workspace` (its working folder, read and write; always kept when the list is allowed), `read` (a folder), `write` (a folder), `python` (a Python, with any arguments), `command` (a shell command, with any arguments), `chrome` (the Claude in Chrome tools).
+`class AccessKind(StrEnum)`: `workspace` (its working folder, read and write; always kept when the list is allowed), `read` (a folder), `write` (a folder), `python` (a Python, with any arguments), `command` (a shell command, with any arguments), `chrome` (the Claude in Chrome tools), `message` (messaging another agent; `target` is its id, label `message <id>`; saved under `agent_hub` per sender kind, asked by the Hub's message gate; built 2026-11-10).
 
 ### `AccessItem`
 
@@ -182,13 +182,13 @@ Exceptions from `request_set`. `AccessDenied`: you denied the list, didn't answe
 
 `PermissionRequested(request_id, module_id, subject="", action="access", reason="", items=(), notes=(), reviewed=None, rules=(), caller="")` (event)
 
-A card for you. `action`: `access` (a module's list), or `grant` / `revoke` (an agent's call, `caller`, waiting for your yes). `items`: the lines offered. `notes`: refused items, rule warnings, then the review's notes. `reviewed`: `True` or `False` for an access list (`False` shows "not reviewed"), `None` for no review step. `rules`: the fixed rules. Published by the handler; `temp_ui` shows it with tick boxes, the Talker says it.
+A card for you. `action`: `access` (a module's list), `grant` / `revoke` (an agent's call, `caller`, waiting for your yes), or `message` (agent `caller` wants to message the agent in its one `message:` item; answered Allow once, Always allow or Deny). `items`: the lines offered. `notes`: refused items, rule warnings, then the review's notes. `reviewed`: `True` or `False` for an access list (`False` shows "not reviewed"), `None` for no review step. `rules`: the fixed rules. Published by the handler; `temp_ui` shows it with tick boxes, the Talker says it.
 
 ### `AnswerPermissionRequest`
 
-`AnswerPermissionRequest(request_id: str, allow: bool, keep: tuple[str, ...] | None = None)` (command)
+`AnswerPermissionRequest(request_id: str, allow: bool, keep: tuple[str, ...] | None = None, remember: bool = True)` (command)
 
-Your answer to a card. `keep`: the keys of the ticked items (`None`: all of them); ignored on Deny. Handled by the core. `invalid_arguments` if the card isn't open or a key isn't on it.
+Your answer to a card. `keep`: the keys of the ticked items (`None`: all of them); ignored on Deny. `remember`: for a `message` card, `False` is Allow once (this message only, nothing saved) and `True` is Always allow; other cards ignore it. The temp UI's buttons set it; the Talker's ALLOW sends `False`. Handled by the core. `invalid_arguments` if the card isn't open or a key isn't on it.
 
 ### `PermissionChanged`
 

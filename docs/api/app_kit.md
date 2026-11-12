@@ -6,9 +6,9 @@ Helpers shared by the main app **and** the independent apps (the HTML viewer, th
 
 ## `window`
 
-**Reusable** · Used by: `temp_ui`, the HTML viewer app (`viewer.py`: open, close, raise; `snip.py`: `devtools_port`)
+**Reusable** · Used by: `temp_ui` (open, close, `flash_window`), the HTML viewer app (`viewer.py`: open, close, raise; `snip.py`: `devtools_port`), the CV Tool app (`cv_tool/server.py`: open, raise, close; `window_profile("cv_tool")`)
 
-`from app_kit.window import open_app_window, close_app_windows, raise_window, devtools_port`
+`from app_kit.window import open_app_window, close_app_windows, raise_window, flash_window, devtools_port`
 
 One copy of the Edge app-window code, merged from `assistant/infra/app_window.py` and `html_viewer/window.py` (both removed). Not re-exported from `assistant.infra`.
 
@@ -17,6 +17,7 @@ One copy of the Edge app-window code, merged from `assistant/infra/app_window.py
 | `open_app_window(url, profile, *, size="1400,850", devtools=False, log=...) -> subprocess.Popen \| None` | Open `url` in its own window: Edge app mode (`msedge --app=URL`, no tabs or address bar) on its own profile folder, so it's its own Edge process. With `devtools`, Edge also listens for DevTools on `127.0.0.1` (the viewer's snip). Without Edge it opens a browser tab and returns `None` |
 | `close_app_windows(profile, log=...)` | Stop every Edge process running on `profile`: that app's window and nothing else. Windows only (no-op elsewhere). Blocking, up to 15 s; call with `asyncio.to_thread` from async code |
 | `raise_window(pid, title) -> bool` | Bring the window to the front, restoring it if minimized: the Edge window owned by `pid`, else one whose title ends with `title`. Windows only; elsewhere it returns `True` (it can't tell) |
+| `flash_window(pid, title) -> bool` | Flash the window's taskbar button (and caption) until you bring it to the front (`FlashWindowEx`, `FLASHW_ALL \| FLASHW_TIMERNOFG`), finding it as `raise_window` does. Does nothing while it's already in front. Returns whether it flashed; `False` elsewhere than Windows or with no window. Blocking but short; `temp_ui` calls it with `asyncio.to_thread` (built 2026-11-10) |
 | `devtools_port(profile) -> int \| None` | The DevTools port Edge picked for that profile |
 | `window_profile(name) -> Path` | **♻** The window's own profile folder, `%LOCALAPPDATA%\AI_Assistant\<name>_window`, built once (it was built four times). Used by: `temp_ui`, `voice_notes`, the `html_viewer` module and app (built 2026-11-08) |
 
@@ -86,16 +87,18 @@ A module's (or an app's) own docs folder, `<its folder>/docs/`: the three standa
 
 ## `CompanionApp`
 
-**Reusable** · Used by: `html_viewer` module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); `voice_in` (launch on the first mic click, `/health` calls, quit at stop if it launched it, handover or restart on reload); any app that launches `voice_service`
+**Reusable** · Used by: `html_viewer` module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); `voice_in` (launch on the first mic click, `/health` calls, quit at stop if it launched it, handover or restart on reload); any app that launches `voice_service`; the `cv` module (`tool.py`, through `CompanionHandover`: the CV Tool on port 8771, ping `/api/ping`, quit `/api/quit`, handover or restart on reload); `job_search` (`ui.py`, through `CompanionHandover`: the job project's job UI on port 8781 by its command line, `plain_ping` on `/tracker`, `quit=None`; built 2026-11-10)
 
-`CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)`
+`CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str | None = "/api/quit", name: str | None = None, log: Logger | None = None, command: Sequence[str] | None = None, plain_ping: bool = False)`
 
 Launches and talks to a local [companion app](../architecture/reusable-parts.md#companion-app-checklist). Relies on its convention: the ping answers `{"app": "<name>", ...}` (`name` defaults to `module`), and a JSON `POST` to `quit` quits it.
 
+**An app outside the convention** (built 2026-11-10 for the job UI, a script of another project): `command` is its whole command line in place of `python -m <module>` (`args` follow it; `code_changed()` is then always False, so a reload hands it over); `plain_ping=True` takes any 200 answer from the ping path as alive, with no name check (`last_answer` is `{"status": 200}`); `quit=None` means it has no quit call: `stop` ends the process it launched at once and leaves one it found running. `CompanionHandover` passes these on, and its handover key includes `command`.
+
 | Member | Does |
 |--------|------|
-| `async ping() -> bool` | Whether the app answers its ping with its own name (1 s timeout) |
-| `async ensure_running() -> bool` | Ping; if nothing answers, launch `python -m <module> <args>` with no console and poll every 100 ms until `start_timeout`. Returns whether it launched it now. Raises `OSError` if the process exits early, `TimeoutError` if it never answers |
+| `async ping() -> bool` | Whether the app answers its ping with its own name (1 s timeout); with `plain_ping`, any 200 |
+| `async ensure_running() -> bool` | Ping; if nothing answers, launch `python -m <module> <args>` (or `<command> <args>`) with no console and poll every 100 ms until `start_timeout`. Returns whether it launched it now. Raises `OSError` if the process exits early, `TimeoutError` if it never answers |
 | `async call(method, path, body=None, *, timeout=10) -> dict` | A JSON request to its HTTP API; error responses are read as JSON too |
 | `async events(path) -> AsyncIterator[dict]` | Read its event stream (server-sent events), one JSON event at a time, until it ends. Raises `OSError` if it can't connect |
 | `async stop(adopted=False)` | If this object launched it: `POST` quit, wait 5 s, then kill. With `adopted=True`, also an app it found already running: `POST` quit, then wait up to 5 s for the ping to stop answering (a reload with new code) |
@@ -119,7 +122,7 @@ Launches and talks to a local [companion app](../architecture/reusable-parts.md#
 
 ## `local_guard`
 
-**Reusable** · Used by: `voice_service` (`server.py`: the `LocalOnly` guard on every request and WebSocket; `__main__.py`: refuses a non-local `--host`), HTML viewer app (`viewer.py`: every request; `ViewerServer` refuses a non-local host) · built 2026-11-08
+**Reusable** · Used by: `voice_service` (`server.py`: the `LocalOnly` guard on every request and WebSocket; `__main__.py`: refuses a non-local `--host`), HTML viewer app (`viewer.py`: every request; `ViewerServer` refuses a non-local host), the CV Tool app (`cv_tool/server.py`: every request, refuses a non-local host), the `cv` module (`LOOPBACK_HOSTS` for `tool.host`) · built 2026-11-08
 
 `from app_kit import LOOPBACK_HOSTS, require_loopback, local_request`
 

@@ -250,7 +250,19 @@
 </tr>
 <tr>
 <td><code>async revoke(module_id, subject="", keys=None, caller="") -&gt; Result</code></td>
-<td>Take back all or some items; the module turns off and its running tasks are cancelled. From an agent: a card first</td>
+<td>Take back all or some items; the module turns off and its running tasks are cancelled. A revoke of only <code>message:</code> items keeps the module on ("it stays on, and the next message asks again"). From an agent: a card first</td>
+</tr>
+<tr>
+<td><code>kind_of(agent_id) -&gt; str</code></td>
+<td>The subject an agent's grants are saved under: its kind (from <code>own_agent</code>; <code>helper_2</code> → <code>helper</code>), else its id</td>
+</tr>
+<tr>
+<td><code>granted(module_id, agent_id, item) -&gt; bool</code></td>
+<td>Whether <code>module_id</code>'s saved grant for the agent's kind holds <code>item</code> (and isn't denied)</td>
+</tr>
+<tr>
+<td><code>async ask(module_id, agent_id, item, reason="") -&gt; bool</code></td>
+<td>A one-item <code>message</code> card (Allow once · Always allow · Deny), awaited; True at once if granted. Allow once saves nothing; Always adds the item to the grant for the agent's kind. Cancelling the call closes the card. Built 2026-11-10 for the Agent Hub's message gate</td>
 </tr>
 <tr>
 <td><code>open_cards() -&gt; int</code></td>
@@ -262,12 +274,12 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Card actions</strong> (built 2026-11-08). A card's action is a <code>CardAction</code> (<code>ACCESS</code>, <code>GRANT</code>, <code>REVOKE</code>; a <code>StrEnum</code> inside the core whose values are <code>PermissionRequested.action</code>'s). An answered card is applied by its action's handler from a table (principle 20): <code>access</code> saves the list (and turns the module on); <code>grant</code> and <code>revoke</code> carry out an agent's call and tell it with an <code>AgentNotice</code>. Every <code>PermissionChanged</code> is built in one place.</p>
+<p><strong>Card actions</strong> (built 2026-11-08). A card's action is a <code>CardAction</code> (<code>ACCESS</code>, <code>GRANT</code>, <code>REVOKE</code>, <code>MESSAGE</code>; a <code>StrEnum</code> inside the core whose values are <code>PermissionRequested.action</code>'s). An answered card is applied by its action's handler from a table (principle 20): <code>access</code> saves the list (and turns the module on); <code>grant</code> and <code>revoke</code> carry out an agent's call and tell it with an <code>AgentNotice</code>; <code>message</code> settles the waiting <code>ask</code> (<code>_apply_message</code>, with <code>Card.remember</code> from the answer). Every <code>PermissionChanged</code> is built in one place.</p>
 <p>Saved grants: <code>GrantStore</code> and <code>Grant</code> (<code>store.py</code>), one section per module and subject in <code>data/permissions.toml</code>, written whole and atomically; <code>fingerprint(items)</code> hashes a list's keys. Guardrails: <code>PROTECTED</code>, <code>refusals</code>, <code>rule_warnings</code> and <code>FIXED_RULES</code> (<code>rules.py</code>).</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/permissions/handler.py</code> (<code>store.py</code>, <code>rules.py</code>) · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_permissions.py</code></p>
 <h2 id="permissionsport"><code>PermissionsPort</code></h2>
 <p><code>PermissionsPort(module_id: str, handler: PermissionsHandler | None = None)</code> (a <code>ModulePermissions</code>)</p>
-<p>Each module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a>, bound to its id, so no module asks in another's name. <code>request_set</code> forwards to the handler with the module id (and <code>subject</code>, default the module id). <code>has</code> and <code>request</code> aren't checked yet: they return <code>True</code>, and the first use of each name logs a warning on <code>assistant.core.permissions</code> ("not checked yet: allowing voice_in microphone (You clicked the mic)"), later ones at debug. Without a handler (a bare context in a test), <code>request_set</code> allows the whole list the same way. <code>CoreMenu</code> gets <code>PermissionsPort("core", handler)</code>.</p>
+<p>Each module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a>, bound to its id, so no module asks in another's name. <code>request_set</code> forwards to the handler with the module id (and <code>subject</code>, default the module id). <code>has</code> and <code>request</code> aren't checked yet: they return <code>True</code>, and the first use of each name logs a warning on <code>assistant.core.permissions</code> ("not checked yet: allowing voice_in microphone (You clicked the mic)"), later ones at debug. <code>granted</code> and <code>ask</code> forward with the module id too. Without a handler (a bare context in a test), <code>request_set</code> allows the whole list the same way, and <code>granted</code> / <code>ask</code> allow and log. <code>CoreMenu</code> gets <code>PermissionsPort("core", handler)</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/permissions/port.py</code></p>
 <h2 id="permissionsmenu"><code>PermissionsMenu</code></h2>
 <p><code>PermissionsMenu(handler: PermissionsHandler)</code></p>

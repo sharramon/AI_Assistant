@@ -286,7 +286,7 @@ class HtmlViewerModule(ModuleProtocol):
 transcript = ctx.logs.sink(name) if name else None
 </code></pre>
 <h3 id="modulecontextpermissions"><code>ModuleContext.permissions</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (<code>microphone</code>, built 2026-11-03); <code>job_search</code>, <code>task_agents</code> (<code>request_set</code>, through <a href="infra.html#agent_access"><code>request_access</code></a>); the core's <code>CoreMenu</code>; every module that needs a permission · built 2026-11-02, backed by the core's handler since 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> first (<code>microphone</code>, built 2026-11-03); <code>job_search</code>, <code>task_agents</code> (<code>request_set</code>, through <a href="infra.html#agent_access"><code>request_access</code></a>); <code>agent_hub</code> (<code>granted</code> / <code>ask</code>, its message gate); the core's <code>CoreMenu</code>; every module that needs a permission · built 2026-11-02, backed by the core's handler since 2026-11-05</p>
 <p><code>class ModulePermissions(ABC)</code>, in <code>assistant.contracts</code>.</p>
 <table>
 <thead>
@@ -311,6 +311,14 @@ transcript = ctx.logs.sink(name) if name else None
 <tr>
 <td><code>async request_set(items, reason="", subject="", wait=False) -&gt; tuple[AccessItem, ...]</code></td>
 <td>Ask for a whole access list (<a href="messaging.html#accessitem"><code>AccessItem</code></a>s) in one request, for <code>subject</code> (its agent's kind; default: the module). Returns the items you allowed: the saved grant if the list is unchanged, else your answer on one card. Raises <a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code></a> on Deny. With <code>wait=False</code> (a module's <code>start</code>), raises <a href="messaging.html#accessdenied-accesspending"><code>AccessPending</code></a> while the card is open, and the handler turns the module on after your Allow; with <code>wait=True</code> (inside an approved run) it waits for your answer</td>
+</tr>
+<tr>
+<td><code>granted(item, agent_id) -&gt; bool</code></td>
+<td>Whether this module's saved grant for <code>agent_id</code>'s kind (<code>helper_2</code> shares <code>helper</code>'s) holds <code>item</code>, so it goes without a card. Non-abstract. Used by the Agent Hub's message gate with <code>message:&lt;receiver&gt;</code> (built 2026-11-10)</td>
+</tr>
+<tr>
+<td><code>async ask(item, agent_id, reason="") -&gt; bool</code></td>
+<td>Ask you on a one-item card whether <code>agent_id</code> may have <code>item</code> (Allow once · Always allow · Deny) and wait. True if allowed, at once if already granted; Always also saves it under this module and the agent's kind. False on Deny or no answer in time. Cancelling the call closes the card. Non-abstract (built 2026-11-10)</td>
 </tr>
 </tbody>
 </table>

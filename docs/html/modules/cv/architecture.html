@@ -12,15 +12,18 @@
 <nav data-root="../../" data-page="modules/cv/architecture.html"></nav>
 <main>
 <h1 id="cv-architecture">cv: architecture</h1>
-<p>How the <code>cv</code> module works inside. What it is and the 8 steps: <a href="index.html">Overview</a>. Its menu: <a href="tools.html">Tools</a>.</p>
+<p>How the <code>cv</code> module works inside. What it is, the CV Tool flow and the 5 steps: <a href="index.html">Overview</a>. The CV Tool's code as built: <a href="#the-cv-tool-code-as-built">below</a>. Its menu: <a href="tools.html">Tools</a>.</p>
 <h2 id="one-module-with-its-worker-inside">One module with its worker inside</h2>
 <ul>
 <li><strong>One module, id <code>cv</code></strong>, holds everything it needs: the Rezi connection, the CV output side, and its worker.</li>
-<li><strong>Its worker, <code>cv_agent</code></strong>, is a <code>ProfileAgent</code> (a Claude session with its own access card), the way <code>job_search</code> bundles its agent. It runs the 8 steps, is the truth gate and formats the one page.</li>
+<li><strong>Its worker, <code>cv_agent</code></strong>, is a <code>ProfileAgent</code> (a Claude session with its own access card), the way <code>job_search</code> bundles its agent. It runs the CV Tool's 5 steps (the old 8 until the <code>cv</code> reload) and is the truth gate.</li>
+<li><strong>Its UI half, the CV Tool</strong>, is its own app in <code>src/cv_tool/</code>, launched and called by the module through <code>CompanionHandover</code> (<code>tool.py</code>), the way <code>html_viewer</code> runs its viewer.</li>
 <li><strong>Chrome only in the worker:</strong> only this worker's session uses Chrome, only on app.rezi.ai, with your Rezi login. Keyword Targeting, the Rezi Score and the PDF import happen there, not as menu items.</li>
-<li><strong>Jobs sent through the Hub:</strong> a caller gets the task's text from <code>cv.task</code> and sends it to <code>cv_agent</code> with <code>hub.start</code>. The result comes back as the task's result, read with <code>cv.read_result</code>. There is no <code>rezi.tailor_cv</code> item.</li>
-<li><strong>It stands alone:</strong> no other module is changed for it. The job agent (or any caller) connects later through those three calls.</li>
+<li><strong>Jobs sent through the Hub:</strong> the job agent calls <code>cv.task</code>, and cv starts <code>cv_agent</code> on the job itself (<code>StartTask</code>, the caller's open task as parent; no coordinator in between, changed 2026-11-10). If <code>cv_agent</code> is busy on another job, <code>cv.task</code> says which job and who it's for; nothing is queued. At your Submit the result goes back to the caller as a message (<code>DeliverMessage</code>). The task's own result is read with <code>cv.read_result</code>. There is no <code>rezi.tailor_cv</code> item.</li>
+<li><strong>Who may call what</strong> (<code>[hand_off]</code> in <code>module.toml</code>, checked by <code>CallerMenu</code> on every call; the core sets the caller, so it can't be faked): <code>cv.task</code> and <code>cv.read_result</code> only for <code>hand_off.callers</code> (the job agent and the Main Assistant); <code>rezi.status</code> for anyone; every other item (<code>cv.open_tool</code>, <code>cv.tool_*</code>, <code>cv.build</code>, <code>cv.read</code>, <code>rezi.*</code>) only for the worker. The Hub's <code>named_only = ["cv_agent"]</code> keeps free picks (<code>hub.start</code> with no agent) off <code>cv_agent</code>; anyone may still name it.</li>
+<li><strong>It stands alone:</strong> no other module is changed for it. The job agent (or any caller) reaches it through <code>cv.task</code> and <code>cv.read_result</code>, and the Hub's <code>StartTask</code> and <code>DeliverMessage</code> contracts.</li>
 <li><strong>The worker uses its own module's menu through the door</strong>, like any caller, so every call gets the one permission check and the resume guard stays in code.</li>
+<li><strong>Each job starts in code</strong> (<a href="#job-start-job_startpy">Job start</a>): before the worker sees a job, the module makes the job's own folder, copies the base CV into it, and loads the job's rules into the task. The worker doesn't have to remember to do it.</li>
 </ul>
 <h2 id="interface">Interface</h2>
 <table>
@@ -37,11 +40,11 @@
 </tr>
 <tr>
 <td>Its worker</td>
-<td><code>cv_agent</code>: one job per task through the Hub (<code>cv.task</code> gives the text, then <code>hub.start</code>); the task's result ends with a <code>CV_RESULT</code> line (<code>cv.read_result</code>)</td>
+<td><code>cv_agent</code>: one job per task through the Hub (<code>cv.task</code> starts it as the caller's child task); the task's result ends with a <code>CV_RESULT</code> line (<code>cv.read_result</code>)</td>
 </tr>
 <tr>
 <td>Provides</td>
-<td><code>ITaskAgent</code>: the worker, so the Hub lists it and starts its tasks</td>
+<td><code>ITaskAgent</code>: the worker behind <code>JobStartAgent</code>, so the Hub lists it and starts its tasks, each job set up first</td>
 </tr>
 <tr>
 <td>Handles</td>
@@ -49,11 +52,11 @@
 </tr>
 <tr>
 <td>Sends</td>
-<td><code>ReportTask</code> (the worker's task reports) and <code>InvokeTool</code> (its SHOW tags), as every <code>ProfileAgent</code> does</td>
+<td><code>ReportTask</code> (the worker's task reports) and <code>InvokeTool</code> (its SHOW tags), as every <code>ProfileAgent</code> does; <code>GetTaskStatus</code> and <code>StartTask</code> (<code>cv.task</code>); <a href="../../api/agents.html#delivermessage"><code>DeliverMessage</code></a> (the result at Submit)</td>
 </tr>
 <tr>
 <td>Publishes</td>
-<td>the worker's agent events: <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>AgentNotice</code></td>
+<td>the worker's agent events (<code>AGENT_PUBLISHES</code>): <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>; and <code>ResponseReady</code>, the one plain reminder of a Submit pressed while cv was down</td>
 </tr>
 <tr>
 <td>Listens to</td>
@@ -80,7 +83,8 @@
   class ReziTools { the rezi.* items' work +start_sign_in() +write_resume(fields, id) +write_cv(sections) +generate_keywords(id) ... }
   class ResumeGuard { +check_write(id, fields) +created(id, name) +owns(id) +as_value() }
   class read_rezi { &lt;&lt;function&gt;&gt; Rezi's resume JSON to sections, skipped keys }
-  class CvContent { +from_odt(path) +from_rezi(json) }
+  class CvContent { +from_pdf(path) +from_rezi(json) }
+  class read_pdf { &lt;&lt;function&gt;&gt; a CV PDF to sections, the read check, unplaced words }
   class SectionOrder { +pick(degree_first) +drop(n) +choose(content, degree_first, drop) }
   class OdtWriter { +write(content, order, path) }
   class PdfExport { +export(odt) pdf }
@@ -88,12 +92,20 @@
   class build_cv { &lt;&lt;function&gt;&gt; write, export, check, fit to one page }
   class FieldCompare { +diff(edited, parsed) Comparison +diff_text(edited, text) Comparison }
   class ReportWriter { +render(result, company, role, rounds, comparison) +write(folder, ...) }
-  class handoff { &lt;&lt;functions&gt;&gt; task_text, read_request, read_jd_file, result_line, read_result, result_view }
-  class CvData { &lt;&lt;data.py&gt;&gt; CvRequest, CvResult, Round, ResumeRef }
+  class handoff { &lt;&lt;functions&gt;&gt; task_text, read_request, has_request, job_line, read_job, read_jd_file, result_line, read_result, result_view }
+  class CvData { &lt;&lt;data.py&gt;&gt; CvRequest, CvJob, SkillRef, CvResult, Round, ResumeRef }
+  class JobStartAgent { job_start.py: +attach(inner) +assign(task) +message(id, text) the rest passed through }
+  class JobStart { job_start.py: +prepare(request) CvJob, block +load_skills() }
+  class name_part { &lt;&lt;function&gt;&gt; folder-safe words: job_folder_name, output_path }
   ModuleProtocol &lt;|.. CvModule
   CvModule *-- Menu
   CvModule *-- ProfileAgent : the worker
-  ProfileAgent ..|&gt; ITaskAgent : given to the Hub
+  CvModule *-- JobStartAgent : the worker, as the Hub sees it
+  JobStartAgent ..|&gt; ITaskAgent : given to the Hub
+  JobStartAgent --&gt; ProfileAgent : its SessionTaskAgent
+  JobStartAgent *-- JobStart
+  JobStart ..&gt; name_part
+  JobStart ..&gt; CvData
   ProfileAgent *-- CvWorker : its prompt and access
   CvModule *-- McpClient
   McpClient *-- TokenStore
@@ -157,9 +169,19 @@
 <td>New (standard library)</td>
 </tr>
 <tr>
-<td><code>CvRequest</code>, <code>CvResult</code>, <code>Round</code> (<code>data.py</code>)</td>
-<td>One job in; its outcome out, with rounds, target, keywords, recommendations, compare and files; refuses a result that contradicts itself</td>
+<td><code>CvRequest</code>, <code>CvJob</code>, <code>SkillRef</code>, <code>CvResult</code>, <code>Round</code> (<code>data.py</code>)</td>
+<td>One job in; what the job start set up (folder, copy, its sha256, the JD file, the rules loaded); its outcome out, with rounds, target, keywords, recommendations, compare and files; refuses a result that contradicts itself</td>
 <td>New (pydantic)</td>
+</tr>
+<tr>
+<td><code>JobStart</code>, <code>start_block</code>, <code>name_part</code>, <code>job_folder_name</code> (<code>job_start.py</code>)</td>
+<td>A job's folder <code>&lt;date&gt;_&lt;Company&gt;_&lt;Role&gt;</code>, the checked copy of the base CV, <code>jd.txt</code>, <code>job_start.json</code>, and its rule files read in full; refuses an unsafe start</td>
+<td>New (standard library)</td>
+</tr>
+<tr>
+<td><code>JobStartAgent</code> (<code>job_start.py</code>)</td>
+<td>The worker as the Hub sees it: sets up each job before passing it on, refuses a job it can't set up, passes everything else through</td>
+<td>New, composes the worker's <code>SessionTaskAgent</code> (principle 12)</td>
 </tr>
 <tr>
 <td><code>McpClient</code> (<code>mcp.py</code>)</td>
@@ -183,7 +205,7 @@
 </tr>
 <tr>
 <td><code>CvWorker</code> (<code>worker.py</code>)</td>
-<td>The worker's prompt (the 8 steps, the truth gate, the never list, the config's target, rounds, paper and folders) and its checked <code>[agent]</code> table (output folder added to <code>read_dirs</code>)</td>
+<td>The worker's prompt (the CV Tool's 5 steps, the truth gate, the never list, the config's target, rounds and folders) and its checked <code>[agent]</code> table (output folder added to <code>read_dirs</code>)</td>
 <td>New (prompt + config)</td>
 </tr>
 <tr>
@@ -198,8 +220,13 @@
 </tr>
 <tr>
 <td><code>CvContent</code></td>
-<td>The base <code>.odt</code> and Rezi's resume JSON (<code>read_rezi</code> in <code>rezi_json.py</code>) as plain sections</td>
+<td>The base <code>CV_Test_*.pdf</code> (<code>from_pdf</code>, refused unless every word is placed) and Rezi's resume JSON (<code>read_rezi</code> in <code>rezi_json.py</code>) as plain sections</td>
 <td>New</td>
+</tr>
+<tr>
+<td><code>read_pdf</code> (<code>pdf_read.py</code>)</td>
+<td>A CV PDF as sections: pypdf's layout runs into lines (small caps, bullet glyphs, the entry's <code>|</code> gap), wrapped lines joined, headings mapped as on the CVs; the read check lists every word not placed (<code>PdfCv.unplaced</code>). Built on pypdf's <code>_layout_mode</code> internals: a change there gives a RuntimeError (<code>cv.read</code> → <code>not_available</code>)</td>
+<td>New (<code>pypdf</code>)</td>
 </tr>
 <tr>
 <td><code>SectionOrder</code></td>
@@ -213,7 +240,7 @@
 </tr>
 <tr>
 <td><code>PdfExport</code></td>
-<td><code>.odt</code> to PDF with headless LibreOffice</td>
+<td><code>.odt</code> to PDF with headless LibreOffice, inside <code>build_cv</code>'s temporary folder only</td>
 <td>New</td>
 </tr>
 <tr>
@@ -223,7 +250,7 @@
 </tr>
 <tr>
 <td><code>build_cv</code> (<code>build.py</code>)</td>
-<td>The fit: roomy to tight layouts, then the drop list, first one-page result wins</td>
+<td>The fit: roomy to tight layouts, then the drop list, first one-page result wins. The <code>.odt</code> and each export stay in a temporary folder; only the checked PDF is copied to its target</td>
 <td>New</td>
 </tr>
 <tr>
@@ -240,25 +267,29 @@
 </table>
 <h2 id="code-flow">Code flow</h2>
 <pre><code class="language-mermaid">flowchart LR
-  subgraph JA[&quot;a caller (later the job agent)&quot;]
-    j_task[&quot;use_item cv.task&lt;br/&gt;→ the task's text&quot;]
-    j_start[&quot;use_item hub.start&lt;br/&gt;agent_id = cv_agent&quot;]
+  subgraph JA[&quot;the job agent (any caller in hand_off.callers)&quot;]
+    j_task[&quot;use_item cv.task&quot;]
+    j_msg[&quot;its open task gets&lt;br/&gt;[Message from cv] the result&quot;]
     j_read[&quot;use_item cv.read_result&lt;br/&gt;on the task's result&quot;]
   end
   subgraph HUB[&quot;Hub (agent_hub)&quot;]
-    h_start[&quot;start the task&quot;]
+    h_start[&quot;start the task&lt;br/&gt;(parent: the caller's task)&quot;]
     h_report[&quot;report the task&quot;]
+    h_deliver[&quot;Delivery&lt;br/&gt;never into a turn&quot;]
   end
   subgraph CVM[&quot;cv module&quot;]
+    c_task[&quot;cv.task: check the job,&lt;br/&gt;StartTask agent_id = cv_agent&quot;]
+    c_tell[&quot;Submit watch (or cv.tool_result):&lt;br/&gt;_tell_asker → DeliverMessage&quot;]
+    g_start[&quot;JobStartAgent: CV_REQUEST?&lt;br/&gt;JobStart.prepare: folder, copy, rules&lt;br/&gt;+ CV_JOB block&quot;]
     subgraph WK[&quot;worker: ProfileAgent cv_agent&quot;]
-      w_cs[&quot;Claude session with Chrome&lt;br/&gt;the 8 steps, truth gate&quot;]
-      w_chrome[&quot;Chrome on app.rezi.ai:&lt;br/&gt;Keyword Targeting · Score · PDF import&quot;]
+      w_cs[&quot;Claude session with Chrome&lt;br/&gt;the 5 CV Tool steps, truth gate&quot;]
+      w_chrome[&quot;Chrome on app.rezi.ai:&lt;br/&gt;reads the Score and keywords&quot;]
       w_door[&quot;use_item rezi.* / cv.*&quot;]
       w_fin[&quot;finish: NEED or DONE&quot;]
     end
     subgraph ITEMS[&quot;menu items&quot;]
       r_read[&quot;rezi.read · list · format · search&quot;]
-      v_read[&quot;cv.read: an .odt as sections&quot;]
+      v_read[&quot;cv.read: a CV PDF as sections + read check&quot;]
       r_write[&quot;rezi.write_resume&quot;]
       r_guard[&quot;ResumeGuard.check_write&quot;]
       v_build[&quot;cv.build&quot;]
@@ -277,10 +308,12 @@
   REZI[(&quot;api.rezi.ai/mcp&quot;)]
   WEB[(&quot;app.rezi.ai, your login&quot;)]
 
-  j_task --&gt; j_start
-  j_start -. door .-&gt; h_start
+  j_task -. door .-&gt; c_task
+  c_task -. &quot;StartTask&quot; .-&gt; h_start
   h_report -. &quot;CV_RESULT line&quot; .-&gt; j_read
-  h_start -- &quot;ITaskAgent&quot; --&gt; w_cs
+  c_tell -. &quot;DeliverMessage(reply_to)&quot; .-&gt; h_deliver
+  h_deliver -. &quot;its open task, or a new one&quot; .-&gt; j_msg
+  h_start -- &quot;ITaskAgent&quot; --&gt; g_start --&gt; w_cs
   w_cs --&gt; w_chrome -. &quot;Claude in Chrome&quot; .-&gt; WEB
   w_cs --&gt; w_door -. door .-&gt; CORE
   CORE --&gt; r_read &amp; r_write &amp; v_read &amp; v_build &amp; v_cmp &amp; v_rep
@@ -300,7 +333,7 @@
   t3[&quot;request_access: the [agent] list&lt;br/&gt;(workspace, read folders, Chrome)&quot;]
   t4{&quot;saved grant still matches?&quot;}
   t5[&quot;a card: cv waits&lt;br/&gt;(AccessPending); Allow turns it on&quot;]
-  t6[&quot;ProfileAgent cv_agent from what you allowed&lt;br/&gt;claims its id, provides ITaskAgent&quot;]
+  t6[&quot;ProfileAgent cv_agent from what you allowed&lt;br/&gt;claims its id; the Hub reaches it&lt;br/&gt;through JobStartAgent&quot;]
   t7[&quot;its claude session starts on its first task&lt;br/&gt;(Manual mode, Chrome, the door)&quot;]
   t0 --&gt; t1
   t1 -- no --&gt; t2
@@ -310,18 +343,59 @@
 </code></pre>
 <ul>
 <li><strong>Built like <code>job_search</code>'s agent.</strong> One <code>ProfileAgent</code> with <code>subject</code> = its id, so it can ask for more access itself with <code>permissions.request</code>. <code>watch_grant</code> passes a widened grant to it live (<code>set_access</code>), and <code>ResetRequested</code> resets it.</li>
-<li><strong>A reload</strong> waits while the worker has a task (<code>busy</code>). The new copy claims the id again, and the guard's ids come over through the handover.</li>
+<li><strong>A reload</strong> waits while the worker has a task (<code>busy</code>; a question waiting on you doesn't count). The new copy claims the id again, and the guard's ids come over through the handover.</li>
+<li><strong>Questions are messages</strong> (2026-11-10): a <code>NEED:</code> ends the worker's turn and frees it for another job. The question's key is the job's folder (<code>JobStartAgent.question_key</code>, from <code>_jobs</code>: task id → job folder), set with <code>SessionTaskAgent.set_context(gate.question_key, job_notes)</code> in <code>cv/module.py</code>. When your answer comes and the session no longer has the question, <code>job_notes(key)</code> (<code>job_start.py</code>) adds the job's <code>job_start.json</code> in brief (company, role, folder, the base CV copy and JD, the files there, where the result went) and points it at the folder's <code>*handoff*.md</code> notes; a key that isn't a job folder gets the default (<code>default_context</code>: the handoff note).</li>
 <li><strong>Its prompt</strong> is <code>WORKER_PROMPT</code> with the config's target, rounds, paper and folders filled in. It names the items for each step: <code>cv.read</code> (step 1), <code>rezi.get_resume_format</code> and <code>rezi.write_resume</code> with <code>sections</code> and no id (step 2), <code>cv.build</code> (step 5), <code>rezi.read_resume</code> with <code>cv.compare</code> (<code>parsed_resume</code>, step 6), and <code>cv.report</code> (step 8). Steps 3 and 7 are <code>NEED:</code> questions to you. It also asks with <code>NEED:</code> before <code>rezi.sign_in</code> opens your browser.</li>
 <li><strong>Tested with a fake <code>claude</code></strong> (<code>tests/test_agents.FAKE</code>) and a pre-saved grant. No session ran against Rezi.</li>
 </ul>
 <h2 id="the-hand-off-handoffpy">The hand-off (<code>handoff.py</code>)</h2>
 <p>A Hub task is plain text, so each direction is one marked line of JSON. Newlines in the JD are escaped, and the last marked line counts.</p>
 <ul>
-<li><strong>In:</strong> a caller calls <code>cv.task</code> with the job: the JD as <code>jd_text</code>, or as <code>jd_file</code> (<code>read_jd_file</code>: <code>.txt</code>, <code>.md</code> or <code>.html</code> in <code>cv_dir</code> or <code>output_dir</code>), plus the CV file. It checks the job (<code>CvRequest</code>, the base CV in <code>cv_dir</code>, the worker on) and gives <code>text</code>: a first line saying what to do, then <code>CV_REQUEST: &lt;json&gt;</code>. The caller sends that text with <code>hub.start</code> to <code>cv_agent</code>. A <code>CV_RESULT:</code> inside the JD can't be mistaken for a result: it's inside the JSON string, not at the start of a line.</li>
-<li><strong>Out:</strong> the worker ends its task with <code>CV_RESULT: &lt;json&gt;</code> as the very last line, a <code>CvResult</code> whose status is <code>approved</code> or <code>stopped</code>. The caller reads it with <code>cv.read_result</code> (<code>result_view</code>). That gives the files with whether each exists, the score per round against the target (<code>vs_target</code>), the keywords still missing and left out, the recommendations, the one-page check and the compare. It refuses a missing line, bad JSON, or a result that contradicts itself: <code>approved</code> without your yes, scores that aren't the rounds', or <code>match_ok</code> with compare issues.</li>
+<li><strong>In:</strong> a caller calls <code>cv.task</code> with the job: the JD as <code>jd_text</code>, or as <code>jd_file</code> (<code>read_jd_file</code>: <code>.txt</code>, <code>.md</code> or <code>.html</code> in <code>cv_dir</code> or <code>output_dir</code>), plus the CV file. It checks the job (<code>CvRequest</code>, the base CV in <code>cv_dir</code>, the worker on), makes <code>text</code> (a first line saying what to do, then <code>CV_REQUEST: &lt;json&gt;</code>) and starts <code>cv_agent</code> with it: <code>StartTask(agent_id=cv_agent, parent_task_id=&lt;the caller's newest open task&gt;)</code>, found with <code>GetTaskStatus</code>. The parent lets the caller <code>hub.send</code> to the job as its own child. A refusal (the worker busy on another job) names that job and its asker (<code>_on_job</code>): "Nothing was queued; try again when it's free". A <code>CV_RESULT:</code> inside the JD can't be mistaken for a result: it's inside the JSON string, not at the start of a line.</li>
+<li><strong>Out:</strong> the worker ends its task with <code>CV_RESULT: &lt;json&gt;</code> as the very last line, a <code>CvResult</code> whose status is <code>ready</code> (everything but your Submit: one page and the PDF, <code>approved_by_user</code> false) or <code>stopped</code>; <code>approved</code> stays valid for older results. The worker ends it before your Submit, with no NEED for it (design A, 2026-11-10): your Submit reaches the caller as the cv module's own message, which is the yes. The caller reads the line with <code>cv.read_result</code> (<code>result_view</code>). That gives the files with whether each exists, the score per round against the target (<code>vs_target</code>), the keywords still missing and left out, the recommendations, the one-page check and the compare. It refuses a missing line, bad JSON, or a result that contradicts itself: <code>approved</code> without your yes, scores that aren't the rounds', or <code>match_ok</code> with compare issues.</li>
 <li><strong><code>CvResult</code> holds the metadata</strong>: <code>target_score</code>, <code>rounds</code> (<code>Round</code>, moved to <code>data.py</code>; <code>scores</code> filled from them), <code>missing_keywords</code>, <code>recommendations</code>, <code>compare</code> (checked as a <code>Comparison</code>) and <code>report_path</code>. <code>cv.report</code> uses the result's own rounds, compare and target when none are given.</li>
-<li><strong>Tested end to end through the real Hub</strong> with a fake <code>claude</code> that echoes its task. A caller sends <code>cv.task</code> with a JD file and the CV's path, then <code>hub.start</code> to <code>cv_agent</code>. The job arrives intact, and <code>cv.read_result</code> on the task's result gives the whole view.</li>
+<li><strong>Tested end to end through the real Hub</strong> with a fake <code>claude</code> that echoes its task. A caller sends <code>cv.task</code> with a JD file and the CV's path, which starts <code>cv_agent</code>. The job arrives intact, and <code>cv.read_result</code> on the task's result gives the whole view. Also tested: <code>test_callers.py</code> (a free pick skips <code>cv_agent</code>; a second job while it's busy is refused naming the first) and <code>test_reply_delivery.py</code> (the Submit waits for the asker's turn to end, goes into its open task, is recorded, and is told once).</li>
 </ul>
+<h2 id="job-start-job_startpy">Job start (<code>job_start.py</code>)</h2>
+<p>A job's folder and rules are set up in code, every time, before the worker sees the job. The Hub reaches <code>cv_agent</code> only through <code>JobStartAgent</code>, which holds the worker's own <code>SessionTaskAgent</code> and passes every call through, with one difference: a task that holds a job is set up first.</p>
+<pre><code class="language-mermaid">flowchart TB
+  a0[&quot;Hub: assign(task) or message(task, text)&quot;]
+  a1{&quot;the worker busy?&quot;}
+  a2[&quot;passed through&lt;br/&gt;(the worker refuses it)&quot;]
+  a3{&quot;a CV_REQUEST: line?&quot;}
+  a4[&quot;passed through unchanged&lt;br/&gt;(not a job, e.g. a code task)&quot;]
+  a5{&quot;a valid CvRequest?&quot;}
+  p0{&quot;base CV in cv_dir,&lt;br/&gt;there, not 0 bytes?&quot;}
+  p1{&quot;every job_skills file&lt;br/&gt;there and not empty?&quot;}
+  p2[&quot;mkdir work_dir/date_Company_Role&lt;br/&gt;(reused if it's there)&quot;]
+  p3[&quot;copy the base CV in (sha256 checked)&lt;br/&gt;jd.txt, job_start.json (one per job)&lt;br/&gt;copies never overwritten: _2, _3&quot;]
+  p4[&quot;task text + CV_JOB: json&lt;br/&gt;+ the rule + each rule file in full&quot;]
+  w0[&quot;the worker's SessionTaskAgent&quot;]
+  no[&quot;refused: failed,&lt;br/&gt;'the job can't start: why'&lt;br/&gt;nothing made&quot;]
+  a0 --&gt; a1
+  a1 -- yes --&gt; a2
+  a1 -- no --&gt; a3
+  a3 -- no --&gt; a4 --&gt; w0
+  a3 -- yes --&gt; a5
+  a5 -- no --&gt; no
+  a5 -- yes --&gt; p0
+  p0 -- no --&gt; no
+  p0 -- yes --&gt; p1
+  p1 -- no --&gt; no
+  p1 -- yes --&gt; p2 --&gt; p3 --&gt; p4 --&gt; w0
+</code></pre>
+<ul>
+<li><strong>The folder's name:</strong> <code>&lt;work_dir&gt;\&lt;YYYY-MM-DD&gt;_&lt;Company&gt;_&lt;Role&gt;</code>, e.g. <code>2026-11-09_ExampleCorp_StaffEngineerWidgetDesign</code>. <code>name_part</code> drops accents and keeps only letters and digits, upper-casing each word's first letter: the company's first 3 words, the role's first 4, at most 40 characters each, <code>Company</code> / <code>Role</code> if none are left. <code>output_path</code> names the output folder with the same <code>name_part</code>.</li>
+<li><strong>In the folder:</strong> the copy of the base CV under its own name (read once, written with <code>open("xb")</code>, its sha256 checked against the original), <code>jd.txt</code> (the JD) and <code>job_start.json</code> (the request without the JD, with its <code>reply_to</code>; the <code>CvJob</code>; the first <code>started</code> and the last <code>set_up</code>). Nothing else is ever overwritten: a same-bytes file is reused, a different one gets <code>_2</code>, <code>_3</code>. <code>job_start.json</code> is the job's one record, replaced at a second set-up. A second start of the same job on the same day reuses the folder (<code>created</code> false).</li>
+<li><strong>The rules:</strong> the cv module's general rules from <code>rules_dir</code> (<code>SKILL.md</code>, then every <code>rules/*.md</code>, listed at each job so a new file needs no reload), then every file in <code>job_skills</code> (by default the confirmed facts, <code>data\confirmed_facts.json</code>), each read in full into the task under a <code>--- &lt;path&gt; ---</code> header, with its sha256 in <code>CV_JOB</code>. They hold for every cv job, through the CV Tool or not. A missing <code>SKILL.md</code> or a missing or empty file refuses the job, before anything is made.</li>
+<li><strong>Refused, with nothing made:</strong> a base CV outside <code>cv_dir</code>, missing, or 0 bytes (the 2026-11-08 incident); a missing or empty rule file; a <code>CV_REQUEST:</code> line that isn't a valid job. The starter (<code>cv.task</code>'s <code>StartTask</code>, or a <code>hub.start</code>) gets <code>failed</code> with the reason.</li>
+<li><strong>The block survives handoffs:</strong> the session agent keeps the task's text it was given, and a handoff resends that text, so a fresh session gets the folder and the rules again.</li>
+<li><strong>A job given later:</strong> a message with a <code>CV_REQUEST:</code> line to a task that has no job yet is set up once, the same way.</li>
+<li><strong>The wiring:</strong> <code>start</code> provides the gate before <code>AgentKit.open</code> and takes the worker's own agent back after, so the Hub, which uses the first provider per id, only ever reaches the gate. While the worker opens, the gate says busy and refuses tasks. If the Hub happens to look during that moment, it logs "two agents share the id" once.</li>
+<li><strong>The config:</strong> <code>work_dir</code> (unset: <code>&lt;agent.workspace&gt;\work</code>) must be in the worker's workspace, so it can write its drafts, and never in <code>cv_dir</code> or the repo. <code>job_skills</code> can't be empty while the worker is on. A relative path is taken from the workspace; <code>~</code> is expanded. <code>cv.read</code> also reads <code>CV_Test_*.pdf</code> files in <code>work_dir</code>, so the worker reads the copy, and <code>cv.build</code> with <code>job_dir</code> exports the final PDF into the job's folder (named <code>…_tailored.pdf</code> if the name is the base copy's).</li>
+<li><strong>Tested</strong> (<code>tests/test_job_start.py</code>): the names; the copy, its hash and never overwriting; each refusal making nothing; the config; the gate on its own (pass-through, a job by message once, a busy worker left alone); and through the real Hub with a fake <code>claude</code>. The real ExampleCorp CV PDF is a case (the reader check's copy in <code>work\pdf-reader-check\cvs</code>, never the one in <code>cv_dir</code>): it starts, its copy matches by hash, and it reads with every word placed; that folder is hashed before and after to prove it's unchanged.</li>
+</ul>
+<p><strong>What code can't enforce:</strong> that the worker follows the rules it was given, which is model behaviour. Whether a shell or Python command writes into <code>cv_dir</code>: <code>Edit</code> and <code>Write</code> are read-only there through the grant, but a PowerShell or Python command can write wherever the Windows user can. Closing that needs a settings or system change: a <code>PreToolUse</code> hook that blocks commands naming the CV folder, or read-only attributes or ACLs on the CV files. A job given in prose, without a <code>CV_REQUEST:</code> line, gets no folder: the prompt tells the worker to ask for <code>cv.task</code>'s text instead. The final copy to an "applied" folder and the clean-up are still done by the worker.</p>
 <h2 id="the-rezi-connection-mcppy">The Rezi connection (<code>mcp.py</code>)</h2>
 <p>Every <code>list_tools</code> or <code>call</code> opens one connection with the stored token and closes it again. Only <code>sign_in</code> opens a browser.</p>
 <pre><code class="language-mermaid">flowchart TB
@@ -355,7 +429,7 @@
 <li><strong>The token file</strong> (<code>token_file</code>, by default <code>%LOCALAPPDATA%\assistant\cv\rezi_token.json</code>) holds <code>token</code>, <code>saved_at</code>, <code>expires_at</code> and <code>client</code>. It is written through a temporary file. A config that puts it inside the repo is refused.</li>
 <li><strong>Tested against a fake Rezi</strong> (<code>tests/fake_rezi.py</code>): the <code>mcp</code> package's own server with an in-memory OAuth provider and Rezi's tools over in-memory resumes in Rezi's real shape, reached through <code>httpx2.ASGITransport</code>.</li>
 <li><strong>The live tool list.</strong> <code>rezi.sign_in</code> lists the live tools (12 seen on 2026-11-07) and their <code>schemas</code>, and <code>check_tools</code> reports a tool missing, a new one, or an argument we send that it doesn't take. The read items take <code>extra</code> arguments, passed through.</li>
-<li><strong>Rezi's real format</strong> (<code>rezi_json.py</code>): <code>read_real</code> reads a live resume exactly (sections keyed by id, in <code>index</code> order, hidden entries skipped), and <code>write_rezi</code> writes the CV's sections into the same shape, <code>{name, jobTitle, jobCompany, jobDescription, data}</code>. <code>ReziTools.write_cv</code> uses it for <code>rezi.write_resume</code> with <code>sections</code>. The round trip from an <code>.odt</code> is exact except the contact headline, which Rezi has no field for (<code>left_out</code>).</li>
+<li><strong>Rezi's real format</strong> (<code>rezi_json.py</code>): <code>read_real</code> reads a live resume exactly (sections keyed by id, in <code>index</code> order, hidden entries skipped), and <code>write_rezi</code> writes the CV's sections into the same shape, <code>{name, jobTitle, jobCompany, jobDescription, data}</code>. <code>ReziTools.write_cv</code> uses it for <code>rezi.write_resume</code> with <code>sections</code>. The round trip of a CV's sections is exact except the contact headline, which Rezi has no field for (<code>left_out</code>).</li>
 <li><strong>Started in the background:</strong> a sign-in that waits on the browser outlives the module door's 30-second limit, so <code>start_sign_in</code> runs it as a task and <code>rezi.status</code> reports it.</li>
 </ul>
 <h2 id="the-resume-guard-guardpy-and-writes">The resume guard (<code>guard.py</code>) and writes</h2>
@@ -384,17 +458,17 @@
 <li><strong>Writes run one at a time</strong> (a lock), so the before/after lists can't mix two writes.</li>
 <li><strong>A reload keeps the ids</strong> (<code>export_state</code> → the handover); a restart forgets them, so the worker makes a new resume rather than touching one it can no longer prove it made.</li>
 </ul>
-<h2 id="conceptual-flow-the-8-steps">Conceptual flow: the 8 steps</h2>
-<p>Rezi green, the worker blue, you orange.</p>
+<h2 id="conceptual-flow-the-old-8-steps">Conceptual flow: the old 8 steps</h2>
+<p>The live prompt's steps until the <code>cv</code> reload; the 5 CV Tool steps replace them (<a href="index.html#the-5-steps">Overview</a>). <code>cv.build</code>, <code>cv.compare</code> and <code>cv.report</code> stay on the menu. Rezi green, the worker blue, you orange.</p>
 <pre><code class="language-mermaid">flowchart TB
   S1[&quot;1 🔵 Receive the base CV + JD from the caller (cv.task, via the Hub)&lt;br/&gt;pick the section order&quot;]
   S2[&quot;2 🟢 New resume from the base · 🔵 Keyword Targeting in Chrome&lt;br/&gt;keep only true edits, save (rezi.write_resume)&quot;]
   S3{&quot;3 🟠 You read the edited CV&lt;br/&gt;changes wanted?&quot;}
   S4{&quot;4 🟢 Rezi Score + missing keywords&lt;br/&gt;90 or more (aim 100)? at most 5 rounds&quot;}
-  S5[&quot;5 🔵 One clean page: .odt + PDF (cv.build)&quot;]
+  S5[&quot;5 🔵 One clean page: the PDF, exported into the job's folder (cv.build)&quot;]
   S6{&quot;6 🟢 Rezi imports the PDF and scores it · 🔵 compare (cv.compare)&lt;br/&gt;same content and score still at target?&quot;}
   S7{&quot;7 🟠 Is this the one?&quot;}
-  S8[&quot;8 🔵 Return the PDF, .odt and report: CV_RESULT (cv.read_result)&lt;br/&gt;never uploads or submits outside Rezi&quot;]
+  S8[&quot;8 🔵 Return the PDF and report: CV_RESULT (cv.read_result)&lt;br/&gt;never uploads or submits outside Rezi&quot;]
   S1 --&gt; S2 --&gt; S3
   S3 -- &quot;yes, with your notes&quot; --&gt; S2
   S3 -- no --&gt; S4
@@ -415,12 +489,158 @@
 <li><strong>The report (step 8).</strong> <code>report.md</code> sits next to the PDF in the job's folder, never outside <code>output_dir</code>. It's refused if the result's scores aren't the rounds' scores, or if the result says <code>match_ok</code> and the compare found issues.</li>
 <li><strong>Imports into Rezi</strong> take PDF or DOCX; check copies are named "<Company> – check". Rezi's free formatting review stays off.</li>
 </ul>
+<h2 id="the-cv-tool-code-as-built">The CV Tool: code as built</h2>
+<p>This follows the <a href="index.html#design-the-cv-tool-flow">main flow</a>: the links between cv_agent and the CV Tool's tabs are these classes and calls. <strong>Built and tested, not live</strong> until the <code>cv</code> reload. The app runs on its own (<code>pymupdf</code> is in <code>.venv</code>).</p>
+<pre><code class="language-mermaid">classDiagram
+    class CvModule {
+        &lt;&lt;modified&gt;&gt;
+        +cv.open_tool(job_dir)
+        +cv.tool_status(job_id)
+        +cv.tool_round(job_id, content, score, ...)
+        +cv.check_fonts(job_id)
+        +cv.tool_result(job_id)
+        +export_state() guard + tool
+        -_job_folder(job_dir) Path
+        -_tool_call(name, work) Result
+    }
+    class CvTool {
+        &lt;&lt;new: tool.py&gt;&gt;
+        +open(job_dir) job_id
+        +status(job_id)
+        +round(job_id, fields)
+        +fonts(job_id)
+        +result(job_id)
+        +export() / stop()
+    }
+    class tool_content {
+        &lt;&lt;new: tool.py&gt;&gt;
+        CvContent → the app's shape
+    }
+    class CompanionHandover {
+        &lt;&lt;existing: app_kit&gt;&gt;
+    }
+    class JobStart {
+        &lt;&lt;modified&gt;&gt;
+        +rule_files() SKILL.md + rules/*.md
+        +load_skills() rules, then job_skills
+    }
+    class CvRequest {
+        &lt;&lt;modified&gt;&gt;
+        +tool: Internal | Rezi | None
+    }
+    class read_pdf {
+        &lt;&lt;existing: pdf_read.py&gt;&gt;
+    }
+    class split_head {
+        &lt;&lt;existing, now public: rezi_json.py&gt;&gt;
+    }
+    class cv_tool_server {
+        &lt;&lt;new app: src/cv_tool/server.py&gt;&gt;
+        /api/ping · /api/quit · /api/window
+        /api/job/import · /api/job/status
+        /api/round · /api/job/result · /api/rules
+    }
+    class cvlib {
+        &lt;&lt;moved app engine: src/cv_tool/cvlib.py&gt;&gt;
+        +import_request · agent_round
+        +job_status · job_result · submit
+        +font_sizes (9 pt) · rules()
+    }
+    CvModule --&gt; CvTool : items call
+    CvModule --&gt; JobStart : the gate
+    CvTool --&gt; CompanionHandover : launch · hand over · quit
+    CvTool --&gt; read_pdf : base CV copy
+    CvTool --&gt; tool_content
+    tool_content --&gt; split_head
+    CompanionHandover ..&gt; cv_tool_server : python -m cv_tool · HTTP JSON
+    cv_tool_server --&gt; cvlib
+    JobStart ..&gt; CvRequest
+</code></pre>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant A as cv_agent
+    participant M as cv module (CvTool)
+    participant T as CV Tool (src/cv_tool)
+    participant Y as You
+    Note over A: the gate already made the job's folder and loaded the rules + facts
+    A-&gt;&gt;Y: NEED: open the CV Tool and start?
+    Y-&gt;&gt;A: start
+    A-&gt;&gt;M: cv.open_tool(job_dir)
+    M-&gt;&gt;M: job_start.json · read_pdf(copy) · tool_content
+    M-&gt;&gt;T: ensure_running (python -m cv_tool --window none, port 8771)
+    M-&gt;&gt;T: POST /api/job/import · POST /api/window
+    T--&gt;&gt;A: job_id, tool (from the request, or &quot;&quot;)
+    A-&gt;&gt;M: cv.tool_status → the pick, the content
+    opt Rezi: Send JD and CV to Rezi (the pick alone sends no event)
+        Y-&gt;&gt;T: click: rezi_requests\&lt;id&gt;.json, rezi_pending
+        T--&gt;&gt;M: GET /api/events: rezi_request {job_id, request_id, at} (SubmitWatch)
+        M-&gt;&gt;A: DeliverMessage(cv_agent, the click is the yes: start the First Draft, sender cv)
+    end
+    A-&gt;&gt;M: cv.tool_round(content, score...) → PDF, small_text, rules
+    A-&gt;&gt;Y: NEED: review the First Draft
+    loop ATS Loop: to 90, at most 5 rounds
+        A-&gt;&gt;M: cv.tool_round
+    end
+    A-&gt;&gt;Y: the CV is ready for your Submit (no NEED)
+    A--&gt;&gt;M: task ends: CV_RESULT status &quot;ready&quot; (to the asker, its child task's end)
+    Y-&gt;&gt;T: Submit (CV_Test_&lt;Company&gt;_final.pdf, result.json, ready.flag; never refused, small text only warns)
+    T-&gt;&gt;T: older unsubmitted jobs of the same work folder → jobs\_archive
+    T--&gt;&gt;M: GET /api/events: submitted {job_id} (SubmitWatch)
+    M-&gt;&gt;M: job_start.json: reply_to, not told for this Submit yet
+    M-&gt;&gt;M: DeliverMessage(job_search_agent, the result + small-text note, sender cv)
+    M--&gt;&gt;A: AgentNotice: one [cv] line for cv_agent's next task (the job, the time, who got it, the note); no wake
+</code></pre>
+<ul>
+<li><strong>The return address</strong> (<code>reply.py</code>, built 2026-11-09; delivery changed 2026-11-10): <code>cv.task</code> puts its caller in the request (<code>CvRequest.reply_to</code>), and the gate saves the request in the job's <code>job_start.json</code>. The module notices each Submit itself (<code>submit_watch.py</code>, <code>SubmitWatch</code>, built 2026-11-10): it follows the CV Tool's <code>GET /api/events</code> stream through <code>CompanionApp.events</code> while the app runs, and each live Submit is delivered by itself. A Submit pressed while cv was down is <strong>never delivered by itself</strong> (your rule, 2026-11-10): on start (and when the app comes up) the watch looks once at <code>GET /api/submitted</code>, and for each Submit it hasn't seen it sends you one plain notice (<code>ResponseReady</code> to the tab in focus, naming the job and the time, and that <code>cv.tool_result</code> on the job would send it), then leaves it to you. What it has seen is in <code>&lt;data_dir&gt;\submits_seen.json</code> (one <code>job_id@submitted_at</code> key per Submit); when that file doesn't exist yet (the first start), every Submit already there is marked seen and nothing is reminded or sent. For a live Submit or a <code>cv.tool_result</code> call, whichever comes first tells that agent (an <code>asyncio.Lock</code> keeps the two from telling at once) by its id with the Hub's <a href="../../api/agents.html#delivermessage"><code>DeliverMessage</code></a> (<code>_tell_asker</code>, <code>sender="cv"</code>): into its open task (which also answers a question it waits on), else a new task; never into a turn, so an asker in a turn gets it when the turn ends, and one that isn't running when it starts. The asker never gets an <code>AgentNotice</code> fallback, and there's no coordinator any more. cv_agent does get one: when the watch delivered a Submit (not when its own <code>cv.tool_result</code> did, since that call already says <code>told</code>), the module publishes an <a href="../../api/agents.html#agentnotice"><code>AgentNotice</code></a> for it (<code>submit_notice</code> in <code>reply.py</code>, 2026-11-10): one plain line naming the job, the time, who got it and how, and the small-text note if any. The Hub hands it over with cv_agent's next turn and never wakes it; if cv_agent isn't running, the Hub drops and logs it. The text has the PDF, the score, where <code>result.json</code> is, and a note when text prints under 9 pt (a warning only: a Submit is never refused). <code>job_start.json</code> then holds <code>replied</code> (that Submit's time, who, and how: the delivery's value, <code>message &lt;task&gt;</code>, <code>task &lt;id&gt;</code> or <code>pending</code>, or <code>failed: …</code>), so a second look tells nobody, and a second Submit tells again. No task id, no worker memory and no reload is involved, so a relaunch on either side loses nothing.</li>
+<li><strong>The Send JD and CV to Rezi click</strong> (built 2026-11-10, change note <code>docs/next-steps/cv-rezi-click-signal.md</code>): the CV Tool's <code>/api/draft/rezi</code> writes the request and publishes <code>{"kind": "rezi_request", "job_id", "request_id", "at", "company", "role"}</code> on <code>GET /api/events</code>, as <code>/api/submit</code> does. The same watch (<code>SubmitWatch</code>, its <code>on_rezi</code>) hands each live one, once per request id, to <code>_tell_worker_rezi</code>, which sends cv_agent one <code>DeliverMessage</code> (<code>rezi_click_text</code> in <code>reply.py</code>, <code>sender="cv"</code>): the click is the user's yes for the Rezi write, so it starts the First Draft by itself. Never into a turn: it answers an open NEED or waits for the turn's end. With the worker off, nobody is told (logged). A click made while cv was down sends nothing; the request stays pending on the job, and <code>cv.tool_status</code> shows it. The Internal or Rezi pick in tab 2 is only saved on the job and sends no event. Submit is unchanged.</li>
+<li><strong>One <code>job_start.json</code> per job:</strong> a second set-up of the same job replaces it (written whole, beside it then moved), keeping the first <code>started</code> and adding <code>set_up</code>; the newest request, with its <code>reply_to</code>, wins.</li>
+<li><strong>The round cap in code:</strong> <code>CvTool</code> refuses a score round (a <code>score</code> or a <code>request_id</code>; on an Internal job also a content round, which it scores) and <code>cv.tool_internal_round</code> once the job has <code>max_rounds</code> rounds (<code>invalid_arguments</code>, telling the worker to stop and report). A print without a score and <code>cv.check_fonts</code> still work, so text under 9 pt can still be fixed.</li>
+<li>
+<p><strong>Archive at Submit</strong> (<code>cvlib.archive_older</code>): the CV Tool's other jobs for the same work folder that were never submitted move to <code>cv_tool\jobs\_archive\</code> (moved, never deleted; a failure leaves them and the Submit stands).</p>
+</li>
+<li>
+<p><strong>Why the app isn't in the module's folder:</strong> <code>CompanionApp</code> runs <code>python -m &lt;package&gt;</code>, and a companion app never imports <code>assistant</code> (the <a href="../../architecture/reusable-parts.html#companion-app-checklist">companion app checklist</a>). So the module reads the PDF with its own <code>pdf_read</code> and sends the content; the app's own PDF reader is only for a CV you drop in by hand.</p>
+</li>
+<li><strong>No window needed:</strong> the items use only the app's API, so the app starts with <code>--window none</code>; <code>cv.open_tool</code> opens or raises the window. A headless mode can come later without changing the items.</li>
+<li><strong>A reload</strong> hands the running app to the new copy (<code>export_state</code> → <code>{"guard", "tool"}</code>), unless the app's code changed: then it quits and the next call starts the new code. A copy from before the CV Tool handed over the guard alone; <code>init</code> takes either.</li>
+<li><strong>Errors:</strong> the app's error → <code>failed</code> ("the CV Tool says"); it can't start or answer → <code>not_available</code>; a bad job folder or <code>job_start.json</code> → <code>invalid_arguments</code>.</li>
+<li><strong>Tested</strong> (<code>tests/test_tool.py</code>): the content in the app's shape, the settings, the pick, the rules folder (order, a new file without a reload, a missing <code>SKILL.md</code>), the five items against a fake CV Tool on a free port, a CV Tool that doesn't start, and the Submit watch (a live Submit delivered with no agent, and cv_agent's one notice about it; on the first start old Submits only marked seen; one missed while down reminded once and not sent; <code>cv.tool_result</code> then sends it).</li>
+</ul>
+<h2 id="the-cv-tool-app-srccv_tool">The CV Tool app (<code>src/cv_tool</code>)</h2>
+<p>The module's UI half, an independent app on the <a href="../../architecture/reusable-parts.html#companion-app-checklist">companion app checklist</a>: its own package, <code>python -m cv_tool</code>, never importing <code>assistant</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server.py</code> (<code>Tool</code>, <code>api</code>, <code>settings</code>, <code>main</code>)</td>
+<td>A <code>ThreadingHTTPServer</code> on <code>127.0.0.1:8771</code> (<code>require_loopback</code>); <code>local_request(Host, Origin)</code> on every request (403 otherwise); every POST is JSON (415 otherwise); the page's files from <code>static/</code> and <code>assets/</code>; the Edge app window through <code>app_kit.window</code> (<code>open_app_window</code> 1500×950, <code>raise_window</code>, <code>close_app_windows</code> on stop; profile <code>window_profile("cv_tool")</code>); the <code>submitted</code> push to the event stream's listeners (<code>Tool.listen</code> / <code>unlisten</code> / <code>publish</code>) after each Submit</td>
+</tr>
+<tr>
+<td><code>cvlib.py</code></td>
+<td>The engine: jobs (<code>new_job</code>, <code>import_request</code>, <code>load_job</code>, <code>save_job</code>), the page (<code>render</code>, every size ≥ 9 pt; <code>export_pdf</code> prints it with headless Chrome), the Internal score, Rezi requests and results, the loop (<code>loop_state</code>, <code>apply_result</code>), <code>submit</code> (<code>CV_Test_&lt;Company&gt;_final.pdf</code>, <code>result.json</code> with <code>small_text</code> and <code>min_pt</code>, <code>ready.flag</code>; refused only with no PDF or no score yet, never for small text), <code>submitted_jobs()</code>, the module's side (<code>agent_round</code>, <code>job_status</code>, <code>job_result</code>), <code>font_sizes</code> (the 9 pt measure on the PDF's spans), <code>rules()</code> (the module's rules folder, read, never copied)</td>
+</tr>
+<tr>
+<td><code>cv_tool.toml</code> (+ <code>.local.toml</code>)</td>
+<td>Defaults under the CLI flags, read with <code>load_layered</code> + <code>merge</code>: <code>host</code>, <code>port</code>, <code>window</code> (<code>app</code> or <code>none</code>), <code>data_dir</code>, <code>cv_dir</code>, <code>rules_dir</code>, <code>agent_work</code>, <code>facts</code>, <code>profile</code></td>
+</tr>
+<tr>
+<td><code>static/</code>, <code>assets/</code></td>
+<td>The four tabs' page (<code>index.html</code>, <code>app.js</code>, <code>app.css</code>) and Source Sans 3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Routes:</strong> <code>GET /api/ping</code> → <code>{"app": "cv_tool"}</code>; <code>POST /api/quit</code>; the module's: <code>POST /api/job/import</code>, <code>GET /api/job/status?id=</code>, <code>POST /api/round</code>, <code>GET /api/job/result?id=</code>, <code>GET /api/rules</code>, <code>POST /api/window</code>, <code>GET /api/events</code> (Server-Sent Events: <code>submitted {job_id}</code>), <code>GET /api/submitted</code> (every submitted job, for the catch-up look); the page's own (<code>/api/jobs</code>, <code>/api/job/save</code>, <code>/api/draft/*</code>, <code>/api/loop*</code>, <code>/api/submit</code>, …). <strong>Run by hand:</strong> <code>python -m cv_tool</code> opens its window at once; the module starts it with <code>--window none</code> and the folders from <code>[tool]</code>. <strong>Data:</strong> <code>&lt;data_dir&gt;\jobs\&lt;id&gt;\</code> per job, plus <code>inbox\</code>, <code>outbox\</code>, <code>rezi_requests\</code>. <strong>Needs:</strong> <code>pymupdf</code> (the <code>cv</code> extra) and Chrome. <strong>Tested</strong> in <code>tests/test_cv_tool.py</code>.</p>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
-<li><strong>Its worker</strong>, <code>cv_agent</code>: a Claude session with Chrome, started on its first task, working in its own workspace (<code>C:\Chang\Jobs\rezi\cv_agent</code> by default, made when cv turns on).</li>
+<li><strong>Its worker</strong>, <code>cv_agent</code>: a Claude session with Chrome, started on its first task, working in its own workspace (<code>C:\Chang\Jobs\CV_Module</code> by default, made when cv turns on).</li>
+<li><strong>The CV Tool</strong> (<code>python -m cv_tool</code> on <code>127.0.0.1:8771</code>): started by the first <code>cv.open_tool</code> / <code>cv.tool_*</code> call, handed over on a reload, quit at the module's stop if it launched it. Its data is in <code>&lt;workspace&gt;\cv_tool</code>.</li>
 <li><strong>The Rezi connection</strong>: an MCP client of <code>https://api.rezi.ai/mcp</code> (OAuth with PKCE, a 30-day token kept outside the repo). It connects on each use and never on load. During a sign-in it listens briefly on <code>127.0.0.1:callback_port</code>.</li>
-<li><strong>LibreOffice</strong> runs headless for each <code>.odt</code> → PDF export.</li>
-<li><strong>Files</strong>: <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\</code> with <code>CV_Test_&lt;Company&gt;.odt</code>, <code>.pdf</code> and <code>report.md</code>. The base CV and every Rezi resume it didn't create are never changed.</li>
+<li><strong>LibreOffice</strong> runs headless for each <code>.odt</code> → PDF export, in a temporary folder that's removed after the build.</li>
+<li><strong>Files</strong>: <code>&lt;work_dir&gt;\&lt;date&gt;_&lt;Company&gt;_&lt;Role&gt;\</code> for each job (the copy of the base CV, <code>jd.txt</code>, <code>job_start.json</code>, the worker's drafts, and the final <code>CV_Test_&lt;Company&gt;.pdf</code> and <code>report.md</code>). Without a job folder, <code>&lt;output_dir&gt;\&lt;date&gt;_&lt;Company&gt;\</code> holds the PDF and <code>report.md</code>. No <code>.odt</code> comes out. The base CV and every Rezi resume it didn't create are never changed.</li>
 </ul>
 <h2 id="decisions-2026-11-06-and-07">Decisions (2026-11-06 and 07)</h2>
 <ul>
@@ -430,12 +650,14 @@
 <li><strong>Chrome only in the worker</strong>, only on app.rezi.ai. Keyword Targeting, the Score and the PDF import are done there, not as menu items.</li>
 <li><strong>No Rezi AI writer for now.</strong> The worker edits; Rezi targets, scores and checks.</li>
 <li><strong>Jobs sent through the Hub</strong> (<code>hub.start</code> to <code>cv_agent</code>), not a <code>rezi.tailor_cv</code> item.</li>
-<li><strong>No fixed base Rezi resume.</strong> The base is always the <code>CV_Test_*.odt</code> and the JD the caller passes in; the guard refuses writes to every Rezi resume not created in the run.</li>
+<li><strong>No fixed base Rezi resume.</strong> The base is always the <code>CV_Test_*.pdf</code> and the JD the caller passes in; the guard refuses writes to every Rezi resume not created in the run.</li>
 <li><strong>US Letter by default</strong> (<code>paper</code>), A4 later.</li>
+<li><strong>PDF in, PDF out</strong> (2026-11-09, <code>docs/next-steps/cv-pdf-only.md</code>): the base CV is a PDF, the JD text, the result a PDF; every <code>cv.*</code> item refuses an <code>.odt</code>. The module's own PDF reader replaces the <code>.odt</code> reader for the base CV (checked once against the real CVs: 33 of 36 matched the <code>.odt</code> read exactly, the other 3 were PDFs older than their <code>.odt</code> or an empty <code>.odt</code>). The worker keeps read access to <code>C:\Chang\Jobs\CV</code> (your choice); the job agent's three files that still name <code>.odt</code> wait for your yes.</li>
 <li><strong>A fixed menu</strong>, not the server's tool list passed through.</li>
 <li><strong>The MCP client lives in this module only</strong>, an exception to "modules never import MCP", until a second module needs one.</li>
 <li><strong>PDFs shown with <code>viewer.open</code></strong> first; a separate PDF viewer only if that fails. Tried in chunk 2: the viewer opens HTML only, so for now the worker gives you the PDF's path at steps 3 and 7. A PDF view is still open for you or the Main Assistant to decide.</li>
 <li><strong>Real runs only with your yes.</strong> Chunks 1 to 8 touch no real Rezi account; chunk 9 is the first real run.</li>
+<li><strong>The job start is the module's code, not the worker's memory (2026-11-09).</strong> After a script emptied a base CV (2026-11-08), the user asked that a job's folder, the copy and the rules come from code. It's in this module, as the gate in front of its worker, so it runs on every job; shared infra is unchanged.</li>
 <li><strong>These pages are the module's docs.</strong> The old plan page <code>C:\Chang\Jobs\CV\Recruiters\docs\cv_module_workflow.html</code> is left as it was, as the history of the design; these three pages replace it (2026-11-07).</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/cv/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

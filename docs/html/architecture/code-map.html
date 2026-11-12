@@ -67,7 +67,7 @@
     end
 
     subgraph Mods[&quot;Modules: each a wrapper with a menu&quot;]
-        Hub[&quot;&lt;b&gt;agent_hub&lt;/b&gt;&lt;br/&gt;TaskBoard · Focus · AgentNames · door host&quot;]
+        Hub[&quot;&lt;b&gt;agent_hub&lt;/b&gt;&lt;br/&gt;TaskBoard · Focus · AgentNames&lt;br/&gt;Delivery · MessageGate · door host&quot;]
         Talker[&quot;&lt;b&gt;talker&lt;/b&gt;&lt;br/&gt;module + session + prompt&quot;]
         MA[&quot;main_assistant&quot;]
         TA[&quot;task_agents&quot;]
@@ -102,6 +102,8 @@
     VS &amp; HV --&gt; Guard
     VN -- &quot;requires IVoice&quot; --&gt; VIn
     Perm -- &quot;StartTask (review) · cards&quot; --&gt; Hub
+    Hub -- &quot;message cards (ctx.permissions.ask)&quot; --&gt; Perm
+    CV -- &quot;StartTask · DeliverMessage&quot; --&gt; Hub
     Perm -. &quot;PermissionRequested&quot; .-&gt; TUI
     Mods -. &quot;events&quot; .-&gt; Bus
     Use -. &quot;SessionUsage&quot; .-&gt; Bus
@@ -118,7 +120,7 @@
 <h2 id="how-it-reads">How it reads</h2>
 <ul>
 <li><strong>Imports point one way.</strong> Modules import contracts and infra; infra imports contracts and <code>app_kit</code>; the core imports contracts and infra. No module imports another module, and the core imports no module. <code>app_kit</code>, <code>html_viewer</code> and <code>voice_service</code> never import <code>assistant</code>.</li>
-<li><strong>Agents.</strong> Every big agent is a <code>ProfileAgent</code> (its <code>AgentProfile</code>, <code>ClaudeSession</code> and <code>SessionTaskAgent</code>); the Agent Hub starts their tasks through <code>ITaskAgent</code> and hosts the one MCP door their <code>claude</code> processes call. More in <a href="agents-code.html">Agents: code layout</a>.</li>
+<li><strong>Agents.</strong> Every big agent is a <code>ProfileAgent</code> (its <code>AgentProfile</code>, <code>ClaudeSession</code> and <code>SessionTaskAgent</code>); the Agent Hub starts their tasks through <code>ITaskAgent</code> and hosts the one MCP door their <code>claude</code> processes call. Messages between agents and from modules go through the Hub's <code>Delivery</code> (<code>DeliverMessage</code>, never into a turn), and an agent's message to one that isn't its child asks first through the <code>MessageGate</code>. More in <a href="agents-code.html">Agents: code layout</a>.</li>
 <li><strong>SHOW tags.</strong> The worker and the Talker both turn a SHOW tag into the viewer's tool call with one helper, <a href="../api/infra.html#show_page"><code>show_page</code></a>; the core starts the viewer if it's off.</li>
 <li><strong>Independent apps.</strong> Each runs in its own process, launched by its thin module through <code>CompanionApp</code>, and refuses other hosts and other origins with <a href="../api/app_kit.html#local_guard"><code>local_guard</code></a> (<a href="reusable-parts.html#companion-app-checklist">companion app checklist</a>).</li>
 <li><strong>The permissions handler</strong> is part of the core; it asks you through cards (<code>PermissionRequested</code>) and runs the Main Assistant's review as a Hub task.</li>

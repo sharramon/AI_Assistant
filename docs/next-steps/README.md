@@ -1,4 +1,4 @@
-# Next steps
+﻿# Next steps
 
 What we're working on now. This page changes as the work moves on.
 
@@ -33,9 +33,23 @@ Changes you asked for, each with a note written before anything is built ([`app-
 
 | Change | Status | Date |
 |--------|--------|------|
+| ["You" means the Talker and its worker together](you-means-the-pair.md) | built (waiting on you): `RELOAD: talker`, then ask a tab "can you look over the files" and check it hands the work over | 2026-11-10 |
+| [Agents talk to each other freely, and a question never makes an agent busy](agent-talk-and-questions.md) | built (waiting on you): hand checks 1 and 4 passed; 2 failed, then passed when redone with the fix in [cv-submit-delivers](cv-submit-delivers.md); cv_agent's repo write grants revoked ([handoff](handoff-3720fc90.md)) | 2026-11-10 |
+| [The Submit reaches the job agent by itself, and is never refused](cv-submit-delivers.md) | done: hand check passed 2026-11-10 (delivered by itself, once, with PDF and score); the small-text warning is covered by its automated test only | 2026-11-10 |
+| [cv_agent hears about the Submit, without being woken; the font floor back to 9 pt](cv-submit-notice.md) | built (waiting on you): one `AgentNotice` line for cv_agent's next turn when the watch delivers a Submit; 9 pt, a warning only; follow-up 1 as design A (cv_agent ends with status `"ready"` before your Submit, no NEED, no `cv.tool_result`). Waits on `RELOAD: cv`, then tested on your next real job | 2026-11-10 |
+| [The "Send JD and CV to Rezi" click reaches cv_agent](cv-rezi-click-signal.md) | parked: the user will ask for it after the current job application; fix agreed (publish `rezi_request`, the cv watcher delivers it to cv_agent as your yes), nothing built | 2026-11-10 |
+| [The Hub's folder check skips the starting task](hub-folder-check-parent.md) | cancelled, never built: replaced by agent-talk-and-questions | 2026-11-09 |
 | [Permissions handler](permissions-handler.md) | proposed; its first piece (access lists, in the core) is built by agent-permissions | 2026-10-26 |
 | [Viewer edits write back to the Markdown](markdown-write-back.md) | built (waiting on you): not yet tried by hand in the real window | 2026-10-27 |
 | [Voice in](voice-in.md) | building; design moved to [Voice](../architecture/voice.md) | 2026-10-28 |
+| [Handoff question stops repeating](handoff-repeat-fix.md) | built (waiting on you): app restart (infra) and job_search reload left | 2026-11-08 |
+| [cv module: PDF in, PDF out](cv-pdf-only.md) | built (waiting on you): a `cv` reload, and your yes for the job agent's 3 files | 2026-11-09 |
+| [Handoff: CV Tool as the cv module's UI](handoff-b31b8901.md) | superseded by handoff-2389decf | 2026-11-09 |
+| [cv module: the CV Tool is its UI](cv-uses-cv-tool.md) | built (waiting on you): live since the cv reload; the later fixes (Internal items, truth check, sign-in prompt) load with this restart; ExampleCorp First Draft waits for your review | 2026-11-09 |
+| [cv agent: everything in one folder](cv-agent-folders.md) | built (waiting on you): `C:\Chang\Jobs\CV_Module` is cv_agent's workspace (copies; the originals stay until you say) | 2026-11-09 |
+| [Handoff: cv one folder + CV Tool build](handoff-2389decf.md) | built (waiting on the restart): the stale-task Hub fix, `cv.tool_draft`, `cv.tool_internal_round`, the truth check, the sign-in prompt; then the hand checks in its last section | 2026-11-09 |
+| [cv path: only cv.task for the job agent, a return address that survives a relaunch](cv-path-hardening.md) | built: part 1 (caller checks, `start_only_by`, the coordinator hand-off, the archive) and part 2 (`reply_to`, cleanup, round cap); loaded by the app restart; the four hand checks in its Build status are due | 2026-11-09 |
+| [The cv module at a glance](cv-module-flow.md) | built (waiting on you): merged into the cv module's overview page; kept until you say it can go | 2026-11-09 |
 | [Voice in: code design](voice-in.md#code-design-2026-11-02) | building: phase 1 steps 1 to 4 built, step 6's code built; your mic check left, step 7 next | 2026-11-02 |
 | [Handoff: voice in](handoff-voice-in.md) | building: where the voice-in build stands | 2026-11-03 |
 | [Voice streamer: reusable parts](voice-reusable-parts.md) | built (waiting on you): steps 0 to 4 built; the try on your mic is left | 2026-11-02 |
@@ -71,6 +85,10 @@ Changes you asked for, each with a note written before anything is built ([`app-
 | [Helpers' context reminder and reset](helper-context-reset.md) | built (waiting on you): reminders reach every pair (checked, tested); the Reset buttons now reset the pair of the tab you're in. `RELOAD: temp_ui` or the batched restart, then the three checks | 2026-11-07 |
 | [The restart note says everything the next launch needs](restart-note-complete.md) | built, waiting on the batched restart (a `RELOAD: talker` would also do): the app adds the tabs, agents, modes, open tasks and questions; the worker lists the changes waiting on the restart and their hand checks; tests pass | 2026-11-08 |
 | [Temp UI: drag the typing box taller or shorter](temp-ui-box-resize.md) | built, waiting on the batched restart (a `RELOAD: temp_ui` would also do): a drag handle on the box's top edge, one size for every tab, kept after sending; six hand checks | 2026-11-08 |
+| [Agents and tasks: only two states, active and idle](two-agent-states.md) | built as part of [agent-talk-and-questions](agent-talk-and-questions.md) (step 3), waiting on the restart | 2026-11-10 |
+| [A Chrome agent keeps its tab across a context reset](chrome-tab-after-reset.md) | built, waiting on the restart (2026-11-10 batch): a Chrome agent's handoff compacts the session instead of starting fresh; hand check: a Chrome task past a handoff still reaches its tab | 2026-11-10 |
+| [Close an agent's Chrome tabs when it's done with them](chrome-tabs-close.md) | built, waiting on the restart (2026-11-10 batch): the prompt rule plus one close turn at a Chrome task's end; tabs stay on a cancel or failure; hand check: a finished Chrome task leaves only the tabs you should act on | 2026-11-10 |
+| [Flash the app's taskbar icon when an agent needs you](taskbar-flash.md) | built, waiting on the restart (2026-11-10 batch): `flash_window` in `app_kit`, called by `temp_ui`; hand check: with the window in the back, a done or failed task, a question and a card each flash it; progress, replies and a cancel don't | 2026-11-10 |
 | [Usage: tokens only, clearer labels, two token fixes](usage-tokens-only.md) | built (waiting on you): no ~$ anywhere, labelled context and used, a session id so restarts keep totals, sub-agent tokens from each turn's result, and the temp UI's header following the selected tab's own worker and Talker; one app restart, then the hand checks | 2026-11-07 |
 
 Finished notes (done, nothing waiting on you) are in the [archive](archive/README.md).

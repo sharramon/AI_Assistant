@@ -17,8 +17,8 @@
 <p><strong>Status: built (2026-11-02).</strong> Tested in <code>tests/test_app_kit.py</code>, which also checks that <code>app_kit</code> never imports <code>assistant</code>.</p>
 </blockquote>
 <h2 id="window"><code>window</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>temp_ui</code>, the HTML viewer app (<code>viewer.py</code>: open, close, raise; <code>snip.py</code>: <code>devtools_port</code>)</p>
-<p><code>from app_kit.window import open_app_window, close_app_windows, raise_window, devtools_port</code></p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (open, close, <code>flash_window</code>), the HTML viewer app (<code>viewer.py</code>: open, close, raise; <code>snip.py</code>: <code>devtools_port</code>), the CV Tool app (<code>cv_tool/server.py</code>: open, raise, close; <code>window_profile("cv_tool")</code>)</p>
+<p><code>from app_kit.window import open_app_window, close_app_windows, raise_window, flash_window, devtools_port</code></p>
 <p>One copy of the Edge app-window code, merged from <code>assistant/infra/app_window.py</code> and <code>html_viewer/window.py</code> (both removed). Not re-exported from <code>assistant.infra</code>.</p>
 <table>
 <thead>
@@ -39,6 +39,10 @@
 <tr>
 <td><code>raise_window(pid, title) -&gt; bool</code></td>
 <td>Bring the window to the front, restoring it if minimized: the Edge window owned by <code>pid</code>, else one whose title ends with <code>title</code>. Windows only; elsewhere it returns <code>True</code> (it can't tell)</td>
+</tr>
+<tr>
+<td><code>flash_window(pid, title) -&gt; bool</code></td>
+<td>Flash the window's taskbar button (and caption) until you bring it to the front (<code>FlashWindowEx</code>, <code>FLASHW_ALL | FLASHW_TIMERNOFG</code>), finding it as <code>raise_window</code> does. Does nothing while it's already in front. Returns whether it flashed; <code>False</code> elsewhere than Windows or with no window. Blocking but short; <code>temp_ui</code> calls it with <code>asyncio.to_thread</code> (built 2026-11-10)</td>
 </tr>
 <tr>
 <td><code>devtools_port(profile) -&gt; int | None</code></td>
@@ -136,9 +140,10 @@
 </table>
 <p><strong>Defined in:</strong> <code>src/app_kit/module_docs.py</code></p>
 <h2 id="companionapp"><code>CompanionApp</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it, handover or restart on reload); any app that launches <code>voice_service</code></p>
-<p><code>CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str = "/api/quit", name: str | None = None, log: Logger | None = None)</code></p>
+<p><strong>Reusable</strong> · Used by: <code>html_viewer</code> module (launch, calls, the relay of the viewer's event stream, handover or restart on reload); <code>voice_in</code> (launch on the first mic click, <code>/health</code> calls, quit at stop if it launched it, handover or restart on reload); any app that launches <code>voice_service</code>; the <code>cv</code> module (<code>tool.py</code>, through <code>CompanionHandover</code>: the CV Tool on port 8771, ping <code>/api/ping</code>, quit <code>/api/quit</code>, handover or restart on reload); <code>job_search</code> (<code>ui.py</code>, through <code>CompanionHandover</code>: the job project's job UI on port 8781 by its command line, <code>plain_ping</code> on <code>/tracker</code>, <code>quit=None</code>; built 2026-11-10)</p>
+<p><code>CompanionApp(module: str, host: str, port: int, *, ping: str, args: Sequence[str] = (), start_timeout: float = 20.0, quit: str | None = "/api/quit", name: str | None = None, log: Logger | None = None, command: Sequence[str] | None = None, plain_ping: bool = False)</code></p>
 <p>Launches and talks to a local <a href="../architecture/reusable-parts.html#companion-app-checklist">companion app</a>. Relies on its convention: the ping answers <code>{"app": "&lt;name&gt;", ...}</code> (<code>name</code> defaults to <code>module</code>), and a JSON <code>POST</code> to <code>quit</code> quits it.</p>
+<p><strong>An app outside the convention</strong> (built 2026-11-10 for the job UI, a script of another project): <code>command</code> is its whole command line in place of <code>python -m &lt;module&gt;</code> (<code>args</code> follow it; <code>code_changed()</code> is then always False, so a reload hands it over); <code>plain_ping=True</code> takes any 200 answer from the ping path as alive, with no name check (<code>last_answer</code> is <code>{"status": 200}</code>); <code>quit=None</code> means it has no quit call: <code>stop</code> ends the process it launched at once and leaves one it found running. <code>CompanionHandover</code> passes these on, and its handover key includes <code>command</code>.</p>
 <table>
 <thead>
 <tr>
@@ -149,11 +154,11 @@
 <tbody>
 <tr>
 <td><code>async ping() -&gt; bool</code></td>
-<td>Whether the app answers its ping with its own name (1 s timeout)</td>
+<td>Whether the app answers its ping with its own name (1 s timeout); with <code>plain_ping</code>, any 200</td>
 </tr>
 <tr>
 <td><code>async ensure_running() -&gt; bool</code></td>
-<td>Ping; if nothing answers, launch <code>python -m &lt;module&gt; &lt;args&gt;</code> with no console and poll every 100 ms until <code>start_timeout</code>. Returns whether it launched it now. Raises <code>OSError</code> if the process exits early, <code>TimeoutError</code> if it never answers</td>
+<td>Ping; if nothing answers, launch <code>python -m &lt;module&gt; &lt;args&gt;</code> (or <code>&lt;command&gt; &lt;args&gt;</code>) with no console and poll every 100 ms until <code>start_timeout</code>. Returns whether it launched it now. Raises <code>OSError</code> if the process exits early, <code>TimeoutError</code> if it never answers</td>
 </tr>
 <tr>
 <td><code>async call(method, path, body=None, *, timeout=10) -&gt; dict</code></td>
@@ -195,7 +200,7 @@ await app.stop()
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/app_kit/companion.py</code></p>
 <h2 id="local_guard"><code>local_guard</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>voice_service</code> (<code>server.py</code>: the <code>LocalOnly</code> guard on every request and WebSocket; <code>__main__.py</code>: refuses a non-local <code>--host</code>), HTML viewer app (<code>viewer.py</code>: every request; <code>ViewerServer</code> refuses a non-local host) · built 2026-11-08</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_service</code> (<code>server.py</code>: the <code>LocalOnly</code> guard on every request and WebSocket; <code>__main__.py</code>: refuses a non-local <code>--host</code>), HTML viewer app (<code>viewer.py</code>: every request; <code>ViewerServer</code> refuses a non-local host), the CV Tool app (<code>cv_tool/server.py</code>: every request, refuses a non-local host), the <code>cv</code> module (<code>LOOPBACK_HOSTS</code> for <code>tool.host</code>) · built 2026-11-08</p>
 <p><code>from app_kit import LOOPBACK_HOSTS, require_loopback, local_request</code></p>
 <p>Refuse other hosts and other origins: the check every local <a href="../architecture/reusable-parts.html#companion-app-checklist">companion app</a> uses. A web page you visit can reach a local app by DNS rebinding (its own name pointing at <code>127.0.0.1</code>, so the <code>Host</code> header names another site) or as a cross-site request or WebSocket (the browser sends its <code>Origin</code>); these refuse both. Programs that aren't browsers send no <code>Origin</code>, so they pass with a local <code>Host</code>.</p>
 <table>

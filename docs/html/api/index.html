@@ -19,9 +19,9 @@
 <h2 id="reusable-parts">♻ Reusable parts</h2>
 <p><strong>Check the <a href="reusable.html">reusable parts index</a> before writing a helper.</strong> One line per part (name, kind, purpose, where, used by), sorted by where it lives:</p>
 <ul>
-<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code> (with <code>request_set</code>), <code>Manifest</code>, the Event Bus, <code>AccessItem</code> and the access cards (<code>PermissionRequested</code>, <code>AnswerPermissionRequest</code>, <code>PermissionChanged</code>), <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code> (with <code>request_approval</code>), <code>IAgentNames</code>, <code>ModuleContext.withdraw</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>SetFocus</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>AgentNotice</code>, <code>QuestionKind</code> (with <code>RISKY_PREFIX</code>), <code>MAX_SNIPS</code>, <code>PASTED_FILE</code>, the Hub's menu, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
+<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code> (with <code>request_set</code>), <code>Manifest</code>, the Event Bus, <code>AccessItem</code> and the access cards (<code>PermissionRequested</code>, <code>AnswerPermissionRequest</code>, <code>PermissionChanged</code>), <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code> (with <code>request_approval</code>), <code>AgentState</code>, <code>DeliverMessage</code>, <code>IAgentNames</code>, <code>ModuleContext.withdraw</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>SetFocus</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>AgentNotice</code>, <code>QuestionKind</code> (with <code>RISKY_PREFIX</code>), <code>MAX_SNIPS</code>, <code>PASTED_FILE</code>, the Hub's menu, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
 <li><strong>Voice service</strong> (<code>voice_service</code>): the <code>/ws/listen</code> messages (<code>protocol</code>); inside the service, <code>SttEngine</code> / <code>SttStream</code>, <code>AudioSource</code> / <code>FakeSource</code> / <code>FileSource</code>, and <code>transcribe</code> / <code>transcribe_file</code></li>
-<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code>, <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>AgentKit</code> (with <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>), <code>AgentProfile</code>, <code>manual_claude_mode</code>, <code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>MilestoneFeed</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>show_page</code>, <code>mcp_door</code>, <code>check_agent_id</code>, <code>free_agent_id</code></li>
+<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code> (with <code>set_context</code>), <code>default_context</code>, <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>AgentKit</code> (with <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>), <code>AgentProfile</code>, <code>manual_claude_mode</code>, <code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>MilestoneFeed</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>show_page</code>, <code>mcp_door</code>, <code>check_agent_id</code>, <code>free_agent_id</code></li>
 <li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code> (with <code>window_profile</code>), <code>load_layered</code>, <code>local_path</code>, <code>merge</code>, <code>module_docs</code>, <code>CompanionApp</code>, <code>CompanionHandover</code>, <code>local_guard</code></li>
 </ul>
 <h2 id="groups">Groups</h2>
@@ -64,7 +64,7 @@
 <tr>
 <td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a></td>
 <td>interface</td>
-<td>♻ <code>has</code> / <code>request</code> a permission, <code>request_set</code> a whole access list (<code>ModulePermissions</code>); forwards to the core's permissions handler</td>
+<td>♻ <code>has</code> / <code>request</code> a permission, <code>request_set</code> a whole access list, <code>granted</code> / <code>ask</code> one item for an agent (<code>ModulePermissions</code>); forwards to the core's permissions handler</td>
 </tr>
 <tr>
 <td><a href="modules.html#contract"><code>Contract</code></a></td>
@@ -147,7 +147,7 @@
 <tr>
 <td><a href="messaging.html#accesskind"><code>AccessKind</code></a>, <a href="messaging.html#accessitem"><code>AccessItem</code></a>, <a href="messaging.html#accessnote"><code>AccessNote</code></a></td>
 <td>data</td>
-<td>♻ One line of an access list (<code>workspace</code>, <code>read</code>, <code>write</code>, <code>python</code>, <code>command</code>, <code>chrome</code>) and a card's notes</td>
+<td>♻ One line of an access list (<code>workspace</code>, <code>read</code>, <code>write</code>, <code>python</code>, <code>command</code>, <code>chrome</code>, <code>message</code>) and a card's notes</td>
 </tr>
 <tr>
 <td><a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code>, <code>AccessPending</code></a></td>
@@ -162,7 +162,7 @@
 <tr>
 <td><a href="messaging.html#answerpermissionrequest"><code>AnswerPermissionRequest</code></a></td>
 <td>command</td>
-<td>♻ Your answer to a card; <code>keep</code> is the ticked items</td>
+<td>♻ Your answer to a card; <code>keep</code> is the ticked items, <code>remember=False</code> a message card's Allow once</td>
 </tr>
 <tr>
 <td><a href="messaging.html#permissionchanged"><code>PermissionChanged</code></a></td>
@@ -336,12 +336,17 @@
 <tr>
 <td><a href="agents.html#task"><code>Task</code></a></td>
 <td>data</td>
-<td>A unit of work: id, text, context</td>
+<td>A unit of work: id, text, context, <code>question_key</code> (an answer to its question)</td>
+</tr>
+<tr>
+<td><a href="agents.html#agentstate"><code>AgentState</code></a></td>
+<td>enum</td>
+<td>♻ <code>active</code> (in a turn) or <code>idle</code> (takes work, whatever questions it has open)</td>
 </tr>
 <tr>
 <td><a href="agents.html#agentinfo"><code>AgentInfo</code></a></td>
 <td>data</td>
-<td>An agent's id, description, capabilities, <code>busy</code> (has a task), <code>working</code> (in a turn now), <code>permission_mode</code></td>
+<td>An agent's id, description, capabilities, <code>state</code> (<code>AgentState</code>; <code>.active</code>), <code>permission_mode</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#taskinfo"><code>TaskInfo</code></a></td>
@@ -356,7 +361,7 @@
 <tr>
 <td><a href="agents.html#taskstate"><code>TaskState</code></a></td>
 <td>enum</td>
-<td><code>running</code>, <code>paused</code>, <code>waiting_for_input</code>, <code>done</code>, <code>failed</code>, <code>cancelled</code></td>
+<td><code>active</code>, <code>idle</code> (stopped, or holding its agent's question), <code>done</code>, <code>failed</code>, <code>cancelled</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#permissionmode"><code>PermissionMode</code></a></td>
@@ -366,12 +371,17 @@
 <tr>
 <td><a href="agents.html#listagents"><code>ListAgents</code></a></td>
 <td>command</td>
-<td>Every agent and whether it's busy or working</td>
+<td>Every agent and whether it's active or idle</td>
 </tr>
 <tr>
 <td><a href="agents.html#starttask"><code>StartTask</code></a></td>
 <td>command</td>
 <td>Give work to a free agent</td>
+</tr>
+<tr>
+<td><a href="agents.html#delivermessage"><code>DeliverMessage</code></a></td>
+<td>command</td>
+<td>♻ A message for an agent, never into a turn: its open task, a new task, or <code>pending</code> until it's free</td>
 </tr>
 <tr>
 <td><a href="agents.html#gettaskstatus"><code>GetTaskStatus</code></a></td>
@@ -381,7 +391,7 @@
 <tr>
 <td><a href="agents.html#sendtotask"><code>SendToTask</code></a></td>
 <td>command</td>
-<td>Question, instruction, or answer; interrupts, then continues unless paused</td>
+<td>Question, instruction, or answer; interrupts, then continues unless paused. Into a task holding a question: the answer, the same task given back</td>
 </tr>
 <tr>
 <td><a href="agents.html#canceltask"><code>CancelTask</code></a></td>
@@ -436,7 +446,7 @@
 <tr>
 <td><a href="agents.html#agentstatechanged"><code>AgentStateChanged</code></a></td>
 <td>event</td>
-<td>An agent's <code>busy</code> or <code>working</code> changed (for UIs)</td>
+<td>An agent's <code>state</code> (active or idle) changed (for UIs)</td>
 </tr>
 <tr>
 <td><a href="agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a></td>
@@ -612,7 +622,7 @@
 <tr>
 <td><a href="app_kit.html#window"><code>window</code></a></td>
 <td>functions</td>
-<td>♻ Edge app window: <code>open_app_window</code>, <code>close_app_windows</code>, <code>raise_window</code>, <code>devtools_port</code></td>
+<td>♻ Edge app window: <code>open_app_window</code>, <code>close_app_windows</code>, <code>raise_window</code>, <code>flash_window</code>, <code>devtools_port</code></td>
 </tr>
 <tr>
 <td><a href="app_kit.html#load_layered"><code>load_layered</code></a></td>
