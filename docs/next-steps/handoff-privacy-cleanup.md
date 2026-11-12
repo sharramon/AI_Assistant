@@ -17,7 +17,26 @@
   - ruff clean; full suite: all passed (798).
   - Design note: the prefix is module-level state in `cv/data.py` (set at init) because `CvRequest`'s validator has no settings; a reload re-imports and sets it again.
 
-## Next: the module docs move (answers 2 and 4), its own session
+## Module docs move: done (2026-11-12), commits "module docs move" and "docs rebuilt"
+
+Finished in a second session: the docs-html skill updated (central `SECTIONS`, tabs and groups from `docs.toml`, a new module's own `docs/` folder), wording checked (no "central", no `docs/modules` outside next-steps history), docs built (72 pages, every module's `tools.md` generated, the library split into Core modules and Add-ons), ruff clean, full suite 800 passed. Architecture check: every module's docs are found by folder, the build knows no module by name, the grouping lives only in each `docs.toml`; the layout and groups are written in the module library's "Module pages" section. Left as is: `config/voice_service.toml` still names the old `docs/architecture/voice.md` in a comment (config untouched); the `app_kit.module_docs` change (`group` key) needs an app restart to reach the running app. Nothing pushed.
+
+**What the first session did (in the same commit):**
+
+- `scratch/move_module_docs.py` (gitignored, one-off, already run; don't run again) split each `docs/modules/<id>.md` into `src/assistant/modules/<id>/docs/README.md` (Purpose, Wrapper, Config, Code and tests + a `docs/` line) and `architecture.md` (Interface, Owns and launches, Inner workings, Shown, Planned); moved `architecture/voice.md` → `voice_in/docs/voice-service.md`, `architecture/html-viewer.md` → `html_viewer/docs/viewer-app.md`, `job-project/README.md` → `job_search/docs/job-project.md`; wrote every module's `docs.toml` (`group`, `tab`, `pages`, `related`); rewrote every relative link (anchors to the right split page) in docs, next-steps, archive, next-steps `*.html`, root README/CLAUDE.md, `.claude/**/*.md`; replaced plain-text old paths in `src/**/*.py`. `docs/modules/` and `docs/job-project/` are deleted. `docs/modules/README.md`'s template is now the "Module pages" section of `architecture/module-library.md`.
+- Tabs: core group first (Agents: agent_hub, main_assistant, talker, task_agents, usage; Terminals and temp UI: assistant_view, console_io, temp_ui; voice_in), then add-ons (cv, echo_orchestrator, html_viewer, job_search, voice_notes, each its own tab). A separator before each group.
+- `scripts/build_docs.py`: `CENTRAL_MODULES`, `MODULE_TABS`, `TAB_KEYS`, `PROJECT_TABS`, `MODULE_INDEX` removed; `SECTIONS = (architecture, agents, api)`; `GROUPS`; `module_tabs()` from docs.toml only, sorted by group; `check_module_tabs()` requires a docs folder per module package, a valid `group`, no mixed-group tab; `nav_data` one sidebar group per module; `library_block()` writes "### Core modules" and "### Add-ons" tables.
+- `app_kit/module_docs.py`: `group` in `SETTINGS_KEYS` and the docstring (shared helper: say in the summary an app restart picks it up). `docs/api/app_kit.md` docs.toml table has `group`. cv and echo `docs.toml` have `group = "add-on"` (echo's old tab dropped). `job_search/module.py` docstring path; `next-steps/extension-marketplace.md` row.
+- Tests rewritten: `tests/test_module_docs.py` (groups, no docs/modules, job project in job_search tab, library rows per group) and `tests/test_module_layout.py` (no `NOT_MOVED_YET`/central test; bad-docs.toml cases with `group`).
+
+**Next steps it listed (all done):**
+
+1. Update `.claude/skills/docs-html/SKILL.md` lines 12-21 (SECTIONS, tabs from docs.toml with group, a new module = its own `docs/` folder with the three pages and `docs.toml`; no `docs/modules/`, no `MODULE_TABS`, no Job project tab).
+2. Check the new pages' wording: the "Planned" lines no longer say "central"; titles of the architecture pages (`# <id>: architecture`); `grep` for leftover `docs/modules`, "central module", "Stand-ins and terminals" outside next-steps history.
+3. Run `.\.venv\Scripts\python scripts\build_docs.py` (it generates each new `tools.md` and the grouped library), then ruff and the full suite; fix failures (hand loops to the `debugger` subagent).
+4. Architecture check; commit "module docs move" then "docs rebuilt". No push. Mention: `config/voice_service.toml` still names the old `docs/architecture/voice.md` in a comment (config left untouched); app restart needed for the `app_kit` change.
+
+## The plan for the move (answers 2 and 4)
 
 **The user's decisions (2026-11-12):**
 

@@ -1,0 +1,8 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+# No `tab`: its tab is named after its id.
+group = "core"
+pages = ["voice-service.md"]
+[related]
+"Voice messages (API)" = "api/messaging.md#voice"
+"Voice service protocol (API)" = "api/messaging.md#the-voice-service-protocol"
+"Voice service parts (API)" = "api/messaging.md#the-voice-services-parts"

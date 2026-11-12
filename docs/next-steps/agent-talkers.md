@@ -6,7 +6,7 @@
 
 **Why:** today one Talker sits in front of every agent. The job agent's and the helpers' updates, questions and cards all land in the one chat (named, `[Task update: reply from job_search_agent]`), and while a helper has the focus the same Talker passes your words to it. With several agents working, one chat mixes all their conversations, and the one Talker session carries all of them in its context.
 
-**Touches:** `talker` (most of the work), `agent_hub` (held ends, `hub.send` to a named agent), `temp_ui` (a chat per tab), `usage` (a row per Talker), two contract fields; docs: [agents](../architecture/agents.md), [agents: code layout](../architecture/agents-code.md), [runtime](../agents/runtime.md), the module pages [talker](../modules/talker.md), [agent_hub](../modules/agent_hub.md), [temp_ui](../modules/temp_ui.md), the [overview](../architecture/README.md) and the API pages for the changed types.
+**Touches:** `talker` (most of the work), `agent_hub` (held ends, `hub.send` to a named agent), `temp_ui` (a chat per tab), `usage` (a row per Talker), two contract fields; docs: [agents](../architecture/agents.md), [agents: code layout](../architecture/agents-code.md), [runtime](../agents/runtime.md), the module pages [talker](../../src/assistant/modules/talker/docs/README.md), [agent_hub](../../src/assistant/modules/agent_hub/docs/README.md), [temp_ui](../../src/assistant/modules/temp_ui/docs/README.md), the [overview](../architecture/README.md) and the API pages for the changed types.
 
 ## The design
 
@@ -114,7 +114,7 @@ Answers 1–3, 5 and 6 as recommended; answer 4 changed by the user.
 
 ## Docs updated as planned (2026-11-05)
 
-Every picture that showed one Talker in front of all agents now shows the pairs, marked **planned** (purple, dashed), with a callout that the text describes what's built until then: the [overview](../architecture/README.md) diagram; on [agents](../architecture/agents.md) "The idea", the switchboard, the two modes and below-the-Hub pictures, and planned notes in the Mode A/B and workflow text; [agents: code layout](../architecture/agents-code.md) with its layers picture (`TalkerSession ×N`) and the three code graphs; the module pages [talker](../modules/talker.md), [agent_hub](../modules/agent_hub.md), [temp_ui](../modules/temp_ui.md); and [runtime](../agents/runtime.md) (what runs, messaging, classes, the Talker on its own). When the build is done, these flip from planned to built.
+Every picture that showed one Talker in front of all agents now shows the pairs, marked **planned** (purple, dashed), with a callout that the text describes what's built until then: the [overview](../architecture/README.md) diagram; on [agents](../architecture/agents.md) "The idea", the switchboard, the two modes and below-the-Hub pictures, and planned notes in the Mode A/B and workflow text; [agents: code layout](../architecture/agents-code.md) with its layers picture (`TalkerSession ×N`) and the three code graphs; the module pages [talker](../../src/assistant/modules/talker/docs/README.md), [agent_hub](../../src/assistant/modules/agent_hub/docs/README.md), [temp_ui](../../src/assistant/modules/temp_ui/docs/README.md); and [runtime](../agents/runtime.md) (what runs, messaging, classes, the Talker on its own). When the build is done, these flip from planned to built.
 
 <details><summary>The handoff's plan for these updates (done)</summary>
 

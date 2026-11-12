@@ -1,8 +1,8 @@
 # Highlight for viewer
 
-> **Status: done (2026-10-27).** Approved with the recommended answers: keep old highlights until cleared, no labels, page text only. Built as planned; `pytest` and `ruff` pass, and it was checked in a real Edge window (mark drawn, scrolled to, Clear and Clear all, editing a highlighted paragraph). One change: the scroll target is part of the tab's state (`focus`), not an event, so a viewer window that opens only for the highlight still scrolls to it. As built: [HTML viewer](../../architecture/html-viewer.md#as-built-v1).
+> **Status: done (2026-10-27).** Approved with the recommended answers: keep old highlights until cleared, no labels, page text only. Built as planned; `pytest` and `ruff` pass, and it was checked in a real Edge window (mark drawn, scrolled to, Clear and Clear all, editing a highlighted paragraph). One change: the scroll target is part of the tab's state (`focus`), not an event, so a viewer window that opens only for the highlight still scrolls to it. As built: [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md#as-built-v1).
 
-**Asked:** "highlight for viewer": the AI opens the relevant HTML file in the viewer and highlights the part of the page it's talking about. You clear a highlight by clicking it and choosing **Clear**. It's the **Point at a section** item under Later in the [HTML viewer](../../architecture/html-viewer.md#scope) scope.
+**Asked:** "highlight for viewer": the AI opens the relevant HTML file in the viewer and highlights the part of the page it's talking about. You clear a highlight by clicking it and choosing **Clear**. It's the **Point at a section** item under Later in the [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md#scope) scope.
 
 **Why:** "see the third paragraph under Parts" makes you hunt. A highlight shows you right away.
 
@@ -10,7 +10,7 @@
 - `html_viewer`: a `viewer.highlight` tool in `module.py`; highlight state per tab and `POST /api/highlight`, `/api/clear` in `viewer.py`; drawing, scrolling and the Clear popup in `page.html`.
 - The `<<SHOW: ...>>` tag (Main Assistant and Talker) gets an optional target.
 - `talker` and `main_assistant` prompts; the Talker's open-tabs tally lists highlights.
-- Docs: [HTML viewer](../../architecture/html-viewer.md), [Tools offered today](../../api/tools.md#tools-offered-today).
+- Docs: [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md), [Tools offered today](../../api/tools.md#tools-offered-today).
 
 ## Approach
 

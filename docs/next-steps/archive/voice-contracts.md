@@ -11,10 +11,10 @@
 - `src/assistant/contracts/__init__.py`: export them.
 - `src/voice_service/__init__.py` (new, empty) and `src/voice_service/protocol.py` (new): the WebSocket protocol's messages. See open question 1.
 - `tests/test_voice_contracts.py` (new).
-- Docs: [Messaging API](../../api/messaging.md) (four entries, plus the protocol), the [API index](../../api/README.md), the [reusable parts index](../../api/reusable.md), [Voice](../../architecture/voice.md) (status line; `VoiceState.state` becomes `ListeningState`), and [Next steps](../README.md) (step 1 done; step 3's text still says "copy `_ensure_running`, log its own warning", which I'd fix to say `CompanionApp` and `ctx.permissions`, as already decided). Then rebuild.
+- Docs: [Messaging API](../../api/messaging.md) (four entries, plus the protocol), the [API index](../../api/README.md), the [reusable parts index](../../api/reusable.md), [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md) (status line; `VoiceState.state` becomes `ListeningState`), and [Next steps](../README.md) (step 1 done; step 3's text still says "copy `_ensure_running`, log its own warning", which I'd fix to say `CompanionApp` and `ctx.permissions`, as already decided). Then rebuild.
 - No module, config, or `pyproject.toml` changes. Nothing uses the new types yet.
 
-**Approach:** the fields are the ones already approved in [the voice_in module](../../architecture/voice.md#the-voice_in-module), as frozen pydantic models like every other message.
+**Approach:** the fields are the ones already approved in [the voice_in module](../../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module), as frozen pydantic models like every other message.
 
 ```python
 # assistant/contracts/voice.py
@@ -63,7 +63,7 @@ def dump(msg) -> str                                         # one JSON text fra
 
 **Tests** (`tests/test_voice_contracts.py`, no mic, no model, no network):
 - The contracts: defaults (`send_as_input=True`, `final=False`), frozen, `ListeningState` has exactly the four values, a bad `state` rejected, a plain `"listening"` accepted and turned into `ListeningState.LISTENING`, all exported from `assistant.contracts`.
-- The protocol: each message dumps and parses back unchanged; JSON matches the [protocol table](../../architecture/voice.md#the-protocol) exactly (`{"type": "start"}`, etc.); unknown `type`, bad JSON, or a missing field raises `ProtocolError`; a client parser refuses service messages and the reverse; the error codes are exactly the five listed.
+- The protocol: each message dumps and parses back unchanged; JSON matches the [protocol table](../../../src/assistant/modules/voice_in/docs/voice-service.md#the-protocol) exactly (`{"type": "start"}`, etc.); unknown `type`, bad JSON, or a missing field raises `ProtocolError`; a client parser refuses service messages and the reverse; the error codes are exactly the five listed.
 - `voice_service.protocol` imports nothing from `assistant` (checked in the test).
 - Then all of `pytest` and `ruff`.
 
@@ -76,6 +76,6 @@ def dump(msg) -> str                                         # one JSON text fra
 
 **Decided by you (2026-11-03):**
 1. **The protocol's shapes live in `voice_service/protocol.py`**, built now, and `voice_in` imports that one file, so the service and the client share one definition and can't drift. `voice_service/__init__.py` stays empty, so the import doesn't pull in FastAPI or sherpa-onnx. **Approved.**
-2. **The voice state is a named enum, `ListeningState`** (a `StrEnum`, like `TaskState`), not the design's `Literal` of plain strings: these are real states, and an enum is easier to edit later. The JSON is unchanged (`"listening"` etc.). [Voice](../../architecture/voice.md#the-voice_in-module) and the Messaging API get updated to match. **Changed as you asked.**
+2. **The voice state is a named enum, `ListeningState`** (a `StrEnum`, like `TaskState`), not the design's `Literal` of plain strings: these are real states, and an enum is easier to edit later. The JSON is unchanged (`"listening"` etc.). [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module) and the Messaging API get updated to match. **Changed as you asked.**
 
 **Open questions:** none.

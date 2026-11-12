@@ -1,8 +1,8 @@
 # Viewer edits write back to the Markdown
 
-> **Status: built (waiting on you), 2026-10-27.** Approved as written, with Q1 (match by text) and Q2 (no rebuild from the viewer). Built as planned; `pytest` and `ruff` pass. One addition: a change at the very start or end of a block goes at the block's edge, outside any markup. `markdown` is now a runtime dependency (the viewer renders blocks with it). A dry run on the architecture overview page mapped 66 of 77 text blocks; the 11 others are repeated table cells ("core", "API"), which it refuses as planned. Not yet tried by hand in the real window. As built: [HTML viewer](../architecture/html-viewer.md#as-built-v1).
+> **Status: built (waiting on you), 2026-10-27.** Approved as written, with Q1 (match by text) and Q2 (no rebuild from the viewer). Built as planned; `pytest` and `ruff` pass. One addition: a change at the very start or end of a block goes at the block's edge, outside any markup. `markdown` is now a runtime dependency (the viewer renders blocks with it). A dry run on the architecture overview page mapped 66 of 77 text blocks; the 11 others are repeated table cells ("core", "API"), which it refuses as planned. Not yet tried by hand in the real window. As built: [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md#as-built-v1).
 
-**Asked:** "I thought I asked you to make it so that the text edits will overwrite the markdown." Saving a text edit in a built docs page should change its source Markdown too, so a docs rebuild keeps it. You did ask before: it's recorded as a **Later** item, "Write-back to Markdown for built pages", in the [base HTML viewer](archive/base-html-viewer.md#scope) note and in the [HTML viewer](../architecture/html-viewer.md#scope) scope. It was left out of v1.
+**Asked:** "I thought I asked you to make it so that the text edits will overwrite the markdown." Saving a text edit in a built docs page should change its source Markdown too, so a docs rebuild keeps it. You did ask before: it's recorded as a **Later** item, "Write-back to Markdown for built pages", in the [base HTML viewer](archive/base-html-viewer.md#scope) note and in the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md#scope) scope. It was left out of v1.
 
 **Why:** today saving a page in `docs/html` or `docs/html-next-steps` only changes the HTML and warns "The next docs rebuild will overwrite this edit." The edit is lost at the next rebuild.
 
@@ -10,7 +10,7 @@
 - `src/assistant/modules/html_viewer/`: the save path in `viewer.py`, plus a new `markdown_source.py` (find the source file, map a block, rewrite its lines).
 - `page.html`: the new save message.
 - `tests/test_html_viewer.py`: write-back tests against small Markdown files.
-- Docs: [HTML viewer](../architecture/html-viewer.md) (scope, decided, as built).
+- Docs: [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md) (scope, decided, as built).
 - No change to `scripts/build_docs.py`.
 
 ## Approach

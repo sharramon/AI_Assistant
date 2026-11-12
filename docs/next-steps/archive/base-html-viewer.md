@@ -1,10 +1,10 @@
 # Base HTML viewer
 
-> **Status: done (2026-10-27).** The user approved the note, answered the open question (yes, move the window code to `assistant.infra`), and added: HTML files opened through the chat open in the viewer. Built as scoped; `ruff` and `pytest` pass. Not yet tried by hand in the real window. What was built and where it differs from the plan: [As built (v1)](../../architecture/html-viewer.md#as-built-v1).
+> **Status: done (2026-10-27).** The user approved the note, answered the open question (yes, move the window code to `assistant.infra`), and added: HTML files opened through the chat open in the viewer. Built as scoped; `ruff` and `pytest` pass. Not yet tried by hand in the real window. What was built and where it differs from the plan: [As built (v1)](../../../src/assistant/modules/html_viewer/docs/viewer-app.md#as-built-v1).
 
 **Asked:** "create a base html viewer that can view the html and make edits to the html." Earlier: double-click to edit and save, undo with Ctrl+Z *and* an Undo button on top, and these answers (session `2026-10-26_03-49-08_html-viewer-according-to-docs`): open files from **any folder**; an **interactive button** in the chat, not a plain link; clicking a file that's already open **switches to its tab, and reloads it if edits were made**; highlight-to-ask is wanted, **after the architecture is settled**; the viewer should be **its own separate window/program with hooks to the AI**, which the assistant treats like a module (starts it, shuts it down when the app shuts down).
 
-**Why:** the first, smallest piece of the [HTML viewer](../../architecture/html-viewer.md) that's useful on its own: see a page, fix it in place, save, undo. Everything later (highlight-to-ask, point, snip, Markdown) plugs into the same state, commands, and view.
+**Why:** the first, smallest piece of the [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md) that's useful on its own: see a page, fix it in place, save, undo. Everything later (highlight-to-ask, point, snip, Markdown) plugs into the same state, commands, and view.
 
 **Touches:**
 - New module `src/assistant/modules/html_viewer/`: `module.py` (starts and stops the viewer, relays its events), the viewer program (stdlib HTTP server), `page.html` (tabs, toolbar, the edit tool, the undo stack), with config `[modules.html_viewer]`.
@@ -12,7 +12,7 @@
 - The Edge app-window helper, moved from `temp_ui` to `assistant.infra`.
 - New event `ViewerTabsChanged` in `src/assistant/contracts/`.
 - Tests against the viewer's HTTP API (open, save, the temporary copy, the warning for generated folders).
-- Docs: [HTML viewer](../../architecture/html-viewer.md) (answers recorded, status), [runtime](../../agents/runtime.md), the [API](../../api/README.md), and the module list in the [overview](../../architecture/README.md#parts).
+- Docs: [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md) (answers recorded, status), [runtime](../../agents/runtime.md), the [API](../../api/README.md), and the module list in the [overview](../../architecture/README.md#parts).
 
 ## Scope
 
@@ -27,7 +27,7 @@
 
 ## Approach
 
-Built on the [state, commands, view](../../architecture/html-viewer.md#architecture-state-commands-view) design, cut down to what the base needs:
+Built on the [state, commands, view](../../../src/assistant/modules/html_viewer/docs/viewer-app.md#architecture-state-commands-view) design, cut down to what the base needs:
 
 - **Document state:** each tab holds its file's content and the current selection.
 - **View:** the tab's frame draws the state; it never changes it directly.

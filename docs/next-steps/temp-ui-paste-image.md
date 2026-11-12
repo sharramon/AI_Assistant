@@ -8,7 +8,7 @@
 
 **Why:** today the only way to show the assistant an image is a snip from the HTML viewer. A screenshot of the temp UI itself (or anything else) can't get in.
 
-**Touches:** `temp_ui` only (`page.html`, `module.py`), plus maybe one line in `talker` (question 2). No contract, core or config change, so it loads with `RELOAD: temp_ui` (and `talker`), no restart. Docs: [temp_ui](../modules/temp_ui.md) (its **Snips** paragraph), [talker](../modules/talker.md) if question 2 is yes, the snips line in the [runtime page](../agents/runtime.md#temp-ui). Tests: `tests/test_temp_ui.py`.
+**Touches:** `temp_ui` only (`page.html`, `module.py`), plus maybe one line in `talker` (question 2). No contract, core or config change, so it loads with `RELOAD: temp_ui` (and `talker`), no restart. Docs: [temp_ui](../../src/assistant/modules/temp_ui/docs/README.md) (its **Snips** paragraph), [talker](../../src/assistant/modules/talker/docs/README.md) if question 2 is yes, the snips line in the [runtime page](../agents/runtime.md#temp-ui). Tests: `tests/test_temp_ui.py`.
 
 **Approach:** a pasted image becomes a snip, so everything after the paste is the existing snip path ([snip-send](temp-ui-snip-send.md)).
 1. **Page:** a `paste` listener on the chat box. If the clipboard holds an image, the page posts it (`POST /paste-image`, the PNG bytes) and the text paste is left alone. No thumbnail is drawn on the page side: it arrives over the event stream like a viewer snip.

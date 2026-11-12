@@ -1,8 +1,8 @@
 # Snip for viewer
 
-> **Status: done (2026-10-27).** Approved with the recommended answers: Edge's own screenshot (DevTools), up to 3 snips per message, a thumbnail in the chat before sending. Built as planned; `pytest` and `ruff` pass. Checked in a real Edge window (button, drag, screenshot, nearest heading) and with a real `claude` session, which described the snipped image correctly. The heading skips sidebars and sticky bars. As built: [HTML viewer](../../architecture/html-viewer.md#as-built-v1).
+> **Status: done (2026-10-27).** Approved with the recommended answers: Edge's own screenshot (DevTools), up to 3 snips per message, a thumbnail in the chat before sending. Built as planned; `pytest` and `ruff` pass. Checked in a real Edge window (button, drag, screenshot, nearest heading) and with a real `claude` session, which described the snipped image correctly. The heading skips sidebars and sticky bars. As built: [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md#as-built-v1).
 
-**Asked:** "snip for viewer": select a rectangular region of the page shown in the HTML viewer, and the image goes to the Talker, so you can just say "what is this?" and it answers about the image. It's the **Snip** item under Later in the [HTML viewer](../../architecture/html-viewer.md#scope) scope.
+**Asked:** "snip for viewer": select a rectangular region of the page shown in the HTML viewer, and the image goes to the Talker, so you can just say "what is this?" and it answers about the image. It's the **Snip** item under Later in the [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md#scope) scope.
 
 **Why:** pointing at a diagram or a part of a page in words is slow. A snip shows the Talker exactly what you mean.
 
@@ -11,7 +11,7 @@
 - A new event `ViewerClip` in `src/assistant/contracts/` (already named in the viewer design).
 - `infra/claude_session.py`: `send` can carry images as well as text (stream-json supports image content blocks).
 - `talker`: attaches the snip to your next message; its prompt says what a snip is.
-- Docs: [HTML viewer](../../architecture/html-viewer.md), the [Messaging API](../../api/messaging.md), [runtime](../../agents/runtime.md).
+- Docs: [HTML viewer](../../../src/assistant/modules/html_viewer/docs/viewer-app.md), the [Messaging API](../../api/messaging.md), [runtime](../../agents/runtime.md).
 
 ## Approach
 

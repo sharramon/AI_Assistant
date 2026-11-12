@@ -151,40 +151,22 @@ def test_every_modules_tools_page_is_current():
             f"{module_id}: run scripts/build_docs.py"
 
 
-# The modules whose docs are still one central page (docs/modules/<id>.md). Each leaves this list when
-# it moves into its own folder with the three standard pages; the list only shrinks. The central
-# modules (build_docs.CENTRAL_MODULES: part of the main app and its window) are exempt for good and
-# aren't on it.
-NOT_MOVED_YET = {"job_search", "voice_in", "voice_notes", "html_viewer"}
-
-
 def test_every_module_has_the_three_standard_pages():
+    # Every module, the core ones too (user, 2026-11-12): no exemptions.
     docs = build_docs()
     folders = docs.module_doc_folders()
     ids = {c.manifest.id for c in docs.module_classes()} | set(folders)
-    exempt = NOT_MOVED_YET | docs.CENTRAL_MODULES
-    missing = {m: [p for p in STANDARD_PAGES if not (folders.get(m, ROOT / "-") / p).is_file()]
-               for m in sorted(ids - exempt)}
+    missing = {m: [p for p in STANDARD_PAGES if not (folders.get(m, ROOT / "-") / p).is_file()] for m in sorted(ids)}
     assert not {m: p for m, p in missing.items() if p}, "every module has overview, architecture and tools"
-    assert not NOT_MOVED_YET & set(folders), "a moved module leaves NOT_MOVED_YET"
-    assert NOT_MOVED_YET <= ids, "NOT_MOVED_YET names a module that doesn't exist"
-    assert not NOT_MOVED_YET & docs.CENTRAL_MODULES, "a central module isn't waiting to move"
-
-
-def test_central_modules_keep_their_central_page():
-    docs = build_docs()
-    assert docs.CENTRAL_MODULES == {"agent_hub", "talker", "main_assistant", "task_agents", "usage",
-                                    "console_io", "assistant_view", "temp_ui"}
-    assert docs.CENTRAL_MODULES <= {c.manifest.id for c in docs.module_classes()}
-    assert not docs.CENTRAL_MODULES & set(docs.module_doc_folders()), "central docs stay in docs/modules/"
-    assert all((ROOT / "docs" / "modules" / f"{m}.md").is_file() for m in docs.CENTRAL_MODULES)
 
 
 @pytest.mark.parametrize("settings, problem", [
-    ('colour = "red"\n', "unknown keys ['colour']"),
-    ('frame = true\n', "unknown keys ['frame']"),  # every HTML page is framed; there's nothing to set
-    ('pages = ["gone.md"]\n', "page gone.md not found"),
-    ('', "has no architecture.md"),
+    ('group = "core"\ncolour = "red"\n', "unknown keys ['colour']"),
+    ('group = "core"\nframe = true\n', "unknown keys ['frame']"),  # every HTML page is framed; nothing to set
+    ('group = "core"\npages = ["gone.md"]\n', "page gone.md not found"),
+    ('group = "core"\n', "has no architecture.md"),
+    ('', "group must be one of 'core', 'add-on', not None"),
+    ('group = "extra"\n', "group must be one of 'core', 'add-on', not 'extra'"),
 ])
 def test_the_build_refuses_a_bad_docs_toml(tmp_path, monkeypatch, settings, problem):
     docs = build_docs()

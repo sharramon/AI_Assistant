@@ -1,6 +1,6 @@
 # Voice: two passes (live text while you talk, whisper cleans it piece by piece)
 
-> **Status: built (waiting on you), 2026-11-03.** Loaded at the relaunch of 2026-11-03 16:02. You approved every recommendation in the [open questions](#open-questions); the answers are recorded there. The real check passed ([Results](#results)). The design now lives on the voice page: [Two passes](../architecture/voice.md#two-passes-live-text-cleaned-piece-by-piece). Then your check (step 3.5).
+> **Status: built (waiting on you), 2026-11-03.** Loaded at the relaunch of 2026-11-03 16:02. You approved every recommendation in the [open questions](#open-questions); the answers are recorded there. The real check passed ([Results](#results)). The design now lives on the voice page: [Two passes](../../src/assistant/modules/voice_in/docs/voice-service.md#two-passes-live-text-cleaned-piece-by-piece). Then your check (step 3.5).
 >
 > **Revised:** whisper now works on pieces while you talk ("chunked whisper"), instead of only once after you stop. This replaces the earlier answer to open question 9 ("no background decoding"). It's now [decided](#decided-in-this-revision).
 
@@ -15,7 +15,7 @@
 
 **Why:** each engine alone falls short. The Zipformer gives words as you speak but in capitals with no punctuation, and it makes more mistakes on long talk. Whisper is more accurate and comes cased and punctuated, but it gives nothing until it has the audio. Pieces give both: live words at once, clean text a second or two later, and a short wait after stop however long you talked.
 
-**What changes from the whisper build:** decision 4 on the [voice page](../architecture/voice.md#hot-swappable-engines) ("whisper is used for the live mic too, with the text on send") becomes "the live engine listens, the final engine cleans each piece and writes the text you send". One-engine mode stays: leave the final engine empty and the service behaves exactly as today.
+**What changes from the whisper build:** decision 4 on the [voice page](../../src/assistant/modules/voice_in/docs/voice-service.md#hot-swappable-engines) ("whisper is used for the live mic too, with the text on send") becomes "the live engine listens, the final engine cleans each piece and writes the text you send". One-engine mode stays: leave the final engine empty and the service behaves exactly as today.
 
 ## Touches
 
@@ -239,7 +239,7 @@ Each step ends with `pytest` and `ruff`. Steps 1 and 2 are one chunk each. The [
 
 ## Docs to update
 
-- **[Voice](../architecture/voice.md):**
+- **[Voice](../../src/assistant/modules/voice_in/docs/voice-service.md):**
   - Layers: the session connects a source to a live engine and an optional final engine, with the piece cutter. The diagram gets both.
   - Hot-swappable engines: decision 4 revised (two passes with pieces; one engine still possible). `final` is in the swap.
   - Threads: the `voice-clean` thread and the piece queue. Files and classes: `pieces.py`, `SttStream.cancel`, `ListenSession`'s two engines, in the class diagram.

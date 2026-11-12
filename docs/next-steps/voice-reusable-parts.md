@@ -1,6 +1,6 @@
 # Voice streamer: reusable parts
 
-> **Status: built (waiting on you), 2026-11-03.** All three open questions approved as recommended ([Decided](#decided)). It adds to the approved [voice code design](../architecture/voice.md#code-design-phase-1); steps 0 to 4 below are built (2026-11-02 to 11-03). Left: step 5's try on your mic, which is step 6 of [voice in, phase 1](README.md#next-voice-in-phase-1).
+> **Status: built (waiting on you), 2026-11-03.** All three open questions approved as recommended ([Decided](#decided)). It adds to the approved [voice code design](../../src/assistant/modules/voice_in/docs/voice-service.md#code-design-phase-1); steps 0 to 4 below are built (2026-11-02 to 11-03). Left: step 5's try on your mic, which is step 6 of [voice in, phase 1](README.md#next-voice-in-phase-1).
 
 > **Revised (2026-11-02):** [Reusable parts as a core principle](archive/reusable-parts.md#decided) is approved, and three points here changed with it (folded in below):
 > 1. **Where `CompanionApp` lives:** `app_kit/companion.py`, not `assistant/infra/companion.py`, so other apps can launch `voice_service` too.
@@ -13,7 +13,7 @@
 
 **Why:** voice text should reach any module that wants it, with the Talker only the first subscriber, and the parts the voice streamer shares with other features should be built once.
 
-**Touches:** `src/app_kit/` (`CompanionApp`, built by the reusable-parts note), `src/assistant/contracts/voice.py` (as planned, plus one field), `modules/html_viewer` (switches to the helper), the new `voice_service` and `voice_in`. Docs: [Voice](../architecture/voice.md), App kit API (new, from the reusable-parts note), [Messaging API](../api/messaging.md).
+**Touches:** `src/app_kit/` (`CompanionApp`, built by the reusable-parts note), `src/assistant/contracts/voice.py` (as planned, plus one field), `modules/html_viewer` (switches to the helper), the new `voice_service` and `voice_in`. Docs: [Voice](../../src/assistant/modules/voice_in/docs/voice-service.md), App kit API (new, from the reusable-parts note), [Messaging API](../api/messaging.md).
 
 ## The "streamable" question: no new class; the Event Bus is the stream
 
@@ -75,4 +75,4 @@ Approved by you, 2026-11-02:
 2. **`send_as_input: bool = True` on `StartListening`.** With `False`, the text goes only to `VoiceTranscript` subscribers, not to the Talker. (Not a config flag on `voice_in`, which would be all or nothing.)
 3. **`html_viewer` switches to `CompanionApp` in the same change**, so the launch code lives in one place.
 
-**When built,** these move into the permanent docs: decisions 1 and 2 into [Voice](../architecture/voice.md) (the voice_in module section), `CompanionApp` into the App kit API (per the reusable-parts note), and the `send_as_input` field into the [Messaging API](../api/messaging.md).
+**When built,** these move into the permanent docs: decisions 1 and 2 into [Voice](../../src/assistant/modules/voice_in/docs/voice-service.md) (the voice_in module section), `CompanionApp` into the App kit API (per the reusable-parts note), and the `send_as_input` field into the [Messaging API](../api/messaging.md).

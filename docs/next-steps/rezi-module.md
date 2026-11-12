@@ -183,7 +183,7 @@ You asked for a helper agent of its own for Rezi, like the job agent, so the Mai
 | `mcp_client` (`McpClient`, sign-in, token file) | [Infrastructure](../api/infra.md) | new, reusable | yes (infra) |
 | `rezi` module, menu `rezi.*` | [module library](../architecture/module-library.md), [tools](../api/tools.md#tools-offered-today) | new | no (`ADD_MODULE`) |
 | `pdf_viewer` module, menu `pdf.*` | same | new | no (`ADD_MODULE`) |
-| `job_search` prompt and config | [job_search](../modules/job_search.md) | changed | no (`RELOAD`) |
+| `job_search` prompt and config | [job_search](../../src/assistant/modules/job_search/docs/README.md) | changed | no (`RELOAD`) |
 
 Docs updated when built: the two module pages, the module library, `modules.md` (the MCP-client wording), the overview's Parts row for modules, `api/modules.md`, `api/infra.md`, `api/reusable.md`, `api/tools.md`, `job_search.md`.
 

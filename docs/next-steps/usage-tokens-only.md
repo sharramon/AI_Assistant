@@ -4,7 +4,7 @@
 
 ## Build progress (2026-11-07)
 
-**Finished in the last run:** the full suite passes, including the sub-agent published once (the `subagents` filter fixed it). The docs no longer mention ~$ or `cost_usd` ([usage module](../modules/usage.md), `api/infra.md`, the generated module library). The temp UI's per-tab header (item 5) was already in the code and its server-side test passes.
+**Finished in the last run:** the full suite passes, including the sub-agent published once (the `subagents` filter fixed it). The docs no longer mention ~$ or `cost_usd` ([usage module](../../src/assistant/modules/usage/docs/README.md), `api/infra.md`, the generated module library). The temp UI's per-tab header (item 5) was already in the code and its server-side test passes.
 
 **Done earlier (code; nothing reloaded or restarted):**
 - **`infra/claude_session.py`:** no cost. `id` (uuid per object). Sub-agent tokens come per turn from `model_usage_since_last_result`, with cumulative `modelUsage` as a fallback, less the session's own calls since the last result. They're shared among the sub-agents that returned this turn, by last-call size; with none, they go under `unnamed`. Without per-turn numbers, the last-call numbers are used. `subagents` leaves out rows with no tokens yet; that line was the last edit and hasn't been tested.
@@ -13,7 +13,7 @@
 
 **Next:**
 1. **Tests:** run the full suite. The last failure was `test_a_subagents_usage_is_published_once_under_its_parent`: the sub-agent was published twice, first with zeros. The `subagents` filter above should fix it. Then run ruff.
-2. **Docs:** remove ~$ / cost and add `session`: [usage module](../modules/usage.md), `api/agents.md` (`SessionUsage`), `api/infra.md` (`ClaudeSession`, `session_usage`, `UsageLedger`), `api/README.md`, `api/reusable.md` if it says cost, `architecture/module-library.md`, `agents/runtime.md`, `agents/README.md`, `modules/README.md`. Find them with `Grep "cost_usd|~\$"` outside `docs/html*` and `archive`. Then rebuild the docs.
+2. **Docs:** remove ~$ / cost and add `session`: [usage module](../../src/assistant/modules/usage/docs/README.md), `api/agents.md` (`SessionUsage`), `api/infra.md` (`ClaudeSession`, `session_usage`, `UsageLedger`), `api/README.md`, `api/reusable.md` if it says cost, `architecture/module-library.md`, `agents/runtime.md`, `agents/README.md`, `modules/README.md`. Find them with `Grep "cost_usd|~\$"` outside `docs/html*` and `archive`. Then rebuild the docs.
 3. **Architecture check:** reuse and fit; it's a short one.
 4. **Status:** set this note and its Pending row to `built (waiting on you)`: one app restart, then the hand checks below. Ask the user about the restart in a NEED; don't restart or reload.
 
@@ -30,7 +30,7 @@
    - **Talker:** the `[Usage]` line and `describe_usage` drop the ~$, and the Talker's prompt text about it goes too.
    - **Temp UI:** the header total, the dropdown rows and the tooltip drop the ~$.
    - **Tests:** `test_usage`, `test_agents` and `fake_claude` drop it.
-   - **Docs:** the [usage module](../modules/usage.md), `api/agents.md` (`SessionUsage`), `api/infra.md`, `api/README.md`, `module-library.md`, `agents/runtime.md` and `modules/README.md`.
+   - **Docs:** the [usage module](../../src/assistant/modules/usage/docs/README.md), `api/agents.md` (`SessionUsage`), `api/infra.md`, `api/README.md`, `module-library.md`, `agents/runtime.md` and `modules/README.md`.
 2. **Labels.** In the line: `worker: context 45k (last call), used 3.2M (incl. resent cache)`. In the Talker's prompt and the UI tooltip, the full meaning: "context" is the size of the latest call, about what each next call resends. "Used" adds up every call's input, cache writes, cache reads and output since launch, so cached context counts again on every call. It measures work done, not new text.
 3. **Restarts can't drop earlier totals.** Today the ledger guesses that a new session started when any number goes down. If a fresh session's first report is already bigger in every number, the old totals are lost. The fix: `SessionUsage` gets a `session` id, a new one per `ClaudeSession` object. When the id changes, the ledger banks the old totals. Restarts of the process inside one session object already carry over, as today.
 4. **Sub-agent counts. Checked: they cover only the last call.** In the log of 2026-11-06 (`main_assistant.jsonl`, line 392), an Explore sub-agent with 41 tool uses reported `input 2, cache write 707, cache read 98,361, output 7,168`, which adds up to its `totalTokens` of 106,238. That is the shape of one call: fresh input of 2 and about 99k of context. A run of about 40 calls would report millions. A debugger with 3 tool uses showed the same shape. So today a sub-agent's row shows roughly its final context, not its work.

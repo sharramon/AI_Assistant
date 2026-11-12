@@ -1,0 +1,3 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+tab = "Terminals and temp UI"
+group = "core"

@@ -12,7 +12,8 @@ Every module has the three standard pages, always first and in this order (`STAN
 Any other page is optional. Every page is shown in the docs' standard layout (the tabs and the
 sidebar): Markdown is rendered into it, an HTML page opens inside the standard frame.
 
-`docs.toml` (every key optional):
+`docs.toml` (the docs build requires `group` for a module; the rest is optional):
+    group = "core"            # "core" or "add-on": where it sits in the docs, not where its files live
     tab = "Agents"            # the docs tab it goes in (default: the module's id)
     pages = ["a.html"]        # the order of its optional pages, after the standard three (default: by name)
     [related]                 # name = a page of the app's docs (`api/tools.md#anchor`), links only
@@ -30,7 +31,7 @@ from typing import Any
 DOCS_DIR = "docs"
 SETTINGS_FILE = "docs.toml"
 PAGE_SUFFIXES = (".md", ".html")
-SETTINGS_KEYS = frozenset({"tab", "pages", "related"})
+SETTINGS_KEYS = frozenset({"group", "tab", "pages", "related"})
 # The three pages every module has, in this order, with their name in the docs' sidebar.
 STANDARD_PAGES = {"README.md": "Overview", "architecture.md": "Architecture", "tools.md": "Tools"}
 TOOLS_FILE = "tools.md"

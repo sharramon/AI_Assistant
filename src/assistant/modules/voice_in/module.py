@@ -13,7 +13,7 @@ without live text (whisper) is on send anyway, and the final then gets `final_ti
 Two passes (`started.clean_pieces`): `cleaned` settles pieces of the line (`LiveLine`), `refining`
 after stop is `FINISHING`, and the final's parts are cleaned one by one and joined; the stop
 then waits `final_timeout_on_send` too.
-Design: docs/architecture/voice.md#the-voice_in-module.
+Design: src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module.
 """
 
 from __future__ import annotations

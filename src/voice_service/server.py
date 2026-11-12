@@ -7,7 +7,7 @@ One listener at a time (the slot). With `config_path`, it watches that config fi
 `.local` override): when the `[engine]` section changes, it waits until nothing is listening and
 quits through `on_quit`, the same path as `/quit`; the next client relaunches it with the new
 engine. A `[pieces]` change applies to the next session without a restart. Spec:
-docs/architecture/voice.md#the-protocol, #the-voice-service-errors and #hot-swappable-engines.
+src/assistant/modules/voice_in/docs/voice-service.md#the-protocol, #the-voice-service-errors and #hot-swappable-engines.
 """
 
 from __future__ import annotations

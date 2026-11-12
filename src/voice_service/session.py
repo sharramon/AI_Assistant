@@ -1,7 +1,7 @@
 """One mic session: its audio source, chunk queue, engine thread, and (two passes) its piece cleaner.
 Plus the background model load.
 
-Threads (docs/architecture/voice.md#the-voice-service-threads-and-audio-flow): the source's thread
+Threads (src/assistant/modules/voice_in/docs/voice-service.md#the-voice-service-threads-and-audio-flow): the source's thread
 only queues chunks; the engine thread accepts them and hands messages to the asyncio loop with
 `call_soon_threadsafe`; the loop calls `start`, `stop` and `abort` (through `asyncio.to_thread`).
 A lost mic is reopened from the engine thread, with a fresh source from the factory. With a final

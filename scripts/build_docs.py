@@ -9,9 +9,9 @@ output: site.css (styling), site.js (diagrams and zoom) and nav.js (the tab stri
 and the sidebar), so adding a page or changing the style doesn't rewrite every page.
 
 Navigation has two levels. The tabs across the top are the areas: Overview (the
-app-wide design), the module tabs (MODULE_TABS below; a tab holds one module or a
-group of them), then the project tabs (PROJECT_TABS: one docs folder each, like the
-job project). The sidebar lists only the active tab's pages; a page's tab is the
+app-wide design), then the module tabs (a tab holds one module or a few), the core
+modules' tabs first and the add-ons' after (GROUPS). The sidebar lists only the
+active tab's pages; a page's tab is the
 one it belongs to. docs/html/ never links into next steps: it has no Next steps tab,
 and a link in a page's text into next steps becomes plain text (the Markdown outside
 next-steps/ shouldn't have any; tests/test_module_docs.py checks). Only the
@@ -20,8 +20,9 @@ Its sidebar lists the active notes and one Archive link: next-steps/archive/ (fi
 notes) builds as a section of that output with its own index, and its notes aren't listed
 in the sidebar.
 
-A module that carries its own docs folder (src/assistant/modules/<id>/docs/) is found by folder,
-not listed here: see module_doc_folders() and module_tabs().
+Every module carries its own docs folder (src/assistant/modules/<id>/docs/), found by folder,
+not listed here: see module_doc_folders() and module_tabs(). The main docs folders hold only
+the app-wide pages (architecture, agents, api).
 
 The Markdown files are the source of truth; never edit the generated HTML by hand.
 Run after changing any doc:  python scripts/build_docs.py
@@ -61,100 +62,27 @@ NEXT_OUT = DOCS / "html-next-steps"
 NEXT_STEPS = "next-steps"
 ARCHIVE = f"{NEXT_STEPS}/archive"  # finished notes: done, nothing waiting on the user
 # The folders built into docs/html/.
-SECTIONS = ("architecture", "modules", "agents", "api", "job-project")
-# Top-level tabs that each hold one docs folder about a project outside the app (not a module,
-# not app-wide), after the module tabs: tab name -> folder. Its sidebar is that folder's pages.
-PROJECT_TABS: dict[str, str] = {"Job project": "job-project"}
-# The Overview tab's sidebar: these sections, minus pages a module tab claims, with the
-# module pages' index listed right after the module library.
+SECTIONS = ("architecture", "agents", "api")
+# The Overview tab's sidebar: these sections.
 OVERVIEW = {"architecture": "Architecture", "agents": "Agents", "api": "API Reference"}
 LIBRARY = "architecture/module-library.md"
-MODULE_INDEX = "modules/README.md"
 
-# The module tabs, in this order, keyed by tab name. Every module is in exactly one tab.
-# Its sidebar: a group named after the tab with its modules' pages (docs/modules/<id>.md), then
-#   modules: the module ids it owns (default: just the tab's name)
-#   pages:   other docs pages about it; they belong to this tab (it lights up on them)
-#   related: name -> page#anchor elsewhere (API entries, Overview pages), links only
-# and always the App-wide links. A new module: add its page in docs/modules/ and one entry:
-# its id in an existing tab's `modules`, or a new tab ({} if it has nothing more).
-#
-# Central modules: part of the main app and its window (the agent runtime, the usage tally, the
-# terminals, the temp UI), so their docs stay in the main docs (docs/modules/<id>.md, their tab here)
-# and never move into their own module folders; they're exempt from the three standard pages
-# (user, 2026-11-06). Self-contained features (html_viewer, cv, job_search, voice_notes) move.
-CENTRAL_MODULES = frozenset({"agent_hub", "talker", "main_assistant", "task_agents", "usage",
-                             "console_io", "assistant_view", "temp_ui"})
-MODULE_TABS: dict[str, dict] = {
-    "Agents": {
-        "modules": ["talker", "main_assistant", "agent_hub", "task_agents", "job_search"],
-        "related": {
-            "Agents (architecture)": "architecture/agents.md",
-            "Agents: code layout": "architecture/agents-code.md",
-            "Agents docs": "agents/README.md",
-            "Agent runtime": "agents/runtime.md",
-            "The Talker on its own": "agents/runtime.md#the-talker-on-its-own",
-            "The Main Assistant on its own": "agents/runtime.md#the-main-assistant-on-its-own",
-            "Messaging to and from the main app": "agents/runtime.md#messaging-to-and-from-the-main-app",
-            "Agents API": "api/agents.md",
-            "SessionTaskAgent (API)": "api/infra.md#sessiontaskagent",
-        },
-    },
-    "usage": {
-        "related": {
-            "SessionUsage (API)": "api/agents.md#sessionusage",
-            "UsageLedger (API)": "api/infra.md#usageledger",
-        },
-    },
-    "voice_in": {
-        "pages": ["architecture/voice.md"],
-        "related": {
-            "Voice messages (API)": "api/messaging.md#voice",
-            "Voice service protocol (API)": "api/messaging.md#the-voice-service-protocol",
-            "Voice service parts (API)": "api/messaging.md#the-voice-services-parts",
-        },
-    },
-    "voice_notes": {
-        "related": {
-            "Voice messages (API)": "api/messaging.md#voice",
-            "Chaining modules": "architecture/modules.md#chaining-modules",
-        },
-    },
-    "html_viewer": {
-        "pages": ["architecture/html-viewer.md"],
-        "related": {
-            "Viewer tools (API)": "api/tools.md#tools-offered-today",
-            "Viewer events (API)": "api/messaging.md#viewertabschanged",
-            "CompanionApp (API)": "api/app_kit.md#companionapp",
-            "The viewer in the runtime": "agents/runtime.md#html-viewer",
-        },
-    },
-    "Stand-ins and terminals": {
-        "modules": ["temp_ui", "console_io", "assistant_view"],  # echo_orchestrator: its docs.toml
-        "related": {
-            "What runs": "agents/runtime.md#what-runs",
-            "The temp UI in the runtime": "agents/runtime.md#temp-ui",
-            "AgentActivity (API)": "api/agents.md#agentactivity",
-        },
-    },
-}
-
-
-TAB_KEYS = {"modules", "pages", "related"}
-# A module that carries its own docs (src/assistant/modules/<id>/docs/, see app_kit.module_docs) is
-# found here by folder: its pages publish to docs/html/modules/<id>/ (Markdown rendered, HTML and
-# images copied as written) and its tab comes from its docs.toml. Every page is in the standard
-# layout: its three standard pages (overview, architecture, tools; the tools page generated from its
-# menu) first, in its own sidebar group, and its HTML pages open inside the standard frame. It needs
-# no MODULE_TABS entry and no docs/modules/<id>.md; those stay for the central modules and the ones
-# that haven't moved yet.
+# Every module keeps its docs in its own folder (src/assistant/modules/<id>/docs/, see
+# app_kit.module_docs), found here by folder: its pages publish to docs/html/modules/<id>/ (Markdown
+# rendered, HTML and images copied as written). Its docs.toml names its tab (default: its id) and its
+# group (required): where it sits in the docs, never where its files live (user, 2026-11-12). The
+# core modules' tabs come first, then the add-ons'; within a group, tabs and their modules in folder
+# order. A tab's sidebar: one group per module (its three standard pages, overview, architecture and
+# tools generated from its menu, then its other pages), then Related (its modules' `related` links)
+# and App-wide. A module's HTML pages open inside the standard frame.
+GROUPS = {"core": "Core modules", "add-on": "Add-ons"}
 MODULES_DIR = ROOT / "src" / "assistant" / "modules"
 FRAME = "frame.html"  # opens a module's own HTML page inside the docs' tabs and sidebar: frame.html?src=<page>
 
 
 def tab_modules(name: str, spec: dict) -> list[str]:
-    """The module ids a tab owns: its `modules`, or just the tab's name."""
-    return spec.get("modules", [name])
+    """The module ids a tab owns."""
+    return spec["modules"]
 
 
 @functools.cache
@@ -176,9 +104,8 @@ def docs_rel(path: Path) -> str:
 
 
 def module_pages(module_id: str) -> list[str]:
-    """A module's pages, relative to docs/: its own docs folder's, else docs/modules/<id>.md."""
-    folder = module_doc_folders().get(module_id)
-    return [docs_rel(p) for p in doc_pages(folder)] if folder else [f"modules/{module_id}.md"]
+    """A module's pages from its own docs folder, relative to docs/."""
+    return [docs_rel(p) for p in doc_pages(module_doc_folders()[module_id])]
 
 
 def framed_pages(module_id: str) -> set[str]:
@@ -188,16 +115,18 @@ def framed_pages(module_id: str) -> set[str]:
 
 
 def module_tabs() -> dict[str, dict]:
-    """MODULE_TABS, then each module with its own docs added to the tab its docs.toml names (default:
-    its id); a tab no one named before comes after, in folder order."""
-    tabs = {name: {**spec, "related": dict(spec.get("related", {}))} for name, spec in MODULE_TABS.items()}
+    """Every module in the tab its docs.toml names (default: its id), each tab with its `group`, its
+    `modules` and their `related` links: the core group's tabs first, then the add-ons', each in
+    folder order. A tab takes the group of its first module (check_module_tabs refuses a mixed one)."""
+    tabs: dict[str, dict] = {}
     for module_id, folder in module_doc_folders().items():
         settings = docs_settings(folder)
-        name = settings.get("tab", module_id)
-        spec = tabs.setdefault(name, {"modules": [], "related": {}})
-        spec["modules"] = list(dict.fromkeys(tab_modules(name, spec) + [module_id]))
+        spec = tabs.setdefault(settings.get("tab", module_id),
+                               {"group": settings.get("group"), "modules": [], "related": {}})
+        spec["modules"].append(module_id)
         spec["related"].update(settings.get("related", {}))
-    return tabs
+    order = list(GROUPS)
+    return dict(sorted(tabs.items(), key=lambda t: order.index(t[1]["group"]) if t[1]["group"] in order else len(order)))
 
 
 MERMAID_JS = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
@@ -274,16 +203,12 @@ def nav_item(root: Path, rel: str) -> dict:
 
 
 def check_module_tabs() -> None:
-    """Every module page is in exactly one tab, every page a tab names exists, and a module's own docs
-    folder is valid (known docs.toml keys, its listed pages there) and is its only layout."""
-    pages = {p.stem for p in (DOCS / "modules").glob("*.md") if p.stem != "README"}
+    """Every module has its own docs folder, and each is valid: known docs.toml keys, a group from
+    GROUPS, the standard pages, its listed pages and related links there; no tab mixes groups."""
     own = module_doc_folders()
-    listed = {m for name, spec in MODULE_TABS.items() for m in tab_modules(name, spec)}
-    problems = [f"{m}: has both docs/modules/{m}.md and its own docs folder; keep one" for m in sorted(pages & set(own))]
-    problems += [f"MODULE_TABS: {m} has its own docs folder; its docs.toml sets its tab" for m in sorted(listed & set(own))]
-    problems += [f"{m} is a central module: its docs stay in docs/modules/{m}.md, not its own folder"
-                 for m in sorted(CENTRAL_MODULES & set(own))]
-    problems += [f"{m} is a central module and needs docs/modules/{m}.md" for m in sorted(CENTRAL_MODULES - pages)]
+    code = {p.name for p in MODULES_DIR.iterdir() if (p / "__init__.py").is_file()}
+    problems = [f"src/assistant/modules/{m} has no {DOCS_DIR}/ folder (every module keeps its docs there)"
+                for m in sorted(code - set(own))]
     for m, folder in own.items():
         where = f"src/assistant/modules/{m}/{DOCS_DIR}"
         try:
@@ -292,6 +217,9 @@ def check_module_tabs() -> None:
             problems.append(f"{where}/{SETTINGS_FILE}: {exc}")
             continue
         problems += [f"{where}/{SETTINGS_FILE}: unknown keys {sorted(extra)}" for extra in [set(settings) - SETTINGS_KEYS] if extra]
+        if settings.get("group") not in GROUPS:
+            problems.append(f"{where}/{SETTINGS_FILE}: group must be one of {', '.join(map(repr, GROUPS))}, "
+                            f"not {settings.get('group')!r}")
         names = {p.name for p in doc_pages(folder)}
         problems += [f"{where} has no {p} (every module has the standard pages: {', '.join(STANDARD_PAGES)})"
                      for p in STANDARD_PAGES if p not in names]
@@ -300,14 +228,10 @@ def check_module_tabs() -> None:
                      if not (DOCS / r.partition("#")[0]).is_file()]
     if problems:
         raise SystemExit("\n".join(problems))
-    owned = [m for name, spec in module_tabs().items() for m in tab_modules(name, spec)]
-    problems = [f"docs/modules/{m}.md has no entry in MODULE_TABS" for m in sorted(pages - set(owned))]
-    problems += [f"MODULE_TABS: {m} is in more than one tab" for m in sorted({m for m in owned if owned.count(m) > 1})]
-    for name, spec in MODULE_TABS.items():
-        problems += [f"MODULE_TABS['{name}']: {m} has no docs/modules/{m}.md" for m in tab_modules(name, spec) if m not in pages]
-        problems += [f"MODULE_TABS['{name}']: unknown keys {sorted(extra)}" for extra in [set(spec) - TAB_KEYS] if extra]
-        refs = spec.get("pages", []) + list(spec.get("related", {}).values())
-        problems += [f"MODULE_TABS['{name}']: {r} not found" for r in refs if not (DOCS / r.partition("#")[0]).is_file()]
+    for name, spec in module_tabs().items():
+        groups = {docs_settings(own[m]).get("group") for m in tab_modules(name, spec)}
+        if len(groups) > 1:
+            problems.append(f"tab {name!r} mixes groups {sorted(groups)}: give its modules one group, or their own tabs")
     if problems:
         raise SystemExit("\n".join(problems))
 
@@ -317,34 +241,24 @@ def nav_data(root: Path) -> dict:
 
     Each tab lists its `home` pages: on those pages it is the active tab.
     """
-    claimed = {p for spec in MODULE_TABS.values() for p in spec.get("pages", [])}
     groups = []
     for section, label in OVERVIEW.items():
         rels = [p.relative_to(DOCS).as_posix() for p in section_pages(section)]
-        rels = [r for r in rels if r not in claimed]
-        if LIBRARY in rels:
-            rels.insert(rels.index(LIBRARY) + 1, MODULE_INDEX)
-        names = {r: "Overview" for r in rels if r.endswith("/README.md") and r != MODULE_INDEX}
+        names = {r: "Overview" for r in rels if r.endswith("/README.md")}
         groups.append({"label": label, "pages": [item(root, r, names.get(r)) for r in rels]})
     tabs = [_tab("Overview", groups)]
-    for i, (name, spec) in enumerate(module_tabs().items()):
-        # A module with its own docs gets its own group (overview, architecture, tools, then its other
-        # pages); the tab's own group holds the modules that haven't moved, and is left out when empty.
-        mods, moved = tab_modules(name, spec), module_doc_folders()
-        old = [nav_item(root, r) for m in mods if m not in moved for r in module_pages(m)]
-        old += [item(root, r) for r in spec.get("pages", [])]
-        mod_groups = [{"label": name, "pages": old}] if old else []
-        mod_groups += [{"label": m, "pages": [nav_item(root, r) for r in module_pages(m)]} for m in mods if m in moved]
+    previous = None
+    for name, spec in module_tabs().items():
+        # One sidebar group per module: overview, architecture, tools, then its other pages.
+        mod_groups = [{"label": m, "pages": [nav_item(root, r) for r in module_pages(m)]} for m in tab_modules(name, spec)]
         own = [p for g in mod_groups for p in g["pages"]]
         if spec.get("related"):
             mod_groups.append({"label": "Related", "pages": [item(root, r, n) for n, r in spec["related"].items()]})
         app_wide = [item(root, "architecture/README.md", "Architecture overview"), item(root, LIBRARY)]
         mod_groups.append({"label": "App-wide", "pages": app_wide})
-        tabs.append(_tab(name, mod_groups, home=[p["href"] for p in own], sep=i == 0))
-    for i, (name, section) in enumerate(PROJECT_TABS.items()):
-        rels = [p.relative_to(DOCS).as_posix() for p in section_pages(section)]
-        pages = [item(root, r, "Overview" if r.endswith("/README.md") else None) for r in rels]
-        tabs.append(_tab(name, [{"label": name, "pages": pages}], sep=i == 0))
+        # A separator before the first tab of each group (core modules, then add-ons).
+        tabs.append(_tab(name, mod_groups, home=[p["href"] for p in own], sep=spec["group"] != previous))
+        previous = spec["group"]
     if root == NEXT_OUT:  # the main docs have no Next steps tab; only the next-steps output does
         next_pages = [p.relative_to(DOCS).as_posix() for p in section_pages(NEXT_STEPS)]
         next_items = [item(root, r, "Overview" if r.endswith("/README.md") else None) for r in next_pages]
@@ -503,33 +417,35 @@ def module_classes() -> list[type]:
 
 
 def library_block() -> str:
-    """The module library's table, generated from every module's manifest and menu."""
+    """The module library's tables, one per group (core modules, then add-ons; a group from each module's
+    docs.toml), generated from every module's manifest and menu. Each name links to its own docs."""
     import tomllib
 
     enabled = tomllib.loads((ROOT / "config" / "default.toml").read_text(encoding="utf-8"))["modules"]["enabled"]
+    folders = module_doc_folders()
 
     def names(items) -> str:
         return ", ".join(f"`{getattr(i, '__name__', i)}`" for i in items) or "none"
 
-    rows = [
-        "| Module | What it does | On | Menu | Contracts | Handles | Calls | Publishes | Listens to |",
-        "|--------|--------------|----|------|-----------|---------|-------|-----------|------------|",
-    ]
-    for cls in module_classes():
+    def row(cls) -> str:
         m = cls.manifest
         contracts = "; ".join(f"{word} {names(group)}" for word, group in
                               (("provides", m.provides), ("requires", m.requires), ("optional", m.optional),
                                ("uses", m.uses)) if group)
         menu = names(cls.menu.names()) if cls.menu else "none"
-        own = module_doc_folders().get(m.id)
-        page = (f"../../src/assistant/modules/{m.id}/{DOCS_DIR}/README.md" if own and (own / "README.md").is_file()
-                else f"../modules/{m.id}.md")
-        rows.append(
-            f"| [`{m.id}`]({page}) | {m.description or '(no description)'} | "
-            f"{'yes' if m.id in enabled else 'no'} | {menu} | {contracts or 'none'} | {names(m.handles)} | "
-            f"{names(m.sends)} | {names(m.publishes)} | {names(m.listens)} |"
-        )
-    return "\n".join([LIBRARY_START, "", *rows, "", CORE_LINE, "", LIBRARY_END])
+        return (f"| [`{m.id}`](../../src/assistant/modules/{m.id}/{DOCS_DIR}/README.md) | "
+                f"{m.description or '(no description)'} | {'yes' if m.id in enabled else 'no'} | {menu} | "
+                f"{contracts or 'none'} | {names(m.handles)} | {names(m.sends)} | {names(m.publishes)} | {names(m.listens)} |")
+
+    lines = [LIBRARY_START, ""]
+    classes = module_classes()
+    for group, title in GROUPS.items():
+        members = [c for c in classes if c.manifest.id in folders and docs_settings(folders[c.manifest.id]).get("group") == group]
+        lines += [f"### {title}", "",
+                  "| Module | What it does | On | Menu | Contracts | Handles | Calls | Publishes | Listens to |",
+                  "|--------|--------------|----|------|-----------|---------|-------|-----------|------------|",
+                  *map(row, members), ""]
+    return "\n".join([*lines, CORE_LINE, "", LIBRARY_END])
 
 
 def write_library() -> bool:

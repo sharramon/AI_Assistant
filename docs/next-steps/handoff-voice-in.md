@@ -55,7 +55,7 @@ The task runs in **full auto**: the user pre-approved everything. Decide from th
    - The relaunch steps.
    - A user checklist: run `check` while speaking; click the mic and speak; note the delay to the first partial and from stop to the final; unplug a USB or Bluetooth mic mid-sentence and look for the drop symbol, then the mic coming back or failing.
 
-> **Written 2026-11-03** at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on [Voice](../architecture/voice.md) (built parts are marked there); the step's note is [voice-in-module.md](archive/voice-in-module.md), with what was built differently at its top. The step list is in [Next steps](README.md#next-voice-in-phase-1).
+> **Written 2026-11-03** at the end of step 3, for a fresh session. Nothing is committed or pushed; the user commits and pushes. The design is on [Voice](../../src/assistant/modules/voice_in/docs/voice-service.md) (built parts are marked there); the step's note is [voice-in-module.md](archive/voice-in-module.md), with what was built differently at its top. The step list is in [Next steps](README.md#next-voice-in-phase-1).
 
 ## Done
 
@@ -68,7 +68,7 @@ The task runs in **full auto**: the user pre-approved everything. Decide from th
     - `ready: false` with an error fails at once with `engine_failed`.
     - Still loading: carry on.
     - No answer: `ensure_running()` again, which relaunches the service.
-  - **Error mapping:** the table under [Voice: how errors reach the button](../architecture/voice.md#the-voice_in-module-how-errors-reach-the-button).
+  - **Error mapping:** the table under [Voice: how errors reach the button](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module-how-errors-reach-the-button).
 - **Mic-drop recovery, a change to the step 2 service:**
   - **Config:** `[audio] mic_recovery_seconds = 15` in `config/voice_service.toml` and `config.py`. Setting it to 0 keeps the old behavior.
   - **Protocol:** two new service messages, `MicDropped(detail, wait_seconds)` and `MicBack`. Every other message is unchanged.

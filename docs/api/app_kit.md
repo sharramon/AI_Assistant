@@ -75,11 +75,12 @@ A module's (or an app's) own docs folder, `<its folder>/docs/`: the three standa
 | `STANDARD_PAGES` | `{"README.md": "Overview", "architecture.md": "Architecture", "tools.md": "Tools"}`: the required pages and their sidebar names |
 | `DOCS_DIR`, `SETTINGS_FILE`, `SETTINGS_KEYS`, `TOOLS_FILE`, `TOOLS_START`, `TOOLS_END` | `"docs"`, `"docs.toml"`, its keys, `"tools.md"`, and the tools page's markers |
 
-`docs.toml` keys, all optional:
+`docs.toml` keys (the docs build requires `group` for a module; the rest are optional):
 
 | Key | Meaning |
 |-----|---------|
-| `tab` | The docs tab it goes in (default: the module's id) |
+| `group` | `"core"` or `"add-on"`: where the module sits in the docs (its tab among the core modules' or the add-ons', its table in the module library), never where its files live |
+| `tab` | The docs tab it goes in (default: the module's id); one tab's modules share a group |
 | `pages` | The order of its optional pages, after the standard three |
 | `[related]` | Name = a page of the app's docs (`api/tools.md#anchor`), shown as links in its tab |
 

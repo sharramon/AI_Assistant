@@ -2,7 +2,7 @@
 
 Shared by the service and every Python client (`voice_in`), so the two can't drift.
 Names no models and nothing about the assistant; depends on pydantic only.
-Spec: docs/architecture/voice.md#the-protocol.
+Spec: src/assistant/modules/voice_in/docs/voice-service.md#the-protocol.
 """
 
 from __future__ import annotations

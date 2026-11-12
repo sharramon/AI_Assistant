@@ -1,6 +1,6 @@
 """The voice service's config: built-in defaults, then the TOML file and its `.local` override, then flags.
 
-Spec: docs/architecture/voice.md#the-voice-service-config.
+Spec: src/assistant/modules/voice_in/docs/voice-service.md#the-voice-service-config.
 """
 
 from __future__ import annotations

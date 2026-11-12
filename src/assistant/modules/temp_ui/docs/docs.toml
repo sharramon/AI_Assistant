@@ -1,0 +1,7 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+tab = "Terminals and temp UI"
+group = "core"
+[related]
+"What runs" = "agents/runtime.md#what-runs"
+"The temp UI in the runtime" = "agents/runtime.md#temp-ui"
+"AgentActivity (API)" = "api/agents.md#agentactivity"

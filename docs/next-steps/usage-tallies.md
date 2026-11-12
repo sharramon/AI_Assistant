@@ -1,6 +1,6 @@
 # Usage tallies for all agents
 
-**Status:** built, 2026-11-05: the `SessionUsage` fields `parent` and `kind`, sub-agent tallies in `ClaudeSession`, `UsageLedger`, the `usage` module (`usage.total / agents / mine`), the Talker's `[Usage]` line, and the temp UI's total and dropdown. Needs an app restart (the contract changed). Docs: [usage module](../modules/usage.md).
+**Status:** built, 2026-11-05: the `SessionUsage` fields `parent` and `kind`, sub-agent tallies in `ClaudeSession`, `UsageLedger`, the `usage` module (`usage.total / agents / mine`), the Talker's `[Usage]` line, and the temp UI's total and dropdown. Needs an app restart (the contract changed). Docs: [usage module](../../src/assistant/modules/usage/docs/README.md).
 
 ## What you asked for
 

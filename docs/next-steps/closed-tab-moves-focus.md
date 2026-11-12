@@ -25,7 +25,7 @@ The temp UI already moves the page when `FocusChanged` arrives, so no page chang
 
 **Tests** (in `test_agent_hub*.py` / the temp UI's tests): focused on a helper, then `agents.close` → `FocusChanged` to `main_assistant`; the same for `DeactivateModule` of the helper's module; and no `FocusChanged` when an agent you're *not* on goes away.
 
-**Touches:** `agent_hub` (fixes 1 and 2), `temp_ui` (fix 3). Docs: [agent_hub](../modules/agent_hub.md) and the `FocusChanged` / `SetFocus` entries in [API: agents](../api/agents.md) ("the focus falls back to the coordinator when its agent goes, with a `FocusChanged`").
+**Touches:** `agent_hub` (fixes 1 and 2), `temp_ui` (fix 3). Docs: [agent_hub](../../src/assistant/modules/agent_hub/docs/README.md) and the `FocusChanged` / `SetFocus` entries in [API: agents](../api/agents.md) ("the focus falls back to the coordinator when its agent goes, with a `FocusChanged`").
 
 **Open questions:** none. (A helper whose `claude` process crashes but stays listed keeps its tab, so it isn't a dead tab; that's unchanged.)
 

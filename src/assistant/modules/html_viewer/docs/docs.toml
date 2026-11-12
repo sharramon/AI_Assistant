@@ -1,0 +1,9 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+# No `tab`: its tab is named after its id.
+group = "add-on"
+pages = ["viewer-app.md"]
+[related]
+"Viewer tools (API)" = "api/tools.md#tools-offered-today"
+"Viewer events (API)" = "api/messaging.md#viewertabschanged"
+"CompanionApp (API)" = "api/app_kit.md#companionapp"
+"The viewer in the runtime" = "agents/runtime.md#html-viewer"

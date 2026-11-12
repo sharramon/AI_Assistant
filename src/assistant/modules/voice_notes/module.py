@@ -1,6 +1,6 @@
 """Voice notes: speak into a page of notes you can edit and copy.
 
-A small page in its own window (docs/modules/voice_notes.md): a blank notes area, Record / Stop,
+A small page in its own window (src/assistant/modules/voice_notes/docs/README.md): a blank notes area, Record / Stop,
 a status line, and Copy; the page keeps the text in its local storage. While you speak, the
 cleaned start of the live text (its `settled` characters) shows in the notes in normal type and
 the not-yet-cleaned rest right after it, grey and italic; at Stop the final text replaces that

@@ -1,6 +1,6 @@
 # Voice: the layers in code, and whisper as a second engine
 
-> **Status: built (waiting on you), 2026-11-03.** Loaded at the relaunch of 2026-11-03 16:02. You checked the note and answered its [open questions](#open-questions). The design it builds is on the voice page: [Layers](../architecture/voice.md#layers) and [Hot-swappable engines](../architecture/voice.md#hot-swappable-engines). Measured waits are under [Results](#results). Your check: set `[engine] name = "whisper"` in `config/voice_service.local.toml`, talk, stop, and see the text arrive on send.
+> **Status: built (waiting on you), 2026-11-03.** Loaded at the relaunch of 2026-11-03 16:02. You checked the note and answered its [open questions](#open-questions). The design it builds is on the voice page: [Layers](../../src/assistant/modules/voice_in/docs/voice-service.md#layers) and [Hot-swappable engines](../../src/assistant/modules/voice_in/docs/voice-service.md#hot-swappable-engines). Measured waits are under [Results](#results). Your check: set `[engine] name = "whisper"` in `config/voice_service.local.toml`, talk, stop, and see the text arrive on send.
 >
 > **Decision 4 revised (2026-11-03):** whisper is now by default the final engine of [two passes](voice-two-pass.md), cleaning the Zipformer's live text piece by piece.
 
@@ -163,7 +163,7 @@ Each step ends with `pytest` and `ruff`. Steps 1 and 2 are one chunk, and steps 
 
 ## Docs to update
 
-- **[Voice](../architecture/voice.md):**
+- **[Voice](../../src/assistant/modules/voice_in/docs/voice-service.md):**
   - The Layers table and diagram: file source, whisper and the utility move from planned to built.
   - The files tree and class diagram: `FileSource`, `transcribe.py`, `engines/whisper.py`, `live_partials`.
   - The config block, the protocol table (`start.partials`, `started.partials`), the voice_in config, and the cleanup rule.

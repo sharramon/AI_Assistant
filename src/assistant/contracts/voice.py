@@ -1,6 +1,6 @@
 """Voice input: the voice contract (`IVoice`) other modules require, the commands any UI sends
 to turn the mic on and off, and the events `voice_in` publishes.
-Design: docs/architecture/voice.md#the-voice_in-module.
+Design: src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module.
 
 `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the
 `StartListening` command's id, or the id given to `IVoice.listen`), so a module follows

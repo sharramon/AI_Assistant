@@ -6,14 +6,14 @@
 
 **Why:** everything else in voice input talks to this service. Built and tested alone first, step 3 can be built against a real service.
 
-**The design is already approved** ([Code design (phase 1)](../../architecture/voice.md#code-design-phase-1)): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.
+**The design is already approved** ([Code design (phase 1)](../../../src/assistant/modules/voice_in/docs/voice-service.md#code-design-phase-1)): threads, files, config, and errors. This note only says how it gets built, plus four choices for you at the end. The engine itself is already decided: Streaming Zipformer EN through sherpa-onnx.
 
 ## Touches
 
 - **New, `src/voice_service/`:** `__main__.py`, `config.py`, `server.py`, `session.py`, `audio.py`, `download.py`, `engines/__init__.py`, `engines/zipformer.py`, `engines/fake.py`. `__init__.py` stays empty and `protocol.py` stays as built.
 - **New:** `config/voice_service.toml` (the design's file as is); `tests/test_voice_service.py`.
 - **Changed:** `pyproject.toml` (the `voice` extra; `voice_service` in ruff's first-party list; a `voice-service` script like `html-viewer`); `.gitignore` (`config/*.local.toml`, so `voice_service.local.toml` is never committed); `.github/workflows/ci.yml` (question 2).
-- **Docs:** [Voice](../../architecture/voice.md) (status: step 2 built), the overview's Parts table (the voice handler's location), [App kit](../../api/app_kit.md) and the [reusable parts index](../../api/reusable.md) (Used by lines), [Next steps](../README.md). Then rebuild.
+- **Docs:** [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md) (status: step 2 built), the overview's Parts table (the voice handler's location), [App kit](../../api/app_kit.md) and the [reusable parts index](../../api/reusable.md) (Used by lines), [Next steps](../README.md). Then rebuild.
 
 ## How it starts and stops
 

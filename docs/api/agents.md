@@ -403,7 +403,7 @@ An agent's raw activity (its text and tool calls), published by the agent module
 
 `SessionUsage(agent_id: str, context_tokens: int, input_tokens: int = 0, cache_write_tokens: int = 0, cache_read_tokens: int = 0, output_tokens: int = 0, session: str = "", parent: str = "", kind: "claude" | "subagent" | "tool" = "claude")` (event)
 
-One agent's usage, in tokens only (no money figure): "talker" (the Main Assistant's Talker), `talker:<agent>` (a helper tab's Talker), a task agent's id, a sub-agent's (`<parent>/<type> #<agentId>`) or a wrapped tool's. `parent`: who started it ("" for none); `kind`: `claude` (an agent's own session), `subagent` or `tool`. The [`usage`](../modules/usage.md) module adds them up into one tally since launch, sub-agents nested under their parent. Built with [`session_usage`](infra.md#session_usage). Published by [`SessionTaskAgent`](infra.md#sessiontaskagent) on every call that changes it (live while the worker works), and by the Talker after each turn. View-only.
+One agent's usage, in tokens only (no money figure): "talker" (the Main Assistant's Talker), `talker:<agent>` (a helper tab's Talker), a task agent's id, a sub-agent's (`<parent>/<type> #<agentId>`) or a wrapped tool's. `parent`: who started it ("" for none); `kind`: `claude` (an agent's own session), `subagent` or `tool`. The [`usage`](../../src/assistant/modules/usage/docs/README.md) module adds them up into one tally since launch, sub-agents nested under their parent. Built with [`session_usage`](infra.md#session_usage). Published by [`SessionTaskAgent`](infra.md#sessiontaskagent) on every call that changes it (live while the worker works), and by the Talker after each turn. View-only.
 
 | Name | Description |
 |------|-------------|

@@ -9,7 +9,7 @@
 - **A grey line above the input** shows, in order of what's happening:
   - *listening:* the live text from `VoiceTranscript` partials ("Listening…" before the first one);
   - *dropped:* "⦸ Mic dropped, waiting 12 s for it to come back · 8 words so far", the countdown ticking down;
-  - *failed:* "Mic: " and the state's `detail` (already a short plain sentence, from [the error table](../../architecture/voice.md#the-voice_in-module-how-errors-reach-the-button)); it stays until the next click;
+  - *failed:* "Mic: " and the state's `detail` (already a short plain sentence, from [the error table](../../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module-how-errors-reach-the-button)); it stays until the next click;
   - *idle after a silence stop:* "Mic: mic turned off after a long silence".
 - **Your spoken message** shows in the chat as your own message, like typed text, marked "spoken" next to its time (`InputReceived(source="voice")`; the temp UI already showed every `InputReceived`).
 - **`voice_in` is on:** added to `[modules] enabled` in `config/default.toml`. Without the voice extra its `init` fails and the core skips it; the rest of the app runs, and the button says "voice input is off".
@@ -29,4 +29,4 @@
 - `src/assistant/modules/temp_ui/module.py` (`POST /mic`, `VoiceState` and `VoiceTranscript` subscribers, the `voice` state item, `voice: true` on spoken input), `page.html` (button, line, countdown).
 - `config/default.toml` (`voice_in` in `enabled`).
 - `tests/test_temp_ui.py` (the mic round trip, stale sessions, the dropped countdown, voice input off).
-- Docs: [runtime: temp UI](../../agents/runtime.md#temp-ui), [Voice](../../architecture/voice.md) (status, flowcharts), the overview, [Next steps](../README.md).
+- Docs: [runtime: temp UI](../../agents/runtime.md#temp-ui), [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md) (status, flowcharts), the overview, [Next steps](../README.md).

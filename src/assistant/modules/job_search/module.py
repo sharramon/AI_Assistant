@@ -2,7 +2,7 @@
 
 One `ProfileAgent` (agent id `job_search_agent` by default, the module id plus `_agent`, as for
 every module agent; `agent_id` in config) working in the job project
-(`C:\\Chang\\Jobs\\CV`, see docs/job-project), provided as `ITaskAgent`, so the Agent Hub lists
+(`C:\\Chang\\Jobs\\CV`, see its docs/job-project.md), provided as `ITaskAgent`, so the Agent Hub lists
 it, starts its tasks, holds its questions behind its tab's **!**, and feeds its `STATUS:` lines to
 the coordinator. Its config section takes `ProfileAgent`'s keys; `chrome = true` gives it the
 Claude in Chrome tools. It starts in Manual, like every agent.

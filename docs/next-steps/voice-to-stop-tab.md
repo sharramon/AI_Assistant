@@ -17,7 +17,7 @@ Neither touches `agent_hub` or `talker`.
 - `modules/voice_in/module.py`: `_finish_session` keeps that id on the session; `_finish` publishes `InputReceived(..., agent_id=session.agent_id)`.
 - `modules/temp_ui/`: `page.html` sends `agent: focused()` with `POST /mic {on: false}` (as it already does for `/say`), and `module.py` passes it to `StopListening(agent_id=...)`.
 - Tests: `tests/test_voice_in.py` (the final carries the stop's `agent_id`; no id still means the focused tab), `temp_ui`'s `/mic` test (the id is passed on).
-- Docs: [Messaging API](../api/messaging.md) (`StopListening`, and `InputReceived`'s note "None (voice, terminal 1) means the tab in focus"), [Voice](../architecture/voice.md) (the `voice_in` module: where the final goes), [temp_ui](../modules/temp_ui.md) (`/mic`), [reusable parts](../api/reusable.md) (`StopListening` line), the [module library](../architecture/module-library.md) if it lists the fields. Then the docs rebuild.
+- Docs: [Messaging API](../api/messaging.md) (`StopListening`, and `InputReceived`'s note "None (voice, terminal 1) means the tab in focus"), [Voice](../../src/assistant/modules/voice_in/docs/voice-service.md) (the `voice_in` module: where the final goes), [temp_ui](../../src/assistant/modules/temp_ui/docs/README.md) (`/mic`), [reusable parts](../api/reusable.md) (`StopListening` line), the [module library](../architecture/module-library.md) if it lists the fields. Then the docs rebuild.
 
 **Approach:**
 - **At stop, not at start.** You may start the mic, then move to the tab you mean to talk to, then speak; you press stop in the tab you were talking to. Stop is the last moment you chose a tab, and it's what you asked for.

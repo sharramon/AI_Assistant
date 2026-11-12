@@ -4,7 +4,7 @@ cleaned so far settled at the front.
 The service sends the live words (`partial`, all words so far) and, per piece, `cleaned`: live words
 `[start, end)` are replaced by the final engine's text, or keep their own words on a fallback.
 Spans settle in order from word 0, so the settled part is always the start of the line.
-Pure: no I/O, no events. Design: docs/architecture/voice.md#the-voice_in-module.
+Pure: no I/O, no events. Design: src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module.
 """
 
 from __future__ import annotations

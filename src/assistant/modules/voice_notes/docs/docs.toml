@@ -1,0 +1,6 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+# No `tab`: its tab is named after its id.
+group = "add-on"
+[related]
+"Voice messages (API)" = "api/messaging.md#voice"
+"Chaining modules" = "architecture/modules.md#chaining-modules"

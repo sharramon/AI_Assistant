@@ -30,7 +30,7 @@ Behavior that two parts need is built once and shared ([principle 13](principles
 
 ## Companion app checklist
 
-Every independent app the main app launches (the [HTML viewer](html-viewer.md), the [voice service](voice.md)) keeps the same shape, so [`CompanionApp`](../api/app_kit.md#companionapp) can launch and call any of them:
+Every independent app the main app launches (the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md), the [voice service](../../src/assistant/modules/voice_in/docs/voice-service.md)) keeps the same shape, so [`CompanionApp`](../api/app_kit.md#companionapp) can launch and call any of them:
 
 1. Its own package under `src/`, run with `python -m <app>`; never imports `assistant`.
 2. Listens on `127.0.0.1` only, refuses another host, and refuses browser requests from another origin (WebSocket `Origin`, JSON-only POSTs). One shared check does it: [`app_kit.local_guard`](../api/app_kit.md#local_guard).
@@ -39,7 +39,7 @@ Every independent app the main app launches (the [HTML viewer](html-viewer.md), 
 5. Config with [`app_kit.load_layered`](../api/app_kit.md#load_layered): its TOML file plus a `.local` override.
 6. A thin module in the main app built on `CompanionApp`: launch if nothing answers the ping, call the API, read the event stream, quit on stop only if it launched it. On a reload, hand the `CompanionApp` over in `export_state`, unless `code_changed()`: then quit it with `stop(adopted=True)` so the new copy runs the new code.
 
-An app we don't own (another project's script, like the job project's job UI) can't follow points 1, 3 and 4. `CompanionApp` still launches it, with `command` (its command line), `plain_ping` (any 200 from a page) and `quit=None` (stop ends the process it launched) ([job_search](../modules/job_search.md)).
+An app we don't own (another project's script, like the job project's job UI) can't follow points 1, 3 and 4. `CompanionApp` still launches it, with `command` (its command line), `plain_ping` (any 200 from a page) and `quit=None` (stop ends the process it launched) ([job_search](../../src/assistant/modules/job_search/docs/README.md)).
 
 ## Adding a reusable part
 

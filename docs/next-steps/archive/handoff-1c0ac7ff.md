@@ -2,7 +2,7 @@
 
 > **Finished (2026-11-03):** the build is done; results and your check are in [the note](../voice-layers-whisper.md).
 
-Task: build [voice-layers-whisper.md](../voice-layers-whisper.md) (approved 2026-11-03, answers recorded there and on the [voice page](../../architecture/voice.md#hot-swappable-engines)). Follow the batching and architecture-first skills, run architecture-check before the final report. No commit, no push. **The user said yes (2026-11-03) to the install, the model downloads and the config edits: all done.**
+Task: build [voice-layers-whisper.md](../voice-layers-whisper.md) (approved 2026-11-03, answers recorded there and on the [voice page](../../../src/assistant/modules/voice_in/docs/voice-service.md#hot-swappable-engines)). Follow the batching and architecture-first skills, run architecture-check before the final report. No commit, no push. **The user said yes (2026-11-03) to the install, the model downloads and the config edits: all done.**
 
 ## Done (sessions 1–3)
 

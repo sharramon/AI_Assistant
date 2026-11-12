@@ -1,7 +1,7 @@
 """PieceCutter: where the live audio is cut into pieces for the final engine, from each chunk's level.
 
 Pure: no threads, no audio, just levels in and cut points out. Spec:
-docs/architecture/voice.md#two-passes-pieces-cleaned-while-you-talk.
+src/assistant/modules/voice_in/docs/voice-service.md#two-passes-pieces-cleaned-while-you-talk.
 """
 
 from __future__ import annotations

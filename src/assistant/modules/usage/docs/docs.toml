@@ -1,0 +1,6 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+tab = "Agents"
+group = "core"
+[related]
+"SessionUsage (API)" = "api/agents.md#sessionusage"
+"UsageLedger (API)" = "api/infra.md#usageledger"

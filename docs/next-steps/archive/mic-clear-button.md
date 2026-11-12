@@ -17,7 +17,7 @@
 - `src/assistant/modules/voice_in/module.py`: the discard path.
 - `src/assistant/modules/temp_ui/` (`module.py`, `page.html`): a small ✕ button next to the mic, and `POST /mic {"clear": true}`.
 - Tests: `tests/test_voice_in*.py`, `tests/test_temp_ui.py`.
-- Docs: [Messaging API](../../api/messaging.md#stoplistening), [Voice](../../architecture/voice.md#the-voice_in-module), the [runtime](../../agents/runtime.md#temp-ui) page's temp UI section.
+- Docs: [Messaging API](../../api/messaging.md#stoplistening), [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module), the [runtime](../../agents/runtime.md#temp-ui) page's temp UI section.
 - **The voice service app doesn't change.** The protocol stays as it is, so reloading `voice_in` and `temp_ui` is enough and the running voice app doesn't need a restart.
 
 **Approach:**

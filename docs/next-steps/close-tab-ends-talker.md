@@ -31,7 +31,7 @@ Alternatives for 2: drop the closed rows but keep their numbers in the total (th
 
 ## Touches
 
-`task_agents` (fix 1), `usage` and `temp_ui` (fix 2: the dropdown's greyed row). Docs: the module pages [task_agents](../modules/task_agents.md), [usage](../modules/usage.md) and [temp_ui](../modules/temp_ui.md), and the `usage.agents` entry in the API pages. Check [reusable](../api/reusable.md) for `UsageLedger`'s Used by line (unchanged).
+`task_agents` (fix 1), `usage` and `temp_ui` (fix 2: the dropdown's greyed row). Docs: the module pages [task_agents](../../src/assistant/modules/task_agents/docs/README.md), [usage](../../src/assistant/modules/usage/docs/README.md) and [temp_ui](../../src/assistant/modules/temp_ui/docs/README.md), and the `usage.agents` entry in the API pages. Check [reusable](../api/reusable.md) for `UsageLedger`'s Used by line (unchanged).
 
 ## Restart?
 

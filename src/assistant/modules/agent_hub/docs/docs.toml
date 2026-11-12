@@ -1,0 +1,13 @@
+# This module's docs tab and group (read by scripts/build_docs.py; keys in app_kit/module_docs.py).
+tab = "Agents"
+group = "core"
+[related]
+"Agents (architecture)" = "architecture/agents.md"
+"Agents: code layout" = "architecture/agents-code.md"
+"Agents docs" = "agents/README.md"
+"Agent runtime" = "agents/runtime.md"
+"The Talker on its own" = "agents/runtime.md#the-talker-on-its-own"
+"The Main Assistant on its own" = "agents/runtime.md#the-main-assistant-on-its-own"
+"Messaging to and from the main app" = "agents/runtime.md#messaging-to-and-from-the-main-app"
+"Agents API" = "api/agents.md"
+"SessionTaskAgent (API)" = "api/infra.md#sessiontaskagent"

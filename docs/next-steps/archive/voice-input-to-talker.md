@@ -1,6 +1,6 @@
 # Spoken input reaches the Talker marked as spoken
 
-> **Status: done (2026-11-03).** Approved as written, caps left on screen. Built in `talker/module.py` (`SPOKEN` prefix `[Spoken] `, `_Item.source`, a prompt paragraph); test `test_talker_marks_spoken_input`; 232 tests pass, ruff clean. Docs updated: [Messaging](../../api/messaging.md#inputreceived), [Agents](../../architecture/agents.md), [Voice](../../architecture/voice.md). **Loaded** at the relaunch of 2026-11-03 12:59: spoken messages now reach the Talker marked `[Spoken]`.
+> **Status: done (2026-11-03).** Approved as written, caps left on screen. Built in `talker/module.py` (`SPOKEN` prefix `[Spoken] `, `_Item.source`, a prompt paragraph); test `test_talker_marks_spoken_input`; 232 tests pass, ruff clean. Docs updated: [Messaging](../../api/messaging.md#inputreceived), [Agents](../../architecture/agents.md), [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md). **Loaded** at the relaunch of 2026-11-03 12:59: spoken messages now reach the Talker marked `[Spoken]`.
 >
 > **Can the voice part be changed and restarted while the app runs? (checked 2026-11-03)**
 > - **The `voice_service` app: yes.** It's its own process. Quit it (or let it crash), edit its code, and the next mic click relaunches it with the new code (`voice_in` health-checks before reusing it). A session in progress just ends as failed. The chat window and the Talker carry on.
@@ -17,7 +17,7 @@
 - Its prompt says nothing about spoken input or mishearings.
 - **All caps:** this comes from the speech engine. The Streaming Zipformer model (`sherpa-onnx-streaming-zipformer-en-2023-06-26`) was trained on uppercase text with no punctuation, so it writes everything in capitals. `zipformer.py` only strips spaces, `voice_in` passes the text on unchanged, and the chat doesn't change the case.
 
-**Touches:** `src/assistant/modules/talker/module.py` (`_Item`, `_on_input`, the prompt), `tests/test_agents.py`, and the docs [Agents](../../architecture/agents.md) and [Voice](../../architecture/voice.md).
+**Touches:** `src/assistant/modules/talker/module.py` (`_Item`, `_on_input`, the prompt), `tests/test_agents.py`, and the docs [Agents](../../architecture/agents.md) and [Voice](../../../src/assistant/modules/voice_in/docs/voice-service.md).
 
 **Approach:**
 1. `_Item` gets a `source` field, which `_on_input` copies from the event.

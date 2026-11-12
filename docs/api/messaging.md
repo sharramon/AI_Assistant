@@ -123,7 +123,7 @@ A few words about what this app session is about, from your first question. The 
 
 `ViewerTabsChanged(tabs: tuple[str, ...] = (), active: str | None = None, highlights: tuple[tuple[str, str], ...] = ())` (event)
 
-The [HTML viewer](../architecture/html-viewer.md)'s open tabs or highlights changed: a tab opened, closed, or was switched to, or a highlight was added, cleared, or dropped. `tabs` are the open files' full paths in tab order; `active` is the one showing; `highlights` are `(path, quoted text)` pairs. The `html_viewer` module publishes it; the Talker keeps the latest and hears it, as a `[Viewer] open: ...; highlighted: ...` line, with your next message.
+The [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md)'s open tabs or highlights changed: a tab opened, closed, or was switched to, or a highlight was added, cleared, or dropped. `tabs` are the open files' full paths in tab order; `active` is the one showing; `highlights` are `(path, quoted text)` pairs. The `html_viewer` module publishes it; the Talker keeps the latest and hears it, as a `[Viewer] open: ...; highlighted: ...` line, with your next message.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
@@ -133,7 +133,7 @@ The [HTML viewer](../architecture/html-viewer.md)'s open tabs or highlights chan
 
 **Shared limits** (in `assistant.contracts`, one owner, principle 19): `MAX_SNIPS = 3`, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); `PASTED_FILE = "(pasted)"`, a pasted image's `file`. Used by `talker`, `temp_ui`.
 
-You snipped part of a page in the [HTML viewer](../architecture/html-viewer.md). `image_path` is the PNG, kept in the launch's log folder (`snips/`); `file` is the page; `heading` the nearest heading above the box. The `html_viewer` module publishes it; so does `temp_ui` for an image pasted into its chat box (`file=PASTED_FILE`, `"(pasted)"`, no heading; the Talker labels it `[Pasted] image`). The type's docstring still says "from the HTML viewer": widen it at the next restart. The Talker keeps up to `MAX_SNIPS` (3) and sends them as images with your next message; the temp UI shows them as thumbnails until then.
+You snipped part of a page in the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md). `image_path` is the PNG, kept in the launch's log folder (`snips/`); `file` is the page; `heading` the nearest heading above the box. The `html_viewer` module publishes it; so does `temp_ui` for an image pasted into its chat box (`file=PASTED_FILE`, `"(pasted)"`, no heading; the Talker labels it `[Pasted] image`). The type's docstring still says "from the HTML viewer": widen it at the next restart. The Talker keeps up to `MAX_SNIPS` (3) and sends them as images with your next message; the temp UI shows them as thumbnails until then.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
@@ -200,7 +200,7 @@ A grant was saved, denied, widened or revoked. `request_id`: the card it closes,
 
 ## Voice
 
-Voice input ([design](../architecture/voice.md#the-voice_in-module)). A module that needs the mic requires the voice contract [`IVoice`](#ivoice); a UI button may send the commands instead. `voice_in` provides the one and handles the other, with the same sessions, and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id, or the id given to `IVoice.listen`), so each caller follows only its own session. Built 2026-11-03; `IVoice` built 2026-11-05.
+Voice input ([design](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module)). A module that needs the mic requires the voice contract [`IVoice`](#ivoice); a UI button may send the commands instead. `voice_in` provides the one and handles the other, with the same sessions, and publishes the events. `VoiceState` and `VoiceTranscript` carry `correlation_id` = the session id (the `StartListening` command's id, or the id given to `IVoice.listen`), so each caller follows only its own session. Built 2026-11-03; `IVoice` built 2026-11-05.
 
 ### `IVoice`
 
@@ -242,7 +242,7 @@ Turn the mic off. **`agent_id`** (added 2026-11-06): the agent tab the stop was 
 
 **Reusable** · Used by: `VoiceState`
 
-`StrEnum`: `idle` (mic off), `starting` (clicked; the service may be launching, the mic opening), `listening` (mic open, text coming), `dropped` (the mic went away mid-session; waiting for it to come back, then `listening` or `failed`; added 2026-11-03), `finishing` (the mic is off and the last piece is being cleaned; the detail is "cleaning up…", then `idle`; added 2026-11-03 for [two passes](../architecture/voice.md#two-passes-live-text-cleaned-piece-by-piece)), `failed` (went wrong; the event's `reason` and `detail` say what).
+`StrEnum`: `idle` (mic off), `starting` (clicked; the service may be launching, the mic opening), `listening` (mic open, text coming), `dropped` (the mic went away mid-session; waiting for it to come back, then `listening` or `failed`; added 2026-11-03), `finishing` (the mic is off and the last piece is being cleaned; the detail is "cleaning up…", then `idle`; added 2026-11-03 for [two passes](../../src/assistant/modules/voice_in/docs/voice-service.md#two-passes-live-text-cleaned-piece-by-piece)), `failed` (went wrong; the event's `reason` and `detail` say what).
 
 ### `VoiceState`
 
@@ -258,7 +258,7 @@ The mic's state changed. `reason` is the service's error code (`busy`, `mic_unav
 
 `VoiceTranscript(session_id: str, text: str, final: bool = False, settled_chars: int = 0)` (event)
 
-The live text: each partial (`final=False`), then once the final text (`final=True`; empty clears the line). `settled_chars` (added 2026-11-03): how many characters from the start of `text` are settled (cleaned by the final engine, or given up on); the rest is rough live text, which a UI may dim. Always 0 with one engine. `voice_in` publishes it in sentence case, and the final with one end mark ([text cleanup](../architecture/voice.md#the-voice_in-module), `[modules.voice_in] cleanup`); the engine's raw text is only in the log. This is the public stream of voice text; `InputReceived(source="voice")` is only the Talker's way in.
+The live text: each partial (`final=False`), then once the final text (`final=True`; empty clears the line). `settled_chars` (added 2026-11-03): how many characters from the start of `text` are settled (cleaned by the final engine, or given up on); the rest is rough live text, which a UI may dim. Always 0 with one engine. `voice_in` publishes it in sentence case, and the final with one end mark ([text cleanup](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module), `[modules.voice_in] cleanup`); the engine's raw text is only in the log. This is the public stream of voice text; `InputReceived(source="voice")` is only the Talker's way in.
 
 **Defined in:** `src/assistant/contracts/voice.py`
 
@@ -266,7 +266,7 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 
 **Reusable** · Used by: `voice_service` server (`server.py`, `session.py`), `voice_in` client (`module.py`)
 
-`from voice_service.protocol import ...` (not `assistant.contracts`: the service never imports the assistant). The [`/ws/listen` protocol](../architecture/voice.md#the-protocol) as frozen pydantic models, one JSON object per text frame, so the service and its Python clients share one definition. `voice_service/__init__.py` is empty, so importing it doesn't pull in FastAPI or sherpa-onnx.
+`from voice_service.protocol import ...` (not `assistant.contracts`: the service never imports the assistant). The [`/ws/listen` protocol](../../src/assistant/modules/voice_in/docs/voice-service.md#the-protocol) as frozen pydantic models, one JSON object per text frame, so the service and its Python clients share one definition. `voice_service/__init__.py` is empty, so importing it doesn't pull in FastAPI or sherpa-onnx.
 
 | Item | Kind | Summary |
 |------|------|---------|
@@ -291,7 +291,7 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 
 **Reusable** · Used by: `voice_service` (`server.py`, `session.py`, `transcribe.py`, `__main__.py`); `WhisperEngine` adds an `SttEngine`, `FileSource` an `AudioSource`; the Nemotron engine (step 7, planned) adds an `SttEngine` and reuses `transcribe` for the comparison; `RemoteSource` for `/ws/audio` (later) adds an `AudioSource`
 
-The service's own API, inside `src/voice_service/` (its own app: never imported by the assistant; `voice_in` uses only the protocol above). Built 2026-11-03; design: [Voice: files and classes](../architecture/voice.md#the-voice-service-files-and-classes).
+The service's own API, inside `src/voice_service/` (its own app: never imported by the assistant; `voice_in` uses only the protocol above). Built 2026-11-03; design: [Voice: files and classes](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice-service-files-and-classes).
 
 | Item | Kind | Summary |
 |------|------|---------|

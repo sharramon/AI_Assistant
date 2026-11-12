@@ -73,7 +73,7 @@
 - **Change** `src/assistant/modules/temp_ui/module.py` (and its page if needed): follow only its own sessions; show "cancelled" when taken over.
 - **Change** `config/default.toml` (`[modules.voice_notes]`, and `voice_notes` in `enabled`) and `src/assistant/__main__.py` (`MODULES`). Both only matter at the next launch; today's run uses `ADD_MODULE`.
 - **Add** `tests/test_voice_notes.py`; **extend** `tests/test_voice_in.py` and `tests/test_temp_ui.py`.
-- **Docs:** [Modules](../architecture/modules.md) (voice notes v1 built, by workaround), [Voice](../architecture/voice.md) (one user at a time, the second press wins), the [messaging API page](../api/messaging.md#voicestate) (reason `taken_over`; a second `StartListening` cancels the open session), the overview's Voice notes row, and the [runtime](../agents/runtime.md#temp-ui) page.
+- **Docs:** [Modules](../architecture/modules.md) (voice notes v1 built, by workaround), [Voice](../../src/assistant/modules/voice_in/docs/voice-service.md) (one user at a time, the second press wins), the [messaging API page](../api/messaging.md#voicestate) (reason `taken_over`; a second `StartListening` cancels the open session), the overview's Voice notes row, and the [runtime](../agents/runtime.md#temp-ui) page.
 
 ## How to test
 

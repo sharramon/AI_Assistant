@@ -140,7 +140,7 @@ The calls are on the core's menu, with no UI in them, so any UI and any agent us
 
 **Your snips:** every task agent built on `ProfileAgent` may read this launch's snips folder (`logs/<launch>/snips/`, your snips and pasted images) with no card: a read rule added at each session start, not on any access list.
 
-The only screen is a rough, throwaway grants panel in the [temp UI](../modules/temp_ui.md), all in `temp_ui/static/grants.js`.
+The only screen is a rough, throwaway grants panel in the [temp UI](../../src/assistant/modules/temp_ui/docs/README.md), all in `temp_ui/static/grants.js`.
 
 ## Permission names
 
