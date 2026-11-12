@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: personal-data cleanup and module docs into modules</title>
+<!-- Generated from docs/next-steps/handoff-privacy-cleanup.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-privacy-cleanup.html"></nav>
+<main>
+<h1 id="handoff-personal-data-cleanup-and-module-docs-into-modules">Handoff: personal-data cleanup and module docs into modules</h1>
+<p><strong>Asked (2026-11-12):</strong> replace real application details with placeholders, untrack scratch and temp pages, extend <code>.gitignore</code>, and move each module's docs into its own folder. No push, no history rewrite, no git config change.</p>
+<h2 id="done-2026-11-12">Done (2026-11-12)</h2>
+<ul>
+<li><code>bf17b1f</code> Placeholders: 205 replacements in 25 files (made-up names: ExampleCorp, Acme Bio, Globex, Umbrella, Initech, Jane Doe; Rezi IDs zeroed; the test_rezi_items fixture's name, school, degree, dates and bullets). The CV prefix was replaced only in <code>docs/next-steps/</code> and <code>docs/job-project/</code> (<code>CV_Test_</code>).</li>
+<li><code>0730d84</code> Untracked <code>docs/temp/job-project-overview.html</code> and the five <code>scratch/*.html</code> pages (still on disk, ignored). <code>.gitignore</code>: secrets, <code>*.local.*</code>, <code>data/</code>, CV formats, tokens, snips, Jobs/Recruiters, scratch and temp. <code>module-folders.html</code> now lives in <code>docs/next-steps/</code>; <code>build_docs.py</code> (<code>copy_hand_pages</code>) copies <code>docs/next-steps/*.html</code> into <code>docs/html-next-steps/</code>.</li>
+<li><code>f71b54b</code> Docs rebuilt.</li>
+<li>ruff clean. pytest: 797 passed, 1 skipped, 1 failed. The failure was there before this work: <code>test_main_docs_never_link_into_next_steps</code>, from the "Currently fixing" link in <code>docs/architecture/README.md</code>.</li>
+</ul>
+<h2 id="waiting-on-the-user">Waiting on the user</h2>
+<ol>
+<li><strong>The CV prefix in code.</strong> <code>cv/data.py</code> (<code>BASE_CV_NAME</code>), <code>cv/module.py</code> (<code>output_path</code>, tool descriptions), <code>cv/worker.py</code> (the prompt) and <code>src/cv_tool/cvlib.py</code> (finding base CVs, naming output PDFs) use the real prefix as a rule, and the cv tests and <code>cv/docs</code> follow it. Recommended: a <code>cv_prefix</code> setting (<code>cv/module.toml</code> and <code>cv_tool.toml</code>, repo default <code>CV_Test_</code>, the real value in the gitignored <code>.local</code> overrides), then tests and docs use <code>CV_Test_</code>.</li>
+<li><strong>Central modules.</strong> <code>build_docs.py</code> <code>CENTRAL_MODULES</code> (user decision, 2026-11-06) keeps agent_hub, talker, main_assistant, task_agents, usage, console_io, assistant_view and temp_ui in <code>docs/modules/</code>. The new ask names task_agents and usage too. Recommended: move every module, each with the three standard pages (README, architecture, tools generated from its menu).</li>
+<li><code>cv/tests/test_job_start.py::test_the_cancelled_examplecorp_job_as_a_case</code> read a real CV copy outside the repo. With the placeholder name it is now always skipped. Recommended: delete it.</li>
+<li><code>docs/job-project/README.md</code> is about the job project, not the core. Recommended: move it into <code>job_search/docs/</code>.</li>
+<li>The pre-existing failure: recommended to make the overview's link to <code>module-folders.html</code> plain text.</li>
+</ol>
+<h2 id="next-part-4-after-the-answers">Next (part 4, after the answers)</h2>
+<ul>
+<li>Move each <code>docs/modules/&lt;id&gt;.md</code> into <code>src/assistant/modules/&lt;id&gt;/docs/</code> (README, architecture, tools, plus a <code>docs.toml</code> with its tab and related links from <code>MODULE_TABS</code>). Move <code>architecture/html-viewer.md</code> into html_viewer's docs. <code>architecture/voice.md</code> covers the voice service app and voice_in: move it into voice_in's docs only if it is truly about that one module.</li>
+<li>Trim <code>MODULE_TABS</code> / <code>CENTRAL_MODULES</code> in <code>build_docs.py</code>; keep <code>docs/modules/README.md</code> as the index or fold it into the module library. Fix every link (overview Pages list, module library, api pages, agents docs, tests/test_module_docs.py expectations).</li>
+<li>Rebuild, ruff, the full suite, then commit "module docs move" and "docs rebuilt".</li>
+<li>Not in scope, noted: personal paths in <code>config/default.toml</code>, <code>cv/module.toml</code>, <code>cv_tool.toml</code>, <code>.claude/</code>; the tracked <code>spikes/</code> scripts.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/handoff-privacy-cleanup.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

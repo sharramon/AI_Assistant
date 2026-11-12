@@ -684,6 +684,7 @@
         "handoff-cv-tool-build.html",
         "handoff-d729a7ef.html",
         "handoff-e519644c.html",
+        "handoff-privacy-cleanup.html",
         "live-permission-mode.html",
         "archive/index.html",
         "archive/logs-button.html",
@@ -985,6 +986,10 @@
             {
               "name": "Handoff e519644c: CV page layout settings, read per print (cv_agent, 2026-11-10)",
               "href": "handoff-e519644c.html"
+            },
+            {
+              "name": "Handoff: personal-data cleanup and module docs into modules",
+              "href": "handoff-privacy-cleanup.html"
             },
             {
               "name": "Auto / Manual applies at once",
