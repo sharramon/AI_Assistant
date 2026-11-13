@@ -495,7 +495,7 @@ The module's UI half, an independent app on the [companion app checklist](../../
 
 ## Owns and launches
 
-- **Its worker**, `cv_agent`: a Claude session with Chrome, started on its first task, working in its own workspace (`C:\Chang\Jobs\CV_Module` by default, made when cv turns on).
+- **Its worker**, `cv_agent`: a Claude session with Chrome, started on its first task, working in its own workspace (`modules\cv\workspace\` by default, gitignored, inside the module folder its grant already lets it write; its job folders may be there and nowhere else in the repo). Its files were copied there from the old outside folder on 2026-11-13; the old folder is left for you to delete.
 - **The CV Tool** (`python -m cv_tool` on `127.0.0.1:8771`): started by the first `cv.open_tool` / `cv.tool_*` call, handed over on a reload, quit at the module's stop if it launched it. Its data is in `<workspace>\cv_tool`.
 - **The Rezi connection**: an MCP client of `https://api.rezi.ai/mcp` (OAuth with PKCE, a 30-day token kept outside the repo). It connects on each use and never on load. During a sign-in it listens briefly on `127.0.0.1:callback_port`.
 - **LibreOffice** runs headless for each `.odt` → PDF export, in a temporary folder that's removed after the build.

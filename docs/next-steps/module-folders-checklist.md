@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 17 of 20 done** (items 1 to 16 and 20).
+**Count: 18 of 20 done** (items 1 to 17 and 20).
 
 **Architecture check after the core chunk (items 11–16):** modularity OK (item 15's tripwires scan the core group, `core/`, contracts, infra and `app_kit` for an add-on's id or tool names and pass; every module has its `module.toml`); reuse OK (config layering reuses `load_layered` / `merge`; page opening is one helper, `open_page`; start on use is one search for tools and contracts); fit OK (`config/` holds only your choices and the on/off list, `generated/` only what the core writes, grants in `config/`; `modules.remove` goes through the same risky ask as the other core menu items).
 
@@ -12,6 +12,9 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **App restart needed, item 17:** cv_agent works from `modules/cv/workspace/` only after the restart (the running app keeps `CV_Module`). **Hand checks:** cv_agent's access card shows again (the grant's fingerprint changed); run one smoke job.
+- **Open issue, item 17 (also item 18):** cv_agent's session now starts inside the repo, so **the repo's `CLAUDE.md` and `.claude/` settings load into it**, and Claude Code may file its auto-memory under the repo's key rather than the workspace's (memory was copied to the workspace key). `AgentProfile` / `claude_command` have no setting-sources option today. Simplest fixes: a setting-sources option on `AgentProfile`, or a short `workspace/CLAUDE.md` that overrides the repo's. Not built overnight (it changes how every agent's `claude` starts); decide in the morning.
+- **Old folders left for you to delete (item 17):** `C:\Chang\Jobs\CV_Module` (copied: 1,575 files, 198.6 MB; not copied: `cv_tool\.chrome_print`, `.claude\state`, `cv-tools-move-plan.md`) and the old memory key `%USERPROFILE%\.claude\projects\C--Chang-Jobs-CV-Module` (28 notes copied). Delete them once the smoke job works.
 - **App restart needed, item 16:** the core menu's `modules.remove` (new command `RemoveModule`).
 - **App restart needed, item 15:** the new contract `IPageOpener` and the core command `StartProvider`. The running app keeps its old code in memory until then (and can't launch the viewer since item 8). **Hand check:** temp_ui's Open in viewer button brings the window to the front; a SHOW tag with html_viewer off turns it on and opens the page.
 - **App restart needed, item 14:** the core writes `generated/modules.json`, `directory.json` and `dependencies.json` only after a restart. **Hand check:** they appear after the start and change when a module is turned on or off.
@@ -26,7 +29,7 @@
 - **Hand check, item 7:** after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.
 - **Hand check, item 4:** after the restart, `cv.open_tool` opens the CV Tool from `modules/cv/app/cv_tool/`.
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
-- **Old folders left for you to delete:** none yet.
+- **Old folders left for you to delete:** see items 17 and 18 above.
 
 > **Status: building (started 2026-11-13, overnight, unattended, in Auto).** The user approved the plan ([module-folders.html](module-folders.html), section 3) and this overnight run: commit, this checklist, then the migration in this order. The morning report goes at the top of this page when the run ends.
 
@@ -92,6 +95,8 @@ For you to review. Each picks the option closest to the approved picture.
 39. **The groups come from each module's `docs.toml`** (item 15): voice_in is in the core group there and echo_orchestrator is an add-on, unlike the item 11 list. The tripwire uses `docs.toml`, so changing a module's group there changes what it checks. **For you to review:** whether voice_in belongs in the core group (the picture drew it with the add-ons).
 40. **The tripwire** (item 15) reads string literals and imports in the core group, `core/`, contracts, infra and `app_kit`, skipping docstrings, and allows an add-on's named events (decision 9). The door's and the prompt's "e.g. `viewer.open`" examples now say `modules.docs`.
 41. **`modules.remove(module_id, settings="keep"|"purge")`** (item 16) asks first, then sends `RemoveModule`. It refuses while a module needs it: active and `needs` it (or requires a contract only it provides), or listed in `enabled` with `needs` naming it, even while off. It turns the module off and drops it from this run's list (`modules.add` brings it back). `purge` deletes only `config/<id>.toml` and `config/<id>.local.toml`; the shared names (`local`, `default`, `modules`, `permissions`, `voice_service`) never count. It never rewrites `config/modules.toml` or deletes the module folder: the result tells you to.
+42. **cv's job folders may sit in the repo, but only inside its own `workspace/`** (item 17): before, cv refused any work folder in the repo, so the new default wouldn't start. `[agent] workspace = "workspace"` (relative to the module folder), `output_dir` unset means `<workspace>/out`, and an output folder inside the workspace gets no read item of its own on the card. Your `config/local.toml` had no `CV_Module` key, so nothing there changed.
+43. **pytest skips `workspace` folders** (item 17: `norecursedirs` in `pyproject.toml`): the copied workspace holds old test scripts.
 
 ## The safeguards (from the audit, section 4)
 
@@ -259,7 +264,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** a core menu item, `risky`, which asks first; it never deletes the module folder itself (that's yours to do); tests.
 - **Done when:** the tests for refuse, keep and purge pass. **Needs an app restart** (core).
 
-### 17. cv_agent works from `modules/cv/workspace/`
+### 17. cv_agent works from `modules/cv/workspace/`: **done** (2026-11-13; one open issue, see the morning list)
+
+**Checked:** `git grep -n "CV_Module" src` finds nothing; `modules/cv/workspace/.claude/skills/cv-writing/SKILL.md` and `modules/cv/workspace/cv_tool/submits_seen.json` exist; `git check-ignore` matches the workspace (`.gitignore: workspace/`) and `git status --porcelain` lists nothing under it; `test_cv_agent_works_from_its_module_workspace` and the cv tests (159) pass; full suite 915 passed, 2 deselected; ruff clean. Nothing in `C:\Chang\Jobs\CV_Module` was changed. **Needs an app restart.**
 
 - **What:** cv_agent's working files are copied from `C:\Chang\Jobs\CV_Module` into `modules/cv/workspace/`, its config and grant point there, and its memory notes are copied to the new folder's memory key.
 - **Why:** the rule (nothing of cv outside its folder); cv_agent's own plan (`C:\Chang\Jobs\CV_Module\cv-tools-move-plan.md`, section 5).

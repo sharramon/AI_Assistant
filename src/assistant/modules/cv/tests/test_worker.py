@@ -43,9 +43,12 @@ def test_the_default_worker_is_cv_agent_with_chrome_and_reads_the_output_folder(
     config = agent["config"]
     assert config["chrome"] is True and config["permission_mode"] == "acceptEdits"
     assert "enabled" not in config and "agent_id" not in config
-    assert config["read_dirs"] == ["C:/Chang/Jobs/CV", DEFAULTS["output_dir"]]
+    # the default output folder is <workspace>/out, already the worker's: no read item for it
+    assert config["read_dirs"] == ["C:/Chang/Jobs/CV"]
+    out = "C:/elsewhere/out"
+    assert worker_config({}, out)["config"]["read_dirs"] == [out]
     # the output folder isn't added twice, and no [agent] table means the menu only
-    again = worker_config({"read_dirs": [DEFAULTS["output_dir"] + "/"]}, DEFAULTS["output_dir"])
+    again = worker_config({"read_dirs": [out + "/"]}, out)
     assert len(again["config"]["read_dirs"]) == 1
     assert worker_config({"enabled": False}, "")["enabled"] is False
     plain = {k: v for k, v in DEFAULTS.items() if k != "agent"}

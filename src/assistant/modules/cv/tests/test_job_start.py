@@ -134,7 +134,9 @@ def test_a_job_that_cant_start_safely_makes_nothing(tmp_path, problem):
 
 def test_the_work_folder_and_the_rules_come_from_the_config(tmp_path):
     checked = settings(DEFAULTS)
-    home = Path("C:/Chang/Jobs/CV_Module")
+    home = Path(__file__).resolve().parents[1] / "workspace"  # the module's own workspace, gitignored
+    assert Path(checked["agent"]["config"]["workspace"]) == home
+    assert Path(checked["output_dir"]) == home / "out"
     assert Path(checked["work_dir"]) == (home / "work").resolve()
     assert [Path(s) for s in checked["job_skills"]] == [home / "data" / "confirmed_facts.json"]
     assert Path(checked["rules_dir"]) == home / ".claude" / "skills" / "cv-writing"

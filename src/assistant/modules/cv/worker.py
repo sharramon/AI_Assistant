@@ -116,7 +116,9 @@ def worker_config(section: Any, output_dir: str) -> dict[str, Any]:
     read_dirs = config.get("read_dirs", [])
     if not (isinstance(read_dirs, list) and all(isinstance(d, str) for d in read_dirs)):
         raise ValueError("cv: agent.read_dirs must be a list of folders")
-    if output_dir and not any(_same(d, output_dir) for d in read_dirs):
+    workspace = str(config.get("workspace") or "")
+    inside = bool(workspace) and bool(output_dir) and Path(output_dir).resolve().is_relative_to(Path(workspace).resolve())
+    if output_dir and not inside and not any(_same(d, output_dir) for d in read_dirs):
         read_dirs = [*read_dirs, output_dir]
     config["read_dirs"] = read_dirs
     config.setdefault("description", "The CV worker: tailors a CV for one job with Rezi, one clean page, your yes")

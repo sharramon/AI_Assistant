@@ -49,7 +49,7 @@
     Sub -. &quot;the result at Submit&lt;br/&gt;(DeliverMessage, into its open task)&quot; .-&gt; JobAgent
     In[&quot;&lt;b&gt;Inputs&lt;/b&gt;&lt;br/&gt;JD as text · base CV as a PDF&lt;br/&gt;(cv.task)&quot;]
     Gate[&quot;&lt;b&gt;Job-start gate&lt;/b&gt;&lt;br/&gt;work folder · copy of the PDF&lt;br/&gt;loads the rule files&quot;]
-    Rules[&quot;&lt;b&gt;rules folder&lt;/b&gt;&lt;br/&gt;style · layout · Rezi · 9 pt&lt;br/&gt;(CV_Module\.claude\skills\cv-writing)&quot;]
+    Rules[&quot;&lt;b&gt;rules folder&lt;/b&gt;&lt;br/&gt;style · layout · Rezi · 9 pt&lt;br/&gt;(workspace\.claude\skills\cv-writing)&quot;]
     Facts[&quot;&lt;b&gt;confirmed_facts.json&lt;/b&gt;&lt;br/&gt;your confirmed facts, as data&quot;]
     Agent[&quot;&lt;b&gt;cv_agent&lt;/b&gt;&lt;br/&gt;the cv module's worker&quot;]
     Rezi[&quot;&lt;b&gt;Rezi&lt;/b&gt; (a scorer only)&lt;br/&gt;1 · API: write and read the text&lt;br/&gt;2 · your Chrome: read the score + keywords&lt;br/&gt;(sometimes an edit there)&lt;br/&gt;✗ its PDF: never downloaded&quot;]
@@ -340,8 +340,8 @@
 </tr>
 <tr>
 <td><code>output_dir</code></td>
-<td><code>C:\Chang\Jobs\rezi\rezi\out</code></td>
-<td>Where each job's folder goes</td>
+<td>unset: <code>&lt;workspace&gt;\out</code></td>
+<td>Where <code>cv.build</code> puts a PDF made without a job folder; a relative path is from the module's folder</td>
 </tr>
 <tr>
 <td><code>cv_dir</code></td>
@@ -417,7 +417,7 @@
 </tr>
 <tr>
 <td><code>workspace</code></td>
-<td><code>C:\Chang\Jobs\CV_Module</code></td>
+<td><code>workspace</code> (the module's own <code>modules\cv\workspace\</code>, gitignored; a relative path is from the module's folder)</td>
 <td>Its working folder and home (the only one it writes): <code>work\</code>, <code>applied\</code>, <code>data\</code>, <code>cv_tool\</code>, <code>.claude\skills\cv-writing\</code>. A change here asks you again on the access card</td>
 </tr>
 <tr>
@@ -492,12 +492,12 @@
 <tr>
 <td>Rules folder</td>
 <td>Built, not live</td>
-<td>Copied into <code>C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\</code> (the originals stay); loaded by the gate after the reload</td>
+<td>In <code>workspace\.claude\skills\cv-writing\</code> (copied from the old outside folder, 2026-11-13; the originals stay); loaded by the gate after the reload</td>
 </tr>
 <tr>
 <td>confirmed_facts.json</td>
 <td>Built, not live</td>
-<td>A copy in <code>C:\Chang\Jobs\CV_Module\data\</code>, in <code>job_skills</code>; loaded after the reload</td>
+<td>A copy in <code>workspace\data\</code>, in <code>job_skills</code>; loaded after the reload</td>
 </tr>
 <tr>
 <td>cv_agent</td>

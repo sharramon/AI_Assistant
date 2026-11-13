@@ -26,6 +26,9 @@ asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
 # Each module carries its own tests in its folder (src/assistant/modules/<id>/tests/).
 testpaths = ["tests", "src/assistant/modules"]
+# pytest's own defaults plus `workspace`: an agent's working folder (modules/<id>/workspace, gitignored)
+# holds its own scripts and old tests, never the app's.
+norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}", "workspace"]
 # Tests that run a real `claude` process are skipped by default (and in CI).
 # Run them on your own machine with: pytest -m claude
 addopts = "-m 'not claude'"

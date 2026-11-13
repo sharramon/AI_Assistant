@@ -106,6 +106,9 @@ menu = CallerMenu()
 
 PAPERS = ("letter", "a4")
 REPO = Path(__file__).resolve().parents[4]  # src/assistant/modules/cv -> the repo: no token file in it
+HERE = Path(__file__).resolve().parent  # this module's folder: a relative workspace or output_dir is from here
+#: cv_agent's own workspace (gitignored, `workspace/`): the one place in the repo its job folders may be.
+OWN_WORKSPACE = HERE / "workspace"
 
 _BUILD_ARGS = {
     "company": {"type": "string", "minLength": 1, "description": "The job's company; names the folder and the files"},
@@ -862,12 +865,16 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
     port = config.get("callback_port", CALLBACK_PORT)
     if not (isinstance(port, int) and not isinstance(port, bool) and 1 <= port <= 65535):
         raise ValueError(f"cv: callback_port must be 1 to 65535, not {port!r}")
-    output_dir = str(config.get("output_dir", ""))
+    section = config.get("agent", {"enabled": False})  # no table: the menu only
+    if isinstance(section, dict) and section.get("workspace"):
+        section = {**section, "workspace": str(_from_here(section["workspace"]))}
+    workspace = str(section.get("workspace") or "") if isinstance(section, dict) else ""
+    output_dir = config.get("output_dir")
+    output_dir = str(_from_here(output_dir)) if output_dir else str(Path(workspace) / "out") if workspace else ""
     cv_dir = str(config.get("cv_dir", ""))
     prefix = check_cv_prefix(config.get("cv_prefix", "CV_Test_"))
-    agent = worker_config(config.get("agent", {"enabled": False}), output_dir)  # no table: the menu only
+    agent = worker_config(section, output_dir)
     work_dir, job_skills = job_folders(config, agent, cv_dir)
-    workspace = str(agent["config"].get("workspace") or "")
     rules = Path(str(config.get("rules_dir") or "")).expanduser() if config.get("rules_dir") else None
     rules_dir = "" if rules is None else str(rules if rules.is_absolute() or not workspace else Path(workspace) / rules)
     callers = dict(config.get("hand_off", {})).get("callers", [])  # an old `coordinator` key is ignored
@@ -894,6 +901,13 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _from_here(path: Any) -> Path:
+    """A configured folder: `~` expanded, a relative one from this module's folder (`workspace` →
+    `modules/cv/workspace`), so no default names a personal absolute path."""
+    folder = Path(str(path)).expanduser()
+    return folder if folder.is_absolute() else (HERE / folder).resolve()
+
+
 def job_folders(config: dict[str, Any], agent: dict[str, Any], cv_dir: str) -> tuple[str, list[str]]:
     """The checked `work_dir` (each job's folder goes in it; "" = `<the worker's workspace>/work`)
     and `job_skills` (the rule files every job loads; `~` expanded, a relative path from the
@@ -912,8 +926,8 @@ def job_folders(config: dict[str, Any], agent: dict[str, Any], cv_dir: str) -> t
     work = Path(work_dir).expanduser().resolve()
     if cv_dir and work.is_relative_to(Path(cv_dir).resolve()):
         raise ValueError(f"cv: work_dir must be outside your CV folder {cv_dir}, not {work_dir}")
-    if work.is_relative_to(REPO):
-        raise ValueError(f"cv: work_dir must be outside the repo, not {work_dir}")
+    if work.is_relative_to(REPO) and not work.is_relative_to(OWN_WORKSPACE):
+        raise ValueError(f"cv: work_dir must be in cv's own workspace or outside the repo, not {work_dir}")
     if agent["enabled"] and workspace and not work.is_relative_to(Path(workspace).resolve()):
         raise ValueError(f"cv: work_dir must be in the worker's workspace {workspace}, not {work_dir}")
     base = Path(workspace) if workspace else work

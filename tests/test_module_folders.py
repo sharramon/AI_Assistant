@@ -783,3 +783,28 @@ def test_html_viewer_fills_the_page_opener_slot() -> None:
         cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
         assert IPageOpener in cls.manifest.uses and StartProvider in cls.manifest.sends, module_id
     assert IPageOpener in AGENT_USES and StartProvider in AGENT_SENDS  # every worker's SHOW tags
+
+
+# Item 17: cv_agent works from modules/cv/workspace/.
+
+
+def test_cv_agent_works_from_its_module_workspace() -> None:
+    """Item 17's done-when, as `git grep -n "CV_Module" src`, plus where the workspace and its grant are."""
+    found = subprocess.run(["git", "grep", "-n", "CV_" + "Module", "--", "src"], cwd=REPO,
+                           capture_output=True, text=True).stdout  # fmt: skip
+    assert not found, found
+    from assistant.modules.cv.module import settings
+
+    checked = settings(tomllib.loads((CV / "module.toml").read_text(encoding="utf-8")))
+    workspace = Path(checked["agent"]["config"]["workspace"])
+    assert workspace == CV / "workspace" and Path(checked["output_dir"]) == workspace / "out"
+    assert Path(checked["work_dir"]).is_relative_to(workspace) and Path(checked["tool"]["data_dir"]) == workspace / "cv_tool"
+    ignored = subprocess.run(["git", "check-ignore", "-q", "src/assistant/modules/cv/workspace/x"], cwd=REPO)
+    assert ignored.returncode == 0  # its files (your CVs, facts, jobs) never reach git
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    assert "workspace" in pyproject["tool"]["pytest"]["ini_options"]["norecursedirs"]  # its old scripts aren't ours
+    # the grant: its own module folder (written) holds the workspace, which is asked first
+    items = access_items(checked["agent"]["config"], "cv")
+    assert items[0].target == str(workspace) and str(CV) in _writes(items)
+    with pytest.raises(ValueError, match="own workspace"):  # elsewhere in the repo is still refused
+        settings(tomllib.loads((CV / "module.toml").read_text(encoding="utf-8")) | {"work_dir": str(CV / "work")})

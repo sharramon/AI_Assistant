@@ -19,7 +19,7 @@ target_score = 90   # the ATS score to reach in the CV Tool's ATS Loop (aim 100)
 max_rounds = 5      # ATS Loop rounds before it stops and reports
 paper = "letter"    # US Letter; "a4" later
 
-output_dir = "C:/Chang/Jobs/rezi/rezi/out"
+# output_dir = ""  # unset: <agent.workspace>/out (cv.build's PDFs); a relative path is from this module's folder
 cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs, read only (the CV Tool lists the <cv_prefix>* ones); not a rule for base_cv or cv.read
 # The start of your CV file names: the PDFs made are named with it and the CV Tool lists your CVs by it.
 # Your real prefix goes in the gitignored config/local.toml ([modules.cv] cv_prefix = "...").
@@ -63,7 +63,7 @@ port = 8771            # fixed, so CompanionApp finds it (8765-8767 and 8770 are
 [agent]
 enabled = true
 agent_id = "cv_agent"
-workspace = "C:/Chang/Jobs/CV_Module"
+workspace = "workspace"       # its own folder, modules/cv/workspace (gitignored); a relative path is from this module's folder
 read_dirs = ["C:/Chang/Jobs/CV"]
 tools = "default"
 chrome = true                 # Claude in Chrome, only for app.rezi.ai (its prompt says so)
