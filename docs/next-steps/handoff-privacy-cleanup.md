@@ -51,4 +51,11 @@ Finished in a second session: the docs-html skill updated (central `SECTIONS`, t
 - Rebuild, ruff, the full suite, then commit "module docs move" and "docs rebuilt". No push.
 - Not in scope, noted: personal paths in `config/default.toml`, `cv/module.toml`, `cv_tool.toml`, `.claude/`; the tracked `spikes/` scripts.
 
+## History rewrite, push and backups: done (2026-11-12)
+
+- History scrubbed and force-pushed with the user's yes: `git push --force-with-lease=main:1ca9231 origin main`; origin/main = local main = `ee67133` (only main pushed).
+- Local backups deleted with the user's yes: `backup/before-scrub-2026-11-12` (`a8f12f4`), `backup/before-redate-2026-11-12` (`594997c`), `refs/original/refs/heads/main`. Only `main` and `origin/main` remain.
+- Kept on purpose: the reflog and `.git/filter-repo` (old commits recoverable locally until git expires them, ~30–90 days); no GitHub Support purge (the user keeps old commits reachable for now).
+- **Left:** the app restart (picks up the `app_kit.module_docs` `group` change). Optional later, only if the user asks: `git reflog expire` + `git gc` to drop the old commits locally; a GitHub Support purge.
+
 No Chrome tabs are open for this task.
