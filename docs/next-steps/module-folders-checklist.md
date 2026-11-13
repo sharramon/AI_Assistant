@@ -1,6 +1,28 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 19 of 20 done** (items 1 to 18 and 20).
+**Count: 20 of 20 done** (every item checked against the code).
+
+## Morning report (2026-11-13, end of the overnight run)
+
+**Done and verified, all 20 items.** Each was checked against its **Done when** (a grep, a file listing or a test), then committed on its own: 1 `54a7ceb`, 2 `b787049`, 3 `0746474`, 4 `f2df497`, 5 `411cc95`, 6 `9a3830c`, 7 `330a380`, 8 `6de830e`, 9 `d4a388d`, 10 `d5aed1e`, 11 `eaeb1a7`, 12 `976ebf2`, 13 `23bc80d`, 14 `e71f824`, 15 `66b7548`, 16 `aa6f06f`, 17 `37f7795`, 18 `e6a19ee`, 19 in the commit after it; 20 was done before (`c0d2a5d`). Part 1's commits: `2e283b2`, `010ecb6`, `2660c25`, `111250e`; the checklist itself: `2e81950`. Nothing pushed (you push).
+
+**Partly done or blocked:** none blocked. Open issues on finished items, for you to decide:
+- Items 17 and 18: cv_agent's and job_search_agent's sessions now start inside the repo, so the repo's `CLAUDE.md` and `.claude/` settings load into them (fix options in the morning list).
+- Item 18: the job project's `cv_output` still points at the old rezi output folder (decision 49).
+- Item 6: cv also uses `pypdf` and `mcp`, which aren't in its `packages` (decision 18).
+- Decision 39: whether voice_in belongs in the core group.
+
+**Decisions made overnight:** 49, in "Decisions made overnight" below. The ones worth a look first: 5 (your documents stay in `C:\Chang\Jobs\CV`), 11 (one mixed cv commit), 13 (a needed module that fails at startup skips its dependents), 39, 49.
+
+**Needs an app restart:** yes, one restart covers everything (items 1–4, 6, 8, 9, 12–18). **Until it, the running app can't launch the CV Tool, the HTML viewer or the voice service (the mic fails)**, because their code moved. Details in the morning list.
+
+**Hand checks due after the restart:** in the morning list below: access cards for cv_agent and job_search_agent (once), `cv.open_tool`, the viewer (open, snip, paste, ×), the mic and voice_notes, `modules.on voice_notes` / `job_search` turning on what they need, `generated/` appearing, `config/permissions.toml` holding your grants, one cv smoke job, `job.open_ui`, one dry apply session.
+
+**Old folders left for you to delete** (copied, never removed): `C:\Chang\Jobs\CV_Module` and memory key `C--Chang-Jobs-CV-Module` (item 17); `C:\Chang\Jobs\CV\.claude`, `C:\Chang\Jobs\CV\Recruiters\scripts` and the copied `Recruiters\docs` state, and memory key `C--Chang-Jobs-CV` (item 18); `data/permissions.toml` in the repo (item 13). Your CVs in `C:\Chang\Jobs\CV` stay. Also `.venv\Scripts\html-viewer.exe` and `voice-service.exe` are broken stubs now. The stray `pytest_run.txt` at the repo root is an old output, left untracked.
+
+**Real test numbers:** before the run 841 passed, 2 deselected; at the end **921 passed, 2 deselected** (186 s); ruff clean. One flaky test seen once (item 14, voice pieces).
+
+**Architecture check, final (items 17–19):** modularity OK (`git grep` of `core/`, contracts, infra and `app_kit` for the add-on ids finds only docstring examples; `src/` holds only `assistant` and `app_kit`; the per-add-on tripwire passes for cv, echo_orchestrator, html_viewer, job_search and voice_notes); reuse OK (`in_module_folder` shared by cv and job_search, in the reusable index); fit OK (agent workspaces are relative to their module folder and gitignored; personal folders only in `config/local.toml`).
 
 **Architecture check after the core chunk (items 11–16):** modularity OK (item 15's tripwires scan the core group, `core/`, contracts, infra and `app_kit` for an add-on's id or tool names and pass; every module has its `module.toml`); reuse OK (config layering reuses `load_layered` / `merge`; page opening is one helper, `open_page`; start on use is one search for tools and contracts); fit OK (`config/` holds only your choices and the on/off list, `generated/` only what the core writes, grants in `config/`; `modules.remove` goes through the same risky ask as the other core menu items).
 
@@ -33,7 +55,7 @@
 - **Old folders left for you to delete (item 18):** `C:\Chang\Jobs\CV\.claude`, `C:\Chang\Jobs\CV\Recruiters\scripts` and the copied `Recruiters\docs` state (not the archive, which stays), and the old memory key `%USERPROFILE%\.claude\projects\C--Chang-Jobs-CV`. Your CVs and documents in `C:\Chang\Jobs\CV` stay. Delete them once the dry apply session works.
 - **Old folders left for you to delete:** see items 17 and 18 above.
 
-> **Status: building (started 2026-11-13, overnight, unattended, in Auto).** The user approved the plan ([module-folders.html](module-folders.html), section 3) and this overnight run: commit, this checklist, then the migration in this order. The morning report goes at the top of this page when the run ends.
+> **Status: built (2026-11-13, overnight, unattended, in Auto); waiting for your app restart and hand checks.** The user approved the plan ([module-folders.html](module-folders.html), section 3) and this overnight run: commit, this checklist, then the migration in this order. The morning report is at the top of this page.
 
 ## What we are doing
 
@@ -290,7 +312,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** copy per its "Files to clone" table, plus `Recruiters\docs\` state, not the history it lists under "Don't clone". Your CV and cover-letter files stay in `C:\Chang\Jobs\CV` (decision 5). Add `workspace/job_paths.json` and switch the scripts to it. Keep the job project's tests out of the app's pytest run. Set `[modules.job_search] workspace` → the new folder, `documents` = `C:/Chang/Jobs/CV` (read and write). Keep JobRadar's Python (decision 6). Copy the memory notes. `ui.py`'s default script path. Docs (`job-project.md`).
 - **Done when:** `modules/job_search/workspace/CLAUDE.md` and `…/Recruiters/scripts/job_ui.py` exist; a grep of the copied scripts finds `C:\Chang\Jobs\CV` only in `job_paths.json`; `git status` lists nothing under `workspace/`; pytest collects nothing from the workspace. **Hand check:** the access card, `job.open_ui`, one dry apply session up to the form.
 
-### 19. The rule holds for every add-on
+### 19. The rule holds for every add-on: **done** (2026-11-13)
+
+**Checked:** `pytest tests/test_module_folders.py -k nothing_of_an_add_on` runs 5 tests, one per add-on read from `docs.toml` (`[cv]`, `[echo_orchestrator]`, `[html_viewer]`, `[job_search]`, `[voice_notes]`), all passing; a stray central test importing cv made `[cv]` fail with the file named (then removed). Each test checks apps, `module.toml` (`needs`, `packages`), `pyproject.toml`, committed config, tests and workspace keys. The core group keeps its own checks (`test_no_core_module_package_in_pyproject`, `test_no_module_only_test_file_is_central`). `test_no_cv_only_test_is_central` folded into `[cv]`, and `test_no_module_package_in_pyproject` was renamed (the evidence for items 5 and 6 names the old tests). The overview's Parts table locations were checked against the code (testkit, modules, CV Tool link, grants, remote clients). Full suite and ruff in the morning report. No restart needed.
 
 - **What:** one tripwire checks the whole rule: no add-on file outside its folder (no `src/<app>`, no module packages in `pyproject.toml`, no `[modules.<id>]` defaults, no module-only test in `tests/`, no agent workspace outside the repo in config).
 - **Why:** the picture's rule ("delete `modules/cv/` and nothing of cv is left behind"), for every add-on, kept true from now on.

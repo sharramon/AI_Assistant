@@ -2,7 +2,7 @@
 
 The fakes and helpers every test may use: the central tests in `tests/` and each module's own tests in `src/assistant/modules/<id>/tests/`. All items: `from assistant.testkit import ...`. Every item is reusable and listed in the [reusable parts index](reusable.md). Back to the [API index](README.md).
 
-> **Status: built (2026-11-13).** A module's tests import shared helpers from here only, never from `tests.*`, so a module's folder carries its tests whole. **For tests only:** nothing in the app imports it, and the core treats it as shared code (it can't be reloaded). Checked by `tests/test_module_folders.py` (`test_module_tests_use_only_the_testkit`, `test_only_tests_import_the_testkit`, `test_no_cv_only_test_is_central`, `test_no_module_only_test_file_is_central`).
+> **Status: built (2026-11-13).** A module's tests import shared helpers from here only, never from `tests.*`, so a module's folder carries its tests whole. **For tests only:** nothing in the app imports it, and the core treats it as shared code (it can't be reloaded). Checked by `tests/test_module_folders.py` (`test_module_tests_use_only_the_testkit`, `test_only_tests_import_the_testkit`, `test_no_module_only_test_file_is_central` for the core group, and `test_nothing_of_an_add_on_is_outside_its_folder` for each add-on).
 
 It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_grant_kinds`) import it when called. It needs no pytest: fixtures stay in the test files (`tests/test_agents.py`'s `hub` wraps `start_hub`).
 

@@ -16,17 +16,17 @@ finds every module's `app/` folder by folder and puts it on the import path, a l
 (`PYTHONPATH`), the app never imports `assistant`, and its defaults are in cv's workspace.
 
 Item 5: cv's tests are in its module, on the public test kit. No module file imports `tests`; the
-shared fakes and helpers are in `assistant.testkit`, which only tests import; no cv test is central.
+shared fakes and helpers are in `assistant.testkit`, which only tests import.
 
 Item 6: cv's packages and ruff rule are in its folder. pyproject.toml names no module package, extra or
 per-file ignore; cv's module.toml lists `packages` (on its manifest), and cv/ruff.toml extends the root.
 
 Item 7: job_search's defaults, needs and tests are in its folder. Its module.toml holds its defaults and
-`needs = ["cv"]`; config/default.toml has no `[modules.job_search]` defaults; its tests left `tests/`.
+`needs = ["cv"]`.
 
 Item 8: html_viewer's app, events and tests are in its folder. The viewer app is `html_viewer/app/html_viewer/`
 (launched by folder), its defaults and `needs` are in its module.toml, its three event types left the
-contracts (its named events now, heard by name), its tests left `tests/`, and pyproject.toml names it no more.
+contracts (its named events now, heard by name).
 
 Item 9: voice_in's app, packages and tests are in its folder. The voice service is `voice_in/app/voice_service/`
 (launched by folder) with its defaults `voice_service.toml` beside its code, voice_in's defaults and `packages`
@@ -48,7 +48,12 @@ over that, and `[modules.<id>]` in config/local.toml last; the saved grants' fil
 
 Item 15: the needs arrows point one way, never core → add-on. No code of the core group's modules, the core,
 contracts, infra or app_kit names an add-on's id or its menu items (docstrings and comments aside; an add-on's
-named events may be heard by name, decision 9); pages open through the `IPageOpener` slot, which html_viewer fills."""
+named events may be heard by name, decision 9); pages open through the `IPageOpener` slot, which html_viewer fills.
+
+Item 19: the rule holds for every add-on (each module whose docs/docs.toml group is "add-on"), one test per
+add-on: no `src/<app>`, no package, extra, app or ruff rule of it in pyproject.toml, no section or file of it in
+committed config/, no test of it in `tests/`, and its agent's workspace in its own folder. What items 4–10 checked
+for one add-on each is checked there for all of them; the core group keeps its own checks here."""
 
 from __future__ import annotations
 
@@ -80,7 +85,14 @@ from assistant.contracts import (
     Status,
 )
 from assistant.core import App, StartupError, loader
-from assistant.infra import MODULES_FOLDER, access_items, module_folder, module_folder_of, request_access
+from assistant.infra import (
+    MODULES_FOLDER,
+    access_items,
+    in_module_folder,
+    module_folder,
+    module_folder_of,
+    request_access,
+)
 from assistant.infra.profile_agent import named_only
 from assistant.modules.agent_hub.tasks import folders_clash
 from assistant.modules.agent_hub.tests.test_agent_hub_parts import FakeAgent, Rig
@@ -89,6 +101,19 @@ from assistant.testkit import FAKE, FAKE_JOB_UI, make_config
 
 REPO = MODULES_FOLDER.parents[2]
 CV = MODULES_FOLDER / "cv"
+
+
+def _toml(path: Path) -> dict:
+    return tomllib.loads(path.read_text(encoding="utf-8"))
+
+
+def _module_toml(module_id: str) -> dict:
+    return _toml(MODULES_FOLDER / module_id / "module.toml")
+
+
+def _module_class(module_id: str) -> type:
+    """Module `module_id`'s class, its module.toml applied (as the core loads it)."""
+    return loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
 
 
 def _writes(items) -> list[str]:
@@ -178,7 +203,7 @@ def _states(app: App) -> dict[str, ModuleState]:
 
 
 def test_cv_declares_needs(monkeypatch) -> None:
-    toml = tomllib.loads((CV / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml("cv")
     assert toml["needs"] == []
     assert loader.apply_module_toml(CvModule).manifest.needs == ()
     # A module.toml's needs reach the manifest; a wrong value or the module's own id is refused.
@@ -233,7 +258,7 @@ async def test_a_missing_needed_module_is_named() -> None:
 
 def test_cv_agent_is_named_only_from_its_own_section() -> None:
     assert "cv_agent" not in (REPO / "config" / "default.toml").read_text(encoding="utf-8")
-    toml = tomllib.loads((CV / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml("cv")
     assert toml["agent"]["agent_id"] == "cv_agent" and toml["agent"]["named_only"] is True
     # The flag reaches the agent's info() through ProfileAgent; a wrong value is refused.
     assert named_only("cv_agent", toml["agent"]) is True and named_only("helper", {}) is False
@@ -259,7 +284,8 @@ async def test_a_free_pick_never_lands_on_a_named_only_agent() -> None:
 
 # Item 4: the CV Tool app in cv's folder.
 
-# Where companion apps used to live, outside their module.
+# Where companion apps used to live, outside their module (src/voice_service is voice_in's, a core
+# module; item 19 checks every add-on's src/<app> by its app/ folder).
 OLD_APPS = ["src/cv_tool", "src/html_viewer", "src/voice_service"]
 CV_APP = CV / "app"
 
@@ -324,7 +350,7 @@ def test_the_cv_tool_defaults_are_in_the_module_workspace(tmp_path) -> None:
     assert Path(settings["data_dir"]) == workspace / "cv_tool" and Path(settings["cv_dir"]) == workspace / "cvs"
 
 
-# Item 5: cv's tests in its module, on the public test kit.
+# Item 5: cv's tests in its module, on the public test kit (no cv test central: item 19).
 
 TESTKIT = REPO / "src" / "assistant" / "testkit"
 SKIPPED = {"__pycache__", "workspace", ".venv"}  # an agent's workspace holds its own files, not the app's
@@ -341,12 +367,6 @@ def test_module_tests_use_only_the_testkit() -> None:
         assert not any(n == "tests" or n.startswith("tests.") for n in _imports(file)), file
 
 
-def test_no_cv_only_test_is_central() -> None:
-    assert (CV / "tests" / "test_worker.py").is_file()  # cv's tests are in its folder
-    central = [f.name for f in (REPO / "tests").rglob("*") if "cv" in f.name.lower() and "__pycache__" not in f.parts]
-    assert central == []
-
-
 def test_only_tests_import_the_testkit() -> None:
     def a_test(file: Path) -> bool:
         parts = file.relative_to(REPO).parts
@@ -361,42 +381,58 @@ def test_only_tests_import_the_testkit() -> None:
     assert not any(n.split(".")[0] == "pytest" for f in _python_files(TESTKIT) for n in _imports(f))
 
 
-# Item 6: cv's packages and ruff rule in its folder.
-
-# Modules whose packages, extra and ruff rules have left pyproject.toml: the extra's name, a package
-# name for each of its packages, its app's name if pyproject.toml must not name it at all (or None), and
-# whether it has ruff rules of its own (a ruff.toml in its folder).
-MOVED_OUT = {
-    "cv": SimpleNamespace(extra="cv", packages=["pymupdf"], app="cv_tool", ruff=True),
-    "voice_in": SimpleNamespace(extra="voice", app="voice_service", ruff=False,
-                                packages=["fastapi", "uvicorn", "sherpa-onnx", "faster-whisper", "sounddevice", "websockets"]),
-}
+# Item 6: a module's packages and ruff rules in its folder (every add-on: item 19; the core group here).
 
 
-def test_no_module_package_in_pyproject() -> None:
+def _apps(folder: Path) -> list[str]:
+    """The companion apps' package names in a module folder's app/ (none without one)."""
+    app = folder / "app"
+    if not app.is_dir():
+        return []
+    return sorted(p.name for p in app.iterdir() if (p / "__main__.py").is_file() or (p / "__init__.py").is_file())
+
+
+def _package_names(module_id: str) -> list[str]:
+    """The pip names of the packages in a module's module.toml (`pymupdf` for `pymupdf>=1.24`), lowercase."""
+    return [re.split(r"[\s<>=!~\[;]", p, maxsplit=1)[0].lower() for p in _module_toml(module_id).get("packages", [])]
+
+
+def _pyproject_leaks(module_id: str, *, by_id: bool = False) -> list[str]:
+    """What of module `module_id` is still outside its folder in pyproject.toml: an extra named for it, a
+    per-file ignore in its folder, one of its packages or its app's name (and its own id, `by_id`); and
+    whether its own ruff.toml, if any, extends the root and ignores only files in its folder."""
     root = REPO / "pyproject.toml"
     text = root.read_text(encoding="utf-8").lower()
     pyproject = tomllib.loads(text)
-    extras = pyproject["project"].get("optional-dependencies", {})
+    folder = MODULES_FOLDER / module_id
+    leaks = []
+    if module_id in pyproject["project"].get("optional-dependencies", {}):
+        leaks.append(f"pyproject.toml: the {module_id!r} extra")
     ignores = pyproject["tool"]["ruff"]["lint"].get("per-file-ignores", {})
-    for module_id, moved in MOVED_OUT.items():
-        assert moved.extra not in extras, f"the {moved.extra!r} extra is still in pyproject.toml"
-        assert not any(package in text for package in moved.packages), moved.packages
-        assert not any(f"/{module_id}/" in path for path in ignores), f"a {module_id} per-file ignore is left"
-        assert not (moved.app and moved.app in text), f"{moved.app} is still named in pyproject.toml"
-        # The module lists its packages in its module.toml, and they reach its manifest.
-        folder = MODULES_FOLDER / module_id
-        listed = tomllib.loads((folder / "module.toml").read_text(encoding="utf-8"))["packages"]
-        cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
-        assert cls.manifest.packages == tuple(listed)
-        assert all(any(r.lower().startswith(p) for r in listed) for p in moved.packages)
-        # Its ruff rules extend the root config, so every root setting still applies in its folder.
-        if not moved.ruff:
-            assert not (folder / "ruff.toml").exists()
-            continue
-        ruff = tomllib.loads((folder / "ruff.toml").read_text(encoding="utf-8"))
-        assert (folder / ruff["extend"]).resolve() == root.resolve()
-    assert "cvlib.py" in str(tomllib.loads((CV / "ruff.toml").read_text(encoding="utf-8"))["lint"]["per-file-ignores"])
+    leaks += [f"pyproject.toml: the per-file ignore {path!r}" for path in ignores if f"/{module_id}/" in path]
+    words = [*_package_names(module_id), *_apps(folder), *([module_id] if by_id else [])]
+    leaks += [f"pyproject.toml names {w!r}" for w in words if re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w-])", text)]
+    ruff = folder / "ruff.toml"
+    if ruff.is_file():
+        own, name = _toml(ruff), ruff.relative_to(REPO).as_posix()
+        if (folder / own.get("extend", "")).resolve() != root.resolve():
+            leaks.append(f"{name} doesn't extend pyproject.toml")
+        leaks += [f"{name}: the per-file ignore {path!r} is outside its folder"
+                  for path in own.get("lint", {}).get("per-file-ignores", {})
+                  if not Path(os.path.normpath(folder / path)).is_relative_to(folder)]  # fmt: skip
+    return leaks
+
+
+def test_no_core_module_package_in_pyproject() -> None:
+    pyproject = _toml(REPO / "pyproject.toml")
+    assert "voice" not in pyproject["project"].get("optional-dependencies", {})  # voice_in's old extra
+    core = sorted(m for m, g in _groups().items() if g != "add-on")
+    assert "voice_in" in core
+    leaks = {m: found for m in core if (found := _pyproject_leaks(m))}
+    assert not leaks, f"pyproject.toml holds what belongs in these core modules' folders: {leaks}"
+    for module_id in core:  # each lists its packages in its module.toml, and they reach its manifest
+        assert _module_class(module_id).manifest.packages == tuple(_module_toml(module_id)["packages"]), module_id
+    assert any(p.startswith("websockets") for p in _module_toml("voice_in")["packages"])
 
 
 def test_packages_come_from_module_toml(monkeypatch) -> None:
@@ -415,26 +451,20 @@ def test_packages_come_from_module_toml(monkeypatch) -> None:
         Manifest(id="x", packages=("",))
 
 
-# Item 7: job_search's defaults, needs and tests in its folder.
+# Item 7: job_search's defaults, needs and tests in its folder (nothing of it outside: item 19).
 
 JOB_SEARCH = MODULES_FOLDER / "job_search"
 
 
 def test_job_search_has_its_module_toml() -> None:
-    toml = tomllib.loads((JOB_SEARCH / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml("job_search")
     assert toml["needs"] == ["cv"] and toml["packages"] == []
     assert toml["workspace"] and toml["transcript"] == "job_search_agent.jsonl"  # its defaults are here
-    cls = loader.find_module_class(importlib.import_module("assistant.modules.job_search"), "job_search")
-    assert cls.manifest.needs == ("cv",)
-    # config/default.toml keeps no defaults of it (an on/off line elsewhere would be fine).
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
-    assert "job_search" not in default["modules"]
-    # Its tests are in its folder, none left central.
+    assert _module_class("job_search").manifest.needs == ("cv",)
     assert (JOB_SEARCH / "tests" / "test_job_search.py").is_file()
-    assert not (REPO / "tests" / "test_job_search.py").exists()
 
 
-# Item 8: html_viewer's app, events and tests in its folder.
+# Item 8: html_viewer's app, events and tests in its folder (nothing of it outside: item 19).
 
 HTML_VIEWER = MODULES_FOLDER / "html_viewer"
 VIEWER_TYPES = ("ViewerTabsChanged", "ViewerClip", "ViewerClipDropped")
@@ -456,28 +486,20 @@ def test_viewer_events_left_the_contracts() -> None:
 
 
 def test_html_viewer_app_defaults_and_tests_are_in_its_folder() -> None:
-    toml = tomllib.loads((HTML_VIEWER / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml("html_viewer")
     assert toml["needs"] == [] and toml["packages"] == []
     assert toml["port"] == 8766 and toml["start_on_use"] is True  # its defaults are here
-    cls = loader.find_module_class(importlib.import_module("assistant.modules.html_viewer"), "html_viewer")
-    assert cls.manifest.needs == () and cls.manifest.packages == ()
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
-    assert "html_viewer" not in default["modules"]
     # The app in its folder, found by folder; a `python -m html_viewer` launch gets that folder on its path.
     app = HTML_VIEWER / "app"
     assert (app / "html_viewer" / "__main__.py").is_file() and not (app / "__init__.py").exists()
-    assert app in loader.app_folders()
     loader.add_app_folders()
     assert package_root("html_viewer") == app
     base = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     child = subprocess.run([sys.executable, "-m", "html_viewer", "--help"], env=launch_env("html_viewer", base),
                            capture_output=True, text=True, timeout=60, check=True)  # fmt: skip
     assert "HTML viewer" in child.stdout
-    # Its tests are in its folder; pyproject.toml has no script or first-party entry for it.
     assert (HTML_VIEWER / "tests" / "test_html_viewer.py").is_file()
-    assert not (REPO / "tests" / "test_html_viewer.py").exists()
-    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
-    assert "html_viewer" not in pyproject and "html-viewer" not in pyproject
+    assert "html-viewer" not in (REPO / "pyproject.toml").read_text(encoding="utf-8")  # the old script entry
 
 
 # Item 9: voice_in's app, packages and tests in its folder.
@@ -486,10 +508,10 @@ VOICE_IN = MODULES_FOLDER / "voice_in"
 
 
 def test_voice_in_app_packages_and_tests_are_in_its_folder() -> None:
-    toml = tomllib.loads((VOICE_IN / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml("voice_in")
     assert toml["needs"] == [] and toml["port"] == 8767 and toml["terms"]  # its defaults are here
     assert any(p.startswith("websockets") for p in toml["packages"])
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    default = _toml(REPO / "config" / "default.toml")
     assert "voice_in" not in default["modules"]
     # The service in its folder, its defaults beside its code, found by folder and launched from there.
     app = VOICE_IN / "app"
@@ -511,23 +533,19 @@ def test_voice_in_app_packages_and_tests_are_in_its_folder() -> None:
     assert "voice-service" not in (REPO / "pyproject.toml").read_text(encoding="utf-8")
 
 
-# Item 10: voice_notes' defaults and needs in its module.toml, its page and tests in its folder.
+# Item 10: voice_notes' defaults and needs in its module.toml, its page and tests in its folder
+# (nothing of it outside: item 19).
 
 VOICE_NOTES = MODULES_FOLDER / "voice_notes"
 
 
 def test_voice_notes_has_its_module_toml() -> None:
-    toml = tomllib.loads((VOICE_NOTES / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml("voice_notes")
     assert toml["needs"] == ["voice_in"] and toml["packages"] == []
     assert toml["port"] == 8770 and toml["window"] == "app"  # its defaults are here
-    cls = loader.find_module_class(importlib.import_module("assistant.modules.voice_notes"), "voice_notes")
-    assert cls.manifest.needs == ("voice_in",)
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
-    assert "voice_notes" not in default["modules"]
-    # Its page and tests are in its folder, none left central.
+    assert _module_class("voice_notes").manifest.needs == ("voice_in",)
     assert (VOICE_NOTES / "page.html").is_file()
     assert (VOICE_NOTES / "tests" / "test_voice_notes.py").is_file()
-    assert not (REPO / "tests" / "test_voice_notes.py").exists()
 
 # Item 11, first half: the core agent modules' defaults and tests in their folders.
 
@@ -542,11 +560,10 @@ CORE_AGENT_TESTS = {
 @pytest.mark.parametrize("module_id", sorted(CORE_AGENT_TESTS))
 def test_core_agent_modules_have_their_module_toml_and_tests(module_id: str) -> None:
     folder = MODULES_FOLDER / module_id
-    toml = tomllib.loads((folder / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml(module_id)
     assert toml["needs"] == [] and toml["packages"] == []  # a core module never needs an add-on
-    cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
-    assert cls.manifest.needs == ()
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert _module_class(module_id).manifest.needs == ()
+    default = _toml(REPO / "config" / "default.toml")
     assert module_id not in default["modules"]  # its defaults are in its module.toml, none here
     for name in CORE_AGENT_TESTS[module_id]:
         assert (folder / "tests" / name).is_file() and not (REPO / "tests" / name).exists(), name
@@ -585,10 +602,10 @@ def module_folders() -> list[Path]:
 @pytest.mark.parametrize("module_id", sorted(CORE_MODULE_TESTS))
 def test_the_other_core_modules_have_their_module_toml_and_tests(module_id: str) -> None:
     folder = MODULES_FOLDER / module_id
-    toml = tomllib.loads((folder / "module.toml").read_text(encoding="utf-8"))
+    toml = _module_toml(module_id)
     assert toml["needs"] == [] and toml["packages"] == []  # a core module never needs an add-on
-    cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
-    assert cls.manifest.needs == () and cls.manifest.packages == ()
+    manifest = _module_class(module_id).manifest
+    assert manifest.needs == () and manifest.packages == ()
     for name in CORE_MODULE_TESTS[module_id]:
         assert (folder / "tests" / name).is_file() and not (REPO / "tests" / name).exists(), name
     for name in LEFT_TESTS:
@@ -602,20 +619,29 @@ def test_every_module_folder_has_its_module_toml() -> None:
 
 
 def test_config_default_toml_holds_no_module_defaults() -> None:
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    default = _toml(REPO / "config" / "default.toml")
     left = sorted(k for k, v in default["modules"].items() if isinstance(v, dict) and v)
     assert not left, f"[modules.<id>] defaults still in config/default.toml (move them to module.toml): {left}"
     assert {"core", "logging"} <= set(default)  # the core's own settings stay
 
 
-def test_no_module_only_test_file_is_central() -> None:
-    """A central test that names exactly one module is that module's, unless it's listed with its reason."""
+def _module_only_central_tests() -> dict[str, list[str]]:
+    """The central test files (tests/test_*.py) that are one module's own, by its id: they name
+    exactly that one module and aren't on CENTRAL_ON_PURPOSE."""
     ids = {p.name for p in module_folders()}
-    module_only = []
+    found: dict[str, list[str]] = {}
     for path in sorted((REPO / "tests").glob("test_*.py")):
         named = set(re.findall(r"assistant\.modules\.(\w+)", path.read_text(encoding="utf-8"))) & ids
         if len(named) == 1 and path.name not in CENTRAL_ON_PURPOSE:
-            module_only.append(f"{path.name} ({named.pop()})")
+            found.setdefault(named.pop(), []).append(path.name)
+    return found
+
+
+def test_no_module_only_test_file_is_central() -> None:
+    """A central test that names exactly one core module is that module's, unless it's listed with its
+    reason (item 19's per-add-on test checks the add-ons)."""
+    groups = _groups()
+    module_only = {m: files for m, files in _module_only_central_tests().items() if groups[m] != "add-on"}
     assert not module_only, f"module-only tests under tests/ (move them into the module's tests/): {module_only}"
     assert all((REPO / "tests" / name).is_file() for name in CENTRAL_ON_PURPOSE)  # the list stays true
 
@@ -627,9 +653,9 @@ def _write(folder: Path, name: str, text: str) -> None:
 
 def test_config_modules_toml_holds_the_on_off_list() -> None:
     assert (REPO / "config" / "modules.toml").is_file()
-    shipped = tomllib.loads((REPO / "config" / "modules.toml").read_text(encoding="utf-8"))
+    shipped = _toml(REPO / "config" / "modules.toml")
     assert "talker" in shipped["enabled"] and "agent_hub" in shipped["enabled"]
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    default = _toml(REPO / "config" / "default.toml")
     assert "enabled" not in default.get("modules", {}), "the on/off list belongs in config/modules.toml"
 
 
@@ -645,7 +671,7 @@ def test_generated_is_ignored_and_set_in_the_core_config() -> None:
     """Item 14: generated/ is built by the core and the docs build, never committed."""
     assert subprocess.run(["git", "check-ignore", "-q", "generated/"], cwd=REPO).returncode == 0
     assert subprocess.run(["git", "check-ignore", "-q", "generated/modules.json"], cwd=REPO).returncode == 0
-    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    default = _toml(REPO / "config" / "default.toml")
     assert default["core"]["generated_dir"] == "generated"
 
 
@@ -658,7 +684,7 @@ def test_a_modules_settings_load_from_its_config_file_over_its_module_toml(tmp_p
     _write(folder, "temp_ui.toml", 'port = 9001\nwindow = "none"\n')
     _write(folder, "permissions.toml", '[grants]\nx = 1\n')  # the saved grants, never a module's file
     _write(folder, "voice_service.local.toml", "port = 1\n")
-    cls = loader.find_module_class(importlib.import_module("assistant.modules.temp_ui"), "temp_ui")
+    cls = _module_class("temp_ui")
 
     def temp_ui_config() -> tuple[dict, dict]:
         config = load_config(folder)
@@ -715,8 +741,7 @@ SHARED_CODE = (SRC / "assistant" / "core", SRC / "assistant" / "contracts", SRC 
 
 def _groups() -> dict[str, str]:
     """Each module's group (`core` or `add-on`), from its docs/docs.toml."""
-    return {p.name: tomllib.loads((p / "docs" / "docs.toml").read_text(encoding="utf-8")).get("group", "")
-            for p in module_folders()}  # fmt: skip
+    return {p.name: _toml(p / "docs" / "docs.toml").get("group", "") for p in module_folders()}
 
 
 def _code_strings(path: Path) -> list[tuple[int, str]]:
@@ -739,17 +764,19 @@ def _code_strings(path: Path) -> list[tuple[int, str]]:
     return found
 
 
+# The add-ons: every module whose docs/docs.toml says group = "add-on" (read, not listed).
+ADD_ONS = sorted(m for m, g in _groups().items() if g == "add-on")
+
+
 def test_no_core_code_names_an_add_on() -> None:
     """Item 15: the core group and the shared code never name an add-on's id or its menu items."""
-    groups = _groups()
-    add_ons = sorted(m for m, g in groups.items() if g == "add-on")
-    assert {"html_viewer", "cv", "job_search", "voice_notes"} <= set(add_ons)  # the list stays true
-    classes = [loader.find_module_class(importlib.import_module(f"assistant.modules.{m}"), m) for m in add_ons]
+    assert {"html_viewer", "cv", "job_search", "voice_notes"} <= set(ADD_ONS)  # the list stays true
+    classes = [_module_class(m) for m in ADD_ONS]
     tools = sorted({name for cls in classes if cls.menu is not None for name in cls.menu.names()})
     heard = sorted({name for cls in classes for name in cls.manifest.publishes_named}, key=len, reverse=True)
     assert "viewer.open" in tools and "viewer.highlight" in tools
-    words = [re.compile(r"(?<![\w.])" + re.escape(w) + r"(?![\w])") for w in (*add_ons, *tools)]
-    folders = [MODULES_FOLDER / m for m, g in groups.items() if g == "core"] + list(SHARED_CODE)
+    words = [re.compile(r"(?<![\w.])" + re.escape(w) + r"(?![\w])") for w in (*ADD_ONS, *tools)]
+    folders = [MODULES_FOLDER / m for m, g in _groups().items() if g == "core"] + list(SHARED_CODE)
     naming = []
     for path in _python_files(*folders):
         if {"tests", "app"} & set(path.relative_to(SRC).parts):
@@ -775,13 +802,11 @@ def test_html_viewer_fills_the_page_opener_slot() -> None:
     from assistant.contracts import IPageOpener, StartProvider
     from assistant.infra import AGENT_SENDS, AGENT_USES
 
-    viewer = loader.find_module_class(importlib.import_module("assistant.modules.html_viewer"), "html_viewer")
-    assert IPageOpener in viewer.manifest.provides
-    toml = tomllib.loads((HTML_VIEWER / "module.toml").read_text(encoding="utf-8"))
-    assert toml["start_on_use"] is True  # opening a page still turns it on (StartProvider, by contract)
+    assert IPageOpener in _module_class("html_viewer").manifest.provides
+    assert _module_toml("html_viewer")["start_on_use"] is True  # opening a page still turns it on (StartProvider)
     for module_id in ("talker", "temp_ui"):
-        cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
-        assert IPageOpener in cls.manifest.uses and StartProvider in cls.manifest.sends, module_id
+        manifest = _module_class(module_id).manifest
+        assert IPageOpener in manifest.uses and StartProvider in manifest.sends, module_id
     assert IPageOpener in AGENT_USES and StartProvider in AGENT_SENDS  # every worker's SHOW tags
 
 
@@ -795,19 +820,19 @@ def test_cv_agent_works_from_its_module_workspace() -> None:
     assert not found, found
     from assistant.modules.cv.module import settings
 
-    checked = settings(tomllib.loads((CV / "module.toml").read_text(encoding="utf-8")))
+    checked = settings(_module_toml("cv"))
     workspace = Path(checked["agent"]["config"]["workspace"])
     assert workspace == CV / "workspace" and Path(checked["output_dir"]) == workspace / "out"
     assert Path(checked["work_dir"]).is_relative_to(workspace) and Path(checked["tool"]["data_dir"]) == workspace / "cv_tool"
     ignored = subprocess.run(["git", "check-ignore", "-q", "src/assistant/modules/cv/workspace/x"], cwd=REPO)
     assert ignored.returncode == 0  # its files (your CVs, facts, jobs) never reach git
-    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    pyproject = _toml(REPO / "pyproject.toml")
     assert "workspace" in pyproject["tool"]["pytest"]["ini_options"]["norecursedirs"]  # its old scripts aren't ours
     # the grant: its own module folder (written) holds the workspace, which is asked first
     items = access_items(checked["agent"]["config"], "cv")
     assert items[0].target == str(workspace) and str(CV) in _writes(items)
     with pytest.raises(ValueError, match="own workspace"):  # elsewhere in the repo is still refused
-        settings(tomllib.loads((CV / "module.toml").read_text(encoding="utf-8")) | {"work_dir": str(CV / "work")})
+        settings(_module_toml("cv") | {"work_dir": str(CV / "work")})
 
 
 # Item 18: job_search_agent works from modules/job_search/workspace/.
@@ -831,7 +856,73 @@ def test_job_search_agent_works_from_its_module_workspace() -> None:
     assert Path(script) == workspace / "Recruiters" / "scripts" / "job_ui.py"
     ignored = subprocess.run(["git", "check-ignore", "-q", "src/assistant/modules/job_search/workspace/x"], cwd=REPO)
     assert ignored.returncode == 0  # its files (your job state, the copied scripts) never reach git
-    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    pyproject = _toml(REPO / "pyproject.toml")
     assert "workspace" in pyproject["tool"]["pytest"]["ini_options"]["norecursedirs"]  # the job project's own tests
     items = access_items(checked, "job_search")
     assert items[0].target == str(workspace) and str(JOB_SEARCH) in _writes(items)
+
+
+# Item 19: the rule holds for every add-on.
+
+
+def _workspaces(table: dict, prefix: str = "") -> list[tuple[str, object]]:
+    """Every `workspace` key in a TOML table, nested ones too, as (dotted key, value)."""
+    found: list[tuple[str, object]] = []
+    for key, value in table.items():
+        if isinstance(value, dict):
+            found += _workspaces(value, f"{prefix}{key}.")
+        elif key == "workspace":
+            found.append((prefix + key, value))
+    return found
+
+
+def _committed(folder: str) -> list[str]:
+    """The files git tracks under `folder` (repo-relative, forward slashes)."""
+    return subprocess.run(["git", "ls-files", "--", folder], cwd=REPO, capture_output=True, text=True,
+                          check=True).stdout.split()  # fmt: skip
+
+
+@pytest.mark.parametrize("add_on", ADD_ONS)
+def test_nothing_of_an_add_on_is_outside_its_folder(add_on: str) -> None:
+    """Delete an add-on's folder and nothing of it is left behind, except your own (gitignored) choices
+    in config/. Its app is in its app/ folder, never src/<app>; its needs and packages are in its
+    module.toml and its ruff rules in its ruff.toml, none in pyproject.toml; its defaults are in its
+    module.toml, never in committed config/ (beyond the on/off list); its tests are in its tests/, none
+    in the central tests/; its agent's workspace is in its own folder, never outside the repo."""
+    folder = MODULES_FOLDER / add_on
+    here = folder.relative_to(REPO).as_posix()
+    toml = _module_toml(add_on)
+    left: list[str] = []
+    # Its app, if any, in app/<its package>, found by folder; no src/<app> or src/<its id>.
+    apps = _apps(folder)
+    left += [f"src/{name} (belongs in {here}/app/)" for name in (add_on, *apps) if (SRC / name).exists()]
+    if apps and (folder / "app" not in loader.app_folders() or (folder / "app" / "__init__.py").exists()):
+        left.append(f"{here}/app isn't found by folder as its apps' folder")
+    # Its needs and packages in its module.toml, reaching its manifest; nothing of it in pyproject.toml.
+    manifest = _module_class(add_on).manifest
+    for key in ("needs", "packages"):
+        if key not in toml:
+            left.append(f"{here}/module.toml has no `{key}`")
+        elif tuple(toml[key]) != getattr(manifest, key):
+            left.append(f"{here}/module.toml's `{key}` doesn't reach its manifest")
+    left += _pyproject_leaks(add_on, by_id=True)
+    # No defaults of it in committed config (the on/off list may name it), and no config file of its own committed.
+    for name in ("default.toml", "modules.toml"):
+        committed = _toml(REPO / "config" / name)
+        if add_on in committed:
+            left.append(f"config/{name}: [{add_on}]")
+        if add_on in committed.get("modules", {}):
+            left.append(f"config/{name}: [modules.{add_on}]")
+    left += [f"{path} is committed (config/<id>.toml is yours, gitignored)" for path in _committed("config")
+             if Path(path).name.split(".")[0] == add_on]  # fmt: skip
+    # Its tests in its tests/; none central, by name or by naming only it.
+    if not list((folder / "tests").glob("test_*.py")):
+        left.append(f"{here}/tests/ has no test_*.py")
+    left += [f"{p.relative_to(REPO).as_posix()} (belongs in {here}/tests/)" for p in sorted((REPO / "tests").rglob("*"))
+             if add_on in p.name.lower() and "__pycache__" not in p.parts]  # fmt: skip
+    left += [f"tests/{name} tests only {add_on} (belongs in {here}/tests/)"
+             for name in _module_only_central_tests().get(add_on, [])]  # fmt: skip
+    # Its agent's workspace (any `workspace` key in its module.toml) in its own folder, never outside the repo.
+    left += [f"{here}/module.toml: {key} = {value!r} is outside {here}" for key, value in _workspaces(toml)
+             if not in_module_folder(add_on, value).is_relative_to(folder)]  # fmt: skip
+    assert not left, f"add-on {add_on!r} has pieces outside its folder {here}: {left}"

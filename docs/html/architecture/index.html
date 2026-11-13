@@ -114,7 +114,7 @@
 <p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. The modules run in one process. Changing a module's code needs no restart: the module is reloaded in place (turned off, given its new code, turned on), and a brand-new module is added the same way (<a href="core.html#reloading-a-modules-code">reloading</a>). Changes to the core, contracts or shared helpers, and a new module that needs a new contract or port type, still need a restart. Turning modules on and off also happens while the app runs (<a href="core.html#runtime-module-control">runtime module control</a>: built in the core; a control panel and asking the Talker come later). <strong>Independent deployment is, for parts that are useful on their own:</strong> such a part is its own app that the main app launches and talks to through two-way hooks, via a thin module (<a href="decisions.html#decided">decisions</a>). The <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a> is the first.</p>
 <p>The core runs on a PC today and will later move to a server, so it must not assume a local desktop: configuration, secrets, and data paths come from config files and environment variables, and user-facing interfaces are modules or remote clients. Headsets (Quest 3) and smartglasses are <a href="remote-clients.html">remote clients</a> that connect over the network.</p>
 <h2 id="currently-fixing">Currently fixing</h2>
-<p>Making modules truly self-contained: each module's code, companion app, defaults, tests, docs and dependency list live in its own <code>modules/&lt;id&gt;</code> folder. Beside them sit a core group (the host and the core modules), <code>config/</code> (your choices only) and <code>generated/</code>. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: <a href="../../html-next-steps/module-folders.html">module folders</a>. Progress: <strong>19 of 20 done</strong>, item by item in the checklist <code>docs/next-steps/module-folders-checklist.md</code>, each checked against the code.</p>
+<p>Making modules truly self-contained: each module's code, companion app, defaults, tests, docs, dependency list and its agent's workspace live in its own <code>modules/&lt;id&gt;</code> folder. Beside them sit a core group (the host and the core modules), <code>config/</code> (your choices only) and <code>generated/</code>. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: <a href="../../html-next-steps/module-folders.html">module folders</a>. Progress: <strong>20 of 20 done</strong> (2026-11-13), item by item in the checklist <code>docs/next-steps/module-folders-checklist.md</code>, each checked against the code. <strong>Waiting for an app restart and its hand checks</strong> (the morning report at the top of the checklist).</p>
 <h2 id="pages">Pages</h2>
 <ul>
 <li><a href="principles.html">Principles</a>: the rules behind every decision</li>
@@ -193,8 +193,8 @@
 </tr>
 <tr>
 <td>Reusable parts</td>
-<td>Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, and <code>app_kit</code> for what the independent apps share too</td>
-<td><code>src/assistant/contracts/</code>, <code>src/assistant/infra/</code>, <code>src/app_kit/</code></td>
+<td>Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, <code>app_kit</code> for what the independent apps share too, and the test kit for every test</td>
+<td><code>src/assistant/contracts/</code>, <code>src/assistant/infra/</code>, <code>src/app_kit/</code>, <code>src/assistant/testkit/</code></td>
 <td><a href="reusable-parts.html">reusable parts</a>, <a href="../api/reusable.html">index</a></td>
 </tr>
 <tr>
@@ -211,8 +211,8 @@
 </tr>
 <tr>
 <td>Modules</td>
-<td>All capabilities, including the AI orchestration; each a wrapper (manifest, lifecycle, context) with a menu of tools. Today: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>temp_ui</code>, <code>voice_in</code> (voice input's thin module), and, off by default, <code>html_viewer</code> (the HTML viewer's thin module), <code>voice_notes</code>, <code>task_agents</code> (helper agents launched by name from kinds in config), <code>job_search</code> (the job agent and its menu), <code>assistant_view</code> and the <code>echo_orchestrator</code> stand-in</td>
-<td><code>src/assistant/modules/</code></td>
+<td>All capabilities, including the AI orchestration; each a wrapper (manifest, lifecycle, context) with a menu of tools. Today: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>temp_ui</code>, <code>voice_in</code> (voice input's thin module), <code>usage</code>, and, off by default, <code>html_viewer</code> (the HTML viewer's thin module), <code>voice_notes</code>, <code>task_agents</code> (helper agents launched by name from kinds in config), <code>job_search</code> (the job agent and its menu), <code>cv</code> (the CV agent and the CV Tool), <code>assistant_view</code> and the <code>echo_orchestrator</code> stand-in</td>
+<td><code>src/assistant/modules/&lt;id&gt;/</code>, one folder each (code, <code>module.toml</code>, <code>app/</code>, <code>tests/</code>, <code>docs/</code>; an agent's <code>workspace/</code>, gitignored)</td>
 <td><a href="module-library.html">module library</a>, <a href="../agents/runtime.html">agent runtime</a></td>
 </tr>
 <tr>
@@ -237,7 +237,7 @@
 <td>CV Tool</td>
 <td>The <code>cv</code> module's own UI half, its own app: the four tabs (Job &amp; CV, the pick, First Draft, ATS Loop), the CV's local PDF (text under 9 pt only warns), and your Submit (never refused; pushed to the <code>cv</code> module on its event stream, which tells the asker). The <code>cv</code> module launches and calls it through <code>CompanionHandover</code> (<code>cv.open_tool</code>, <code>cv.tool_*</code>); built 2026-11-09; in the module's folder since 2026-11-13 (<code>app/</code>, on the import path at startup)</td>
 <td><code>src/assistant/modules/cv/app/cv_tool/</code>, <code>src/assistant/modules/cv/tool.py</code></td>
-<td><a href="../modules/cv/architecture.html#the-cv-tool-app-srccv_tool">cv architecture</a></td>
+<td><a href="../modules/cv/architecture.html#the-cv-tool-app-cvappcv_tool">cv architecture</a></td>
 </tr>
 <tr>
 <td>Voice notes</td>
@@ -254,7 +254,7 @@
 <tr>
 <td>Permissions handler</td>
 <td>Part of the core, always on: knows what each module needs and what you've granted; asks you otherwise. Modules call it through <code>ctx.permissions</code>. First piece built: access lists on one card, saved grants per kind of agent, the Main Assistant's review, and <code>permissions.grants / grant / revoke</code> on the core's menu. Single names are still allowed and logged</td>
-<td><code>src/assistant/core/permissions/</code></td>
+<td><code>src/assistant/core/permissions/</code> (your saved grants: <code>config/permissions.toml</code>, gitignored)</td>
 <td><a href="permissions.html">permissions</a></td>
 </tr>
 <tr>
@@ -272,7 +272,7 @@
 <tr>
 <td>Remote clients</td>
 <td>Device apps with their own UI logic (Quest 3 first)</td>
-<td><code>clients/</code></td>
+<td><em>TBD</em> (planned: <code>clients/</code>)</td>
 <td></td>
 </tr>
 </tbody>
