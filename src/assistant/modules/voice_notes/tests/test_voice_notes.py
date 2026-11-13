@@ -21,7 +21,7 @@ from assistant.core import App, StartupError
 from assistant.modules.temp_ui import TempUIModule
 from assistant.modules.voice_in.tests.test_voice_in import CHUNK, TEXT, Probe, Recorder, Service
 from assistant.modules.voice_notes import VoiceNotesModule
-from assistant.testkit import FakeVoiceIn, next_item, post, request
+from assistant.testkit import FakeVoiceIn, module_config, next_item, post, request, stand_in
 
 
 def port_of(app: App, module_id: str) -> int:
@@ -108,9 +108,23 @@ def test_the_page_keeps_the_tail_out_of_saved_and_copied_text():
     assert "writeText(plain())" in page and "setItem(KEY, plain())" in page  # plain() skips the tail
 
 
-def test_voice_notes_needs_the_voice_contract():
-    with pytest.raises(StartupError, match="requires IVoice"):
+def test_its_defaults_are_in_its_module_toml_under_the_apps_section():
+    # The config the module sees: module.toml, with [modules.voice_notes] (config/local.toml) over it.
+    defaults = module_config("voice_notes")
+    assert defaults["needs"] == ["voice_in"] and defaults["packages"] == []
+    # the same as the old [modules.voice_notes] in config/default.toml
+    assert {k: v for k, v in defaults.items() if k not in ("needs", "packages")} == {"port": 8770, "window": "app"}
+    assert VoiceNotesModule.manifest.needs == ("voice_in",)
+    app = App([VoiceNotesModule, FakeVoiceIn], {"modules": {"enabled": [], "voice_notes": {"port": 9}}, "core": {}})
+    assert app._config_of("voice_notes") == {**defaults, "port": 9}  # yours wins, the rest unchanged
+
+
+def test_voice_notes_needs_voice_in_and_the_voice_contract():
+    with pytest.raises(StartupError, match="needs the module 'voice_in'"):
         App([VoiceNotesModule], {"modules": {"enabled": ["voice_notes"], "voice_notes": NONE}, "core": {}})
+    # A voice_in that doesn't provide IVoice still fails: the contract is checked too.
+    with pytest.raises(StartupError, match="requires IVoice"):
+        App([VoiceNotesModule, stand_in("voice_in")], {"modules": {"enabled": ["voice_notes"], "voice_notes": NONE}, "core": {}})
 
 
 async def test_turning_voice_notes_on_turns_voice_input_on_first():

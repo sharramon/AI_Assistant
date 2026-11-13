@@ -490,3 +490,22 @@ def test_voice_in_app_packages_and_tests_are_in_its_folder() -> None:
     assert (MODULES_FOLDER / "voice_notes" / "tests" / "test_voice_notes.py").is_file()
     assert not list((REPO / "tests").glob("test_voice*")) and not (REPO / "tests" / "voice_client.py").exists()
     assert "voice-service" not in (REPO / "pyproject.toml").read_text(encoding="utf-8")
+
+
+# Item 10: voice_notes' defaults and needs in its module.toml, its page and tests in its folder.
+
+VOICE_NOTES = MODULES_FOLDER / "voice_notes"
+
+
+def test_voice_notes_has_its_module_toml() -> None:
+    toml = tomllib.loads((VOICE_NOTES / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == ["voice_in"] and toml["packages"] == []
+    assert toml["port"] == 8770 and toml["window"] == "app"  # its defaults are here
+    cls = loader.find_module_class(importlib.import_module("assistant.modules.voice_notes"), "voice_notes")
+    assert cls.manifest.needs == ("voice_in",)
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert "voice_notes" not in default["modules"]
+    # Its page and tests are in its folder, none left central.
+    assert (VOICE_NOTES / "page.html").is_file()
+    assert (VOICE_NOTES / "tests" / "test_voice_notes.py").is_file()
+    assert not (REPO / "tests" / "test_voice_notes.py").exists()

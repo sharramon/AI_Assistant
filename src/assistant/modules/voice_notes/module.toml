@@ -1,0 +1,16 @@
+# voice_notes' own defaults. `[modules.voice_notes]` in the app's config only overrides them (merged key by key).
+
+# The modules voice_notes can't run without, by id (Manifest.needs; the core turns them on first and
+# refuses to turn one off while voice_notes is on): voice_in, which provides the voice contract
+# (IVoice) it records through.
+needs = ["voice_in"]
+
+# The pip packages voice_notes needs beyond the app's own (Manifest.packages): none. Its page is
+# served with the standard library; the speech engines are voice_in's.
+packages = []
+
+# Voice notes v1: a page at http://127.0.0.1:8770/ with Record / Stop, a live line, and Copy. The words
+# go only to the page (kept in its local storage), never to the Talker. Off at launch (modules.on voice_notes).
+# The second press wins: Record cancels the chat mic's recording, and the other way round.
+port = 8770
+window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"

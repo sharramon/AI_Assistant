@@ -33,7 +33,15 @@
 </tr>
 <tr>
 <td>requires / optional</td>
-<td>requires <a href="../../api/messaging.html#ivoice"><code>IVoice</code></a>: turning voice notes on turns <code>voice_in</code> on first. Record calls <code>listen(id, caller)</code>, Stop <code>finish(id)</code>, looked up at each call; if no provider is there for a moment (mid-reload), Record says "voice input is off"</td>
+<td>requires <a href="../../api/messaging.html#ivoice"><code>IVoice</code></a>. Record calls <code>listen(id, caller)</code>, Stop <code>finish(id)</code>, looked up at each call; if no provider is there for a moment (mid-reload), Record says "voice input is off"</td>
+</tr>
+<tr>
+<td>needs</td>
+<td><code>voice_in</code> (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): turning voice notes on turns <code>voice_in</code> on first, and <code>voice_in</code> can't be turned off while voice notes is on. <code>requires IVoice</code> stays: it checks the contract is there, <code>needs</code> names the module that brings it</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none (its page is served with the standard library)</td>
 </tr>
 <tr>
 <td>permissions</td>
@@ -42,11 +50,11 @@
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p><code>[modules.voice_notes]</code>: <code>port</code> (8770), <code>window</code> (<code>app</code>, <code>browser</code>, <code>none</code>), <code>host</code>, <code>window_profile</code>.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder, with their comments: <code>port</code> (8770), <code>window</code> (<code>app</code>, <code>browser</code>, <code>none</code>); <code>host</code> (127.0.0.1) and <code>window_profile</code> are read too, with their defaults in the code. <code>[modules.voice_notes]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/voice_notes/</code> (<code>module.py</code>, <code>page.html</code>)</li>
-<li><code>tests/test_voice_notes.py</code> in this folder (on the <a href="../../api/testkit.html">test kit</a>, and voice_in's test rig for the real voice service)</li>
+<li><code>src/assistant/modules/voice_notes/</code> (<code>module.py</code>, <code>page.html</code>, <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>))</li>
+<li><code>tests/test_voice_notes.py</code> in this folder (on the <a href="../../api/testkit.html">test kit</a>, and voice_in's test rig for the real voice service): the page, Record, the second press winning, its config under <code>module.toml</code>, <code>voice_in</code> turned on first</li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/voice_notes/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

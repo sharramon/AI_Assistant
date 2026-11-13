@@ -1,6 +1,8 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 10 of 20 done** (items 1 to 9 and 20).
+**Count: 11 of 20 done** (items 1 to 10 and 20).
+
+**Architecture check after the add-on chunk (items 7–10):** modularity OK (a grep of `core/`, `contracts/`, `infra/` and `app_kit` for the add-ons' ids finds only comments and examples, plus `infra/show_pages.py`'s `viewer.open`, which item 15 moves behind a slot); reuse OK (every app move reused `add_app_folders` and `launch_env`; temp_ui's test helpers joined `assistant.testkit`); fit OK (each add-on's defaults, `needs` and `packages` are in its `module.toml`, read by the core with no names).
 
 **Architecture check after the cv chunk (items 2–6):** modularity OK (no cv-specific code in the core, contracts, infra or `app_kit`, only examples in comments; every module's `app/` is checked never to import `assistant`); reuse OK (`add_app_folders`, `launch_env`, `apply_module_toml` and `assistant.testkit` are in the reusable index with Used by lines); fit OK (the core reads `needs` and `packages` from any `module.toml`, no names).
 
@@ -8,6 +10,7 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **Hand check, item 10:** after the restart, `modules.on voice_notes` turns voice_in on first.
 - **Hand check, item 9:** after the restart, click the mic in temp_ui, speak, and see the text reach the Talker; open voice_notes and record once.
 - **Hand check, item 8:** after the restart, open a page from the chat, take a snip, paste an image, drop a snip with ×, and see the Talker's `[Viewer] open:` line.
 - **Hand check, item 7:** after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.
@@ -65,6 +68,7 @@ For you to review. Each picks the option closest to the approved picture.
 25. **The voice service's defaults sit next to its code** (item 9: `app/voice_service/voice_service.toml`, like `cv_tool.toml`), and its local override is `voice_service.local.toml` beside it (gitignored). No `config/voice_service.local.toml` existed, so nothing was left behind.
 26. **voice_in gets no `ruff.toml`** (item 9): it has no ruff rules of its own; the tripwire's `MOVED_OUT` has a `ruff` flag for that.
 27. **The `StartListening` / `StopListening` timeouts stay in `[core.command_timeouts]`** (item 9): they're core settings. `scripts/build_docs.py` calls `add_app_folders()` before importing modules.
+28. **voice_notes' `module.toml` holds only its two old defaults** (item 10: `port`, `window`); `host` and `window_profile` keep their defaults in code, so the settings it sees are unchanged (a test checks). It keeps `requires IVoice` beside `needs = ["voice_in"]`.
 
 ## The safeguards (from the audit, section 4)
 
@@ -169,7 +173,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** `git mv`; app path (decision 2); the `voice-service` entry point; remove the `voice` extra from `pyproject.toml`; fix the old `docs/architecture/voice.md` comment. Docs.
 - **Done when:** `src/voice_service` doesn't exist; `pyproject.toml` has no `voice` extra; no `tests/test_voice*` file is left; the voice tests pass from the module. **Needs an app restart.**
 
-### 10. voice_notes: defaults, needs and tests in the module
+### 10. voice_notes: defaults, needs and tests in the module: **done** (2026-11-13)
+
+**Checked:** `voice_notes/module.toml` has `needs = ["voice_in"]`; `config/default.toml` has no `[modules.voice_notes]` section (only a comment pointing at the module); its tests and `test_voice_notes_has_its_module_toml` pass from the module (33 passed with the tripwires); full suite 869 passed, 2 deselected; ruff clean. Takes effect at the next start.
 
 - **What:** `modules/voice_notes/module.toml` with its defaults and `needs = ["voice_in"]`, and `tests/test_voice_notes.py` moved into its folder.
 - **Why:** the picture: "voice_notes/ code · page · docs · tests · needs voice_in".

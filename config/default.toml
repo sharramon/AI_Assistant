@@ -10,7 +10,7 @@
 enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "voice_in", "usage"]
 
 # Per-module settings go in [modules.<module id>]. A module that ships its own defaults
-# (module.toml in its folder: cv, job_search) needs a section here only to override them.
+# (module.toml in its folder: cv, job_search, html_viewer, voice_in, voice_notes) needs a section here only to override them.
 [modules.console_io]
 prompt = "> "
 
@@ -109,13 +109,7 @@ window = "app"            # "app" (own window, via Edge), "browser" (a tab), or 
 # html_viewer's defaults (port 8766, window, generated folders, start_on_use) are in its module.toml.
 # voice_in's defaults (port 8767, timeouts, cleanup, terms) are in its module.toml; the voice
 # service's own settings in voice_in's app/voice_service/voice_service.toml.
-
-[modules.voice_notes]
-# Voice notes v1: a page at http://127.0.0.1:8770/ with Record / Stop, a live line, and Copy. The words
-# go only to the page (kept in its local storage), never to the Talker. Needs voice_in on.
-# The second press wins: Record cancels the chat mic's recording, and the other way round.
-port = 8770
-window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"
+# voice_notes' defaults (port 8770, window; needs voice_in) are in its module.toml.
 
 [core]
 command_timeout = 30.0        # seconds; default for every command

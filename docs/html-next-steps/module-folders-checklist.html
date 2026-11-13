@@ -12,12 +12,14 @@
 <nav data-root="" data-page="module-folders-checklist.html"></nav>
 <main>
 <h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
-<p><strong>Count: 10 of 20 done</strong> (items 1 to 9 and 20).</p>
+<p><strong>Count: 11 of 20 done</strong> (items 1 to 10 and 20).</p>
+<p><strong>Architecture check after the add-on chunk (items 7–10):</strong> modularity OK (a grep of <code>core/</code>, <code>contracts/</code>, <code>infra/</code> and <code>app_kit</code> for the add-ons' ids finds only comments and examples, plus <code>infra/show_pages.py</code>'s <code>viewer.open</code>, which item 15 moves behind a slot); reuse OK (every app move reused <code>add_app_folders</code> and <code>launch_env</code>; temp_ui's test helpers joined <code>assistant.testkit</code>); fit OK (each add-on's defaults, <code>needs</code> and <code>packages</code> are in its <code>module.toml</code>, read by the core with no names).</p>
 <p><strong>Architecture check after the cv chunk (items 2–6):</strong> modularity OK (no cv-specific code in the core, contracts, infra or <code>app_kit</code>, only examples in comments; every module's <code>app/</code> is checked never to import <code>assistant</code>); reuse OK (<code>add_app_folders</code>, <code>launch_env</code>, <code>apply_module_toml</code> and <code>assistant.testkit</code> are in the reusable index with Used by lines); fit OK (the core reads <code>needs</code> and <code>packages</code> from any <code>module.toml</code>, no names).</p>
 <h2 id="morning-list-kept-as-the-run-goes">Morning list, kept as the run goes</h2>
 <ul>
 <li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub); item 4 (<code>add_app_folders</code> in the core's loader, <code>launch_env</code> in <code>CompanionApp</code>: <strong>until the restart, the running app can't launch the CV Tool</strong>, since <code>src/cv_tool</code> is gone); item 6 (<code>Manifest.packages</code>, <code>apply_module_toml</code>); item 8 (the viewer's event types left the contracts: <strong>until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui</strong>; <code>.venv\Scripts\html-viewer.exe</code> is broken for good, run it as html_viewer's README says).</li>
 <li><strong>App restart needed, item 9:</strong> until the restart, the running app launches the voice service from <code>src/voice_service</code>, which is gone, so <strong>the mic fails</strong>. <code>.venv\Scripts\voice-service.exe</code> is broken for good; run <code>python -m voice_service</code> with <code>modules/voice_in/app</code> on <code>PYTHONPATH</code>.</li>
+<li><strong>Hand check, item 10:</strong> after the restart, <code>modules.on voice_notes</code> turns voice_in on first.</li>
 <li><strong>Hand check, item 9:</strong> after the restart, click the mic in temp_ui, speak, and see the text reach the Talker; open voice_notes and record once.</li>
 <li><strong>Hand check, item 8:</strong> after the restart, open a page from the chat, take a snip, paste an image, drop a snip with ×, and see the Talker's <code>[Viewer] open:</code> line.</li>
 <li><strong>Hand check, item 7:</strong> after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.</li>
@@ -71,6 +73,7 @@
 <li><strong>The voice service's defaults sit next to its code</strong> (item 9: <code>app/voice_service/voice_service.toml</code>, like <code>cv_tool.toml</code>), and its local override is <code>voice_service.local.toml</code> beside it (gitignored). No <code>config/voice_service.local.toml</code> existed, so nothing was left behind.</li>
 <li><strong>voice_in gets no <code>ruff.toml</code></strong> (item 9): it has no ruff rules of its own; the tripwire's <code>MOVED_OUT</code> has a <code>ruff</code> flag for that.</li>
 <li><strong>The <code>StartListening</code> / <code>StopListening</code> timeouts stay in <code>[core.command_timeouts]</code></strong> (item 9): they're core settings. <code>scripts/build_docs.py</code> calls <code>add_app_folders()</code> before importing modules.</li>
+<li><strong>voice_notes' <code>module.toml</code> holds only its two old defaults</strong> (item 10: <code>port</code>, <code>window</code>); <code>host</code> and <code>window_profile</code> keep their defaults in code, so the settings it sees are unchanged (a test checks). It keeps <code>requires IVoice</code> beside <code>needs = ["voice_in"]</code>.</li>
 </ol>
 <h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
 <table>
@@ -212,7 +215,8 @@
 <li><strong>How:</strong> <code>git mv</code>; app path (decision 2); the <code>voice-service</code> entry point; remove the <code>voice</code> extra from <code>pyproject.toml</code>; fix the old <code>docs/architecture/voice.md</code> comment. Docs.</li>
 <li><strong>Done when:</strong> <code>src/voice_service</code> doesn't exist; <code>pyproject.toml</code> has no <code>voice</code> extra; no <code>tests/test_voice*</code> file is left; the voice tests pass from the module. <strong>Needs an app restart.</strong></li>
 </ul>
-<h3 id="10-voice_notes-defaults-needs-and-tests-in-the-module">10. voice_notes: defaults, needs and tests in the module</h3>
+<h3 id="10-voice_notes-defaults-needs-and-tests-in-the-module-done-2026-11-13">10. voice_notes: defaults, needs and tests in the module: <strong>done</strong> (2026-11-13)</h3>
+<p><strong>Checked:</strong> <code>voice_notes/module.toml</code> has <code>needs = ["voice_in"]</code>; <code>config/default.toml</code> has no <code>[modules.voice_notes]</code> section (only a comment pointing at the module); its tests and <code>test_voice_notes_has_its_module_toml</code> pass from the module (33 passed with the tripwires); full suite 869 passed, 2 deselected; ruff clean. Takes effect at the next start.</p>
 <ul>
 <li><strong>What:</strong> <code>modules/voice_notes/module.toml</code> with its defaults and <code>needs = ["voice_in"]</code>, and <code>tests/test_voice_notes.py</code> moved into its folder.</li>
 <li><strong>Why:</strong> the picture: "voice_notes/ code · page · docs · tests · needs voice_in".</li>
