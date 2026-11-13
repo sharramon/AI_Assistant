@@ -18,17 +18,15 @@
 
 - **Part 1, commits:** before them the full suite gave 841 passed, 2 deselected, with ruff clean. The real CV prefix was found in two untracked notes and replaced with `<cv_prefix>`. Commits: `2e283b2` (rules 1 and 2, with the Hub's child-result and race fixes), `010ecb6` (named events, the job-to-cv events and the cv fixes including the base_ rename; one commit because the files mix them, which is a decision to note in the report), `2660c25` (the audit note), `111250e` (docs rebuilt). `pytest_run.txt` is a stray old output, left untracked on purpose.
 - **Part 2, the checklist:** commit `2e81950`. 20 items, with nine overnight decisions, and the safeguards built: the architecture-check skill's "Plans and checklists" section, the count in "Currently fixing", `cv-agent-folders.md` marked replaced, and the audit's status updated.
-- **Part 3, item 1 (every module edits itself): built by a subagent, NOT yet verified or committed.** Its report:
-  - The default grant is in `infra/agent_access.py` (`access_items(config, module_id)`, plus the new `module_folder` and `module_folder_of`). task_agents helpers are left out (`own_folder=False`).
-  - The Hub's `folders_clash` in `agent_hub/tasks.py` allows a module folder inside a parent grant, and the refusal names the folder and whose grant holds it.
-  - The new `tests/test_module_folders.py` has 4 tests. The `config/default.toml` comment is fixed. Docs: agent_hub, permissions, api infra/agents/README/reusable, rebuilt.
-  - The subagent reported 845 passed, 2 deselected, ruff clean, but it edited `tests/support.py` after its last full run.
-  - It needs an app restart, and cv_agent's and job_search_agent's access cards will show once more (the fingerprint changes).
+- **Part 3: items 1 to 8 done, verified and committed** (count 9 of 20 with item 20): `54a7ceb` (1), `b787049` (2), `0746474` (3), `f2df497` (4), `411cc95` (5), `9a3830c` (6), `330a380` (7), `6de830e` (8). Last full suite: **866 passed, 2 deselected**, ruff clean. The working tree is clean (only the stray `pytest_run.txt`).
+- The checklist holds everything: each done item's evidence, decisions 1–22, the running **Morning list** (restarts, hand checks, old folders) near the top, and the architecture check after the cv chunk.
+- Patterns now in place for the next items: `add_app_folders` (core loader) + `launch_env` (`CompanionApp`) for an app in `modules/<id>/app/`; `apply_module_toml` reads `needs` / `packages`; module defaults in `module.toml` merged under `[modules.<id>]` (`App._config_of`); `assistant.testkit` (`stand_in`, `module_config`, `free_port`, `pre_grant`); tripwires in `tests/test_module_folders.py` (`OLD_APPS`, `MOVED_OUT`).
 
 ## Next
 
-1. Verify item 1: the full pytest and ruff; `git grep -n "can't run while the Main Assistant has a task"` finds nothing; `test_module_agent_edits_its_own_folder` and the overlap tests pass. Check `git diff` for personal data. Then mark item 1 done in the checklist (count 2 of 20, with the overview and README counts), add "the task_agents helpers don't get their module folder" to the decisions, add the restart and the two access cards to the morning list, rebuild the docs, and commit.
-2. Then items 2 to 19 in order, the same way.
-3. Then the morning report.
+1. **Item 9** (voice_in: `src/voice_service` → `modules/voice_in/app/voice_service`, the `voice` extra and the `voice-service` script out of `pyproject.toml` (add `voice` to `MOVED_OUT`), `config/voice_service.toml` as the app's defaults in its folder, the `tests/test_voice*` files into `voice_in/tests/`, switch their `free_port` copies to the test kit). Then items 10 to 19 in order. Item 15 also moves `show_page` (decision 20) and can move `tests/test_viewer_listeners.py` with item 11.
+2. **How each item ran well:** one `general-purpose` subagent in the foreground per item, with a full brief (read the checklist, its decisions and item, the architecture-first and batching skills, the files to read; the hard rules; no commit, no checklist or next-steps README edits; run the full suite last; report files, design, totals, decisions, restart needs). Then yourself: run the full suite in the background and the item's Done-when checks, mark the item done in the checklist (count, evidence, decisions, morning list) in one batch of edits, bump "N of 20 done" in `docs/architecture/README.md` and `docs/next-steps/README.md` (keep each file's BOM as it is: the next-steps README has one, the overview doesn't), rebuild the docs, commit with `2>$null` on git to skip the CRLF warnings.
+3. Run the architecture-check again after the add-on chunk (items 7–10) and after the core chunk (11–16), and note it at the top of the checklist.
+4. Then the morning report at the top of the checklist.
 
 No Chrome tabs are open.
