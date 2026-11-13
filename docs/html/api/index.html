@@ -275,7 +275,7 @@
 <tr>
 <td><a href="control.html#the-cores-menu">The core's menu</a></td>
 <td>menu</td>
-<td><code>modules.list / menu / docs / on / off / reload / add</code>, the risky ones asking first; <code>permissions.grants / grant / request / revoke</code></td>
+<td><code>modules.list / menu / docs / on / off / reload / add / remove</code>, the risky ones asking first; <code>permissions.grants / grant / request / revoke</code></td>
 </tr>
 <tr>
 <td><a href="control.html#activatemodule"><code>ActivateModule</code></a></td>
@@ -301,6 +301,11 @@
 <td><a href="control.html#addmodule"><code>AddModule</code></a></td>
 <td>command</td>
 <td>Load a brand-new module while the app runs (a new contract still needs a restart)</td>
+</tr>
+<tr>
+<td><a href="control.html#removemodule"><code>RemoveModule</code></a></td>
+<td>command</td>
+<td>Take a module out of this run (refused while needed); <code>purge</code> deletes only its <code>config/&lt;id&gt;.toml</code> and <code>.local.toml</code>; never its folder</td>
 </tr>
 <tr>
 <td><a href="control.html#moduleinfo"><code>ModuleInfo</code></a></td>

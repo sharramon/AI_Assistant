@@ -194,6 +194,35 @@ class LifecycleManager:
                     return result
             return Result.ok(module_id)
 
+    async def remove(self, module_id: str, enabled: Sequence[str] = ()) -> Result:
+        """Take a module out of this run: off if it's on, then out of the module list (until `add`).
+        Refused while another module needs it: an active one (`needs`, or a sole provider it
+        requires), or one in `enabled` whose `needs` lists it. Its package stays imported; `add`
+        imports it fresh."""
+        async with self._lock:
+            if module_id not in self._classes:
+                return Result.invalid_arguments(f"No module called {module_id!r}")
+            needers = self._dependents(module_id) if module_id in self._active else []
+            needers += [
+                other
+                for other in enabled
+                if other != module_id
+                and other not in needers
+                and other in self._classes
+                and module_id in self._classes[other].manifest.needs
+            ]
+            if needers:
+                return Result.failed(
+                    f"{module_id!r} is needed by {', '.join(needers)}; remove or turn them off first"
+                )
+            result = await self._deactivate(module_id, False)
+            if not result.is_ok:
+                return result
+            del self._classes[module_id]
+            del self._states[module_id]
+            log.info("Removed %s from this run", module_id)
+            return Result.ok()
+
     async def _roll_back(self, module_id, old_cls, package, removed, was_active, stopped, error, state) -> Result:
         loader.restore(package, removed)
         self._classes[module_id] = old_cls

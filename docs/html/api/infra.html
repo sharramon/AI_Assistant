@@ -23,7 +23,7 @@
 <li>For every module id with a file (<code>module_config_ids</code>): <code>&lt;id&gt;.toml</code>, then <code>&lt;id&gt;.local.toml</code>, into <code>[modules.&lt;id&gt;]</code>; top-level keys are the module's settings. Either may be missing.</li>
 <li><code>local.toml</code>, if it exists, over everything (as before).</li>
 </ol>
-<p>A module's own <code>module.toml</code> defaults go under all of these; the core merges them in (<code>App._config_of</code>). <code>NOT_MODULE_FILES</code> (<code>default</code>, <code>local</code>, <code>modules</code>, <code>permissions</code>, <code>voice_service</code>) are never read as a module's file. Also exported from <code>assistant.infra.config</code>: <code>module_config_ids(directory) -&gt; list[str]</code>.</p>
+<p>A module's own <code>module.toml</code> defaults go under all of these; the core merges them in (<code>App._config_of</code>). <code>NOT_MODULE_FILES</code> (<code>default</code>, <code>local</code>, <code>modules</code>, <code>permissions</code>, <code>voice_service</code>) are never read as a module's file. Also exported from <code>assistant.infra.config</code>: <code>module_config_ids(directory) -&gt; list[str]</code>; <code>config_folder(config_dir=None) -&gt; Path</code> (the directory <code>load_config</code> reads: <code>config_dir</code>, else <code>ASSISTANT_CONFIG_DIR</code>, else <code>config</code>); <code>module_config_files(directory, module_id) -&gt; list[Path]</code> (its <code>&lt;id&gt;.toml</code> and <code>&lt;id&gt;.local.toml</code>, existing or not; <code>[]</code> for an id in <code>NOT_MODULE_FILES</code>), used by the core's <a href="control.html#removemodule"><code>RemoveModule</code></a> purge.</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>

@@ -4,16 +4,17 @@ The stable host in `assistant.core`. Modules never use these directly; they go t
 
 ## `App`
 
-`App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None)`
+`App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None, config_dir: str | Path | None = None)`
 
-Wires the core together and runs the enabled modules. Construction validates the module selection. Handles `InvokeTool` and the [module control](control.md) commands, including `ReloadModule` and `AddModule`. A module's `ctx.config` is its own `module.toml` defaults with its `[modules.<id>]` section merged over them ([`loader.module_defaults`](#loader), [`merge`](app_kit.md#merge)); `modules.docs` reads its own `docs/` folder.
+Wires the core together and runs the enabled modules. Construction validates the module selection. Handles `InvokeTool` and the [module control](control.md) commands, including `ReloadModule`, `AddModule` and `RemoveModule`. A module's `ctx.config` is its own `module.toml` defaults with its `[modules.<id>]` section merged over them ([`loader.module_defaults`](#loader), [`merge`](app_kit.md#merge)); `modules.docs` reads its own `docs/` folder.
 
 **Parameters**
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `available` | `Sequence[type[ModuleProtocol]]` | yes | Every module the app can run: `__main__` passes [`find_modules()`](#loader) |
 | `config` | `dict` | yes | From [`load_config`](infra.md#load_config) |
-| `config_loader` | callable | no | Re-reads the config before a reload or add (`__main__` passes `load_config`) |
+| `config_loader` | callable | no | Re-reads the config before a reload, add or remove (`__main__` passes `load_config`) |
+| `config_dir` | `str`, `Path` | no | Where your choices files are, for `RemoveModule`'s purge ([`config_folder`](infra.md#load_config): else `ASSISTANT_CONFIG_DIR`, else `config/`); tests pass a tmp folder |
 | `logs` | `LogSession` | no | The launch's log handler; every module reaches it as `ctx.logs` through a [`SessionLogs`](#sessionlogs) (`app.logs`). Without it, `ctx.logs` gives paths under `logging.dir` |
 
 **Raises:** [`StartupError`](#startuperror) if the enabled modules can't run together.
@@ -62,6 +63,7 @@ Select the `enabled` modules and return them in start order: providers before th
 | `async deactivate(module_id, with_dependents=False) -> Result` | Runtime deactivation; see [`DeactivateModule`](control.md#deactivatemodule) |
 | `async reload(module_id) -> Result` | Swap a module's code, with rollback; see [`ReloadModule`](control.md#reloadmodule) |
 | `async add(package, activate=True) -> Result` | Load a new module; see [`AddModule`](control.md#addmodule) |
+| `async remove(module_id, enabled=()) -> Result` | Off, then out of the module list for this run; refused while an active module, or one of `enabled`, needs it. `App` adds the settings purge; see [`RemoveModule`](control.md#removemodule) |
 | `module_class(module_id) -> type` | The module's current class, on or off (the new one after a reload). `KeyError` if unknown. `App` uses it to find the module's folder (its `module.toml` and `docs/`) |
 
 **Defined in:** `src/assistant/core/lifecycle.py`

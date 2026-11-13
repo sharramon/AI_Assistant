@@ -390,7 +390,7 @@ LIBRARY_START = "<!-- library:start (generated from the manifests and menus by s
 LIBRARY_END = "<!-- library:end -->"
 CORE_LINE = (
     "The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, "
-    "`DeactivateModule`, `ReloadModule`, `AddModule`), routes `InvokeTool` to the module whose menu has the item, "
+    "`DeactivateModule`, `ReloadModule`, `AddModule`, `RemoveModule`), routes `InvokeTool` to the module whose menu has the item, "
     "and publishes `ModuleStateChanged`."
 )
 

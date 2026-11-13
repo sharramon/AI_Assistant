@@ -83,12 +83,13 @@ Turning modules on and off while the app runs. Handled by the core. `from assist
 |------|------|---------|
 | [`ListModules`](control.md#listmodules) | command | The directory: every module, one line each (id, description, state) |
 | [`GetMenu`](control.md#getmenu) | command | One module's menu (`ToolSpec`s), on or off; `core` for module control |
-| [The core's menu](control.md#the-cores-menu) | menu | `modules.list / menu / docs / on / off / reload / add`, the risky ones asking first; `permissions.grants / grant / request / revoke` |
+| [The core's menu](control.md#the-cores-menu) | menu | `modules.list / menu / docs / on / off / reload / add / remove`, the risky ones asking first; `permissions.grants / grant / request / revoke` |
 | [`ActivateModule`](control.md#activatemodule) | command | Turn a module on, with the providers it requires |
 | [`StartProvider`](control.md#startprovider) | command | Start on use by contract: turn on the module that provides a contract and has `start_on_use` (no module named) |
 | [`DeactivateModule`](control.md#deactivatemodule) | command | Turn a module off, respecting dependents |
 | [`ReloadModule`](control.md#reloadmodule) | command | Swap a module's code while the app runs; old code back if the new fails |
 | [`AddModule`](control.md#addmodule) | command | Load a brand-new module while the app runs (a new contract still needs a restart) |
+| [`RemoveModule`](control.md#removemodule) | command | Take a module out of this run (refused while needed); `purge` deletes only its `config/<id>.toml` and `.local.toml`; never its folder |
 | [`ModuleInfo`](control.md#moduleinfo) | data | A module's id, state, and contracts |
 | [`ModuleState`](control.md#modulestate) | enum | `inactive`, `starting`, `active`, `stopping`, `reloading`, `failed` |
 | [`ModuleStateChanged`](control.md#modulestatechanged) | event | A module moved to a new state |

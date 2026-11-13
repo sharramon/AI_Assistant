@@ -209,6 +209,7 @@ stateDiagram-v2
 - **Modules load expensive things lazily:** a `claude` process, a speech model, or a window starts when the module is activated or first used, not at app start.
 - **Agents adapt automatically:** tools are looked up at call time, so a deactivated module's tools disappear from what the agents can use.
 - **Reloading a module:** `ReloadModule` swaps its code and `AddModule` loads a brand-new module, both while the app runs ([below](#reloading-a-modules-code)).
+- **Removing a module:** [`RemoveModule`](../api/control.md#removemodule) (`modules.remove`, which asks first) is refused while another module needs it: an active one (`needs`, or a sole provider it requires) or one in `modules.enabled` whose `needs` lists it; the error names them. Otherwise it turns the module off and takes it out of the module list for this run (`AddModule` brings it back; its package stays imported, `AddModule` imports it fresh). With `purge` it deletes `config/<id>.toml` and `config/<id>.local.toml` only (never a shared file such as `local.toml`, even for a module with that id); with `keep`, nothing. It never deletes the module's folder or rewrites `config/modules.toml`: the result says what's left to you, with the folder's path. Built 2026-11-13 (module folders item 16).
 - **What still needs a restart:** changes to the core, contracts, `infra`, `app_kit`, or `__main__`, and a new module that needs a new contract or port type (contracts are shared by every module). Enabling, disabling, reloading, and loading resources don't. Switching an AI model should be a runtime setting, restarting only that agent's session if the provider needs it.
 - **Not the Agent Hub's job:** the Hub coordinates agents through their contracts. It never starts or stops modules itself.
 
@@ -255,7 +256,7 @@ stateDiagram-v2
 - **Start on use:** a tool nobody offers, but on the menu of a module that is off and has `start_on_use = true` in its config, turns that module on first (as `ActivateModule` does), then runs. A failed start returns its error; calls during the start wait for it. Only `html_viewer` uses it today ([`dispatch_tool`](../api/core.md#dispatch_tool)). The same works by contract: [`StartProvider`](../api/control.md#startprovider)`(contract)` turns on the module that provides it, so a core module opening a page (through [`IPageOpener`](../api/modules.md#ipageopener)) never names the viewer ([needs arrows](modules.md#the-needs-arrows-point-one-way)).
 - A future `ToolsChanged` event, published by providers when their list changes, slots in without core changes: orchestrators would subscribe to refresh what they tell the model.
 - The [directory, then menu](modules.md#find-a-module-then-open-its-menu): `ListModules` gives one line per module, `GetMenu(id)` one module's `ToolSpec`s (read from its class, on or off). Calling stays `InvokeTool`.
-- The core's own menu (`core/directory.py`, id `core`): `modules.list / menu / on / off / reload / add`, each sending the matching control command. Provided as an `IToolProvider` in the name `core` while the app runs. `modules.off` with dependents and `modules.add` ask the core's `PermissionsPort("core")` first (single names aren't checked yet: allowed and logged). The grant calls `permissions.grants / grant / request / revoke` are on the same `core` menu ([permissions](permissions.md#managing-grants)).
+- The core's own menu (`core/directory.py`, id `core`): `modules.list / menu / docs / on / off / reload / add / remove`, each sending the matching control command. Provided as an `IToolProvider` in the name `core` while the app runs. `modules.off` with dependents, `modules.add` and `modules.remove` ask the core's `PermissionsPort("core")` first (single names aren't checked yet: allowed and logged). The grant calls `permissions.grants / grant / request / revoke` are on the same `core` menu ([permissions](permissions.md#managing-grants)).
 
 ## Configuration
 
@@ -340,7 +341,7 @@ Before writing a helper for it, check the [reusable parts index](../api/reusable
 1. Create `src/assistant/modules/<id>/`, named with the manifest id, whose `__init__.py` exports one `ModuleProtocol` subclass. Import only from `assistant.contracts`, `assistant.infra`, and `app_kit`. The core [finds it by folder](modules.md#found-by-folder).
 2. Add its id to `modules.enabled` in config to start it at launch, or `AddModule` it while the app runs.
 
-To **replace** a module (e.g. the orchestrator), enable the new id instead of the old one. No core changes; `tests/test_app.py::test_orchestrator_is_replaceable_by_config_alone` checks this. To **remove** one, delete its folder and its config.
+To **replace** a module (e.g. the orchestrator), enable the new id instead of the old one. No core changes; `tests/test_app.py::test_orchestrator_is_replaceable_by_config_alone` checks this. To **remove** one, call `modules.remove` with `settings` `keep` or `purge` (its `config/<id>.toml` and `config/<id>.local.toml`), take it out of `enabled` in `config/modules.toml`, then delete its folder yourself.
 
 ## Running
 

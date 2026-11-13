@@ -39,7 +39,7 @@ One shortcut to one module. The Talker turns its SHOW tags into the viewer's `vi
 2. **Give me its menu** (built): `GetMenu(id)`, that module's `ToolSpec`s only, read from its class, so it works while the module is off.
 3. **Call an item** (built): `InvokeTool(name, args)`, routed to the module that offers it (the module must be on).
 
-The core has a menu of its own under the id `core`: `modules.list`, `modules.menu`, `modules.on`, `modules.off`, `modules.reload`, `modules.add`. So anything that can call a menu item can also find modules and turn them on, off, or reload them. The risky items (turning off with dependents, adding new code) ask the permissions first. The agents will send all three asks through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05; planned).
+The core has a menu of its own under the id `core`: `modules.list`, `modules.menu`, `modules.on`, `modules.off`, `modules.reload`, `modules.add`, `modules.remove`. So anything that can call a menu item can also find modules and turn them on, off, or reload them. The risky items (turning off with dependents, adding new code, removing a module) ask the permissions first. `modules.remove` takes `settings`, `keep` or `purge` (deleting only `config/<id>.toml` and `config/<id>.local.toml`); it's refused while another module needs it, and never deletes the module's folder ([removing a module](core.md#runtime-module-control)). The agents will send all three asks through [one MCP door](#how-the-agents-reach-the-menus-one-door) (decided 2026-11-05; planned).
 
 ### What changes
 

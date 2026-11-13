@@ -102,6 +102,24 @@ class AddModule(Command):
     activate: bool = True
 
 
+class RemoveModule(Command):
+    """Remove a module from this run: turn it off if it's on, and take it out of the module list, so
+    it isn't offered again until `AddModule` loads it. Refused (`failed`, naming them) while another
+    module needs it: an active one that `needs` it or requires something only it provides, or one in
+    `modules.enabled` whose `needs` lists it.
+
+    `purge` deletes its settings, `config/<id>.toml` and `config/<id>.local.toml`, and nothing else;
+    without it nothing is deleted. Its folder is never deleted (that's yours to do), and
+    `config/modules.toml` is never rewritten: the result says to take it out of `enabled` yourself.
+
+    Result value: `{"module_id", "deleted": [paths], "kept": [paths], "folder": path or None,
+    "enabled": bool, "message": str}`.
+    """
+
+    module_id: str
+    purge: bool = False
+
+
 class ModuleStateChanged(Event):
     """A module moved to a new state."""
 

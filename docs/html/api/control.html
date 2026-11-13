@@ -105,6 +105,12 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 <td>yes</td>
 </tr>
 <tr>
+<td><code>modules.remove</code></td>
+<td><code>module_id</code>, <code>settings</code> (<code>"keep"</code> or <code>"purge"</code>, required)</td>
+<td><code>RemoveModule</code> (<code>purge</code> when <code>"purge"</code>)</td>
+<td>yes</td>
+</tr>
+<tr>
 <td><code>permissions.grants</code></td>
 <td>none</td>
 <td>(the handler)</td>
@@ -131,7 +137,7 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 </tbody>
 </table>
 <p><code>modules.docs</code> returns the module's own docs, on or off: a list of <code>{"title", "path"}</code>, one per page in its folder's <code>docs/</code> (order and titles from <a href="app_kit.html#module_docs"><code>module_docs</code></a>), <code>[]</code> if it ships none, <code>invalid_arguments</code> for an unknown id. An agent learns what a module does from the module itself: its menu, then these pages. Added 2026-11-06.</p>
-<p>"Asks first" for <code>modules.*</code> goes through the core's <code>ctx.permissions</code> (<code>modules.off_with_dependents</code>, <code>modules.add</code>); single names aren't checked yet, so they're allowed and logged. Refused → <code>failed</code> ("Not allowed: …"). Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
+<p>"Asks first" for <code>modules.*</code> goes through the core's <code>ctx.permissions</code> (<code>modules.off_with_dependents</code>, <code>modules.add</code>, <code>modules.remove</code>, whose reason says keep or delete its settings); single names aren't checked yet, so they're allowed and logged. Refused → <code>failed</code> ("Not allowed: …"). Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
 <p>The <code>permissions.*</code> items are the <a href="../architecture/permissions.html#managing-grants">permissions handler</a>'s grant calls (<a href="core.html#permissionsmenu"><code>PermissionsMenu</code></a>). <code>permissions.grants</code> lists the saved grants per module and subject (the kind of agent): what was granted, the date, and whether the current list still matches. <code>permissions.grant</code> widens a grant with asked-for items, and a module that's off is turned on; one that's on takes it live (from its agents' next session, at once when idle). <code>permissions.request</code> is an agent asking for more access for itself (its module and subject come from its id; folders resolved); on Allow the items join its grant as added items, and a running agent takes them live. <code>permissions.revoke</code> takes back all or some items; the module turns off right away and its running tasks are stopped. From you (a UI you click in, <code>temp_ui</code> by default) they apply at once; from an agent they show you a card, and the answer reaches the agent as a note.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code>, <code>src/assistant/core/permissions/menu.py</code></p>
 <h2 id="activatemodule"><code>ActivateModule</code></h2>
@@ -328,6 +334,66 @@ if not result.is_ok:
 <pre><code>result = await ctx.send(AddModule(package="assistant.modules.weather"))
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="removemodule"><code>RemoveModule</code></h2>
+<p><code>RemoveModule(module_id: str, purge: bool = False)</code> (command) · built 2026-11-13 (module folders item 16)</p>
+<p>Remove a module from this run: turn it off if it's on, and take it out of the module list, so <code>ListModules</code> and <code>GetMenu</code> don't offer it until <a href="#addmodule"><code>AddModule</code></a> loads it again. Sent by the core's <code>modules.remove</code>, which asks first. How it works: <a href="../architecture/core.html#runtime-module-control">runtime module control</a>.</p>
+<ul>
+<li><strong>Refused while needed:</strong> by an active module that <code>needs</code> it or requires something only it provides, or by one in <code>modules.enabled</code> (re-read from <code>config/</code> when the app has a config loader) whose <code>needs</code> lists it, on or off.</li>
+<li><strong><code>purge</code>:</strong> deletes <code>config/&lt;id&gt;.toml</code> and <code>config/&lt;id&gt;.local.toml</code> (in the app's config directory: <code>App(config_dir=...)</code>, else <code>ASSISTANT_CONFIG_DIR</code>, else <code>config/</code>), and nothing else. An id that names a shared file (<code>default</code>, <code>local</code>, <code>modules</code>, <code>permissions</code>, <code>voice_service</code>) has none to purge. Without <code>purge</code>, nothing is deleted.</li>
+<li><strong>Never:</strong> deletes the module's folder, or rewrites <code>config/modules.toml</code>. If it's in <code>enabled</code>, the result tells you to take it out, or it starts again at the next launch.</li>
+</ul>
+<p><strong>Parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>module_id</code></td>
+<td><code>str</code></td>
+<td>yes</td>
+<td>The module's manifest id</td>
+</tr>
+<tr>
+<td><code>purge</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>Delete its two settings files (<code>modules.remove</code>'s <code>settings="purge"</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>Value: <code>{"module_id", "deleted": [paths], "kept": [paths], "folder": path or None, "enabled": bool, "message": str}</code>; <code>message</code> says what was deleted or kept, whether to edit <code>enabled</code>, and that the folder is yours to delete</td>
+</tr>
+<tr>
+<td><code>invalid_arguments</code></td>
+<td>No module has that id</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>Another module needs it (the error names them), or it couldn't be turned off. Nothing is deleted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong></p>
+<pre><code>result = await ctx.send(RemoveModule(module_id="weather", purge=True))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code> (command), <code>src/assistant/core/app.py</code> (<code>App._remove</code>), <code>src/assistant/core/lifecycle.py</code> (<code>LifecycleManager.remove</code>) · <strong>Tests:</strong> <code>tests/test_remove_module.py</code>, <code>tests/test_directory.py</code></p>
 <h2 id="moduleinfo"><code>ModuleInfo</code></h2>
 <p><code>class ModuleInfo(BaseModel)</code> (frozen)</p>
 <table>

@@ -27,7 +27,7 @@ def load_config(config_dir: str | Path | None = None) -> dict[str, Any]:
     A module's own defaults (its `module.toml`) go under all of these: the core merges them in
     (`App._config_of`). The directory is `config_dir`, else ASSISTANT_CONFIG_DIR, else `./config`.
     """
-    directory = Path(config_dir or os.environ.get("ASSISTANT_CONFIG_DIR", "config"))
+    directory = config_folder(config_dir)
     config = _read(directory / "default.toml")
     modules = merge(config.get("modules", {}), _layer(directory, "modules"))
     for module_id in module_config_ids(directory):
@@ -35,6 +35,21 @@ def load_config(config_dir: str | Path | None = None) -> dict[str, Any]:
     config["modules"] = modules
     local = directory / "local.toml"
     return merge(config, _read(local)) if local.exists() else config
+
+
+def config_folder(config_dir: str | Path | None = None) -> Path:
+    """The config directory: `config_dir`, else ASSISTANT_CONFIG_DIR, else `./config`."""
+    return Path(config_dir or os.environ.get("ASSISTANT_CONFIG_DIR", "config"))
+
+
+def module_config_files(directory: str | Path, module_id: str) -> list[Path]:
+    """A module's own choices files in `directory`: `<id>.toml` and `<id>.local.toml` (whether or not
+    they exist). None for an id that names a file that isn't one module's (`NOT_MODULE_FILES`), so
+    nothing else in `config/` is ever taken for a module's settings."""
+    if not module_id.isidentifier() or module_id in NOT_MODULE_FILES:
+        return []
+    base = Path(directory) / f"{module_id}.toml"
+    return [base, local_path(base)]
 
 
 def module_config_ids(directory: str | Path) -> list[str]:

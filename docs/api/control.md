@@ -51,6 +51,7 @@ Module control as menu items, under the id `core` (`GetMenu(module_id="core")`),
 | `modules.off` | `module_id`, `with_dependents` (false) | `DeactivateModule` | with `with_dependents` |
 | `modules.reload` | `module_id`, `now` (false) | `ReloadModule` | no |
 | `modules.add` | `package`, `activate` (true) | `AddModule` | yes |
+| `modules.remove` | `module_id`, `settings` (`"keep"` or `"purge"`, required) | `RemoveModule` (`purge` when `"purge"`) | yes |
 | `permissions.grants` | none | (the handler) | no |
 | `permissions.grant` | `module_id`, `items` (keys), `subject` | (the handler) | from an agent: your card |
 | `permissions.request` | `read`, `write`, `commands` (lists), `python`, `chrome`, `reason` | (the handler) | always your card |
@@ -58,7 +59,7 @@ Module control as menu items, under the id `core` (`GetMenu(module_id="core")`),
 
 `modules.docs` returns the module's own docs, on or off: a list of `{"title", "path"}`, one per page in its folder's `docs/` (order and titles from [`module_docs`](app_kit.md#module_docs)), `[]` if it ships none, `invalid_arguments` for an unknown id. An agent learns what a module does from the module itself: its menu, then these pages. Added 2026-11-06.
 
-"Asks first" for `modules.*` goes through the core's `ctx.permissions` (`modules.off_with_dependents`, `modules.add`); single names aren't checked yet, so they're allowed and logged. Refused → `failed` ("Not allowed: …"). Through `InvokeTool` a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and `ModuleStateChanged` reports it.
+"Asks first" for `modules.*` goes through the core's `ctx.permissions` (`modules.off_with_dependents`, `modules.add`, `modules.remove`, whose reason says keep or delete its settings); single names aren't checked yet, so they're allowed and logged. Refused → `failed` ("Not allowed: …"). Through `InvokeTool` a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and `ModuleStateChanged` reports it.
 
 The `permissions.*` items are the [permissions handler](../architecture/permissions.md#managing-grants)'s grant calls ([`PermissionsMenu`](core.md#permissionsmenu)). `permissions.grants` lists the saved grants per module and subject (the kind of agent): what was granted, the date, and whether the current list still matches. `permissions.grant` widens a grant with asked-for items, and a module that's off is turned on; one that's on takes it live (from its agents' next session, at once when idle). `permissions.request` is an agent asking for more access for itself (its module and subject come from its id; folders resolved); on Allow the items join its grant as added items, and a running agent takes them live. `permissions.revoke` takes back all or some items; the module turns off right away and its running tasks are stopped. From you (a UI you click in, `temp_ui` by default) they apply at once; from an agent they show you a card, and the answer reaches the agent as a note.
 
@@ -164,6 +165,35 @@ Load a module that wasn't there at launch, from its package, and activate it unl
     result = await ctx.send(AddModule(package="assistant.modules.weather"))
 
 **Defined in:** `src/assistant/contracts/control.py`
+
+## `RemoveModule`
+
+`RemoveModule(module_id: str, purge: bool = False)` (command) · built 2026-11-13 (module folders item 16)
+
+Remove a module from this run: turn it off if it's on, and take it out of the module list, so `ListModules` and `GetMenu` don't offer it until [`AddModule`](#addmodule) loads it again. Sent by the core's `modules.remove`, which asks first. How it works: [runtime module control](../architecture/core.md#runtime-module-control).
+
+- **Refused while needed:** by an active module that `needs` it or requires something only it provides, or by one in `modules.enabled` (re-read from `config/` when the app has a config loader) whose `needs` lists it, on or off.
+- **`purge`:** deletes `config/<id>.toml` and `config/<id>.local.toml` (in the app's config directory: `App(config_dir=...)`, else `ASSISTANT_CONFIG_DIR`, else `config/`), and nothing else. An id that names a shared file (`default`, `local`, `modules`, `permissions`, `voice_service`) has none to purge. Without `purge`, nothing is deleted.
+- **Never:** deletes the module's folder, or rewrites `config/modules.toml`. If it's in `enabled`, the result tells you to take it out, or it starts again at the next launch.
+
+**Parameters**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `module_id` | `str` | yes | The module's manifest id |
+| `purge` | `bool` | no | Delete its two settings files (`modules.remove`'s `settings="purge"`) |
+
+**Returns**
+| Status | When |
+|--------|------|
+| `ok` | Value: `{"module_id", "deleted": [paths], "kept": [paths], "folder": path or None, "enabled": bool, "message": str}`; `message` says what was deleted or kept, whether to edit `enabled`, and that the folder is yours to delete |
+| `invalid_arguments` | No module has that id |
+| `failed` | Another module needs it (the error names them), or it couldn't be turned off. Nothing is deleted |
+
+**Example**
+
+    result = await ctx.send(RemoveModule(module_id="weather", purge=True))
+
+**Defined in:** `src/assistant/contracts/control.py` (command), `src/assistant/core/app.py` (`App._remove`), `src/assistant/core/lifecycle.py` (`LifecycleManager.remove`) · **Tests:** `tests/test_remove_module.py`, `tests/test_directory.py`
 
 ## `ModuleInfo`
 

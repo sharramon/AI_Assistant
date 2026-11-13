@@ -3,7 +3,8 @@
 With `ListModules` (one line per module) and `GetMenu` (a module's menu) it makes the
 module directory: list, then open a menu, then call an item with `InvokeTool`. Each item
 sends the matching control command, so it goes through the same handlers as a control panel.
-The risky ones (turning off with dependents, adding new code) ask through `permissions` first.
+The risky ones (turning off with dependents, adding new code, removing a module) ask through
+`permissions` first.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from assistant.contracts import (
     Menu,
     ModulePermissions,
     ReloadModule,
+    RemoveModule,
     Result,
 )
 from assistant.core.permissions.handler import ACTING_FOR
@@ -92,3 +94,15 @@ class CoreMenu:
         if not await self.permissions.request("modules.add", f"load new code from {package}"):
             return Result.failed(f"Not allowed: adding {package!r}")
         return await self._send(AddModule(package=package, activate=activate))
+
+    @menu.item("modules.remove", "Remove a module from this run (refused while another needs it); settings "
+               "'purge' deletes its config/<id>.toml and config/<id>.local.toml, 'keep' deletes nothing. "
+               "Never deletes its folder",
+               {**_ID, "settings": {"type": "string", "enum": ["keep", "purge"]}},
+               required=["module_id", "settings"])
+    async def remove(self, module_id: str, settings: str) -> Result:
+        purge = settings == "purge"
+        what = "delete its settings" if purge else "keep its settings"
+        if not await self.permissions.request("modules.remove", f"remove {module_id} and {what}"):
+            return Result.failed(f"Not allowed: removing {module_id!r}")
+        return await self._send(RemoveModule(module_id=module_id, purge=purge))

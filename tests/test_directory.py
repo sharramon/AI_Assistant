@@ -89,7 +89,7 @@ async def test_the_core_menu_controls_modules():
     try:
         names = [s.name for s in (await app.router.send(GetMenu(module_id="core"))).value]
         assert names == ["modules.list", "modules.menu", "modules.docs", "modules.on", "modules.off", "modules.reload", "modules.add",
-                         "permissions.grants", "permissions.grant", "permissions.request", "permissions.revoke"]
+                         "modules.remove", "permissions.grants", "permissions.grant", "permissions.request", "permissions.revoke"]
 
         listed = await app.router.send(InvokeTool(name="modules.list"))
         assert [m.id for m in listed.value] == ["counter", "speaker", "needs_speaker"]
@@ -119,11 +119,19 @@ async def test_the_risky_core_items_ask_first():
         assert off.status is Status.FAILED and "Not allowed" in off.error
         add = await app.router.send(InvokeTool(name="modules.add", args={"package": "assistant.modules.echo_orchestrator"}))
         assert add.status is Status.FAILED and "Not allowed" in add.error
-        assert deny.asked == ["modules.off_with_dependents", "modules.add"]
+        remove = await app.router.send(
+            InvokeTool(name="modules.remove", args={"module_id": "needs_speaker", "settings": "purge"})
+        )
+        assert remove.status is Status.FAILED and "Not allowed" in remove.error
+        asked = ["modules.off_with_dependents", "modules.add", "modules.remove"]
+        assert deny.asked == asked
         states = {m.id: m.state for m in (await app.router.send(ListModules())).value}
         assert states == {"speaker": ModuleState.ACTIVE, "needs_speaker": ModuleState.ACTIVE}
         # Plain off (no dependents to take down) doesn't ask.
         assert (await app.router.send(InvokeTool(name="modules.off", args={"module_id": "needs_speaker"}))).is_ok
-        assert deny.asked == ["modules.off_with_dependents", "modules.add"]
+        assert deny.asked == asked
+        # settings must be keep or purge.
+        bad = await app.router.send(InvokeTool(name="modules.remove", args={"module_id": "speaker", "settings": "x"}))
+        assert bad.status is Status.INVALID_ARGUMENTS and deny.asked == asked
     finally:
         await app.stop()

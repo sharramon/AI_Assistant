@@ -48,7 +48,7 @@ Other pages are optional: a module that launches its own app keeps that app's fu
 | [`job_search`](../../src/assistant/modules/job_search/docs/README.md) | The job agent (applies to jobs, runs searches in the job project), with its job.* menu | no | `job.open_ui`, `job.search` | provides `ITaskAgent`; uses `IModuleDoor`, `IAgentNames`, `IPageOpener` | none | `ReportTask`, `StartProvider`, `DeliverMessage` | `AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged`, `AgentNotice` | `ResetRequested`, `ModuleStateChanged`, `PermissionChanged`, `cv.job_finished`, `cv.job_submitted` |
 | [`voice_notes`](../../src/assistant/modules/voice_notes/docs/README.md) | Speak into a page of notes; the words never go to the Talker | no | none | requires `IVoice` | none | none | none | `VoiceState`, `VoiceTranscript` |
 
-The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, `DeactivateModule`, `ReloadModule`, `AddModule`), routes `InvokeTool` to the module whose menu has the item, and publishes `ModuleStateChanged`.
+The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, `DeactivateModule`, `ReloadModule`, `AddModule`, `RemoveModule`), routes `InvokeTool` to the module whose menu has the item, and publishes `ModuleStateChanged`.
 
 <!-- library:end -->
 

@@ -14,8 +14,8 @@
 <h1 id="core-host-internal">Core host (internal)</h1>
 <p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
 <h2 id="app"><code>App</code></h2>
-<p><code>App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None)</code></p>
-<p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> and the <a href="control.html">module control</a> commands, including <code>ReloadModule</code> and <code>AddModule</code>. A module's <code>ctx.config</code> is its own <code>module.toml</code> defaults with its <code>[modules.&lt;id&gt;]</code> section merged over them (<a href="#loader"><code>loader.module_defaults</code></a>, <a href="app_kit.html#merge"><code>merge</code></a>); <code>modules.docs</code> reads its own <code>docs/</code> folder.</p>
+<p><code>App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None, config_dir: str | Path | None = None)</code></p>
+<p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> and the <a href="control.html">module control</a> commands, including <code>ReloadModule</code>, <code>AddModule</code> and <code>RemoveModule</code>. A module's <code>ctx.config</code> is its own <code>module.toml</code> defaults with its <code>[modules.&lt;id&gt;]</code> section merged over them (<a href="#loader"><code>loader.module_defaults</code></a>, <a href="app_kit.html#merge"><code>merge</code></a>); <code>modules.docs</code> reads its own <code>docs/</code> folder.</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>
@@ -43,7 +43,13 @@
 <td><code>config_loader</code></td>
 <td>callable</td>
 <td>no</td>
-<td>Re-reads the config before a reload or add (<code>__main__</code> passes <code>load_config</code>)</td>
+<td>Re-reads the config before a reload, add or remove (<code>__main__</code> passes <code>load_config</code>)</td>
+</tr>
+<tr>
+<td><code>config_dir</code></td>
+<td><code>str</code>, <code>Path</code></td>
+<td>no</td>
+<td>Where your choices files are, for <code>RemoveModule</code>'s purge (<a href="infra.html#load_config"><code>config_folder</code></a>: else <code>ASSISTANT_CONFIG_DIR</code>, else <code>config/</code>); tests pass a tmp folder</td>
 </tr>
 <tr>
 <td><code>logs</code></td>
@@ -129,6 +135,10 @@
 <tr>
 <td><code>async add(package, activate=True) -&gt; Result</code></td>
 <td>Load a new module; see <a href="control.html#addmodule"><code>AddModule</code></a></td>
+</tr>
+<tr>
+<td><code>async remove(module_id, enabled=()) -&gt; Result</code></td>
+<td>Off, then out of the module list for this run; refused while an active module, or one of <code>enabled</code>, needs it. <code>App</code> adds the settings purge; see <a href="control.html#removemodule"><code>RemoveModule</code></a></td>
 </tr>
 <tr>
 <td><code>module_class(module_id) -&gt; type</code></td>

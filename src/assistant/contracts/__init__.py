@@ -44,6 +44,7 @@ from assistant.contracts.control import (
     ModuleState,
     ModuleStateChanged,
     ReloadModule,
+    RemoveModule,
     StartProvider,
 )
 from assistant.contracts.door import IModuleDoor
@@ -146,6 +147,7 @@ __all__ = [
     "PermissionMode",
     "PermissionModeChanged",
     "ReloadModule",
+    "RemoveModule",
     "QuestionKind",
     "RISKY_PREFIX",
     "TURN_DONE",

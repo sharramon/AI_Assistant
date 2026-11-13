@@ -15,7 +15,7 @@ Load the app's config from `config/`, each layer deep-merged over the one before
 3. For every module id with a file (`module_config_ids`): `<id>.toml`, then `<id>.local.toml`, into `[modules.<id>]`; top-level keys are the module's settings. Either may be missing.
 4. `local.toml`, if it exists, over everything (as before).
 
-A module's own `module.toml` defaults go under all of these; the core merges them in (`App._config_of`). `NOT_MODULE_FILES` (`default`, `local`, `modules`, `permissions`, `voice_service`) are never read as a module's file. Also exported from `assistant.infra.config`: `module_config_ids(directory) -> list[str]`.
+A module's own `module.toml` defaults go under all of these; the core merges them in (`App._config_of`). `NOT_MODULE_FILES` (`default`, `local`, `modules`, `permissions`, `voice_service`) are never read as a module's file. Also exported from `assistant.infra.config`: `module_config_ids(directory) -> list[str]`; `config_folder(config_dir=None) -> Path` (the directory `load_config` reads: `config_dir`, else `ASSISTANT_CONFIG_DIR`, else `config`); `module_config_files(directory, module_id) -> list[Path]` (its `<id>.toml` and `<id>.local.toml`, existing or not; `[]` for an id in `NOT_MODULE_FILES`), used by the core's [`RemoveModule`](control.md#removemodule) purge.
 
 **Parameters**
 | Name | Type | Required | Description |

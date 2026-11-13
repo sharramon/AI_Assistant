@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Sequence
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 from app_kit import merge
@@ -24,6 +25,7 @@ from assistant.contracts import (
     ModuleState,
     ModuleStateChanged,
     ReloadModule,
+    RemoveModule,
     Result,
     ShutdownRequested,
     StartProvider,
@@ -43,6 +45,7 @@ from assistant.core.permissions import PermissionsHandler, PermissionsMenu, Perm
 from assistant.core.registry import resolve_modules
 from assistant.core.router import CommandRouter
 from assistant.core.tools import MenuTools, dispatch_tool
+from assistant.infra.config import config_folder, module_config_files
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +57,7 @@ class App:
         config: dict[str, Any],
         config_loader: Callable[[], dict[str, Any]] | None = None,
         logs: Any = None,
+        config_dir: str | Path | None = None,
     ):
         """Validate the enabled modules. Raises StartupError before anything runs.
 
@@ -62,9 +66,11 @@ class App:
         re-reads the config before `ReloadModule` and `AddModule`, so a reloaded or
         added module gets its current config section. `logs` is the launch's
         `LogSession`; every module reaches it as `ctx.logs`. Without one, `ctx.logs`
-        gives plain paths under `logging.dir`.
+        gives plain paths under `logging.dir`. `config_dir` is where your choices files are
+        (`config_folder`: else ASSISTANT_CONFIG_DIR, else `./config`); `RemoveModule` purges there.
         """
         core = config.get("core", {})
+        self._config_dir = config_folder(config_dir)
         self.logs = SessionLogs(logs, config.get("logging", {}).get("dir", "logs"))
         self._module_config = config.get("modules", {})
         self._config_loader = config_loader
@@ -93,6 +99,7 @@ class App:
             DeactivateModule: self._deactivate_module,
             ReloadModule: self._reload_module,
             AddModule: self._add_module,
+            RemoveModule: self._remove_module,
         }
         # The core's own menu (module control), offered through InvokeTool under the id "core".
         self.core_menu = CoreMenu(self.router.send, PermissionsPort(CORE_ID, self.permissions), self._module_docs)
@@ -205,15 +212,69 @@ class App:
     async def _add_module(self, command: AddModule) -> Result:
         return await asyncio.shield(self._swap(self._lifecycle.add, command.package, command.activate))
 
+    async def _remove_module(self, command: RemoveModule) -> Result:
+        return await asyncio.shield(self._remove(command.module_id, command.purge))
+
+    async def _remove(self, module_id: str, purge: bool) -> Result:
+        """`RemoveModule`: out of this run (refused while needed), then its settings purged or kept.
+        Never touches its folder or `config/modules.toml`; the result says what's left to you."""
+        self._refresh_config()
+        enabled = list(self._module_config.get("enabled", []))
+        try:
+            folder = loader.module_folder(self._lifecycle.module_class(module_id))
+        except KeyError:
+            return Result.invalid_arguments(f"No module called {module_id!r}")
+        result = await self._lifecycle.remove(module_id, enabled)
+        if not result.is_ok:
+            return result
+        if self._started:
+            self.generated.write()
+
+        files = [p for p in module_config_files(self._config_dir, module_id) if p.is_file()]
+        deleted, kept = [], []
+        for path in files:
+            if purge:
+                try:
+                    path.unlink()
+                    deleted.append(str(path))
+                except OSError as exc:
+                    log.error("Couldn't delete %s: %s", path, exc)
+                    kept.append(str(path))
+            else:
+                kept.append(str(path))
+        lines = [f"Removed {module_id} from this run; modules.add brings it back."]
+        if deleted:
+            lines.append(f"Deleted its settings: {', '.join(deleted)}.")
+        if kept:
+            lines.append(f"Kept its settings: {', '.join(kept)}.")
+        if not files:
+            lines.append("It had no settings files in config/.")
+        if module_id in enabled:
+            lines.append("It's still in config/modules.toml's enabled list: take it out yourself, "
+                         "or it starts again at the next launch.")
+        lines.append(f"Its folder is yours to delete: {folder}." if folder else "It has no module folder.")
+        return Result.ok({
+            "module_id": module_id,
+            "deleted": deleted,
+            "kept": kept,
+            "folder": str(folder) if folder else None,
+            "enabled": module_id in enabled,
+            "message": " ".join(lines),
+        })
+
     async def _swap(self, transition, *args) -> Result:
         """Run a code-loading transition with fresh config, holding commands sent to the module meanwhile."""
+        self._refresh_config()
+        with self.router.hold():
+            return await transition(*args)
+
+    def _refresh_config(self) -> None:
+        """Re-read the config (when there's a loader), so a change since launch counts."""
         if self._config_loader:
             try:
                 self._module_config = self._config_loader().get("modules", {})
             except Exception:
                 log.exception("Couldn't re-read the config; keeping the one from launch")
-        with self.router.hold():
-            return await transition(*args)
 
     def _on_module_state(self, module_id: str, state: ModuleState) -> None:
         self.bus.publish(ModuleStateChanged(module_id=module_id, state=state))

@@ -1,6 +1,8 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 16 of 20 done** (items 1 to 15 and 20).
+**Count: 17 of 20 done** (items 1 to 16 and 20).
+
+**Architecture check after the core chunk (items 11–16):** modularity OK (item 15's tripwires scan the core group, `core/`, contracts, infra and `app_kit` for an add-on's id or tool names and pass; every module has its `module.toml`); reuse OK (config layering reuses `load_layered` / `merge`; page opening is one helper, `open_page`; start on use is one search for tools and contracts); fit OK (`config/` holds only your choices and the on/off list, `generated/` only what the core writes, grants in `config/`; `modules.remove` goes through the same risky ask as the other core menu items).
 
 **Architecture check after the add-on chunk (items 7–10):** modularity OK (a grep of `core/`, `contracts/`, `infra/` and `app_kit` for the add-ons' ids finds only comments and examples, plus `infra/show_pages.py`'s `viewer.open`, which item 15 moves behind a slot); reuse OK (every app move reused `add_app_folders` and `launch_env`; temp_ui's test helpers joined `assistant.testkit`); fit OK (each add-on's defaults, `needs` and `packages` are in its `module.toml`, read by the core with no names).
 
@@ -10,7 +12,8 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
-- **App restart needed, item 15:** the new contract `IPageOpener` and the core command `StartProvider`. **Until the restart, pages may not open from the chat** (the running Talker and temp_ui still use the old path, which works with the old code only). **Hand check:** temp_ui's Open in viewer button brings the window to the front; a SHOW tag with html_viewer off turns it on and opens the page.
+- **App restart needed, item 16:** the core menu's `modules.remove` (new command `RemoveModule`).
+- **App restart needed, item 15:** the new contract `IPageOpener` and the core command `StartProvider`. The running app keeps its old code in memory until then (and can't launch the viewer since item 8). **Hand check:** temp_ui's Open in viewer button brings the window to the front; a SHOW tag with html_viewer off turns it on and opens the page.
 - **App restart needed, item 14:** the core writes `generated/modules.json`, `directory.json` and `dependencies.json` only after a restart. **Hand check:** they appear after the start and change when a module is turned on or off.
 - **Flaky test seen, item 14:** `voice_in/tests/test_voice_pieces.py::test_closing_the_socket_cancels_the_running_piece_and_frees_the_slot[True]` failed once in a full run and passed on rerun (unrelated to item 14). Worth a look.
 - **App restart needed, item 13:** the permissions handler reads and writes `config/permissions.toml`. **Hand check:** after the first start, `config/permissions.toml` exists with your old grants, and `data/permissions.toml` is still there (yours to delete once you're happy).
@@ -88,6 +91,7 @@ For you to review. Each picks the option closest to the approved picture.
 38. **Start on use, by contract** (item 15): a new core command `StartProvider(contract=...)` turns on the off module that lists the contract in `manifest.provides` and has `start_on_use = true`; it shares one search with the old tool-name path (`App._start_on_use`). No name of an add-on in the core.
 39. **The groups come from each module's `docs.toml`** (item 15): voice_in is in the core group there and echo_orchestrator is an add-on, unlike the item 11 list. The tripwire uses `docs.toml`, so changing a module's group there changes what it checks. **For you to review:** whether voice_in belongs in the core group (the picture drew it with the add-ons).
 40. **The tripwire** (item 15) reads string literals and imports in the core group, `core/`, contracts, infra and `app_kit`, skipping docstrings, and allows an add-on's named events (decision 9). The door's and the prompt's "e.g. `viewer.open`" examples now say `modules.docs`.
+41. **`modules.remove(module_id, settings="keep"|"purge")`** (item 16) asks first, then sends `RemoveModule`. It refuses while a module needs it: active and `needs` it (or requires a contract only it provides), or listed in `enabled` with `needs` naming it, even while off. It turns the module off and drops it from this run's list (`modules.add` brings it back). `purge` deletes only `config/<id>.toml` and `config/<id>.local.toml`; the shared names (`local`, `default`, `modules`, `permissions`, `voice_service`) never count. It never rewrites `config/modules.toml` or deletes the module folder: the result tells you to.
 
 ## The safeguards (from the audit, section 4)
 
@@ -246,7 +250,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** a contract `IPageOpener` (`open(path, quote, heading)`) in the contracts. html_viewer provides it, and temp_ui, the Talker and `show_page` ask the container for it (none: they say so). A tripwire test scans the core group's modules for an add-on's id or tool names.
 - **Done when:** `git grep -n "viewer\.open" src/assistant/modules/temp_ui src/assistant/modules/talker src/assistant/infra` finds nothing; the tripwire passes. **Needs an app restart** (new contract).
 
-### 16. Removing a module asks: purge its settings or keep them
+### 16. Removing a module asks: purge its settings or keep them: **done** (2026-11-13)
+
+**Checked:** `tests/test_remove_module.py` passes (refuse with the dependents named, keep, purge of only the two files, the ask first); `tests/test_directory.py` lists `modules.remove` on the core's menu; full suite 914 passed, 2 deselected; ruff clean. **Needs an app restart** (core command, contracts, infra).
 
 - **What:** the core's menu gets `modules.remove`, which refuses while another module needs it and asks you whether to purge `config/<id>.toml` or keep it.
 - **Why:** the overview's plan line: "removing a module asks whether to purge its settings or keep them".
