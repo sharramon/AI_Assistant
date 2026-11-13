@@ -86,7 +86,7 @@ Not abstract. A background line for the agent's next turn: another agent's `STAT
 
 `async request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -> Result`
 
-Not abstract. Ask you to allow `action` on this agent's open task. It puts a `permission` report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with [`AnswerPermission`](#answerpermission). It always asks, even in Auto. On Allow, `run()` is called and its outcome reaches the agent as its next message (`[App] <action>: <outcome> Continue the task...`). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with `not_available`, for agents without tasks.
+Not abstract. Ask you to allow `action` on this agent's open task. It puts a `permission` report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with [`AnswerPermission`](#answerpermission). In Manual it asks; in Auto (the agent's own mode) there's no card and `run()` runs at once. On Allow, `run()` is called and its outcome reaches the agent as its next message (`[App] <action>: <outcome> Continue the task...`). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with `not_available`, for agents without tasks.
 
 [`SessionTaskAgent`](infra.md#sessiontaskagent) implements it. Called by `task_agents`' `agents.launch` on its caller; `SessionTaskAgent`'s own `RELOAD:` / `ADD_MODULE:` request uses the same path. Built 2026-11-05.
 
@@ -220,7 +220,7 @@ Frozen. A task as the Hub knows it.
 
 **Reusable** · Used by: `agent_hub` sets it (`QuestionKind.of`); `talker`, `temp_ui` read it
 
-`class QuestionKind(StrEnum)`: `NONE = ""`, `NEED = "need"`, `RISKY = "risky"`, `PERMISSION = "permission"`. What a task's open question is, on [`TaskInfo`](#taskinfo) and [`TaskUpdated`](#taskupdated), so no reader parses a text prefix ([principle 19](../architecture/principles.md)). `QuestionKind.of(kind, text)` is the one place the text is read: a `permission` report is `PERMISSION`; a `need` starting with `RISKY_PREFIX` (`"Risky:"`, also in the contracts) is `RISKY`; any other `need` is `NEED`; anything else `NONE`.
+`class QuestionKind(StrEnum)`: `NONE = ""`, `NEED = "need"`, `RISKY = "risky"`, `PERMISSION = "permission"`, `WAIT = "wait"`. `WAIT` (2026-11-13): the task ended waiting, on child tasks or on an approval's outcome; the question is what it waits on ("waiting on child task 3fa2 (cv)"), set by the Hub (`TaskBoard._settle`), never by `of`. A task that ended waiting on its card keeps `PERMISSION`, so the card shows as before. What a task's open question is, on [`TaskInfo`](#taskinfo) and [`TaskUpdated`](#taskupdated), so no reader parses a text prefix ([principle 19](../architecture/principles.md)). `QuestionKind.of(kind, text)` is the one place the text is read: a `permission` report is `PERMISSION`; a `need` starting with `RISKY_PREFIX` (`"Risky:"`, also in the contracts) is `RISKY`; any other `need` is `NEED`; anything else `NONE`.
 
 ## `ListAgents`
 
@@ -237,9 +237,9 @@ Every registered agent, whether it's active or idle, and its permission mode. Ha
 
 ## `StartTask`
 
-`StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None)` (command)
+`StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None, tell_parent: bool = True)` (command)
 
-Give work to a free (idle) agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task, or by a module that starts an agent for a caller (`cv.task`). Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an active task; past that, `not_available`. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no `agent_id`) skips the agents in `[modules.agent_hub] named_only` (and `start_only_by`).
+Give work to a free (idle) agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task, or by a module that starts an agent for a caller (`cv.task`). `context` goes to the agent doing the task. `tell_parent=False` (2026-11-12): the Hub sends the parent's agent no message when this task ends, because the module that started it reports the end itself as a named event (`cv.task`: `cv.job_finished`). The parent link stays, so the parent's agent may still `hub.send` to the task. Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an active task; past that, `not_available`. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no `agent_id`) skips the agents in `[modules.agent_hub] named_only` (and `start_only_by`).
 
 **Returns:** `Result.ok(task_id)`; `not_available` if no agent is free, the cap is reached, or the agent would write a folder another active task's agent writes ([`AgentInfo.write_folders`](#agentinfo)); `invalid_arguments` for an unknown `agent_id`.
 
@@ -299,23 +299,24 @@ Switch a task agent between Manual and Auto. Handled by the Agent Hub, which cal
 
 ## `ReportTask`
 
-`ReportTask(task_id: str, kind: ReportKind, text: str, key: str = "")` (command)
+`ReportTask(task_id: str, kind: ReportKind, text: str, key: str = "", card_open: bool = False)` (command)
 
-Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it. `key`: with a `need`, the question's context key (the agent's module decides it, through [`SessionTaskAgent.set_context`](infra.md#sessiontaskagent); `""` for none). The Hub keeps it as [`TaskInfo.question_key`](#taskinfo).
+Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it. `key`: with a `need` or a `turn_end`, the task's context key (the agent's module decides it, through [`SessionTaskAgent.set_context`](infra.md#sessiontaskagent); `""` for none). The Hub keeps it as [`TaskInfo.question_key`](#taskinfo). `card_open`: with a `turn_end`, the agent's card is still open; without it, a `permission` question the Hub still lists is closed (a tool request that timed out).
 
 | `kind` | Means | State becomes |
 |--------|-------|---------------|
-| `progress` | What it's doing | unchanged |
+| `progress` | What it's doing. For a task that ended waiting, new input for it (an approval's outcome): the Hub gives the task back with it | unchanged (`ACTIVE` once given back) |
 | `reply` | Answer to a `message` | unchanged |
 | `need` | A question for you; the turn has ended, and the agent dropped the task and is free. In Auto, a `need` starting with `Risky:` is a pause before a risky step (`question_kind` `risky`, else `need`). The answer gives the same task back ([`SendToTask`](#sendtotask)) | `IDLE` (with its question) |
 | `permission` | Wants to use a tool its rules don't allow, e.g. `Write C:\…\SKILL.md`; the turn waits for [`AnswerPermission`](#answerpermission) | `ACTIVE` (`question_kind` `permission`) |
 | `milestone` | A `STATUS: <one line>` line in its text ([`status_lines`](infra.md#agent_tags)). From an agent that isn't the coordinator, the Hub passes `[<agent>] <line>` to the coordinator's [`note`](#itaskagentnote) | unchanged |
+| `turn_end` | A turn ended with no last-line tag, or with its card open. The Hub decides: waiting on its card or on open child tasks (`tell_parent`) → the task **ends waiting**: the agent drops it and is free, and the record keeps the note (what it waits on, `key`) until the card's outcome, a child's end or a message gives it back; else nothing changes and the agent sends its own `done` | `IDLE` (with its note: `question_kind` `wait`, or `permission` for its card) or unchanged |
 | `done` | Finished; `text` is the result | `DONE` |
 | `failed` | Gave up; `text` says why | `FAILED` |
 
 `ReportKind` is a `StrEnum` with these values.
 
-**Returns:** `ok`, or `invalid_arguments` for an unknown or finished task.
+**Returns:** `ok`, or `invalid_arguments` for an unknown or finished task. For a `turn_end`, the value is `TURN_WAIT` (`"wait"`: the agent drops the task like a `need`, its live session and any open approval kept for it) or `TURN_DONE` (`"done"`: it ends the task as usual); both are in `assistant.contracts`.
 
 ## `TaskUpdated`
 
@@ -365,7 +366,7 @@ The `agent_hub` module's [`Menu`](modules.md#menu), id prefix `hub.`. Every item
 |------|----------------|------|
 | `hub.agents` | anyone | The task agents: `agent_id`, `description`, `state` (`active` or `idle`; an idle one takes work, whatever it asked), `permission_mode`, `focused`, `held` (a question, reply or finished task waiting behind its **!**), `task_id` (its open task, else its newest task holding a question) |
 | `hub.status(task_id?)` | anyone | [`GetTaskStatus`](#gettaskstatus), without disturbing the agent |
-| `hub.start(text, agent_id?, context?)` | anyone | [`StartTask`](#starttask); the caller's open task becomes the new task's parent |
+| `hub.start(text, agent_id?, context?)` | anyone | [`StartTask`](#starttask); the caller's open task becomes the new task's parent. Its end (`done` or `failed`) comes back to the parent's agent as a message: `[Message from agent_hub] Your child task <id> on <agent> ended <state>: <result>` (cut at 4000 characters; the coordinator: only its feed line) |
 | `hub.send(text, task_id?, agent_id?, pause?)` | the Talker any task; others: `task_id` only for their child tasks, `agent_id` for any agent | [`SendToTask`](#sendtotask). The Talker with no `task_id`: to `agent_id`'s open task (its tab's agent; default the focused agent), or a new task on it. Another agent with `agent_id` (not itself): into that agent's open task straight away if it's the caller's child (interrupts, as before); otherwise through the message gate: a card the first time ("X wants to message Y": Allow once · Always allow · Deny), then [`DeliverMessage`](#delivermessage) (never into a turn). `ok({"agent_id", "task_id"})`; plus `"delivered": "when its agent is free"` for an answer that waits; `ok({"agent_id", "how"})` through the gate, `how` being `"waiting on the user's card"` or the delivery's value. Design: [permissions](../architecture/permissions.md#messages-between-agents) |
 | `hub.cancel(task_id)` | the Talker any task; others only their child tasks | [`CancelTask`](#canceltask) |
 | `hub.focus(agent_id)` | the Talker only (`callers=("talker",)`) | [`SetFocus`](#setfocus), after you said so; empty is back to the coordinator |

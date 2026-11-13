@@ -20,7 +20,7 @@ Task status without disturbing the agent: one task, or the open and recent ones
 
 ## `hub.start`
 
-Start a task on a free agent (or the one named); your open task becomes its parent
+Start a task on a free agent (or the one named); your open task becomes its parent. When it ends (done or failed), its end comes to you as a message (the coordinator: a background note); don't wait for it
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|

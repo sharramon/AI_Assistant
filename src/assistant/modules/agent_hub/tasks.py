@@ -22,6 +22,8 @@ from typing import Any
 from uuid import uuid4
 
 from assistant.contracts import (
+    TURN_DONE,
+    TURN_WAIT,
     AgentActivity,
     AnswerPermission,
     CancelTask,
@@ -46,6 +48,8 @@ RECENT_ACTIVITY = 15
 RECENT_FINISHED = 5
 KEEP_FINISHED = 20  # finished records kept in memory; older ones go (not held, not an open task's parent)
 RESULT_IN_FEED = 120  # characters of a finished task's result in the coordinator's feed
+RESULT_TO_PARENT = 4000  # characters of a finished child task's result in its parent agent's message
+CHILD_ENDED = "Your child task {id} on {agent} ended {state}: {result}"
 
 
 @dataclass
@@ -63,14 +67,19 @@ class TaskRecord:
     reply: str | None = None  # a reply that waits behind the agent's ! (kept only while held)
     question_kind: QuestionKind = QuestionKind.NONE
     question_key: str = ""  # the question's context key, from its agent (cv: the job's folder)
+    tell_parent: bool = True  # False: no message to the parent's agent at its end (`StartTask.tell_parent`)
     # The agent object that took the task. A reload provides a new object under the same id, which
     # never heard of this task: the board then closes it (`TaskBoard._close_replaced`).
     holder: Any = field(default=None, repr=False, compare=False)
 
     @property
     def asked(self) -> bool:
-        """It holds its agent's question (a `need`): idle, and its agent dropped it and is free."""
-        return self.state is TaskState.IDLE and self.question_kind in (QuestionKind.NEED, QuestionKind.RISKY)
+        """Its agent dropped it and is free; the record is its note: a question (a `need`), or
+        what it ended waiting on (a child task, its card, an approval's outcome)."""
+        if self.state is not TaskState.IDLE:
+            return False
+        dropped_card = self.question_kind is QuestionKind.PERMISSION and self.holder is None
+        return dropped_card or self.question_kind in (QuestionKind.NEED, QuestionKind.RISKY, QuestionKind.WAIT)
 
     @property
     def paused(self) -> bool:
@@ -98,7 +107,8 @@ class TaskRecord:
         """An asked record, for the next copy of the Hub (`TaskBoard.restore`)."""
         return {"id": self.id, "agent_id": self.agent_id, "text": self.text, "question": self.question,
                 "question_kind": str(self.question_kind), "question_key": self.question_key,
-                "parent_task_id": self.parent_task_id, "held": self.held, "recent": list(self.recent)}  # fmt: skip
+                "parent_task_id": self.parent_task_id,
+                "tell_parent": self.tell_parent, "held": self.held, "recent": list(self.recent)}  # fmt: skip
 
 
 ANSWER = 'Answer to your question in task {id} ("{question}"): {text}'
@@ -108,7 +118,10 @@ class TaskBoard:
     """Every task and its state: started, messaged, reported, answered, ended.
 
     `agents()` lists the running agents and `agent(id)` finds one; `focused()` is the agent
-    you're talking to; `feed(line)` is a background line for the coordinator. At most
+    you're talking to; `feed(line)` is a background line for the coordinator;
+    `tell_parent(agent_id, text, task_id)` messages an agent (the Hub's delivery: never into a
+    running turn), into `task_id` when given: a finished child task's parent, or a task that
+    ended waiting, given back with what it waited for. At most
     `max_extra` agents besides the coordinator have an open task at once, and never two
     whose agents write the same folder."""
 
@@ -124,8 +137,10 @@ class TaskBoard:
         coordinator: str,
         max_extra: int,
         restricted: frozenset[str] = frozenset(),
+        tell_parent: Callable[..., None] = lambda agent_id, text, task_id="": None,
     ) -> None:
         self._restricted = restricted  # agents a free-agent pick skips (started only when named)
+        self._tell_parent = tell_parent
         self._publish, self._log = publish, log
         self._agents, self._agent, self._focused, self._feed = agents, agent, focused, feed
         self._coordinator, self._max_extra = coordinator, max_extra
@@ -171,6 +186,7 @@ class TaskBoard:
             record = TaskRecord(id=q["id"], agent_id=q["agent_id"], text=q["text"], state=TaskState.IDLE,
                                 question=q.get("question"), question_kind=QuestionKind(q["question_kind"]),
                                 question_key=q.get("question_key", ""), parent_task_id=q.get("parent_task_id"),
+                                tell_parent=q.get("tell_parent", True),
                                 held=bool(q.get("held")))  # fmt: skip
             record.recent.extend(q.get("recent") or ())
             self._tasks[record.id] = record
@@ -237,7 +253,8 @@ class TaskBoard:
             self._drop_paused(info.agent_id)  # the agent drops a task it was stopped on for this one
             # Recorded before assigning, so a report that arrives at once finds it.
             record = TaskRecord(id=uuid4().hex[:8], agent_id=info.agent_id, text=command.text,
-                                parent_task_id=command.parent_task_id, holder=agent)  # fmt: skip
+                                parent_task_id=command.parent_task_id, tell_parent=command.tell_parent,
+                                holder=agent)  # fmt: skip
             self._tasks[record.id] = record
             result = await agent.assign(Task(id=record.id, text=command.text, context=command.context))
             if result.is_ok:
@@ -299,6 +316,8 @@ class TaskBoard:
             record.state, record.holder = TaskState.IDLE, None
             record.question, record.question_kind, record.held = kept
             return result
+        if kept[1] is QuestionKind.PERMISSION:  # given back before its card was answered: the card stays open
+            record.question, record.question_kind = kept[0], kept[1]
         self._log.info("Task %s answered; %s has it again", record.id, record.agent_id)
         self._updated(record, None, text)
         return Result.ok()
@@ -328,8 +347,15 @@ class TaskBoard:
         record = self._open_task(command.task_id)
         if isinstance(record, Result):
             return record
+        if command.kind is ReportKind.TURN_END:
+            if not command.card_open and record.question_kind is QuestionKind.PERMISSION:
+                record.answered()  # the agent closed it itself (a tool request timed out)
+            return self._settle(record, command.key)
         record.recent.append(f"{command.kind}: {command.text}")
         match command.kind:
+            case ReportKind.PROGRESS if record.asked:  # input for a task its agent dropped (an approval's outcome)
+                self._log.info("Task %s gets what it waited for; it goes back to %s", record.id, record.agent_id)
+                self._tell_parent(record.agent_id, command.text, record.id)
             case ReportKind.NEED:  # the agent dropped the task and is free; the record holds the question
                 record.state, record.holder = TaskState.IDLE, None
                 record.ask(command.kind, command.text)
@@ -359,8 +385,13 @@ class TaskBoard:
         agent = self._agent(record.agent_id)
         if agent is None:
             return Result.not_available(f"{record.agent_id} is no longer running")
+        dropped = record.asked and record.question_kind is QuestionKind.PERMISSION  # it ended waiting on this card
         result = await agent.answer_permission(record.id, command.allow)
-        if result.is_ok:
+        if result.is_ok and dropped:  # the outcome comes back as its `progress`, which starts it again
+            record.question = f"waiting on the outcome of: {record.question}"
+            record.question_kind, record.held = QuestionKind.WAIT, False
+            self._updated(record, None, "permission allowed" if command.allow else "permission denied")
+        elif result.is_ok:
             record.state = TaskState.ACTIVE
             record.answered()
             self._updated(record, None, "permission allowed" if command.allow else "permission denied")
@@ -380,6 +411,30 @@ class TaskBoard:
         return result
 
     # --- inside ---
+
+    def _settle(self, record: TaskRecord, key: str) -> Result:
+        """A turn of `record`'s ended with no tag, or with its card open (`turn_end`). Waiting on
+        its card, or on child tasks that will message it (`tell_parent`): the task ends waiting.
+        Its agent drops it and is free; the record is its note (what it waits on, its context
+        `key`), and the card's outcome, a child's end or a message gives it back (`_answer`). Else:
+        done (the agent ends it with its own `done` report)."""
+        card = record.question_kind is QuestionKind.PERMISSION
+        waits = ["the user's answer to its card"] if card else []
+        children = [f"{r.id} ({r.agent_id})" for r in self.open_records()
+                    if r.parent_task_id == record.id and r.tell_parent]  # fmt: skip
+        if children:
+            waits.append(f"child task{'s' if len(children) > 1 else ''} {', '.join(children)}")
+        if not waits:
+            return Result.ok(TURN_DONE)
+        line = f"waiting on {' and '.join(waits)}"
+        record.state, record.holder = TaskState.IDLE, None
+        record.question_key = key or record.question_key
+        if not card:  # a card stays the question until it's answered
+            record.question, record.question_kind = line, QuestionKind.WAIT
+        record.recent.append(f"ended {line}")
+        self._log.info("Task %s ended %s", record.id, line)
+        self._updated(record, ReportKind.TURN_END, line)
+        return Result.ok(TURN_WAIT)
 
     def _open_task(self, task_id: str) -> TaskRecord | Result:
         """The unfinished task with this id, or an invalid_arguments Result."""
@@ -418,7 +473,26 @@ class TaskBoard:
         self._updated(record, kind, text)
         if record.agent_id != self._coordinator:
             self._feed(f"[{record.agent_id}] task {state}: {' '.join(text.split())[:RESULT_IN_FEED]}")
+        if hold:
+            self._to_parent(record, state, text)
         self._prune()
+
+    def _to_parent(self, record: TaskRecord, state: TaskState, text: str) -> None:
+        """The agent's own end (done or failed) of a child task: its parent's agent gets it as a
+        message, unless that's the same agent, or the coordinator whose task isn't waiting on it
+        (its feed line above is enough). A parent that ended waiting gets it in that task, which
+        starts again from its note.
+        A task started with `tell_parent=False` tells no one: its module reports the end itself."""
+        parent = self._tasks.get(record.parent_task_id) if record.parent_task_id else None
+        if parent is None or not record.tell_parent or parent.agent_id == record.agent_id:
+            return
+        waiting = parent.asked and parent.question_kind is QuestionKind.WAIT
+        if parent.agent_id == self._coordinator and not waiting:
+            return
+        result = text if len(text) <= RESULT_TO_PARENT else text[:RESULT_TO_PARENT] + " …(cut)"
+        self._log.info("Task %s ended %s; telling its parent's agent %s", record.id, state, parent.agent_id)
+        self._tell_parent(parent.agent_id, CHILD_ENDED.format(id=record.id, agent=record.agent_id, state=state,
+                                                              result=result), parent.id if waiting else "")  # fmt: skip
 
     def _prune(self) -> None:
         """Keep the last `KEEP_FINISHED` finished records. A held one (it waits behind its tab's !)

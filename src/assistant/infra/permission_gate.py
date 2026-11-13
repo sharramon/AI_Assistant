@@ -36,9 +36,13 @@ class PermissionGate:
     keeps the task waiting (`waiting`) until its outcome is delivered: the next message at once,
     or, if a turn is running, after it (`take_after_turn`).
 
+    A task that ends waiting on its approval (`park`) leaves it here, tied to its id and out of the
+    next task's way: `answer_parked` answers it, and its outcome goes to `parked(task_id, text)`
+    (the agent hands it to the Hub), unless the task was given back meanwhile (`unpark`).
+
     It talks to its agent only through what it's given: `session` (answers and `working`),
-    `task()` (the current task), `activity`, `report`, `send` (a message to the session) and
-    `spawn` (run a coroutine in the background).
+    `task()` (the current task), `activity`, `report`, `send` (a message to the session),
+    `parked` (a parked task's outcome) and `spawn` (run a coroutine in the background).
     """
 
     def __init__(
@@ -53,6 +57,7 @@ class PermissionGate:
         send: Callable[[str], Coroutine[Any, Any, None]],
         spawn: Callable[[Coroutine[Any, Any, Any]], None],
         log: logging.Logger,
+        parked: Callable[[str, str], None] = lambda task_id, text: None,
     ) -> None:
         self._session = session
         self._timeout = timeout
@@ -67,6 +72,56 @@ class PermissionGate:
         self._timer: asyncio.Task | None = None
         self._waiting = False  # an approval's outcome is still due; the task waits for it
         self._after_turn: str | None = None  # an approval's outcome that came during a turn
+        self._on_parked = parked
+        self._parked: str | None = None  # the task that ended waiting on its approval
+        self._parked_request: dict[str, Any] | None = None  # its approval, still unanswered
+        self._parked_timer: asyncio.Task | None = None
+
+    @property
+    def parked(self) -> str | None:
+        """The id of the task that ended waiting on its approval here, or None."""
+        return self._parked
+
+    def park(self, task_id: str) -> None:
+        """`task_id` ends waiting (its agent drops it): an open approval, or one whose action
+        still runs, stays here for it; anything else is cleared."""
+        request = self._request if self.approval_open() else None
+        if request is None and not self._waiting:
+            self.clear()
+            return
+        self._drop_parked()
+        self._parked, self._parked_request = task_id, request
+        if request is not None:
+            self._parked_timer, self._timer = self._timer, None
+            self._request = None
+        self.clear()
+
+    def unpark(self, task_id: str) -> None:
+        """`task_id` is given back to its agent before its approval's outcome came: the approval
+        is the current task's again."""
+        if self._parked != task_id:
+            return
+        if self._parked_request is not None:
+            self.drop()
+            self._request, self._timer = self._parked_request, self._parked_timer
+        self._waiting = True
+        self._parked, self._parked_request, self._parked_timer = None, None, None
+
+    async def answer_parked(self, task_id: str, allow: bool) -> Result:
+        """The user's answer to the approval a parked task left."""
+        request = self._parked_request
+        if self._parked != task_id or request is None:
+            return Result.invalid_arguments(f"No permission request is open for {task_id!r}")
+        if self._parked_timer is not None:
+            self._parked_timer.cancel()
+        self._parked_request, self._parked_timer = None, None
+        self._approval_answered(request, allow, task_id)
+        return Result.ok()
+
+    def _drop_parked(self) -> None:
+        if self._parked_timer is not None:
+            self._parked_timer.cancel()
+        self._parked, self._parked_request, self._parked_timer = None, None, None
 
     @property
     def request(self) -> dict[str, Any] | None:
@@ -147,11 +202,8 @@ class PermissionGate:
             return Result.invalid_arguments("No permission request is open")
         self.drop()
         if "run" in request:  # an approval (a reload, an add, a helper launch), not a tool
-            self._activity(f"permission {'allowed' if allow else 'denied'}: {request['action']}")
-            if allow:
-                self._spawn(self._run_approved(request["run"], request["action"]))
-            else:
-                self.deliver(CODE_LOADED.format(action=request["action"], outcome="the user said no."))
+            task = self._task()
+            self._approval_answered(request, allow, task.id if task else "")
             return Result.ok()
         try:
             await self._session.answer_permission(request, allow)
@@ -161,7 +213,13 @@ class PermissionGate:
         return Result.ok()
 
     def ask(self, action: str, run: Run) -> None:
-        """Put `action` to the user (the same card as a tool); on Allow `run` runs."""
+        """Put `action` to the user (the same card as a tool); on Allow `run` runs. In Auto
+        (this agent's own mode) there's no card: it runs at once. The one Auto check for
+        approvals (a reload, an add, a helper launch)."""
+        if self._mode() is PermissionMode.AUTO:
+            self._activity(f"allowed in Auto: {action}")
+            self.run_now(action, run)
+            return
         request = {"run": run, "action": action}
         self._open(request)
         self._waiting = True
@@ -171,7 +229,26 @@ class PermissionGate:
     def run_now(self, action: str, run: Run) -> None:
         """Run an approved action at once (Auto); the task waits for its outcome."""
         self._waiting = True
-        self._spawn(self._run_approved(run, action))
+        task = self._task()
+        self._spawn(self._run_approved(run, action, task.id if task else ""))
+
+    def _approval_answered(self, request: dict[str, Any], allow: bool, task_id: str) -> None:
+        self._activity(f"permission {'allowed' if allow else 'denied'}: {request['action']}")
+        if allow:
+            self._spawn(self._run_approved(request["run"], request["action"], task_id))
+        else:
+            self._outcome(task_id, CODE_LOADED.format(action=request["action"], outcome="the user said no."))
+
+    def _outcome(self, task_id: str, text: str) -> None:
+        """An approval's outcome for `task_id`: to the session if it's the current task, to
+        `parked` if it ended waiting on it; dropped if it ended otherwise."""
+        if task_id and task_id == self._parked:
+            self._parked, self._parked_request, self._parked_timer = None, None, None
+            self._on_parked(task_id, text)
+            return
+        task = self._task()
+        if task is not None and task.id == task_id:
+            self.deliver(text)
 
     def deliver(self, text: str) -> None:
         """An approval's outcome: the next message now, or when the running turn ends."""
@@ -188,6 +265,11 @@ class PermissionGate:
 
     async def _expiry(self, request: dict[str, Any]) -> None:
         await asyncio.sleep(self._timeout)
+        if self._parked_request is request:  # its task ended waiting on it
+            self._activity(f"permission timed out, denied: {request['action']}")
+            self._outcome(self._parked or "", CODE_LOADED.format(action=request["action"],
+                                                                 outcome="nobody answered in time."))  # fmt: skip
+            return
         if self._request is not request:
             return
         self._request = None
@@ -198,8 +280,7 @@ class PermissionGate:
         self._activity(f"permission timed out, denied: {describe_request(request)}")
         await self._session.answer_permission(request, False, TIMED_OUT)
 
-    async def _run_approved(self, run: Run, action: str) -> None:
-        task = self._task()
+    async def _run_approved(self, run: Run, action: str, task_id: str) -> None:
         self._activity(f"{action}…")
         try:
             result = await run()
@@ -209,8 +290,7 @@ class PermissionGate:
         said = f" {result.value}" if result.is_ok and isinstance(result.value, str) and result.value else ""
         outcome = f"done.{said}" if result.is_ok else f"failed: {result.error}"
         self._activity(f"{action}: {outcome}")
-        if task is not None and self._task() is task:
-            self.deliver(CODE_LOADED.format(action=action, outcome=outcome))
+        self._outcome(task_id, CODE_LOADED.format(action=action, outcome=outcome))
 
 
 def describe_request(event: dict[str, Any]) -> str:

@@ -95,7 +95,16 @@ class ReportKind(StrEnum):
     MILESTONE = "milestone"  # a `STATUS:` line: one short line for the coordinator's feed
     DONE = "done"
     FAILED = "failed"
+    # A turn ended with no last-line tag, or with a card still open. The Hub decides: its Result
+    # value is `"wait"` (waiting on the card or on a child task: the task ends waiting, its note in
+    # the Hub's record, and the agent drops it like a `need`) or `"done"` (the agent ends the task
+    # as usual, with its own `done` report). `progress` on a task its agent dropped: new input for
+    # it (an approval's outcome), which the Hub gives back to the task.
+    TURN_END = "turn_end"
 
+
+TURN_WAIT = "wait"  # the Hub's answer to a `turn_end`: the task ends waiting; its agent drops it, free
+TURN_DONE = "done"  # the Hub's answer to a `turn_end`: nothing to wait on; the agent ends the task
 
 RISKY_PREFIX = "Risky:"  # a NEED starting with this: the agent, in Auto, paused before a risky step
 
@@ -103,12 +112,15 @@ RISKY_PREFIX = "Risky:"  # a NEED starting with this: the agent, in Auto, paused
 class QuestionKind(StrEnum):
     """What a task's open question is, typed, so no reader parses its text (principle 7). The Hub
     sets it from the report: `permission` (a tool request, answered with `AnswerPermission`),
-    `risky` (a `need` starting with `Risky:`), `need` (any other question); `none` when none."""
+    `risky` (a `need` starting with `Risky:`), `need` (any other question), `wait` (the task ended
+    waiting on a child task, or on an approval's outcome; it starts again when that comes); `none`
+    when none."""
 
     NONE = ""
     NEED = "need"
     RISKY = "risky"
     PERMISSION = "permission"
+    WAIT = "wait"
 
     @classmethod
     def of(cls, kind: ReportKind | None, text: str) -> QuestionKind:
@@ -199,7 +211,7 @@ class ITaskAgent(Contract):
     async def request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -> Result:
         """Ask you to allow `action` on this agent's open task: a `permission` report, so the
         same card and `AnswerPermission`. On Allow, `run` is called and its outcome reaches the
-        agent as its next message; on Deny or no answer nothing runs. Always asks, even in Auto.
+        agent as its next message; on Deny or no answer nothing runs. In Auto (the agent's own mode) no card: it runs at once.
         Returns once the question is open (`ok`). Agents without tasks keep this default."""
         return Result.not_available("This agent can't ask you for approval")
 
@@ -238,12 +250,16 @@ class StartTask(Command):
     the cap on open tasks is reached, or the agent would write a folder another open task writes.
 
     `agent_id`: that agent only (`invalid_arguments` if there is none). `parent_task_id`: the
-    task that starts this one (set by the Hub's `hub.start` for an agent's child task)."""
+    task that starts this one (set by the Hub's `hub.start` for an agent's child task).
+    `context` goes to the agent doing the task. `tell_parent=False`: the Hub sends the parent's
+    agent no message when this task ends, because the starting module reports the end itself
+    (`cv.task`: its `cv.job_finished` event)."""
 
     text: str
     context: str = ""
     agent_id: str | None = None
     parent_task_id: str | None = None
+    tell_parent: bool = True
 
 
 class DeliverMessage(Command):
@@ -315,12 +331,16 @@ class SetFocus(Command):
 
 class ReportTask(Command):
     """Agent → Hub. A command, not an event, so the Hub's state never misses it. `key`: with a
-    `need`, the question's context key (the agent's module decides it; "" for none)."""
+    `need` or a `turn_end`, the task's context key (the agent's module decides it, else its last
+    handoff note; "" for none).
+    `card_open`: with a `turn_end`, the agent's card (an approval) is still open; without it, a
+    card the Hub still lists was closed by the agent (a tool request that timed out)."""
 
     task_id: str
     kind: ReportKind
     text: str
     key: str = ""
+    card_open: bool = False
 
 
 class TaskUpdated(Event):

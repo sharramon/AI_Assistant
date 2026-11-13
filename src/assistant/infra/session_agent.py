@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from assistant.contracts import (
+    TURN_WAIT,
     AddModule,
     AgentActivity,
     AgentInfo,
@@ -88,6 +89,7 @@ class _Mode(StrEnum):
     CANCELLING = "cancelling"      # interrupt sent for a cancel; task already dropped
     COMPACTING = "compacting"      # a handoff kept in this session: `/compact` running, messages held
     CLOSING_TABS = "closing_tabs"  # the task's final reply is in; its Chrome tabs are being closed
+    SETTLING = "settling"          # the turn ended (`turn_end` sent): the Hub says wait or done
 
 
 _IDLE_MODES = (_Mode.IDLE, _Mode.PAUSED)
@@ -196,6 +198,7 @@ class SessionTaskAgent(ITaskAgent):
         self._fresh_sessions = fresh_sessions
         self._handoffs = HandoffKeeper(max_handoffs)
         self._asked: str | None = None  # the task whose question the live session still has
+        self._ended: set[str] = set()  # tasks whose DONE / FAILED report the Hub hasn't taken yet
         self._last_note = ""  # the current task's latest handoff note
         self._question_key: Callable[[str], str] = lambda _task_id: ""
         self._context_notes: Callable[[str], str] = default_context
@@ -212,6 +215,8 @@ class SessionTaskAgent(ITaskAgent):
         self._mode = _Mode.IDLE
         self._pending: list[str] = []  # messages waiting for the interrupt to land
         self._resume = True
+        self._settled_outcome: str | None = None  # an approval's outcome that came while settling
+        self._settle_closed_tab = False  # the settled turn closed a Chrome tab itself
         self._reports: asyncio.Queue[ReportTask] = asyncio.Queue()
         self._background: set[asyncio.Task] = set()
         self._report_worker: asyncio.Task | None = None
@@ -228,9 +233,10 @@ class SessionTaskAgent(ITaskAgent):
             task=lambda: self._task,
             activity=self._activity,
             report=self._report,
-            send=self._send,
+            send=self._send_outcome,
             spawn=self._spawn,
             log=ctx.log,
+            parked=self._on_parked,
         )
         self._last_line = (
             LastLineTags()
@@ -305,6 +311,7 @@ class SessionTaskAgent(ITaskAgent):
         if self._mode is _Mode.PAUSED:
             self._ctx.log.info("%s drops its stopped task %s for %s", self._agent_id, self._task and self._task.id, task.id)
             self._task, self._mode = None, _Mode.IDLE
+            self._gate.clear()  # a card it was paused on goes with it
         try:
             if not live:
                 await self._fresh_session(restart=self._fresh_sessions)
@@ -313,6 +320,7 @@ class SessionTaskAgent(ITaskAgent):
             return Result.failed(f"{self._agent_id} couldn't start: {exc}")
         # Set before writing: the turn's events may arrive while send drains.
         self._task, self._mode, self._asked = task, _Mode.WORKING, None
+        self._gate.unpark(task.id)  # given back before its approval's outcome came: it's this task's again
         if not live:
             self._handoffs.reset()
             self._edits = {}
@@ -389,12 +397,14 @@ class SessionTaskAgent(ITaskAgent):
     async def message(self, task_id: str, text: str, resume: bool = True) -> Result:
         if self._mode is _Mode.ASKING and task_id == self._asked:  # its question is on the way to the Hub
             return Result.not_available(f"{self._agent_id} has just asked a question in {task_id}; try again")
+        if task_id in self._ended:  # its end report is on the way: the Hub mustn't mark it failed
+            return Result.not_available(f"{self._agent_id} has just ended {task_id}; try again")
         if not self._is_current(task_id):
             return Result.invalid_arguments(f"{task_id!r} is not {self._agent_id}'s current task")
         if self._mode is _Mode.COMPACTING:  # a compact can't take a message: it goes in after it
             self._pending.append(text)
             return Result.ok()
-        if self._mode is _Mode.CLOSING_TABS:  # the task carries on with it once its tabs are closed
+        if self._mode in (_Mode.CLOSING_TABS, _Mode.SETTLING):  # the task carries on with it after
             self._pending.append(text)
             self._resume = resume
             return Result.ok()
@@ -426,7 +436,7 @@ class SessionTaskAgent(ITaskAgent):
         self._task = None
         self._pending.clear()
         self._gate.drop()
-        if self._mode is _Mode.PAUSED:
+        if self._mode in (_Mode.PAUSED, _Mode.SETTLING):  # no turn running
             self._mode = _Mode.IDLE
         else:
             self._mode = _Mode.CANCELLING
@@ -441,14 +451,17 @@ class SessionTaskAgent(ITaskAgent):
         return Result.ok()
 
     async def answer_permission(self, task_id: str, allow: bool) -> Result:
+        if task_id == self._gate.parked and not self._is_current(task_id):  # it ended waiting on this card
+            return await self._gate.answer_parked(task_id, allow)
         if not self._is_current(task_id):
             return Result.invalid_arguments(f"{task_id!r} is not {self._agent_id}'s current task")
         return await self._gate.answer(allow)
 
     async def request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -> Result:
-        """Ask the user to allow `action` on the current task (the permission card), even in
-        Auto. On Allow `run` runs; its outcome is the task's next message. Until then the task
-        waits: a turn that ends meanwhile doesn't count as done."""
+        """Ask the user to allow `action` on the current task (the permission card); in Auto
+        (this agent's own mode) it runs at once, no card. On Allow `run` runs; its outcome is the
+        task's next message. Until then the task waits: a turn that ends meanwhile doesn't count
+        as done."""
         if self._task is None:
             return Result.not_available(f"{self._agent_id} has no task to ask on")
         if self._gate.request is not None:
@@ -578,17 +591,78 @@ class SessionTaskAgent(ITaskAgent):
             self._end_task()
         elif (outcome := self._gate.take_after_turn()) is not None:  # an approval answered during the turn
             self._spawn(self._send(outcome))
-        elif self._gate.waiting:  # the user hasn't answered yet (or `run` is running): wait
-            self._activity("waiting for the user's answer")
+        elif self._gate.waiting and self._gate.request is None:  # an approved action is running: wait
+            self._activity("waiting for the approved action's outcome")
+        elif self._gate.waiting:  # its card is still open: the task ends waiting on it
+            self._settle(text)
         elif self._last_line.dispatch(text):
-            pass
-        elif self._chrome_used and not self._closed_tab and self._close_tabs() and self._session.running:
-            self._mode, self._done_text = _Mode.CLOSING_TABS, text
+            if self._task is not None and self._gate.request is not None:  # its last line asked on a card
+                self._settle(text)
+        else:  # no tag: done, unless the Hub says it waits on a child task
+            self._settle(text)
+
+    def _settle(self, text: str) -> None:
+        """The turn is over and nothing in it continues the task: report `turn_end` with the
+        task's context key; the Hub answers wait or done (`_after_settle`). Messages meanwhile
+        wait (`message`)."""
+        self._mode, self._done_text, self._settle_closed_tab = _Mode.SETTLING, text, self._closed_tab
+        key = self._question_key(self._task.id) or self._last_note if self._task else ""
+        self._report(ReportKind.TURN_END, text, key=key, card_open=self._gate.request is not None)
+
+    def _after_settle(self, task_id: str, result: Result) -> None:
+        """The Hub's answer to `turn_end`. Wait: the task ends waiting (`_drop_waiting`). Done
+        (or a refusal): the task ends as before; what came meanwhile (an approval's outcome, a
+        message) carries it on instead."""
+        if self._mode is not _Mode.SETTLING or not self._is_current(task_id):
+            return  # cancelled meanwhile
+        outcome, self._settled_outcome = self._settled_outcome, None
+        held, self._pending = "\n".join(self._pending), []
+        if result.is_ok and result.value == TURN_WAIT:
+            self._drop_waiting(task_id, "\n\n".join(t for t in (outcome, held) if t))
+            return
+        if outcome is not None or held:
+            texts = [t for t in (outcome, INTERRUPTED.format(text=held) if held else None) if t]
+            self._mode = _Mode.WORKING if outcome is not None else _Mode.REPLYING
+            self._spawn(self._send("\n\n".join(texts)))
+            return
+        if self._gate.waiting:  # its card was answered meanwhile and the action is running: as before
+            self._mode = _Mode.WORKING
+            self._activity("waiting for the approved action's outcome")
+            return
+        if self._chrome_used and not self._settle_closed_tab and self._close_tabs() and self._session.running:
+            self._mode = _Mode.CLOSING_TABS
             self._activity("closing the Chrome tabs it no longer needs")
             self._spawn(self._send(CLOSE_TABS))
-        else:
-            self._report(ReportKind.DONE, text)
-            self._end_task()
+            return
+        self._report(ReportKind.DONE, self._done_text)
+        self._end_task()
+        self._publish_state()
+
+    async def _send_outcome(self, text: str) -> None:
+        """An approval's outcome for the session (the gate's `send`): held while settling."""
+        if self._mode is _Mode.SETTLING:
+            self._settled_outcome = text
+            return
+        await self._send(text)
+
+    def _drop_waiting(self, task_id: str, came: str) -> None:
+        """The Hub ended the task waiting: drop it like a question (the live session kept, so the
+        input that starts it again goes on here if nothing ran since) and be free. Its open
+        approval stays in the gate for it. What came while it settled goes back to the Hub, which
+        gives the task back with it."""
+        self._activity("ended waiting: the Hub keeps its note, and starts it again when that comes")
+        self._asked = task_id
+        self._gate.park(task_id)
+        self._task, self._mode = None, _Mode.IDLE
+        self._pending.clear()
+        self._publish_state()
+        if came:
+            self._on_parked(task_id, came)
+
+    def _on_parked(self, task_id: str, text: str) -> None:
+        """New input for a task this agent dropped waiting (an approval's outcome): to the Hub
+        as that task's `progress`; the Hub gives the task back with it."""
+        self._report(ReportKind.PROGRESS, text, task_id=task_id)
 
     def _after_closing_tabs(self, is_error: bool) -> None:
         """Report the task done with its real final text; a message that came meanwhile goes in
@@ -695,10 +769,7 @@ class SessionTaskAgent(ITaskAgent):
         def run() -> Awaitable[Result]:
             return self._ctx.send(command)
 
-        if self._permission_mode is PermissionMode.AUTO:
-            self._gate.run_now(action, run)
-        else:
-            self._gate.ask(action, run)
+        self._gate.ask(action, run)  # in Auto it runs at once (the gate's one check)
         return True
 
     async def _continue_fresh(self, note: str, held: str = "") -> None:
@@ -777,11 +848,17 @@ class SessionTaskAgent(ITaskAgent):
             self._mode = _Mode.IDLE
             self._publish_state()
 
-    def _report(self, kind: ReportKind, text: str, key: str = "") -> None:
-        """Queue a report. One worker sends them in order, so the Hub sees them as they happened."""
-        if self._task is None:
+    def _report(self, kind: ReportKind, text: str, key: str = "", card_open: bool = False,
+                task_id: str = "") -> None:  # fmt: skip
+        """Queue a report on the current task (or `task_id`, one it dropped). One worker sends
+        them in order, so the Hub sees them as they happened."""
+        task_id = task_id or (self._task.id if self._task else "")
+        if not task_id:
             return
-        self._reports.put_nowait(ReportTask(task_id=self._task.id, kind=kind, text=text, key=key))
+        if kind in (ReportKind.DONE, ReportKind.FAILED):
+            self._ended.add(task_id)
+        self._reports.put_nowait(ReportTask(task_id=task_id, kind=kind, text=text, key=key,
+                                            card_open=card_open))  # fmt: skip
         if self._report_worker is None or self._report_worker.done():
             self._report_worker = asyncio.create_task(self._send_reports(), name=f"{self._agent_id}:reports")
 
@@ -789,8 +866,12 @@ class SessionTaskAgent(ITaskAgent):
         while True:
             report = await self._reports.get()
             result = await self._ctx.send(report)
+            if report.kind in (ReportKind.DONE, ReportKind.FAILED):
+                self._ended.discard(report.task_id)
             if not result.is_ok:
                 self._ctx.log.warning("Hub refused %s report: %s", report.kind, result.error)
+            if report.kind is ReportKind.TURN_END:
+                self._after_settle(report.task_id, result)
             if report.kind is ReportKind.NEED and self._mode is _Mode.ASKING:  # the Hub has the question
                 self._mode = _Mode.IDLE
                 self._publish_state()

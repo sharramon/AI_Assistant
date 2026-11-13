@@ -22,6 +22,7 @@ from assistant.contracts import (
     ReloadModule,
     Result,
 )
+from assistant.core.permissions.handler import ACTING_FOR
 
 CORE_ID = "core"
 _ID = {"module_id": {"type": "string", "minLength": 1}}
@@ -62,8 +63,13 @@ class CoreMenu:
         return await self._docs(module_id)
 
     @menu.item("modules.on", "Turn a module on, with the modules it requires", _ID, required=["module_id"])
-    async def on(self, module_id: str) -> Result:
-        return await self._send(ActivateModule(module_id=module_id))
+    async def on(self, module_id: str, caller: str = "") -> Result:
+        """`caller` is who turned it on: in Auto, its access list (and its requires') shows no card."""
+        token = ACTING_FOR.set(caller)
+        try:
+            return await self._send(ActivateModule(module_id=module_id))
+        finally:
+            ACTING_FOR.reset(token)
 
     @menu.item("modules.off", "Turn a module off; with_dependents also turns off the modules that need it",
                {**_ID, "with_dependents": {"type": "boolean"}}, required=["module_id"])

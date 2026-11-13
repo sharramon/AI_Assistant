@@ -112,6 +112,21 @@ class SessionTheme(Event):
     text: str
 
 
+class ModuleEvent(Event):
+    """A module-owned event, matched by its name rather than its class, so a new one needs no
+    restart and either side reloads on its own. Published with `ctx.publish_named`, heard with
+    `ctx.subscribe_named`; never built by hand. Shared events (the core's, the Hub's, ones
+    several modules agree on) stay typed classes; a named event that becomes widely used gets
+    a typed class at the next planned restart."""
+
+    #: `<module_id>.<what>`, e.g. `cv.job_finished`; only that module may publish it.
+    name: str
+    #: The publishing module's id, set by the core.
+    source: str
+    #: Plain JSON values only (no classes, so nothing breaks on a reload).
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
 class ViewerTabsChanged(Event):
     """The HTML viewer's open tabs changed: a tab opened, closed, or was switched to.
 

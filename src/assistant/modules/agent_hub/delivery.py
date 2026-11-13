@@ -48,10 +48,32 @@ class Delivery:
         self._board, self._agent, self._log = board, agent, log
         self._waiting: list[Waiting] = [Waiting(**w) for w in waiting or ()]
         self._lock = asyncio.Lock()
+        self._sending: set[asyncio.Task] = set()  # `tell`s in flight (kept so they aren't collected)
 
-    async def deliver(self, command: DeliverMessage) -> Result:
+    def tell(self, agent_id: str, text: str, task_id: str = "", sender: str = "agent_hub") -> None:
+        """`deliver` from sync code (the board's finished child task for its parent's agent, or
+        what a task that ended waiting waited for): sent in the background, in order with the
+        agent's other messages; into `task_id` while it's open, when given."""
+        job = asyncio.get_running_loop().create_task(
+            self.deliver(DeliverMessage(agent_id=agent_id, text=text, sender=sender), task_id))  # fmt: skip
+        self._sending.add(job)
+        job.add_done_callback(self._sent)
+
+    def _sent(self, job: asyncio.Task) -> None:
+        self._sending.discard(job)
+        if not job.cancelled() and (error := job.exception()) is not None:
+            self._log.error("A Hub message failed: %s", error)
+        elif not job.cancelled() and not job.result().is_ok:
+            self._log.warning("A Hub message wasn't delivered: %s", job.result().error)
+
+    async def drain(self) -> None:
+        """Wait for every `tell` in flight (tests, and a Hub stop)."""
+        while self._sending:
+            await asyncio.gather(*list(self._sending), return_exceptions=True)
+
+    async def deliver(self, command: DeliverMessage, task_id: str = "") -> Result:
         item = Waiting(agent_id=command.agent_id, text=message_text(command.sender, command.text),
-                       sender=command.sender)  # fmt: skip
+                       sender=command.sender, task_id=task_id)  # fmt: skip
         async with self._lock:
             if any(w.agent_id == item.agent_id for w in self._waiting):  # keep the order
                 how = None

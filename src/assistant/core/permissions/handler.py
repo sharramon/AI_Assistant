@@ -16,6 +16,14 @@ An answered card is applied by its action's handler, looked up in a table (princ
 (one item a module asks for an agent, `ask`: the Hub's message gate) is Allow once, Always
 allow (saved under the module and the agent's kind) or Deny. Taking back only `message:`
 items never turns the module off.
+
+**Auto skips the card.** Before any card, `_in_auto(caller)` reads the calling agent's own
+permission mode (each worker and Talker pair has its own; `talker:<id>` is `<id>`'s pair) with
+`ListAgents`. In Auto the card isn't shown: a grant, request or revoke is carried out at once, a
+message is Allow once, and an access list is allowed for this launch, nothing saved. The caller
+of an access list is whoever turned the module on (`ACTING_FOR`, set by `modules.on`). An unknown
+caller, a failed lookup or Manual: the card shows. `git push` and the risky-step stop are never
+cards, so this check doesn't touch them.
 """
 
 from __future__ import annotations
@@ -25,6 +33,7 @@ import logging
 import uuid
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
@@ -45,9 +54,11 @@ from assistant.contracts import (
     Event,
     GetTaskStatus,
     IAgentNames,
+    ListAgents,
     ListModules,
     ModuleState,
     PermissionChanged,
+    PermissionMode,
     PermissionRequested,
     Result,
     StartTask,
@@ -65,6 +76,12 @@ REVIEWER = ""
 YOU: tuple[str, ...] = ()
 REVIEW_TIMEOUT = 90.0
 ANSWER_TIMEOUT = 600.0
+TALKER_PREFIX = "talker:"  # a helper tab's Talker, `talker:<agent id>`: its pair's mode is that agent's
+
+# Who turned a module on, for its access list's Auto check. `modules.on` sets it around its
+# `ActivateModule`; the module's start runs in a task copied from that context, so its
+# `request_set` reads it (requires turned on with it too). Empty: nobody known, the card shows.
+ACTING_FOR: ContextVar[str] = ContextVar("permissions_acting_for", default="")
 
 REVIEW_PROMPT = """\
 Review an access list before the user answers it on a card. Use no tools and ask no questions.
@@ -197,6 +214,11 @@ class PermissionsHandler:
         saved = self.store.get(module_id, subject)
         if saved is not None and saved.fingerprint == fp and not saved.denied:
             return saved.granted_items()
+        if await self._in_auto(caller := ACTING_FOR.get()):  # allowed for this launch, nothing saved
+            refused = refusals(items, self._protected)
+            allowed = tuple(i for i in items if i.key not in refused)
+            self._log.info("%s's access list allowed in Auto (turned on by %s), not saved", who(module_id, subject), caller)
+            return allowed
         card = self._asking.get((module_id, subject))
         if card is not None and card.fingerprint != fp:
             self._drop(card, f"{card.who}'s list changed; it asks again")
@@ -227,6 +249,9 @@ class PermissionsHandler:
         """`module_id` asks whether `agent_id` may have `item`: a `message` card (Allow once,
         Always allow, Deny). Awaits your answer; True if allowed. Cancelling closes the card."""
         if self.granted(module_id, agent_id, item):
+            return True
+        if await self._in_auto(agent_id):  # Allow once: nothing saved
+            self._log.info("%s may %s this once (Auto)", agent_id, item.label)
             return True
         card = Card(module_id, self.kind_of(agent_id), CardAction.MESSAGE, (item,), reason, agent_id)
         self._open(card)
@@ -300,7 +325,7 @@ class PermissionsHandler:
         items = tuple(AccessItem.from_key(k) for k in keys)
         if refused := refusals(items, self._protected):
             return Result.invalid_arguments(" ".join(refused.values()))
-        if caller in self._you:
+        if caller in self._you or await self._in_auto(caller):
             return Result.ok(await self._do_grant(found, keys))
         card = Card(module_id, found.subject, CardAction.GRANT, items, f"{caller} asks to grant these to {module_id}",
                     caller, notes=tuple(rule_warnings(items)))  # fmt: skip
@@ -333,6 +358,9 @@ class PermissionsHandler:
         new = tuple(i for i in new if i.key not in refused)
         if not new:
             return Result.invalid_arguments(" ".join(refused.values()))
+        if await self._in_auto(caller):
+            keys = tuple(i.key for i in new)
+            return Result.ok(await self._do_grant(saved.with_added(keys), keys) + " It applies from your next session.")
         notes = [AccessNote(text=t, items=(k,), source="refused") for k, t in refused.items()]
         card = Card(module_id, subject, CardAction.GRANT, new,
                     f"{caller} asks for more access" + (f": {reason}" if reason else ""),
@@ -351,7 +379,7 @@ class PermissionsHandler:
             held = {k for g in targets for k in g.granted}
             if bad := [k for k in keys if k not in held]:
                 return Result.invalid_arguments(f"{', '.join(bad)}: not granted to {module_id}")
-        if caller in self._you:
+        if caller in self._you or await self._in_auto(caller):
             return Result.ok(await self._do_revoke(module_id, subject, keys))
         items = tuple(AccessItem.from_key(k) for k in keys) if keys else ()
         what = "these items" if keys else "its whole grant"
@@ -375,6 +403,21 @@ class PermissionsHandler:
                 self._changed(card.module_id, card.subject, f"{card.who}'s card closed: the app stopped", card.id)
 
     # --- inside ---
+
+    async def _in_auto(self, caller: str) -> bool:
+        """Whether `caller`'s worker and Talker pair is in Auto: the one place the handler reads a
+        mode. `talker:<id>` is `<id>`'s pair. You, nobody, an unknown agent or a failed lookup: no."""
+        if not caller or caller in self._you:
+            return False
+        agent_id = caller.removeprefix(TALKER_PREFIX)
+        try:
+            result = await self._send(ListAgents())
+        except Exception as exc:
+            self._log.warning("Couldn't read %s's permission mode: %s", agent_id, exc)
+            return False
+        infos = result.value if result.is_ok and result.value else []
+        mode = next((getattr(i, "permission_mode", None) for i in infos if getattr(i, "agent_id", None) == agent_id), None)
+        return mode is PermissionMode.AUTO
 
     def _changed(self, module_id: str, subject: str, text: str, request_id: str = "",
                  granted: tuple[AccessItem, ...] = ()) -> None:  # fmt: skip

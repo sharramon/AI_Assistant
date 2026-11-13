@@ -2,6 +2,8 @@
 
 from assistant.contracts.agents import (
     RISKY_PREFIX,
+    TURN_DONE,
+    TURN_WAIT,
     AgentActivity,
     AgentInfo,
     AgentNotice,
@@ -52,6 +54,7 @@ from assistant.contracts.messages import (
     Event,
     InputReceived,
     Message,
+    ModuleEvent,
     ResponseReady,
     Result,
     SessionTheme,
@@ -68,6 +71,8 @@ from assistant.contracts.module import (
     ModuleLogs,
     ModulePermissions,
     ModuleProtocol,
+    SubscriptionHandle,
+    event_name_ok,
 )
 from assistant.contracts.permissions import (
     AccessDenied,
@@ -131,6 +136,9 @@ __all__ = [
     "Message",
     "ModuleProtocol",
     "ModuleContext",
+    "ModuleEvent",
+    "SubscriptionHandle",
+    "event_name_ok",
     "ModuleInfo",
     "ModuleLogs",
     "ModulePermissions",
@@ -141,6 +149,8 @@ __all__ = [
     "ReloadModule",
     "QuestionKind",
     "RISKY_PREFIX",
+    "TURN_DONE",
+    "TURN_WAIT",
     "MAX_SNIPS",
     "PASTED_FILE",
     "ReportKind",

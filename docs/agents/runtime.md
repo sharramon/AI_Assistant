@@ -389,7 +389,10 @@ stateDiagram-v2
     [*] --> idle
     idle --> working: assign → send task (or an answer: the same task id)
     paused --> working: assign → drops the stopped task for the new one
-    working --> idle: result, no NEED → report done
+    working --> settling: result, no tag (or its card open) → report turn_end
+    settling --> idle: the Hub answers wait → drop the task (session and open approval kept for it)
+    settling --> idle: the Hub answers done → report done
+    settling --> working: an approval's outcome or a message came meanwhile → send it
     working --> idle: result is an error we didn't cause → report failed
     working --> asking: result ends with NEED → report need, drop the task
     asking --> idle: the Hub has the report
@@ -404,6 +407,7 @@ stateDiagram-v2
 
 - **A question is a message:** after a `NEED` the agent holds no task and takes new work. The answer comes back as `assign` of the same task id with `question_key` set: in the live session if that still has the question (nothing ran since), otherwise in a fresh one, whose first message adds the module's notes for the key (`set_context`; by default the handoff note). Design: [questions are messages](../architecture/agents.md#questions-are-messages).
 
+- **The Hub decides wait or done** (built 2026-11-13): a turn with no tag, or with its card still open, puts the agent in `settling` (active, so nothing new is given to it; a message meanwhile is held) and sends `turn_end` with the task's key. The Hub's answer: `wait` → the task ends waiting: dropped like a `need` (`_asked` set, so the live session takes it back), its open approval parked in the gate, and what came while settling goes to the Hub as the task's `progress`; the agent is idle and free. An approval answered later reports its outcome the same way, and the Hub gives the task back with it. `done` → the end-of-task Chrome check, then `done` as before; a message or outcome that came meanwhile carries the task on instead. If its card was answered meanwhile and the action is still running, it waits for the outcome as before. Design: [a waiting task ends with a note](../architecture/agents.md#task-state).
 - **Interrupt isn't failure:** in `interrupting` the agent knows it caused the `error_during_execution` result ([spike finding](spike.md#findings)) and doesn't report `failed`.
 - **`message` and `cancel` return as soon as the interrupt is sent**; the rest happens as events arrive. So the Hub never waits on the agent while the agent is reporting to the Hub.
 - **Cancel fallback:** if no `result` arrives within a few seconds of the interrupt, close the process; the next task starts a fresh session.

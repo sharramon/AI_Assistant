@@ -119,6 +119,8 @@ class AgentHubModule(ModuleProtocol):
             # Big agents besides the coordinator that may have an open task at once.
             max_extra=int(ctx.config.get("max_extra_agents", 3)),
             restricted=frozenset(self._start_only_by) | named,  # a free-agent pick never lands on these
+            # A finished child task's end, as a message to its parent's agent (delivery is made below).
+            tell_parent=lambda agent_id, text, task_id="": self._delivery.tell(agent_id, text, task_id),
         )  # fmt: skip
         self._tasks.restore(list(handover.get("questions") or []))  # questions outlive a Hub reload
         self._delivery = Delivery(self._tasks, self._agent, ctx.log, list(handover.get("waiting") or []))
@@ -134,7 +136,7 @@ class AgentHubModule(ModuleProtocol):
         ctx.handle(GetTaskStatus, tasks.status)
         ctx.handle(SendToTask, self._send)
         ctx.handle(CancelTask, tasks.cancel)
-        ctx.handle(ReportTask, tasks.report)
+        ctx.handle(ReportTask, self._report)
         ctx.handle(AnswerPermission, tasks.answer)
         ctx.handle(SetPermissionMode, tasks.set_mode)
         ctx.handle(SetFocus, self._focus.set)
@@ -195,9 +197,12 @@ class AgentHubModule(ModuleProtocol):
     async def status_item(self, task_id: str | None = None, caller: str = "") -> Result:
         return await self._tasks.status(GetTaskStatus(task_id=task_id))
 
-    @menu.item("hub.start", "Start a task on a free agent (or the one named); your open task becomes its parent",
+    @menu.item("hub.start", "Start a task on a free agent (or the one named); your open task becomes its parent. "
+               "When it ends (done or failed), its end comes to you as a message (the coordinator: a background "
+               "note); don't wait for it",
                {"text": {"type": "string", "minLength": 1}, "agent_id": {"type": "string"},
-                "context": {"type": "string"}}, required=["text"])  # fmt: skip
+                "context": {"type": "string"}},
+               required=["text"])  # fmt: skip
     async def start_item(self, text: str, agent_id: str | None = None, context: str = "", caller: str = "") -> Result:
         only = self._start_only_by.get(agent_id or "")
         if only is not None and caller != TALKER and caller not in only:
@@ -291,6 +296,13 @@ class AgentHubModule(ModuleProtocol):
         record = self._tasks.get(command.task_id)
         if result.status is Status.NOT_AVAILABLE and record is not None and record.asked:
             return await self._delivery.later(record.agent_id, record.id, command.text)
+        return result
+
+    async def _report(self, command: ReportTask) -> Result:
+        """`ReportTask`, then a waiting message may go: an end frees the agent's slot on the board
+        (the agent's idle state can come before its end report does)."""
+        result = await self._tasks.report(command)
+        await self._delivery.flush()
         return result
 
     async def _on_state(self, event: AgentStateChanged | ModuleStateChanged) -> None:
