@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>job_search turns cv on only when its agent needs a CV</title>
+<!-- Generated from docs/next-steps/job-cv-start-order.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="job-cv-start-order.html"></nav>
+<main>
+<h1 id="job_search-turns-cv-on-only-when-its-agent-needs-a-cv">job_search turns cv on only when its agent needs a CV</h1>
+<blockquote>
+<p><strong>Status: built (waiting on you) (2026-11-13).</strong> You chose: the job module sends the CV job to cv itself (Q1), and the modules.md rule is rewritten (below). Code, tests and docs are done. <code>job_search</code> and <code>cv</code> were reloaded on 2026-11-13 (both ok; <code>job.tailor_cv</code> is on job_search's menu); both are off, ready for the <a href="smoke-test-job-cv.html">smoke test</a>. Known problem (b), <code>modules.off</code> on a failed module, is a separate core change, not built.</p>
+<p><strong>App restart asked (2026-11-13), before the smoke test.</strong> The restart clears job_search's stale <code>failed</code> state and loads the comment-only contracts edits. <strong>Done:</strong> code, tests (929 passed; the 1 failure is the old overview link test from the Restructuring section of <code>docs/architecture/README.md</code>, not this fix), docs, the reload. <strong>Left:</strong> after the restart, run the <a href="smoke-test-job-cv.html">smoke test</a> from "Before you start" (clear the two saved grants, turn on job_search alone, check that cv stays off, Deny cv's card once for the fallback). Then the separate note for (b).</p>
+</blockquote>
+<p><strong>Asked:</strong> "Fix the job and cv start order, then update the docs to reflect the reality." The Main Assistant turns on only job_search. cv stays off until the job agent needs a CV. Then the job module turns cv on, hands it the PDF and the JD, and hears cv's event.</p>
+<p><strong>Why:</strong> cv came on as soon as job_search was turned on. That failed the smoke test's first check every time (<a href="smoke-test-job-cv.html">smoke test</a>).</p>
+<h2 id="where-the-wrong-rule-came-from">Where the wrong rule came from</h2>
+<ul>
+<li><strong>Chaining is older than the overnight build:</strong> decisions.md "Module shape" (2026-11-04), principle 16 "Chain, don't glue", and the 2026-11-12 decision "Modules talk to each other through named events" (job-cv-finish-event). None of them says who turns the next module on.</li>
+<li><strong>modules.md:150</strong> ("No module starts another itself … the core does it") is not from the overnight build. It came in commit <code>6c32d8f</code> (2026-11-05), written for voice notes → voice_in. Principle 17 said the same thing.</li>
+<li><strong>modules.md:146</strong> (job_search <code>needs = ["cv"]</code>) is from the overnight build: its text came in commit <code>b787049</code> (module folders item 2), and job_search's <code>needs = ["cv"]</code> in commit <code>330a380</code> (item 7), following module-folders-checklist decision 4 and its item 7 hand check. That applied the 11-05 rule to job → cv, which was never decided for that flow.</li>
+<li><strong>The docs are written by hand.</strong> Agent sessions write the Markdown and commit it under your git name. Only the HTML, each module's tools page and the module library's tables are generated.</li>
+</ul>
+<h2 id="before-the-fix-step-by-step-checked-in-the-code">Before the fix, step by step (checked in the code)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Your step</th>
+<th>What the code did</th>
+<th>Same as wanted?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>The Main Assistant turns on only job_search</td>
+<td><code>modules.on job_search</code> → <code>LifecycleManager._activate</code> turns on every module in job_search's <code>needs</code> <strong>first</strong>. <code>job_search/module.toml</code> said <code>needs = ["cv"]</code>. So cv came up (and showed cv_agent's card) before job_search.</td>
+<td><strong>No: the bug.</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>The job module starts the job agent</td>
+<td><code>JobSearchModule.start</code> asks for job_search_agent's access (one card), then builds the agent.</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>The agent realizes it needs a CV</td>
+<td>The <code>apply-session</code> skill (step 3) picks the base PDF, saves the JD, and called <code>cv.task</code>.</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>4</td>
+<td>The job module turns cv on, hands it the PDF and JD, subscribes to cv's event</td>
+<td>The <strong>agent</strong> called <code>cv.task</code> itself. If cv was off, the door answered "cv isn't on" and the agent asked you, then ran <code>modules.on cv</code>. The job module subscribed to cv's events once, at its start.</td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>cv runs and pings its event</td>
+<td><code>cv.job_finished</code> with <code>reply_to</code> at its worker's end, <code>cv.job_submitted</code> at your Submit.</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>6</td>
+<td>The job module gets the event and the tailored PDF</td>
+<td><code>JobSearchModule._on_cv</code> wakes the agent with one <code>DeliverMessage</code>; the summary gives the PDF path, <code>cv.read_result</code> the full result.</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-rule-rewritten">The rule, rewritten</h2>
+<ul>
+<li><strong><code>needs</code></strong> means only "can't run without" (voice_notes → voice_in). job_search's is <code>[]</code>.</li>
+<li><strong>On-demand chaining</strong> (replaces "No module starts another itself"): a module may turn on the add-on it chains to at the moment it needs it, with <code>ActivateModule</code>. The core still asks that module's access card (in Manual), and the reply comes back as the other module's named events. Nothing else changes: the module still reaches the other only through its menu and its named events, and the core still turns on what a module <code>requires</code> or <code>needs</code>.</li>
+</ul>
+<p>Written into modules.md (Dependencies, Chaining modules), principle 17, core.md, decisions.md (2026-11-13), the API pages and both modules' pages.</p>
+<h2 id="the-fix-built">The fix (built)</h2>
+<ol>
+<li><strong>job_search/module.toml:</strong> <code>needs = []</code>, plus <code>cv_wait = 600.0</code> (seconds to wait for cv to come on, your card's Allow included).</li>
+<li><strong>New menu item <code>job.tailor_cv</code></strong> on job_search's menu, with <code>cv.task</code>'s inputs. Only the job agent may call it (anyone else: <code>not_available</code>). It answers at once, then in the background:
+   - turns cv on (<code>ActivateModule("cv")</code>). In Manual you get cv_agent's access card now, not before.
+   - if the card is open, waits for cv to be active (<code>ModuleStateChanged</code>), or for your Deny (<code>PermissionChanged</code> with nothing granted), up to <code>cv_wait</code>.
+   - sends <code>cv.task</code> as the job module, with <code>for_agent</code> = the job agent, so cv's events still reach the agent.
+   - tells the agent the outcome with one <code>DeliverMessage</code>: the job was taken, or "cv couldn't come on (why). Ask the user whether to use the chosen base PDF untailored."</li>
+<li><strong>Subscription:</strong> unchanged. The job module subscribes to cv's two named events from its start; a named event is matched by name, so this works while cv is off, and nothing is missed between turning cv on and the event.</li>
+<li><strong>cv/module.toml <code>[hand_off] modules = ["job_search"]</code>:</strong> the modules that may send <code>cv.task</code> and <code>cv.read_result</code> for one of their agents. For such a caller <code>for_agent</code> is required and becomes the asker (<code>reply_to</code>, the parent task). Anyone else passing <code>for_agent</code> gets <code>invalid_arguments</code>.</li>
+<li><strong>Job project skill</strong> (<code>job_search/workspace/.claude/skills/apply-session/SKILL.md</code>, step 3): calls <code>job.tailor_cv</code>. Never <code>modules.on cv</code>, and it asks you about the untailored PDF only on the module's message.</li>
+<li><strong>Tests:</strong> <code>job_search/tests/test_job_search.py</code> (needs <code>[]</code>; turning job_search on leaves cv off; tailor turns cv on and sends; only for the agent; a failed start gives the untailored question; a card Deny, then Allow; the <code>cv_wait</code> timeout), <code>cv/tests/test_callers.py</code> (<code>for_agent</code>), and the <code>stand_in("cv")</code> setups removed from <code>tests/test_access_cards.py</code>, <code>test_agent_names.py</code>, <code>test_agent_tabs.py</code>, <code>test_module_folders.py</code>.</li>
+<li><strong>Docs:</strong> as listed under the rule, plus the smoke test page, the module-folders checklist (decision 4 and item 7's hand check marked replaced) and the Pending table.</li>
+</ol>
+<p><strong>Touches:</strong> <code>job_search/module.py</code>, <code>job_search/module.toml</code>, <code>cv/module.py</code>, <code>cv/module.toml</code>, the apply-session skill, the tests, the docs. Comment-only changes in <code>contracts/module.py</code> (<code>Manifest.needs</code>) and <code>contracts/control.py</code> (<code>DeactivateModule</code>): the example is now voice_notes → voice_in; they load at the next app restart, and nothing depends on them. No other core change. A reload of <code>job_search</code> and <code>cv</code> loads the code (asked first).</p>
+<h2 id="separate-change-not-built">Separate change, not built</h2>
+<p><strong>(b) <code>modules.off</code> on a failed module leaves it <code>failed</code>.</strong> The cause is in the core: <code>LifecycleManager._deactivate</code> (<code>core/lifecycle.py</code>) returns ok for a module that isn't active and leaves its FAILED state as it was. It should set it to inactive. It's core code, so it needs its own note and an app restart.</p>
+<footer>Generated from <code>docs/next-steps/job-cv-start-order.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

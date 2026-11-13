@@ -67,7 +67,8 @@ class StartProvider(Command):
 
 
 class DeactivateModule(Command):
-    """Deactivate a module. Refused while an active module requires it, unless `with_dependents`."""
+    """Deactivate a module. Never refused: the modules that need it stay on, and the result's value
+    names them ("voice_in is off; voice_notes needs it and stays on"). `with_dependents` turns them off first."""
 
     module_id: str
     with_dependents: bool = False

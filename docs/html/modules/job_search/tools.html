@@ -38,6 +38,74 @@
 </tr>
 </tbody>
 </table>
+<h2 id="jobtailor_cv"><code>job.tailor_cv</code></h2>
+<p>Hands one job's CV to cv (only the job agent): answers at once; the job module turns cv on (cv_agent's access card is asked then), sends it the base PDF and the JD, and tells you the outcome as a message. cv's end and the user's Submit come later as messages too</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>company</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job's company</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The job's title</td>
+</tr>
+<tr>
+<td><code>base_cv</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The chosen base CV, a .pdf (its path)</td>
+</tr>
+<tr>
+<td><code>jd_text</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job description as text; or give jd_file</td>
+</tr>
+<tr>
+<td><code>jd_file</code></td>
+<td>string</td>
+<td>no</td>
+<td>The job description as a file cv may read</td>
+</tr>
+<tr>
+<td><code>jd_url</code></td>
+<td>string</td>
+<td>no</td>
+<td>The posting</td>
+</tr>
+<tr>
+<td><code>degree_first</code></td>
+<td>boolean</td>
+<td>no</td>
+<td>Education under Skills (unset: cv's worker decides)</td>
+</tr>
+<tr>
+<td><code>target_score</code></td>
+<td>integer</td>
+<td>no</td>
+<td>The ATS score to reach</td>
+</tr>
+<tr>
+<td><code>notes</code></td>
+<td>string</td>
+<td>no</td>
+<td>Anything else for cv's worker</td>
+</tr>
+</tbody>
+</table>
 <!-- tools:end -->
 <footer>Generated from <code>src/assistant/modules/job_search/docs/tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

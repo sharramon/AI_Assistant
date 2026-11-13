@@ -31,7 +31,6 @@ from assistant.testkit import (
     pre_grant,
     read_events,
     sample_card,
-    stand_in,
     ui_port,
     wait_until,
 )
@@ -44,13 +43,13 @@ def job_section(tmp_path, **extra) -> dict:
 
 
 async def job_app(tmp_path, section: dict | None = None, enabled: bool = False):
-    """The Hub, a stand-in for cv (job_search needs it) and job_search; job_search is off unless
-    `enabled`. Returns the section as the module sees it (its module.toml under it), for `pre_grant`."""
+    """The Hub and job_search; job_search is off unless `enabled`. Returns the section as the
+    module sees it (its module.toml under it), for `pre_grant`."""
     section = section or job_section(tmp_path)
     ids = ["agent_hub", *(["job_search"] if enabled else [])]
     config = {"modules": {"enabled": ids, "agent_hub": {"door": False}, "job_search": section},
               "core": {"permissions": {"you": ["temp_ui"]}}}  # as config/default.toml sets it
-    app = App([AgentHubModule, stand_in("cv"), JobSearchModule], config)
+    app = App([AgentHubModule, JobSearchModule], config)
     events: list = []
 
     async def record(event):

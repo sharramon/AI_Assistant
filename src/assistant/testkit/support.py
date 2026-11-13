@@ -52,7 +52,7 @@ def free_port() -> int:
 
 def stand_in(module_id: str) -> type[ModuleProtocol]:
     """A bare module class with id `module_id` and nothing else, standing in for a module another
-    one `needs` (job_search needs cv), so a test can start the one under test without the real one."""
+    one `needs` (voice_notes needs voice_in), so a test can start the one under test without the real one."""
 
     async def init(self, ctx: ModuleContext) -> None:
         pass

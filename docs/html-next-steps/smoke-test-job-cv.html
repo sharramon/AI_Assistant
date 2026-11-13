@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smoke test: job_search brings up cv when it needs a CV</title>
+<!-- Generated from docs/next-steps/smoke-test-job-cv.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="smoke-test-job-cv.html"></nav>
+<main>
+<h1 id="smoke-test-job_search-brings-up-cv-when-it-needs-a-cv">Smoke test: job_search brings up cv when it needs a CV</h1>
+<blockquote>
+<p><strong>Status: proposed (2026-11-13).</strong> A written test only: nothing was run. The fix it checks is built (<a href="job-cv-start-order.html">job-cv start order</a>: job_search's <code>needs = []</code>, <code>job.tailor_cv</code> turns cv on at the CV step). Run it by hand after a reload of <code>job_search</code> and <code>cv</code> (or an app restart). Follows the <a href="../../.claude/skills/app-update/SKILL.md"><code>app-update</code></a> process.</p>
+</blockquote>
+<h2 id="the-flow-this-test-checks">The flow this test checks</h2>
+<ol>
+<li>The Main Assistant turns on the job module (<code>job_search</code>), and only that module.</li>
+<li>The job module starts the job search agent.</li>
+<li>The job agent realizes it needs a CV.</li>
+<li>The job module turns on the cv module <strong>at that moment, not before</strong>. It hands cv the PDF and the job description (JD) instructions, and subscribes to cv's event.</li>
+<li>The cv module runs and pings that event when it's finished.</li>
+<li>The job module receives the event and gets the tailored CV PDF.</li>
+</ol>
+<h2 id="before-you-start">Before you start</h2>
+<ul>
+<li><strong>Mode:</strong> Manual, so the access cards show.</li>
+<li><strong>Clean start:</strong> <code>modules.list</code> shows <code>job_search</code> and <code>cv</code> both <strong>inactive</strong>. If either shows <code>failed</code>, see known problem (b): restart the app instead of trusting <code>modules.off</code>.</li>
+<li><strong>Clear the saved grants</strong>, so both cards show again (known problem (c)):
+  1. <code>permissions.grants</code> lists what's saved.
+  2. <code>permissions.revoke</code> with <code>module_id</code> <code>cv</code>, <code>subject</code> <code>cv_agent</code> (no <code>items</code>: all).
+  3. <code>permissions.revoke</code> with <code>module_id</code> <code>job_search</code>, <code>subject</code> <code>job_search_agent</code>.
+  4. <code>permissions.grants</code> again: neither is listed. (They're stored in <code>config/permissions.toml</code>.)</li>
+</ul>
+<h2 id="steps">Steps</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>What to do</th>
+<th>What you should see</th>
+<th>Pass</th>
+<th>Fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Ask the Main Assistant to turn on <code>job_search</code> with <code>modules.on</code>. Nothing else.</td>
+<td>One card: <strong>job_search_agent's access card</strong>.</td>
+<td>The call names only <code>job_search</code>.</td>
+<td>Any call that names <code>cv</code>.</td>
+</tr>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>First check</strong>, right after step 0: <code>modules.list</code>.</td>
+<td><code>cv</code> is <strong>inactive</strong>.</td>
+<td><code>cv</code> is still off.</td>
+<td><code>cv</code> is on (<code>starting</code> or <code>active</code>). In the last run cv came up first by itself and job_search stayed held behind its card, never active.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Click <strong>Allow</strong> on job_search_agent's card. <code>modules.list</code>.</td>
+<td><code>job_search</code> <strong>active</strong>, <code>cv</code> still <strong>inactive</strong>.</td>
+<td>Both as shown.</td>
+<td><code>job_search</code> not active, or <code>cv</code> on.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Open the job UI and give the job agent a job to apply for.</td>
+<td>The job agent starts and sees its job state.</td>
+<td>The agent is running on the job.</td>
+<td>No agent, or it can't see the job.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Let the job agent reach the CV step.</td>
+<td>It calls <code>job.tailor_cv</code>, and the <strong>job module</strong> turns cv on: <strong>cv_agent's access card</strong> shows.</td>
+<td><code>cv</code> turns on only now, and the card shows.</td>
+<td><code>cv</code> was already on, no card shows, the agent calls <code>cv.task</code> or <code>modules.on cv</code> itself, or it asks you to turn cv on.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Click <strong>Allow</strong> on cv_agent's card.</td>
+<td>cv gets the base PDF and the JD instructions, and runs.</td>
+<td><code>cv</code> <strong>active</strong>, its agent working on this job.</td>
+<td><code>cv</code> fails, or runs without the PDF or JD.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Wait for cv to finish.</td>
+<td>cv pings its event (<code>cv.job_finished</code>).</td>
+<td>The event fires once, for this job.</td>
+<td>No event, or the job agent never hears it.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Look at the job agent.</td>
+<td>It got the event and has the tailored CV PDF.</td>
+<td>The PDF path points at the new, tailored file.</td>
+<td>No PDF, or it uses the untailored base PDF without asking you.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="extra-checks-from-the-earlier-smoke-test">Extra checks (from the earlier smoke test)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>What to do</th>
+<th>Pass</th>
+<th>Fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E1</td>
+<td>Find cv's output folder.</td>
+<td>It's <code>src/assistant/modules/cv/workspace/out</code>, and the tailored PDF is there.</td>
+<td>Another folder, or not found.</td>
+</tr>
+<tr>
+<td>E2</td>
+<td>Open the job UI with <code>job.open_ui</code>.</td>
+<td>A fresh app window opens.</td>
+<td>Error, or it opens as a tab.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="known-problems-from-the-last-run">Known problems from the last run</h2>
+<ul>
+<li><strong>(a) cv came on at job_search start.</strong> Fixed (built 2026-11-13, <a href="job-cv-start-order.html">job-cv start order</a>): job_search's <code>needs</code> is <code>[]</code>, and the job module turns cv on at the CV step.</li>
+<li><strong>(b) <code>modules.off</code> on a failed job_search</strong> returned ok but left it showing <code>failed</code>, not <code>inactive</code>. Not fixed: the cause is in the core (<code>LifecycleManager._deactivate</code>), a separate change with its own note and an app restart.</li>
+<li><strong>Extra check for the fallback:</strong> at step 5, click <strong>Deny</strong> instead. The job agent should get the module's message and ask you whether to use the base PDF untailored.</li>
+<li><strong>(c) cv_agent's old saved grant</strong> meant its card didn't show again. Clear the saved grants before the test (above).</li>
+<li><strong>(d)</strong> The earlier smoke test also asked for cv's output folder and <code>job.open_ui</code>: kept as E1 and E2.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/smoke-test-job-cv.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

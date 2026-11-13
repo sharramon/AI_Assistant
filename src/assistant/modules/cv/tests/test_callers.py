@@ -52,3 +52,23 @@ async def test_cv_task_starts_cv_agent_itself_and_refuses_while_it_works_on_anot
         assert (await use(app, "cv.task", caller="talker", **job)).status is Status.NOT_AVAILABLE
     finally:
         await app.stop()
+
+
+async def test_a_hand_off_module_sends_cv_task_for_its_agent_and_nobody_else_may_name_one(tmp_path):
+    # job_search's job.tailor_cv: the module is the caller, its agent the asker (reply_to).
+    base = write_pdf(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.pdf")
+    app = app_with(tmp_path)
+    await app.start()
+    try:
+        job = dict(company="Acme", role="Engineer", jd_text=JD, base_cv=str(base), notes="SLOW")
+        for caller, extra in ((JOB_AGENT, {"for_agent": "someone"}), ("main_assistant", {"for_agent": JOB_AGENT}),
+                              ("job_search", {})):  # fmt: skip
+            refused = await use(app, "cv.task", caller=caller, **job, **extra)
+            assert refused.status is Status.INVALID_ARGUMENTS and "for_agent" in refused.error, caller
+        assert (await use(app, "cv.task", caller="voice_notes", **job, for_agent=JOB_AGENT)).status is Status.NOT_AVAILABLE
+        made = await use(app, "cv.task", caller="job_search", **job, for_agent=JOB_AGENT)
+        assert made.is_ok, made.error
+        assert read_request(made.value["text"]).reply_to == JOB_AGENT  # cv's events go to the job agent
+        assert (await use(app, "cv.read_result", caller="job_search", text="CV_RESULT: {}")).status is not Status.NOT_AVAILABLE
+    finally:
+        await app.stop()
