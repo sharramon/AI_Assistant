@@ -25,7 +25,7 @@
 <ol>
 <li><strong>What the app has:</strong> real capabilities it can check, such as Windows location being on, a microphone being present, or a Google account being connected. Each comes from a permission source (planned).</li>
 <li><strong>What each module needs:</strong> declared in its manifest, as required or optional. A task-agent module declares <code>agent.access</code> and lists its access in its config.</li>
-<li><strong>What you've granted each module:</strong> saved across restarts in <code>data/permissions.toml</code>, for example "job_search → job_search_agent: read <code>C:\Chang\Jobs</code>, use Chrome".</li>
+<li><strong>What you've granted each module:</strong> saved across restarts in <code>config/permissions.toml</code> (yours, gitignored), for example "job_search → job_search_agent: read <code>C:\Chang\Jobs</code>, use Chrome".</li>
 </ol>
 <p>A module may use a permission only when the app has it <strong>and</strong> you've granted it to that module.</p>
 <p><strong>Responsible for:</strong> checking, asking you, remembering grants, and announcing changes. <strong>Not responsible for:</strong> operating-system prompts (Windows grants those to the whole process) or enforcing anything inside a module. See <a href="#the-limit">the limit</a>.</p>
@@ -92,7 +92,7 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
 </code></pre>
 <p>Built 2026-11-05.</p>
 <h3 id="grants-per-kind-of-agent">Grants per kind of agent</h3>
-<p>A grant is saved per module and <strong>subject</strong>: the kind of agent, not each copy. The job agent's subject is <code>job_search_agent</code>. For <code>task_agents</code> the subject is the kind: <code>helper_2</code> shares <code>helper</code>'s grant, and so does every helper launched from that kind. One section of <code>data/permissions.toml</code> per module and subject holds the fingerprint, the asked and granted keys, whether it was denied, and the date. It changes only through the handler's calls.</p>
+<p>A grant is saved per module and <strong>subject</strong>: the kind of agent, not each copy. The job agent's subject is <code>job_search_agent</code>. For <code>task_agents</code> the subject is the kind: <code>helper_2</code> shares <code>helper</code>'s grant, and so does every helper launched from that kind. One section of <code>config/permissions.toml</code> per module and subject holds the fingerprint, the asked and granted keys, whether it was denied, and the date. It changes only through the handler's calls. The file is yours (it holds your paths), so it's gitignored, and it's never read as a module's settings. The grants used to live in <code>data/permissions.toml</code>: at startup, if <code>config/permissions.toml</code> is missing and the old file exists, the handler copies it across once (<code>copy_old_grants</code> in <code>store.py</code>). The old file is left in place, never edited.</p>
 <h3 id="messages-between-agents">Messages between agents</h3>
 <p>Built 2026-11-10. When an agent messages another agent that isn't its own child task (<code>hub.send</code> with <code>agent_id</code>), the Agent Hub's message gate (<code>agent_hub/gate.py</code>, <code>MessageGate</code>) asks first, with one item, <code>message:&lt;receiver&gt;</code> (<code>AccessKind.MESSAGE</code>).</p>
 <ul>
@@ -272,7 +272,7 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
     }
     class GrantStore {
         &lt;&lt;built, core&gt;&gt;
-        data/permissions.toml
+        config/permissions.toml
     }
     class PermissionsMenu {
         &lt;&lt;built, core&gt;&gt;
@@ -406,7 +406,7 @@ granted = await ctx.permissions.request_set(items, reason, subject="job_search_a
 <tbody>
 <tr>
 <td><strong>Protected</strong></td>
-<td><code>src/assistant/core/permissions/</code>, <code>data/permissions.toml</code>, <code>config/</code>, <code>.claude/settings.json</code>, <code>.claude/settings.local.json</code></td>
+<td><code>src/assistant/core/permissions/</code>, <code>config/</code> (with the saved grants, <code>config/permissions.toml</code>), the old <code>data/permissions.toml</code>, <code>.claude/settings.json</code>, <code>.claude/settings.local.json</code></td>
 <td>Never, even if you say yes; otherwise it could grant itself permissions</td>
 </tr>
 <tr>

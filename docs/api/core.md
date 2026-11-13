@@ -133,7 +133,7 @@ The [permissions handler](../architecture/permissions.md#part-of-the-core), part
 
 **Card actions** (built 2026-11-08). A card's action is a `CardAction` (`ACCESS`, `GRANT`, `REVOKE`, `MESSAGE`; a `StrEnum` inside the core whose values are `PermissionRequested.action`'s). An answered card is applied by its action's handler from a table (principle 20): `access` saves the list (and turns the module on); `grant` and `revoke` carry out an agent's call and tell it with an `AgentNotice`; `message` settles the waiting `ask` (`_apply_message`, with `Card.remember` from the answer). Every `PermissionChanged` is built in one place.
 
-Saved grants: `GrantStore` and `Grant` (`store.py`), one section per module and subject in `data/permissions.toml`, written whole and atomically; `fingerprint(items)` hashes a list's keys. Guardrails: `PROTECTED`, `refusals`, `rule_warnings` and `FIXED_RULES` (`rules.py`).
+Saved grants: `GrantStore` and `Grant` (`store.py`), one section per module and subject in `config/permissions.toml` (`GRANTS_FILE`; gitignored), written whole and atomically; `copy_old_grants(new, old)` copies the old `data/permissions.toml` (`OLD_GRANTS`) across once at startup when the new file is missing, leaving the old one in place; `fingerprint(items)` hashes a list's keys. Guardrails: `PROTECTED`, `refusals`, `rule_warnings` and `FIXED_RULES` (`rules.py`).
 
 **Defined in:** `src/assistant/core/permissions/handler.py` (`store.py`, `rules.py`) · **Tests:** `tests/test_permissions_handler.py`, `tests/test_permissions.py`
 

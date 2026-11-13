@@ -30,6 +30,7 @@ add_app_folders()
 @pytest.fixture(autouse=True)
 def _permissions_for_tests(tmp_path, monkeypatch):
     monkeypatch.setattr(handler, "GRANTS_FILE", tmp_path / "permissions.toml")
+    monkeypatch.setattr(handler, "OLD_GRANTS_FILE", tmp_path / "old-data" / "permissions.toml")  # never the repo's
     monkeypatch.setattr(handler, "ANSWER_TIMEOUT", 2.0)
     monkeypatch.setattr(handler, "REVIEW_TIMEOUT", 2.0)
     monkeypatch.setattr(handler, "REVIEWER", "")

@@ -12,13 +12,15 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path, PurePath
 
 from assistant.contracts import AccessItem, AccessKind, AccessNote
+from assistant.core.permissions.store import OLD_GRANTS
 
 REPO = Path(__file__).resolve().parents[4]
 
-# Relative to the repo. Folders cover everything under them.
+# Relative to the repo. Folders cover everything under them. `config` holds the saved grants
+# (config/permissions.toml); the old grants file stays protected too.
 PROTECTED = (
     "src/assistant/core/permissions",
-    "data/permissions.toml",
+    OLD_GRANTS,
     "config",
     ".claude/settings.json",
     ".claude/settings.local.json",

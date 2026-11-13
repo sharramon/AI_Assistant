@@ -51,6 +51,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import importlib
+import inspect
 import os
 import re
 import subprocess
@@ -669,6 +670,21 @@ def test_a_modules_settings_load_from_its_config_file_over_its_module_toml(tmp_p
     seen, config = temp_ui_config()
     assert seen["port"] == 9003 and seen["window"] == "none"  # local.toml's section last
     assert config["modules"]["enabled"] == ["talker"]
+
+
+def test_saved_grants_live_in_config_and_only_the_copy_names_the_old_file() -> None:
+    """Item 13: the grants are in config/permissions.toml; the old data/ file is named in src only
+    by the one-time copy (`OLD_GRANTS` beside `copy_old_grants` in store.py)."""
+    from assistant.core.permissions import PermissionsHandler
+
+    old = "data/permissions.toml"
+    naming = sorted(f"{p.relative_to(REPO).as_posix()}:{n}" for p in (REPO / "src").rglob("*")
+                    if p.is_file() and p.suffix in (".py", ".toml", ".md")
+                    for n, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1)
+                    if old in line)  # fmt: skip
+    assert len(naming) == 1 and naming[0].startswith("src/assistant/core/permissions/store.py:"), naming
+    default = inspect.signature(PermissionsHandler).parameters["grants_file"].default
+    assert default == REPO / "config" / "permissions.toml"  # (the conftest points GRANTS_FILE into tmp)
 
 
 def test_a_local_only_module_file_still_counts(tmp_path) -> None:

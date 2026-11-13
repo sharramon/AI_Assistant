@@ -268,7 +268,7 @@ stateDiagram-v2
 | `core.module_stop_timeout` | `5.0` | Seconds each module gets to stop |
 | `core.event_queue_size` | `100` | Per-subscriber queue size |
 | `core.event_handler_timeout` | `10.0` | Seconds before a stuck event handler is cancelled |
-| `core.permissions.grants_file` | `"data/permissions.toml"` | The saved grants (relative to the repo; in the protected zone) |
+| `core.permissions.grants_file` | `"config/permissions.toml"` | The saved grants (relative to the repo; yours, gitignored, in the protected zone). Copied once at startup from the old `data/permissions.toml` if missing; the old file stays |
 | `core.permissions.reviewer` | `"main_assistant"` (in `default.toml`; `""` in code) | The agent that reviews an access list before its card shows; `""` for none |
 | `core.permissions.review_timeout` / `answer_timeout` | `90.0` / `600.0` | Seconds for the review (then "not reviewed") and for your answer (then Deny) |
 | `core.permissions.you` | `["temp_ui"]` (in `default.toml`; none in code) | Callers that are you clicking; an agent's grant or revoke shows you a card |

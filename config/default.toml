@@ -26,7 +26,8 @@ reload_idle_timeout = 300.0   # seconds a ReloadModule waits for a busy module (
 
 [core.permissions]
 # The permissions handler (part of the core, always on). Every key is optional:
-# grants_file = "data/permissions.toml"  # the saved grants, in the protected zone (relative to the repo)
+# grants_file = "config/permissions.toml"  # the saved grants: yours, gitignored, protected (relative to the repo);
+#                                          # copied once from the old data/permissions.toml if missing
 reviewer = "main_assistant"              # reviews an access list before its card shows ("" for none)
 # review_timeout = 90.0                  # seconds; past it, or when the reviewer is busy, the card says "not reviewed"
 # answer_timeout = 600.0                 # seconds a card waits for your answer; then it counts as Deny

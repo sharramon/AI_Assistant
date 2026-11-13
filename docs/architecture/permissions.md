@@ -18,7 +18,7 @@ One **permissions handler** knows three things:
 
 1. **What the app has:** real capabilities it can check, such as Windows location being on, a microphone being present, or a Google account being connected. Each comes from a permission source (planned).
 2. **What each module needs:** declared in its manifest, as required or optional. A task-agent module declares `agent.access` and lists its access in its config.
-3. **What you've granted each module:** saved across restarts in `data/permissions.toml`, for example "job_search → job_search_agent: read `C:\Chang\Jobs`, use Chrome".
+3. **What you've granted each module:** saved across restarts in `config/permissions.toml` (yours, gitignored), for example "job_search → job_search_agent: read `C:\Chang\Jobs`, use Chrome".
 
 A module may use a permission only when the app has it **and** you've granted it to that module.
 
@@ -103,7 +103,7 @@ Built 2026-11-05.
 
 ### Grants per kind of agent
 
-A grant is saved per module and **subject**: the kind of agent, not each copy. The job agent's subject is `job_search_agent`. For `task_agents` the subject is the kind: `helper_2` shares `helper`'s grant, and so does every helper launched from that kind. One section of `data/permissions.toml` per module and subject holds the fingerprint, the asked and granted keys, whether it was denied, and the date. It changes only through the handler's calls.
+A grant is saved per module and **subject**: the kind of agent, not each copy. The job agent's subject is `job_search_agent`. For `task_agents` the subject is the kind: `helper_2` shares `helper`'s grant, and so does every helper launched from that kind. One section of `config/permissions.toml` per module and subject holds the fingerprint, the asked and granted keys, whether it was denied, and the date. It changes only through the handler's calls. The file is yours (it holds your paths), so it's gitignored, and it's never read as a module's settings. The grants used to live in `data/permissions.toml`: at startup, if `config/permissions.toml` is missing and the old file exists, the handler copies it across once (`copy_old_grants` in `store.py`). The old file is left in place, never edited.
 
 ### Messages between agents
 
@@ -202,7 +202,7 @@ classDiagram
     }
     class GrantStore {
         <<built, core>>
-        data/permissions.toml
+        config/permissions.toml
     }
     class PermissionsMenu {
         <<built, core>>
@@ -306,7 +306,7 @@ The index of which part of the repo is the core app and which is modules, and wh
 
 | Zone | Paths | Writes by an agent |
 |------|-------|--------------------|
-| **Protected** | `src/assistant/core/permissions/`, `data/permissions.toml`, `config/`, `.claude/settings.json`, `.claude/settings.local.json` | Never, even if you say yes; otherwise it could grant itself permissions |
+| **Protected** | `src/assistant/core/permissions/`, `config/` (with the saved grants, `config/permissions.toml`), the old `data/permissions.toml`, `.claude/settings.json`, `.claude/settings.local.json` | Never, even if you say yes; otherwise it could grant itself permissions |
 | **Core** | `src/assistant/core/`, `src/assistant/contracts/`, `src/assistant/infra/`, `src/assistant/__main__.py`, `scripts/`, `.github/`, `pyproject.toml` | On its branch; asks |
 | **Modules** | `src/assistant/modules/<id>/` and that module's tests | On its branch; asks |
 | **Docs and skills** | `docs/` (not `docs/html/`), `.claude/skills/` | `docs/` is a standing grant; skills ask |

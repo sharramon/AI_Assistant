@@ -1,4 +1,6 @@
-"""Saved grants: one section per module and subject in `data/permissions.toml` (protected zone).
+"""Saved grants: one section per module and subject in `config/permissions.toml` (your choices,
+gitignored, in the protected zone). The grants once lived in the old file `OLD_GRANTS`; at startup
+`copy_old_grants` copies it across once if the new file is missing.
 
 A subject is a kind of agent: a module's own agent (`job_search_agent`), or a kind of helper
 (`helper`, whose copies `helper_2`, ... share its grant). Changed only through the handler's
@@ -11,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import shutil
 import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -21,6 +24,22 @@ from assistant.contracts import AccessItem
 
 HEADER = ("# Saved grants of the permissions handler (one section per module and subject).\n"
           "# Changed only through its calls (permissions.grant / permissions.revoke, or a card), never by hand.\n")  # fmt: skip
+
+
+# Where the grants were saved before they moved into config/ (relative to the repo). The one place
+# in the code naming the old file: read only by `copy_old_grants`, still protected (rules.py).
+OLD_GRANTS = "data/permissions.toml"
+
+
+def copy_old_grants(new: Path, old: Path, log: logging.Logger | None = None) -> bool:
+    """The one-time copy: if `new` is missing and `old` exists, copy `old` to `new`. The old file is
+    never edited or deleted. Returns whether it copied."""
+    if new.exists() or not old.is_file():
+        return False
+    new.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(old, new)
+    (log or logging.getLogger(__name__)).info("Saved grants copied once from %s to %s (the old file is left in place)", old, new)
+    return True
 
 
 def fingerprint(items: Iterable[AccessItem]) -> str:

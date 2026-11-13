@@ -11,7 +11,7 @@ packages = []
 
 # The job agent (id "job_search_agent": the module id plus _agent), bundled with its module and its job.* menu; off at launch (modules.on job_search).
 # Takes the same keys as a task_agents profile. These keys are its access list, asked for in one
-# card when it's turned on (saved in data/permissions.toml; it asks again when the list changes):
+# card when it's turned on (saved in config/permissions.toml; it asks again when the list changes):
 # read and write the job project, read the rest of C:\Chang\Jobs and JobRadar, run JobRadar's
 # Python, Chrome. Sessions always start in Manual. Anything else asks you with a card. It never
 # submits or sends anything.

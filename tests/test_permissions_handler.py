@@ -2,6 +2,7 @@
 (allow, trim, deny, timeout, a changed list), the review, and the grant calls."""
 
 import asyncio
+import inspect
 from pathlib import Path
 
 import pytest
@@ -28,8 +29,10 @@ from assistant.contracts import (
     Status,
 )
 from assistant.core import App
+from assistant.core.permissions import PermissionsHandler
+from assistant.core.permissions import handler as handler_module
 from assistant.core.permissions.rules import REPO, protected_paths, refusals, rule_warnings
-from assistant.core.permissions.store import Grant, GrantStore, fingerprint
+from assistant.core.permissions.store import Grant, GrantStore, copy_old_grants, fingerprint
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.testkit import FakeAgent, agent_module, wait_until
 
@@ -60,6 +63,41 @@ def test_store_round_trip_and_fingerprint_ignores_order(tmp_path):
     again = GrantStore(path).get("jobs", "jobs")
     assert again.added == (extra.key,) and again.granted == (a.key, extra.key)
     assert again.fingerprint == grant.fingerprint  # an unchanged config still matches
+
+
+def test_copy_old_grants_once_and_leave_the_old_file(tmp_path):
+    old, new = tmp_path / "data" / "permissions.toml", tmp_path / "config" / "permissions.toml"
+    assert not copy_old_grants(new, old) and not new.exists()  # no old file: nothing to copy
+    old.parent.mkdir()
+    old.write_text("# old grants\n", encoding="utf-8")
+    assert copy_old_grants(new, old)  # missing: copied
+    assert new.read_text(encoding="utf-8") == "# old grants\n" == old.read_text(encoding="utf-8")  # old left in place
+    new.write_text("# mine\n", encoding="utf-8")
+    assert not copy_old_grants(new, old)  # present: untouched
+    assert new.read_text(encoding="utf-8") == "# mine\n" and old.read_text(encoding="utf-8") == "# old grants\n"
+
+
+async def test_a_grant_is_saved_to_config_permissions_toml(tmp_path, monkeypatch):
+    real_default = inspect.signature(PermissionsHandler).parameters["grants_file"].default
+    assert real_default == REPO / "config" / "permissions.toml"  # the handler's own default
+    monkeypatch.setattr(handler_module, "REPO", tmp_path)  # a tmp repo: the default place, relative to it
+    monkeypatch.setattr(handler_module, "GRANTS_FILE", tmp_path / "config" / "permissions.toml")
+    old = tmp_path / "data" / "permissions.toml"
+    monkeypatch.setattr(handler_module, "OLD_GRANTS_FILE", old)
+    store = GrantStore(old)
+    a, b, c = items_of(tmp_path)
+    store.put(Grant("jobs", "jobs", fingerprint([a]), (a.key,)).with_granted([a.key]))
+    app = App([], {"modules": {"enabled": []}, "core": {"permissions": {"reviewer": "", "you": ["temp_ui"]}}})
+    await app.start()
+    try:
+        saved = tmp_path / "config" / "permissions.toml"
+        assert app.permissions.store.path == saved
+        assert app.permissions.store.get("jobs", "jobs") is not None  # copied once at startup
+        app.permissions.store.put(Grant("jobs2", "jobs2", fingerprint([b, c]), (b.key, c.key)).with_granted([b.key]))
+        assert GrantStore(saved).get("jobs2", "jobs2").granted == (b.key,)
+        assert GrantStore(old).get("jobs2", "jobs2") is None  # the old file is never written
+    finally:
+        await app.stop()
 
 
 def test_protected_zone_is_refused_and_the_three_warnings(tmp_path):

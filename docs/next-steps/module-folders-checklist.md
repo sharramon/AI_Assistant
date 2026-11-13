@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 13 of 20 done** (items 1 to 12 and 20).
+**Count: 14 of 20 done** (items 1 to 13 and 20).
 
 **Architecture check after the add-on chunk (items 7–10):** modularity OK (a grep of `core/`, `contracts/`, `infra/` and `app_kit` for the add-ons' ids finds only comments and examples, plus `infra/show_pages.py`'s `viewer.open`, which item 15 moves behind a slot); reuse OK (every app move reused `add_app_folders` and `launch_env`; temp_ui's test helpers joined `assistant.testkit`); fit OK (each add-on's defaults, `needs` and `packages` are in its `module.toml`, read by the core with no names).
 
@@ -10,6 +10,7 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **App restart needed, item 13:** the permissions handler reads and writes `config/permissions.toml`. **Hand check:** after the first start, `config/permissions.toml` exists with your old grants, and `data/permissions.toml` is still there (yours to delete once you're happy).
 - **App restart needed, item 12:** `load_config` reads `config/modules.toml` and `config/<id>.toml`. Behavior stays the same (you have no `config/<id>.toml` yet; `config/local.toml` still loads last).
 - **Your local config, item 11:** the rezi helper kind's real folders left the committed defaults (now `../assistant-rezi`, reading `docs`). They were added for you to `config/local.toml` (`[modules.task_agents.agents.rezi]`: `workspace` and `read_dirs`, as before), so nothing changes. Check that section once.
 - **Note, item 11:** `.claude/state/reset-instructions.md` was missing when checked. Talker tests used to delete it on stop (fixed in item 11: tests now point `restart_note` into tmp). If a restart catch-up note was expected there, it's gone; the next restart writes a fresh one.
@@ -78,6 +79,7 @@ For you to review. Each picks the option closest to the approved picture.
 32. **Central tests that stay** (item 11): those that run several modules together or test the core or a shared part with one module as an example (`test_agents`, `test_restart`, `test_multi_agent`, `test_permission_mode`, `test_mcp_door`, `test_app`, `test_directory`, `test_menu`, `test_reload`, `test_control`, `test_usage`, `test_access_cards` and the like). The tripwire flags a central test that names exactly one module and isn't on its reasoned list.
 33. **Small test moves** (item 11): `test_show_tag_arguments` was dropped (covered by `tests/test_agent_tags.py`); the `flash_window` test went to `tests/test_app_kit.py`; assistant_view has no `tests/` (covered by `test_swap_every_module`); the test kit gained `clip_event`, `dropped_event`, `ui_port`, `read_events`, `sample_card`, and `pre_grant_kinds` merges a module's `module.toml`.
 34. **`config/` layout** (item 12): `config/modules.toml` is committed (the shipped on/off list, `enabled` at top level); `config/<id>.toml` files are yours and gitignored (`config/*.toml` except `default.toml` and `modules.toml`), none shipped. A module's settings load: `module.toml` → `[modules.<id>]` in `default.toml` (empty now) → `config/<id>.toml` → `config/<id>.local.toml` → `[modules.<id>]` in `config/local.toml`. The on/off list: `modules.toml` → `modules.local.toml` → `[modules] enabled` in `local.toml`. `default`, `local`, `modules`, `permissions` and `voice_service` are never module files. A missing `modules.toml` means nothing enabled. New helper `module_config_ids`.
+35. **The old grants path is named once** (item 13): `OLD_GRANTS` beside `copy_old_grants(new, old)` in `core/permissions/store.py`, run when the handler is built from config; it copies only if the new file is missing, never edits or deletes the old one, and the old file stays on the protected list. Tests point the old path into tmp.
 
 ## The safeguards (from the audit, section 4)
 
@@ -209,7 +211,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** `load_config` reads in this order: the module's `module.toml`, `config/default.toml` (core settings), `config/<id>.toml`, then the `.local` overrides; your current `config/local.toml` choices stay readable (no file of yours is deleted). Tests; `docs/api/infra.md`, `docs/architecture/core.md`.
 - **Done when:** a test loads a module's settings from `config/<id>.toml` over its `module.toml`; `config/modules.toml` exists; the app's config tests pass. **Needs an app restart** (infra).
 
-### 13. Saved grants in `config/`
+### 13. Saved grants in `config/`: **done** (2026-11-13)
+
+**Checked:** `git grep -n "data/permissions.toml" src` finds only `store.py:31` (the copy's constant); `git check-ignore config/permissions.toml` succeeds; `test_a_grant_is_saved_to_config_permissions_toml` passes (a grant saved there, and the one-time copy); no real `config/permissions.toml` was made, and `data/permissions.toml` is untouched; full suite 895 passed, 2 deselected; ruff clean. **Needs an app restart** (core).
 
 - **What:** the permissions handler reads and writes `config/permissions.toml`.
 - **Why:** the picture: "saved grants (now data/permissions.toml)" belong in `config/`, since they're your decisions.

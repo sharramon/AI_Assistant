@@ -66,9 +66,10 @@ from assistant.contracts import (
     TaskUpdated,
 )
 from assistant.core.permissions.rules import FIXED_RULES, REPO, protected_paths, refusals, rule_warnings
-from assistant.core.permissions.store import Grant, GrantStore, fingerprint
+from assistant.core.permissions.store import OLD_GRANTS, Grant, GrantStore, copy_old_grants, fingerprint
 
-GRANTS_FILE = REPO / "data" / "permissions.toml"
+GRANTS_FILE = REPO / "config" / "permissions.toml"
+OLD_GRANTS_FILE = REPO / OLD_GRANTS  # copied once to the grants file at startup if that is missing
 # Defaults for `from_config`, read at each call (tests make them short and turn the review off).
 # Shared code names no module (principle 21): which agent reviews a list and which callers are
 # you clicking come from `[core.permissions]` in config (`reviewer`, `you`); none by default.
@@ -188,13 +189,15 @@ class PermissionsHandler:
 
     @classmethod
     def from_config(cls, config: dict[str, Any], send, publish, find) -> PermissionsHandler:
-        """From `[core.permissions]`: `grants_file` (default `data/permissions.toml` in the repo, the
-        protected zone; relative to the repo), `reviewer` (the agent that reviews a list before the
+        """From `[core.permissions]`: `grants_file` (default `config/permissions.toml` in the repo,
+        the protected zone; relative to the repo), `reviewer` (the agent that reviews a list before the
         card shows; empty for none), `review_timeout`, `answer_timeout`, and `you` (the callers that
-        are you clicking in a UI; anyone else's grant or revoke shows you a card)."""
+        are you clicking in a UI; anyone else's grant or revoke shows you a card). At startup, a
+        missing grants file is copied once from the old one (`copy_old_grants`), which stays."""
         grants_file = Path(config.get("grants_file") or GRANTS_FILE)
         if not grants_file.is_absolute():
             grants_file = REPO / grants_file
+        copy_old_grants(grants_file, OLD_GRANTS_FILE)
         return cls(send, publish, find, grants_file, reviewer=str(config.get("reviewer", REVIEWER)),
                    review_timeout=float(config.get("review_timeout", REVIEW_TIMEOUT)),
                    answer_timeout=float(config.get("answer_timeout", ANSWER_TIMEOUT)),
