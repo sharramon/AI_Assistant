@@ -12,10 +12,10 @@
 <nav data-root="" data-page="module-folders-checklist.html"></nav>
 <main>
 <h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
-<p><strong>Count: 2 of 20 done</strong> (items 1 and 20).</p>
+<p><strong>Count: 3 of 20 done</strong> (items 1, 2 and 20).</p>
 <h2 id="morning-list-kept-as-the-run-goes">Morning list, kept as the run goes</h2>
 <ul>
-<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check).</li>
+<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle).</li>
 <li><strong>Hand checks:</strong> at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).</li>
 <li><strong>Old folders left for you to delete:</strong> none yet.</li>
 </ul>
@@ -46,9 +46,11 @@
 <li><strong>job_search keeps JobRadar's Python</strong> (<code>C:\Chang\Git_projects\Resume\.venv</code>). Nothing new is installed. A module venv with a <code>requirements.txt</code> is noted for later.</li>
 <li><strong>Saved grants move to <code>config/permissions.toml</code></strong> (gitignored, since it holds your paths). The core reads it there, and on the first start copies <code>data/permissions.toml</code> across if the new file is missing. The old file is left in place.</li>
 <li><strong><code>generated/</code></strong> is a gitignored folder at the repo root. The core writes the live module list, the module directory and the installed dependencies there. The module library page stays in the docs build too (the docs need it), and a copy goes to <code>generated/</code>.</li>
+<li><strong>Viewer types leave the core:</strong> <code>ViewerTabsChanged</code>, <code>ViewerClip</code> and <code>ViewerClipDropped</code> become html_viewer's named events (<code>ModuleEvent</code>, <code>html_viewer.*</code>). temp_ui and the SHOW handling call a generic "open a page" slot that any add-on can fill. html_viewer fills it today.</li>
 <li><strong>task_agents helpers don't get their module folder</strong> (item 1): they're generic helpers, several run at once, and none is <code>task_agents</code>' own agent, so <code>request_access(..., own_folder=False)</code>.</li>
 <li><strong>Part 1's cv commit is one commit</strong> (<code>010ecb6</code>): the named events, the job-to-cv events, the cv fixes and the base_ rename share files, so they couldn't be split cleanly.</li>
-<li><strong>Viewer types leave the core:</strong> <code>ViewerTabsChanged</code>, <code>ViewerClip</code> and <code>ViewerClipDropped</code> become html_viewer's named events (<code>ModuleEvent</code>, <code>html_viewer.*</code>). temp_ui and the SHOW handling call a generic "open a page" slot that any add-on can fill. html_viewer fills it today.</li>
+<li><strong>Startup adds what's needed</strong> (item 2): a module in <code>modules.enabled</code> whose <code>needs</code> aren't listed still gets them started (decision 4: on means its needs on too). A missing contract provider still fails startup.</li>
+<li><strong>A needed module that fails at startup skips its dependents</strong> (item 2), with no <code>StartupError</code>: cv waiting on its access card counts as failed at startup, and job_search needing it would otherwise stop the whole app. <code>module.toml</code>'s <code>needs</code> replaces any written in code.</li>
 </ol>
 <h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
 <table>
@@ -126,7 +128,8 @@
   5. Docs: the agent_hub architecture page, <code>docs/architecture/permissions.md</code>, and the comment in <code>config/default.toml</code> ("An agent writing inside this repo can't run while the Main Assistant has a task").</li>
 <li><strong>Done when:</strong> <code>tests/test_module_folders.py::test_module_agent_edits_its_own_folder</code> and the Hub's overlap tests pass; <code>git grep</code> finds no "can't run while the Main Assistant has a task" in the docs or config.</li>
 </ul>
-<h3 id="2-cv-a-needs-list">2. cv: a <code>needs</code> list</h3>
+<h3 id="2-cv-a-needs-list-done-2026-11-13">2. cv: a <code>needs</code> list: <strong>done</strong> (2026-11-13)</h3>
+<p><strong>Checked:</strong> <code>cv/module.toml</code> line 5 is <code>needs = []</code>; <code>Manifest.needs</code> in <code>contracts/module.py</code>; <code>test_cv_declares_needs</code>, <code>test_turning_on_a_module_turns_on_what_it_needs</code>, <code>test_turning_off_a_needed_module_is_refused</code> and <code>test_a_missing_needed_module_is_named</code> pass; full suite 849 passed, 2 deselected; ruff clean. <strong>Needs an app restart.</strong></p>
 <ul>
 <li><strong>What:</strong> <code>modules/cv/module.toml</code> has <code>needs = []</code>, and the core reads <code>needs</code> from every module's manifest.</li>
 <li><strong>Why:</strong> the picture's "dependency list (new)": today <code>requires</code> lists contracts only, so nothing knows that job_search needs cv.</li>

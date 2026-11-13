@@ -58,6 +58,7 @@ class LifecycleManager:
             for cls in self._start_order:
                 self._set(cls.manifest.id, ModuleState.STARTING)
                 try:
+                    self._check_needs(cls.manifest)
                     module, ctx = await self._init_one(cls)
                 except Exception as exc:
                     self._skip(cls.manifest, "initialize", exc)
@@ -67,6 +68,7 @@ class LifecycleManager:
 
             for module, ctx in initialized:
                 try:
+                    self._check_needs(module.manifest)
                     await module.start()
                 except Exception as exc:
                     del self._active[module.manifest.id]
@@ -266,6 +268,13 @@ class LifecycleManager:
             if not result.is_ok:
                 return Result.failed(f"{module_id!r} requires {contract.__name__}: {result.error}")
 
+        for needed in manifest.needs:  # the modules it needs, by id: turned on first
+            if needed not in self._classes:
+                return Result.not_available(f"{module_id!r} needs the module {needed!r}, which doesn't exist")
+            result = await self._activate(needed, (*chain, module_id))
+            if not result.is_ok:
+                return Result.failed(f"{module_id!r} needs {needed!r}: {result.error}")
+
         self._set(module_id, ModuleState.STARTING)
         try:
             module, ctx = await self._init_one(cls, handover)
@@ -321,17 +330,27 @@ class LifecycleManager:
         return None
 
     def _dependents(self, module_id: str) -> list[str]:
-        """Active modules that require something only `module_id` provides, in activation order."""
+        """Active modules that need `module_id` (`needs`) or require something only it provides,
+        in activation order."""
         provided = self._classes[module_id].manifest.provides
         return [
             other
             for other in self._active
             if other != module_id
-            and any(
-                contract in provided and not self._active_provider(contract, excluding=module_id)
-                for contract in self._classes[other].manifest.requires
+            and (
+                module_id in self._classes[other].manifest.needs
+                or any(
+                    contract in provided and not self._active_provider(contract, excluding=module_id)
+                    for contract in self._classes[other].manifest.requires
+                )
             )
         ]
+
+    def _check_needs(self, manifest: Manifest) -> None:
+        """At startup: raise if a module it needs didn't come up (failed or skipped), so it's skipped too."""
+        missing = [needed for needed in manifest.needs if needed not in self._active]
+        if missing:
+            raise RuntimeError(f"it needs {', '.join(map(repr, missing))}, which didn't start")
 
     async def _stop_one(self, module: ModuleProtocol, ctx: ScopedContext) -> None:
         try:

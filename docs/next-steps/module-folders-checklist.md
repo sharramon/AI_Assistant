@@ -1,10 +1,10 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 2 of 20 done** (items 1 and 20).
+**Count: 3 of 20 done** (items 1, 2 and 20).
 
 ## Morning list, kept as the run goes
 
-- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check).
+- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle).
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
 - **Old folders left for you to delete:** none yet.
 
@@ -39,9 +39,11 @@ For you to review. Each picks the option closest to the approved picture.
 6. **job_search keeps JobRadar's Python** (`C:\Chang\Git_projects\Resume\.venv`). Nothing new is installed. A module venv with a `requirements.txt` is noted for later.
 7. **Saved grants move to `config/permissions.toml`** (gitignored, since it holds your paths). The core reads it there, and on the first start copies `data/permissions.toml` across if the new file is missing. The old file is left in place.
 8. **`generated/`** is a gitignored folder at the repo root. The core writes the live module list, the module directory and the installed dependencies there. The module library page stays in the docs build too (the docs need it), and a copy goes to `generated/`.
+9. **Viewer types leave the core:** `ViewerTabsChanged`, `ViewerClip` and `ViewerClipDropped` become html_viewer's named events (`ModuleEvent`, `html_viewer.*`). temp_ui and the SHOW handling call a generic "open a page" slot that any add-on can fill. html_viewer fills it today.
 10. **task_agents helpers don't get their module folder** (item 1): they're generic helpers, several run at once, and none is `task_agents`' own agent, so `request_access(..., own_folder=False)`.
 11. **Part 1's cv commit is one commit** (`010ecb6`): the named events, the job-to-cv events, the cv fixes and the base_ rename share files, so they couldn't be split cleanly.
-9. **Viewer types leave the core:** `ViewerTabsChanged`, `ViewerClip` and `ViewerClipDropped` become html_viewer's named events (`ModuleEvent`, `html_viewer.*`). temp_ui and the SHOW handling call a generic "open a page" slot that any add-on can fill. html_viewer fills it today.
+12. **Startup adds what's needed** (item 2): a module in `modules.enabled` whose `needs` aren't listed still gets them started (decision 4: on means its needs on too). A missing contract provider still fails startup.
+13. **A needed module that fails at startup skips its dependents** (item 2), with no `StartupError`: cv waiting on its access card counts as failed at startup, and job_search needing it would otherwise stop the whole app. `module.toml`'s `needs` replaces any written in code.
 
 ## The safeguards (from the audit, section 4)
 
@@ -74,7 +76,9 @@ For you to review. Each picks the option closest to the approved picture.
   5. Docs: the agent_hub architecture page, `docs/architecture/permissions.md`, and the comment in `config/default.toml` ("An agent writing inside this repo can't run while the Main Assistant has a task").
 - **Done when:** `tests/test_module_folders.py::test_module_agent_edits_its_own_folder` and the Hub's overlap tests pass; `git grep` finds no "can't run while the Main Assistant has a task" in the docs or config.
 
-### 2. cv: a `needs` list
+### 2. cv: a `needs` list: **done** (2026-11-13)
+
+**Checked:** `cv/module.toml` line 5 is `needs = []`; `Manifest.needs` in `contracts/module.py`; `test_cv_declares_needs`, `test_turning_on_a_module_turns_on_what_it_needs`, `test_turning_off_a_needed_module_is_refused` and `test_a_missing_needed_module_is_named` pass; full suite 849 passed, 2 deselected; ruff clean. **Needs an app restart.**
 
 - **What:** `modules/cv/module.toml` has `needs = []`, and the core reads `needs` from every module's manifest.
 - **Why:** the picture's "dependency list (new)": today `requires` lists contracts only, so nothing knows that job_search needs cv.

@@ -193,13 +193,15 @@
 <li>an id in <code>modules.enabled</code> that isn't in the module list, or two modules with the same id</li>
 <li>a manifest listing a type that isn't a contract from <code>assistant.contracts</code></li>
 <li>a <code>requires</code> contract that no enabled module provides</li>
+<li>a module id in a <code>needs</code> list that doesn't exist (the error names it); a bad <code>needs</code> value in a <code>module.toml</code></li>
 <li>a single-provider contract (<code>multiple = False</code>) provided by more than one module</li>
 <li>circular dependencies</li>
 </ul>
-<p>Order: a module comes after every provider of the contracts it <code>requires</code> or lists as <code>optional</code>. Otherwise it keeps its position from <code>modules.enabled</code>.</p>
+<p>A module a selected module <code>needs</code> (<a href="../api/modules.html#manifest"><code>Manifest.needs</code></a>, read from its <code>module.toml</code>) is started too, even if <code>modules.enabled</code> doesn't list it. Order: a module comes after every provider of the contracts it <code>requires</code> or lists as <code>optional</code>, and after every module it <code>needs</code>. Otherwise it keeps its position from <code>modules.enabled</code>.</p>
 <p><strong>Failures while starting</strong> (<code>LifecycleManager</code>):</p>
 <ul>
 <li>If <code>init</code> or <code>start</code> raises, that module's registrations are removed and it is skipped.</li>
+<li>A module whose needed module didn't come up is skipped too.</li>
 <li>Startup is aborted with <code>StartupError</code> only if the failed module provides a contract that another module <code>requires</code> and no other healthy module provides.</li>
 <li><code>stop()</code> is called for every module whose <code>init</code> succeeded, even if its <code>start</code> never ran.</li>
 </ul>
@@ -228,8 +230,8 @@
 <ul>
 <li><strong>Control interface:</strong> three core commands, <a href="../api/control.html"><code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code></a>, plus a <code>ModuleStateChanged</code> event on every transition. The core stays generic: it doesn't know what any module does.</li>
 <li><strong>Who calls it:</strong> a <strong>control panel</strong> UI module, or the Talker when you say "enable the browser module". Both send the same request.</li>
-<li><strong>Activating</strong> a module first activates the provider of each contract it <code>requires</code>, if exactly one module could provide it; if several could, it refuses and asks which. It refuses if the module would be a second provider of a single-provider contract.</li>
-<li><strong>Deactivating</strong> is refused while an active module requires something only this one provides, and the error names them. With <code>with_dependents</code>, those are deactivated first.</li>
+<li><strong>Activating</strong> a module first activates the provider of each contract it <code>requires</code>, if exactly one module could provide it; if several could, it refuses and asks which. It refuses if the module would be a second provider of a single-provider contract. It then activates each module it <code>needs</code>, by id (<code>not_available</code> naming an id that doesn't exist).</li>
+<li><strong>Deactivating</strong> is refused while an active module requires something only this one provides, or needs this one, and the error names them. With <code>with_dependents</code>, those are deactivated first.</li>
 <li><strong>Fresh instance per activation.</strong> Deactivating stops the module and removes everything it registered; activating creates a new instance and runs <code>init</code> and <code>start</code> again. So <code>stop</code> must release everything, and in-memory state doesn't survive (persist it if it must).</li>
 <li><strong>Failures:</strong> a module that fails to activate is marked <code>failed</code> and can be retried; nothing else is affected.</li>
 <li><strong>Transitions finish:</strong> one at a time, and a transition finishes even if the command that asked for it times out. Shutdown waits for it, then stops everything.</li>

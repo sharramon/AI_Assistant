@@ -143,6 +143,7 @@ Solid: built (the mic button's flow, and voice notes v1, which follows its own s
 > **Status:** built, by contract, including the voice contract (2026-11-05).
 
 - **A manifest requires contracts, never module ids** ([principle 2](principles.md)). The core starts the provider first: in dependency order at startup, and at runtime `ActivateModule` activates the sole provider first. It refuses to turn a provider off while an active module requires it ([runtime module control](core.md#runtime-module-control)).
+- **`needs` lists module ids** (built 2026-11-13, module folders item 2): the modules this one can't run without, written in its `module.toml` as `needs = []` (cv) or `needs = ["cv"]` (job_search, next). The core reads the key into `Manifest.needs` when it loads the module. Turning a module on turns on what it needs first (at startup too, even if `modules.enabled` doesn't list it); turning off a needed module is refused while a module that needs it is on, and the error names that module (`with_dependents` turns them off first); a needed id that doesn't exist is refused by name. The code still talks to the other module only through contracts, its menu and named events; `requires` is unchanged.
 - **`optional`** contracts are used if some module provides them, and the module copes without them.
 - **No module starts another itself.** Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.
 - **Voice:** `voice_in` provides the voice contract [`IVoice`](../api/messaging.md#ivoice), and voice notes requires it: turning voice notes on turns `voice_in` on first, and `voice_in` can't be turned off while voice notes is on. Any other module that provides `IVoice` can replace `voice_in`.
@@ -169,6 +170,7 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Wrapper: manifest (id, contracts, permissions), lifecycle, context | Built |
 | Menus: a `Menu` part on the module, linked by the core, called with `InvokeTool` | Built (2026-11-05; the HTML viewer, the echo stand-in) |
 | `requires` / `optional` by contract, dependency order, refusal to stop a needed provider | Built |
+| `needs` by module id, from `module.toml`: turned on first, refused off while needed | Built (2026-11-13) |
 | Reload and add while running | Built (2026-11-03) |
 | Events from one module heard by another (`VoiceTranscript`, `VoiceState`) | Built |
 | `ModuleProtocol`: the one interface, `Module` renamed | Built (2026-11-05) |

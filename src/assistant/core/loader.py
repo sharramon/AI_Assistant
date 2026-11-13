@@ -10,6 +10,7 @@ app_kit) are never reloaded: their classes must stay the same objects.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import logging
 import pkgutil
@@ -79,6 +80,24 @@ def module_defaults(cls: type) -> dict[str, Any]:
         return {}
 
 
+def apply_needs(cls: type[ModuleProtocol]) -> type[ModuleProtocol]:
+    """Put `needs = [...]` from the module's `module.toml` on its manifest (`Manifest.needs`), so the
+    module declares the modules it needs in one place. No `needs` key: the manifest is left as it is.
+    Returns `cls`; LoadError if the value isn't a list of module ids."""
+    defaults = module_defaults(cls)
+    if "needs" not in defaults:
+        return cls
+    needs = defaults["needs"]
+    if not isinstance(needs, list) or not all(isinstance(n, str) for n in needs):
+        raise LoadError(f"{cls.manifest.id!r}: needs in its {MODULE_DEFAULTS} must be a list of module ids, "
+                        f"not {needs!r}")  # fmt: skip
+    try:
+        cls.manifest = dataclasses.replace(cls.manifest, needs=tuple(needs))
+    except ValueError as exc:
+        raise LoadError(str(exc)) from exc
+    return cls
+
+
 def check_reloadable(package: str) -> None:
     """Raise LoadError unless `package` is a module's own package (at least `a.b`, not shared code)."""
     if "." not in package or package in PARENTS:
@@ -137,7 +156,7 @@ def find_module_class(package: ModuleType, module_id: str | None = None) -> type
     if len(found) != 1:
         what = f"module {module_id!r}" if module_id else "a module"
         raise LoadError(f"{prefix!r} must export exactly one class for {what}; found {len(found)}")
-    return found.pop()
+    return apply_needs(found.pop())
 
 
 def check_folder(cls: type[ModuleProtocol], package: str, root: str = MODULES_PACKAGE) -> None:

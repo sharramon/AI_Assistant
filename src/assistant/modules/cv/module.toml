@@ -1,5 +1,9 @@
 # cv's own defaults. `[modules.cv]` in the app's config only overrides them (merged key by key).
 
+# The modules cv can't run without, by id (Manifest.needs; the core turns them on first and
+# refuses to turn one off while cv is on). None: cv talks to the others only through contracts.
+needs = []
+
 # The usual order of the one page.
 section_order = ["contact", "summary", "skills", "experience", "projects", "education", "awards", "publications"]
 # Used only when the job requires or prefers a master's: Education right under Skills.

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 from assistant.contracts import Contract, ModuleProtocol
 from assistant.core.container import allows_another, is_shared_contract
+from assistant.core.loader import LoadError, apply_needs
 
 
 class StartupError(Exception):
@@ -13,14 +14,20 @@ class StartupError(Exception):
 
 
 def resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence[str]) -> list[type[ModuleProtocol]]:
-    """Return the enabled modules in start order: providers before the modules that use them.
+    """Return the enabled modules in start order: providers before the modules that use them, and
+    needed modules (`Manifest.needs`, read from each `module.toml`) before the modules that need them.
+    A needed module that isn't in `enabled` is added: turning a module on turns on what it needs.
 
-    Raises StartupError for unknown or duplicate ids, non-shared contracts,
-    missing required contracts, too many providers of a single-provider
+    Raises StartupError for unknown or duplicate ids, a needed module that doesn't exist (named),
+    non-shared contracts, missing required contracts, too many providers of a single-provider
     contract, or circular dependencies.
     """
     by_id: dict[str, type[ModuleProtocol]] = {}
     for cls in available:
+        try:
+            apply_needs(cls)
+        except LoadError as exc:
+            raise StartupError(str(exc)) from exc
         if cls.manifest.id in by_id:
             raise StartupError(f"Two modules use the id {cls.manifest.id!r}")
         by_id[cls.manifest.id] = cls
@@ -29,6 +36,12 @@ def resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence
     if unknown:
         raise StartupError(f"Enabled modules not found: {', '.join(unknown)}")
     selected = [by_id[module_id] for module_id in dict.fromkeys(enabled)]
+    for cls in selected:  # grows as needed modules are added, so their own needs are added too
+        for needed in cls.manifest.needs:
+            if needed not in by_id:
+                raise StartupError(f"{cls.manifest.id!r} needs the module {needed!r}, which doesn't exist")
+            if by_id[needed] not in selected:
+                selected.append(by_id[needed])
 
     providers: dict[type[Contract], list[type[ModuleProtocol]]] = {}
     for cls in selected:
@@ -56,6 +69,7 @@ def resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence
             for provider in providers.get(contract, [])
             if provider is not cls
         }
+        | {by_id[needed] for needed in cls.manifest.needs}
         for cls in selected
     }
     order: list[type[ModuleProtocol]] = []

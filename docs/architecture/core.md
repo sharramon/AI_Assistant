@@ -160,13 +160,15 @@ flowchart TD
 - an id in `modules.enabled` that isn't in the module list, or two modules with the same id
 - a manifest listing a type that isn't a contract from `assistant.contracts`
 - a `requires` contract that no enabled module provides
+- a module id in a `needs` list that doesn't exist (the error names it); a bad `needs` value in a `module.toml`
 - a single-provider contract (`multiple = False`) provided by more than one module
 - circular dependencies
 
-Order: a module comes after every provider of the contracts it `requires` or lists as `optional`. Otherwise it keeps its position from `modules.enabled`.
+A module a selected module `needs` ([`Manifest.needs`](../api/modules.md#manifest), read from its `module.toml`) is started too, even if `modules.enabled` doesn't list it. Order: a module comes after every provider of the contracts it `requires` or lists as `optional`, and after every module it `needs`. Otherwise it keeps its position from `modules.enabled`.
 
 **Failures while starting** (`LifecycleManager`):
 - If `init` or `start` raises, that module's registrations are removed and it is skipped.
+- A module whose needed module didn't come up is skipped too.
 - Startup is aborted with `StartupError` only if the failed module provides a contract that another module `requires` and no other healthy module provides.
 - `stop()` is called for every module whose `init` succeeded, even if its `start` never ran.
 
@@ -196,8 +198,8 @@ stateDiagram-v2
 
 - **Control interface:** three core commands, [`ListModules`, `ActivateModule`, `DeactivateModule`](../api/control.md), plus a `ModuleStateChanged` event on every transition. The core stays generic: it doesn't know what any module does.
 - **Who calls it:** a **control panel** UI module, or the Talker when you say "enable the browser module". Both send the same request.
-- **Activating** a module first activates the provider of each contract it `requires`, if exactly one module could provide it; if several could, it refuses and asks which. It refuses if the module would be a second provider of a single-provider contract.
-- **Deactivating** is refused while an active module requires something only this one provides, and the error names them. With `with_dependents`, those are deactivated first.
+- **Activating** a module first activates the provider of each contract it `requires`, if exactly one module could provide it; if several could, it refuses and asks which. It refuses if the module would be a second provider of a single-provider contract. It then activates each module it `needs`, by id (`not_available` naming an id that doesn't exist).
+- **Deactivating** is refused while an active module requires something only this one provides, or needs this one, and the error names them. With `with_dependents`, those are deactivated first.
 - **Fresh instance per activation.** Deactivating stops the module and removes everything it registered; activating creates a new instance and runs `init` and `start` again. So `stop` must release everything, and in-memory state doesn't survive (persist it if it must).
 - **Failures:** a module that fails to activate is marked `failed` and can be retried; nothing else is affected.
 - **Transitions finish:** one at a time, and a transition finishes even if the command that asked for it times out. Shutdown waits for it, then stops everything.

@@ -3,16 +3,35 @@ test per finished item, so a done item can't slip back.
 
 Item 1: every module can edit itself by default. A module's own agent asks for a write on its
 own module folder only, and the Hub lets it work beside the Main Assistant's whole-repo grant,
-while two agents on one module folder are still refused, with the folder named."""
+while two agents on one module folder are still refused, with the folder named.
+
+Item 2: a `needs` list. cv's module.toml declares `needs`, the core puts it on the manifest, and
+the lifecycle turns needed modules on first and refuses to turn one off while a module needs it."""
 
 from __future__ import annotations
 
 import asyncio
+import tomllib
 from types import SimpleNamespace
 
-from assistant.contracts import AccessKind, StartTask, Status
+import pytest
+
+from assistant.contracts import (
+    AccessKind,
+    ActivateModule,
+    DeactivateModule,
+    Manifest,
+    ModuleContext,
+    ModuleProtocol,
+    ModuleState,
+    StartTask,
+    Status,
+)
+from assistant.core import App, StartupError, loader
 from assistant.infra import MODULES_FOLDER, access_items, module_folder, module_folder_of, request_access
 from assistant.modules.agent_hub.tasks import folders_clash
+from assistant.modules.cv import CvModule
+from tests.support import make_config
 from tests.test_agent_hub_parts import FakeAgent, Rig
 
 REPO = MODULES_FOLDER.parents[2]
@@ -81,3 +100,76 @@ def test_the_folder_rule() -> None:
     assert folders_clash(str(REPO), str(MODULES_FOLDER)) == "one folder is inside the other"
     # Two modules side by side: no overlap.
     assert folders_clash(str(CV), str(MODULES_FOLDER / "job_search")) is None
+
+
+# Item 2: a needs list.
+
+
+class Base(ModuleProtocol):
+    manifest = Manifest(id="base_part")
+
+    async def init(self, ctx: ModuleContext) -> None:
+        pass
+
+
+class NeedsBase(Base):
+    manifest = Manifest(id="needs_base", needs=("base_part",))
+
+
+class NeedsMissing(Base):
+    manifest = Manifest(id="needs_missing", needs=("no_such_part",))
+
+
+def _states(app: App) -> dict[str, ModuleState]:
+    return {info.id: info.state for info in app._lifecycle.modules()}
+
+
+def test_cv_declares_needs(monkeypatch) -> None:
+    toml = tomllib.loads((CV / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == []
+    assert loader.apply_needs(CvModule).manifest.needs == ()
+    # A module.toml's needs reach the manifest; a wrong value or the module's own id is refused.
+    class FromToml(Base):
+        manifest = Manifest(id="from_toml")
+
+    monkeypatch.setattr(loader, "module_defaults", lambda cls: {"needs": ["base_part"]})
+    assert loader.apply_needs(FromToml).manifest.needs == ("base_part",)
+    for bad in ("base_part", ["from_toml"], [1]):
+        monkeypatch.setattr(loader, "module_defaults", lambda cls, bad=bad: {"needs": bad})
+        with pytest.raises(loader.LoadError):
+            loader.apply_needs(FromToml)
+
+
+async def test_turning_on_a_module_turns_on_what_it_needs() -> None:
+    app = App([Base, NeedsBase], make_config())
+    await app.start()
+    assert (await app.router.send(ActivateModule(module_id="needs_base"))).is_ok
+    assert _states(app) == {"base_part": ModuleState.ACTIVE, "needs_base": ModuleState.ACTIVE}
+    assert list(app._lifecycle._active) == ["base_part", "needs_base"]
+    await app.stop()
+    # At startup too: enabling only the one that needs it starts both, the needed one first.
+    app = App([NeedsBase, Base], make_config("needs_base"))
+    await app.start()
+    assert list(app._lifecycle._active) == ["base_part", "needs_base"]
+    await app.stop()
+
+
+async def test_turning_off_a_needed_module_is_refused() -> None:
+    app = App([Base, NeedsBase], make_config("needs_base"))
+    await app.start()
+    refused = await app.router.send(DeactivateModule(module_id="base_part"))
+    assert refused.status is Status.FAILED and "needs_base" in refused.error
+    assert _states(app)["base_part"] is ModuleState.ACTIVE
+    assert (await app.router.send(DeactivateModule(module_id="base_part", with_dependents=True))).is_ok
+    assert _states(app) == {"base_part": ModuleState.INACTIVE, "needs_base": ModuleState.INACTIVE}
+    await app.stop()
+
+
+async def test_a_missing_needed_module_is_named() -> None:
+    with pytest.raises(StartupError, match="no_such_part"):
+        App([NeedsMissing], make_config("needs_missing"))
+    app = App([NeedsMissing], make_config())
+    await app.start()
+    result = await app.router.send(ActivateModule(module_id="needs_missing"))
+    assert result.status is Status.NOT_AVAILABLE and "no_such_part" in result.error
+    await app.stop()

@@ -106,9 +106,9 @@ A module's menu: the actions an assistant or another module may call. Plain data
 
 **Reusable** · Used by: every module
 
-`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = (), publishes_named: tuple[str, ...] = (), listens_named: tuple[str, ...] = ())`
+`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), needs: tuple[str, ...] = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = (), publishes_named: tuple[str, ...] = (), listens_named: tuple[str, ...] = ())`
 
-Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated [module library](../architecture/module-library.md)). Dependencies are on contracts, never on other modules. `permissions` and `optional_permissions` are declarations: single names aren't checked yet ([`ctx.permissions`](#modulecontextpermissions) allows and logs them). `agent.access` says the module asks for its config's access list with `request_set` when turned on.
+Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated [module library](../architecture/module-library.md)). Code dependencies are on contracts, never on other modules; `needs` only says which modules must be on alongside it. `permissions` and `optional_permissions` are declarations: single names aren't checked yet ([`ctx.permissions`](#modulecontextpermissions) allows and logs them). `agent.access` says the module asks for its config's access list with `request_set` when turned on.
 
 **Fields**
 | Name | Type | Required | Description |
@@ -118,6 +118,7 @@ Frozen dataclass describing a module: who it is, what it needs, and its inputs a
 | `requires` | `tuple[type[Contract], ...]` | no | Contracts that must be provided by an enabled module, or startup fails |
 | `optional` | `tuple[type[Contract], ...]` | no | Contracts used if present; only affects start order |
 | `uses` | `tuple[type[Contract], ...]` | no | Contracts looked up at each call that may be missing, with **no** start order: for a provider that itself uses this module (the Hub's `IModuleDoor` and `IAgentNames`, used by the agents the Hub lists as optional), where `optional` would make a cycle (built 2026-11-08) |
+| `needs` | `tuple[str, ...]` | no | Ids of the modules it can't run without (job_search needs cv). Turning it on turns them on first, at startup too; turning one off is refused while it's on, naming it. Usually set in the module's `module.toml` (`needs = [...]`): when the file has the key, the core puts it here as the module is loaded (`loader.apply_needs`). A needed id that doesn't exist fails startup (`StartupError`, the id named) or the activation (`not_available`). Not its own id (built 2026-11-13) |
 | `permissions` | `tuple[str, ...]` | no | [Permission names](../architecture/permissions.md#permission-names) the module can't run without |
 | `optional_permissions` | `tuple[str, ...]` | no | Permissions it asks for in the moment; without them a feature is off (`voice_in`: `("microphone",)`) |
 | `description` | `str` | no (every module in the app sets it) | One line saying what it does, for the directory and the module library |
