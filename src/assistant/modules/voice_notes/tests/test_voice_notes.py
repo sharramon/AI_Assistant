@@ -19,9 +19,9 @@ from assistant.contracts import (
 )
 from assistant.core import App, StartupError
 from assistant.modules.temp_ui import TempUIModule
+from assistant.modules.voice_in.tests.test_voice_in import CHUNK, TEXT, Probe, Recorder, Service
 from assistant.modules.voice_notes import VoiceNotesModule
-from tests.test_temp_ui import FakeVoiceIn, next_item, post, request
-from tests.test_voice_in import CHUNK, TEXT, Probe, Recorder, Service
+from assistant.testkit import FakeVoiceIn, next_item, post, request
 
 
 def port_of(app: App, module_id: str) -> int:

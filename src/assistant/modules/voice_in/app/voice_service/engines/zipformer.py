@@ -47,7 +47,7 @@ class ZipformerEngine(SttEngine):
         try:
             import sherpa_onnx
         except ImportError as exc:
-            raise EngineError(f"sherpa-onnx is not installed ({exc}); run: pip install -e .[voice]") from exc
+            raise EngineError(f"sherpa-onnx is not installed ({exc}); run: pip install the packages in voice_in's module.toml") from exc
         self._recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
             tokens=str(files["tokens"]),
             encoder=str(files["encoder"]),

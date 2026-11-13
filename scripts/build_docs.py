@@ -401,7 +401,9 @@ def module_classes() -> list[type]:
     import tomllib
 
     from assistant.contracts import ModuleProtocol
+    from assistant.core.loader import add_app_folders
 
+    add_app_folders()  # as the core does: a module may import its own app's package (voice_in: voice_service.protocol)
     folder = ROOT / "src" / "assistant" / "modules"
     found = {}
     for package in sorted(p.name for p in folder.iterdir() if (p / "__init__.py").is_file()):

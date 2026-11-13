@@ -361,7 +361,7 @@
 <td>classes</td>
 <td>Audio from a list or a WAV file; an engine that reveals a set text. Test and offline-check doubles</td>
 <td><code>voice_service/audio.py</code>, <code>voice_service/engines/fake.py</code></td>
-<td><code>tests/test_voice_service.py</code>, <code>tests/test_voice_in.py</code> (the real service app on a local port), offline engine checks (<code>FakeSource.from_wav</code>); the engine comparison (step 7, <em>planned</em>)</td>
+<td>voice_in's <code>tests/test_voice_service.py</code> and <code>tests/test_voice_in.py</code> (the real service app on a local port), offline engine checks (<code>FakeSource.from_wav</code>); the engine comparison (step 7, <em>planned</em>)</td>
 </tr>
 </tbody>
 </table>
@@ -615,6 +615,13 @@
 <td>The config a module sees (its <code>module.toml</code> under a section, with the core's reader); a bare module standing in for one another <code>needs</code>; a free local port</td>
 <td><code>testkit/support.py</code></td>
 <td><code>job_search</code> (<code>test_job_search.py</code>), <code>html_viewer</code> (<code>test_html_viewer.py</code>, <code>free_port</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code> (<code>module_config</code>, <code>stand_in</code>)</td>
+</tr>
+<tr>
+<td><a href="testkit.html#pages-and-a-voice_in-stand-in"><code>request</code>, <code>post</code>, <code>next_item</code>, <code>FakeVoiceIn</code></a></td>
+<td>functions, fake</td>
+<td>Talk to a module's local page over raw HTTP (send, post JSON, the next matching <code>/events</code> item); a voice_in stand-in answering the mic commands and <code>IVoice</code></td>
+<td><code>testkit/pages.py</code></td>
+<td><code>test_temp_ui</code>, <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code> and <code>request</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code>, <code>test_viewer_listeners</code> (through <code>test_temp_ui</code>)</td>
 </tr>
 <tr>
 <td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>FAKE</code>, <code>FAKE_JOB_UI</code>, <code>TIMEOUT</code></a></td>

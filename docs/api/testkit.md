@@ -8,7 +8,7 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 
 ## Helpers
 
-**Reusable** · Used by: almost every central test; `cv` (`test_worker.py`: `pre_grant`, `wait_until`), `agent_hub` (`test_gate.py`: `wait_until`), `echo_orchestrator` (`test_echo.py`: `make_config`), `job_search` (`test_job_search.py`: `pre_grant`, `module_config`, `stand_in`, `free_port`, `wait_until`); `module_config` and `stand_in` also `test_access_cards`, `test_agent_names`, `test_agent_tabs`
+**Reusable** · Used by: almost every central test; `cv` (`test_worker.py`: `pre_grant`, `wait_until`), `agent_hub` (`test_gate.py`: `wait_until`), `echo_orchestrator` (`test_echo.py`: `make_config`), `job_search` (`test_job_search.py`: `pre_grant`, `module_config`, `stand_in`, `free_port`, `wait_until`), `voice_in` (`test_voice_in.py`: `free_port`, `wait_until`), `test_companion_reload`, `test_swap_every_module` (`free_port`); `module_config` and `stand_in` also `test_access_cards`, `test_agent_names`, `test_agent_tabs`
 
 | Item | Does |
 |------|------|
@@ -19,10 +19,23 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 | `pre_grant(app, module_id, subject, config, own_folder=None)` | Save a grant for `config`'s whole access list, so `module_id` turns on with no card. `own_folder`: the list has the module's own folder (default: every module but `task_agents`). Give it the config the module sees: for a module with defaults, `module_config(module_id, section)` |
 | `module_config(module_id, section=None) -> dict` | The config a module sees, built as the core builds it: its `module.toml` defaults (read with the core's `loader.module_defaults`) with `section` merged over them |
 | `stand_in(module_id) -> type` | A bare module class with that id and nothing else, standing in for a module another one `needs` (job_search needs cv), so a test starts the one under test without the real one |
-| `free_port() -> int` | A free TCP port on 127.0.0.1, for a test server (some central tests still keep their own copy) |
+| `free_port() -> int` | A free TCP port on 127.0.0.1, for a test server |
 | `pre_grant_kinds(app, module_config, module_id="task_agents")` | Pre-grant every kind of a `task_agents` config |
 
 **Defined in:** `src/assistant/testkit/support.py`
+
+## Pages and a voice_in stand-in
+
+**Reusable** · Used by: `test_temp_ui`, `voice_notes` (`test_voice_notes.py`); `post` and `request` also `test_access_cards`, `test_agent_tabs`, `test_permission_mode`, `test_viewer_listeners`
+
+| Item | Does |
+|------|------|
+| `await request(port, raw) -> (reader, writer)` | Send raw HTTP bytes to `127.0.0.1:port`; the open stream |
+| `await post(port, path, body) -> dict` | POST `body` as JSON; the JSON answer |
+| `await next_item(reader, match) -> dict` | The next item on an open `/events` stream that `match` accepts, within 2 s |
+| `FakeVoiceIn` | A module with id `voice_in` that answers `StartListening` / `StopListening` and `IVoice` with the events voice_in publishes (no voice service); `fail` makes the next start fail |
+
+**Defined in:** `src/assistant/testkit/pages.py` (moved from `tests/test_temp_ui.py`, 2026-11-13)
 
 ## The fake `claude` and agent fakes
 

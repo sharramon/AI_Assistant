@@ -51,7 +51,7 @@
 <ul>
 <li><strong>Launches the voice service</strong> on the first mic click, through <a href="../../api/app_kit.html#companionapp"><code>CompanionApp</code></a> (<code>python -m voice_service</code>, port 8767), and quits it when the module stops. A service you started yourself is left running. <strong>On a reload</strong> the running service is handed to the new copy (no model reload), unless the service's own code changed: then it's quit, and the next mic click launches the new code.</li>
 <li><strong>One mic session at a time</strong>, one WebSocket each. The second press wins: a new <code>StartListening</code> ends the open one with <code>VoiceState(idle, reason="taken_over")</code> and an empty final.</li>
-<li><strong>The service owns</strong> the mic (<code>MicSource</code>, or <code>FileSource</code> / <code>FakeSource</code>), the engines (Zipformer for live text, whisper for the sent text, or two passes cleaned piece by piece by <code>PieceCutter</code>), and mic-drop recovery. Its config is <code>config/voice_service.toml</code>.</li>
+<li><strong>The service owns</strong> the mic (<code>MicSource</code>, or <code>FileSource</code> / <code>FakeSource</code>), the engines (Zipformer for live text, whisper for the sent text, or two passes cleaned piece by piece by <code>PieceCutter</code>), and mic-drop recovery. Its defaults are <code>app/voice_service/voice_service.toml</code>, beside its code.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
 <pre><code class="language-mermaid">flowchart LR

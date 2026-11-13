@@ -1,0 +1,25 @@
+# voice_in's own defaults. `[modules.voice_in]` in the app's config only overrides them (merged key by key).
+
+# The modules voice_in can't run without, by id (Manifest.needs): none.
+needs = []
+
+# The pip packages voice_in needs beyond the app's own (Manifest.packages): the voice service app's
+# (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) and this module's client (websockets).
+# Nothing installs them: install them by hand with pip from this list.
+packages = ["fastapi>=0.110", "uvicorn>=0.29", "sherpa-onnx>=1.10", "faster-whisper>=1.2", "sounddevice>=0.4.6", "websockets>=12"]
+
+# Voice input (on: the temp UI's mic button sends it StartListening / StopListening): launches the voice service
+# (its own app, app/voice_service in this folder, `python -m voice_service`) on the first mic click and quits it
+# with the app (one you started yourself is left running). The service's own settings, such as how long it
+# waits for a dropped mic, are in app/voice_service/voice_service.toml (override them in voice_service.local.toml
+# beside it). Its command timeouts (StartListening, StopListening) stay in config/default.toml's [core.command_timeouts].
+host = "127.0.0.1"
+port = 8767
+start_timeout = 20.0      # seconds for the service to answer /health after launching it
+service_config = ""       # optional path passed to the service as --config
+reply_timeout = 10.0      # seconds to wait for the service's `started` after start, and its final text after stop
+live_text = true          # false = the text appears when you stop, even with a live engine (whisper is always on send)
+final_timeout_on_send = 90.0  # seconds to wait for the final when the text comes on send (whisper decodes it all at the stop)
+cleanup = true            # sentence case for the engine's all-caps text, one end mark per final; cased text (whisper) keeps its case (false = raw text)
+# Words the cleanup writes back as given instead of lowercasing; set your own list in config/local.toml.
+terms = ["Isaac Sim", "USD", "glTF", "Unity", "Unitree", "Zipformer"]

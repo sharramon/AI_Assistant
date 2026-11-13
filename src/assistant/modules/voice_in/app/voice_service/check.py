@@ -1,6 +1,6 @@
 """`python -m voice_service check`: is this machine ready to listen?
 
-Checks, in order, and prints one line each: the voice extra, Windows' mic privacy switches,
+Checks, in order, and prints one line each: the voice packages, Windows' mic privacy switches,
 the input devices, the model (loaded, timed), and a few seconds of the real mic through
 `MicSource` (open time, first audio, level). With the model loaded, it also transcribes what
 it heard, so speaking during the check shows the whole path. Reads only; changes nothing.
@@ -84,9 +84,9 @@ def run_check(config: ServiceConfig, seconds: float = 3.0, model: bool = True, o
         import sherpa_onnx  # noqa: F401
         import sounddevice as sd
     except (ImportError, OSError) as exc:
-        out(f"[fail] voice extra: {exc}. Install it: pip install -e .[voice]")
+        out(f"[fail] voice packages: {exc}. Install them: pip install the packages in voice_in's module.toml")
         return False
-    out(f"[ok]   voice extra: sounddevice {sd.__version__}, PortAudio {sd.get_portaudio_version()[1]}")
+    out(f"[ok]   voice packages: sounddevice {sd.__version__}, PortAudio {sd.get_portaudio_version()[1]}")
 
     privacy = mic_privacy()
     if privacy:

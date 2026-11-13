@@ -30,7 +30,7 @@ class WhisperEngine(SttEngine):
         try:
             from faster_whisper import WhisperModel
         except ImportError as exc:
-            raise EngineError(f"faster-whisper is not installed ({exc}); run: pip install -e .[voice]") from exc
+            raise EngineError(f"faster-whisper is not installed ({exc}); run: pip install the packages in voice_in's module.toml") from exc
         if not (self.model_dir / "model.bin").is_file():
             raise EngineError(f"speech model not installed: {self.model_dir} has no model.bin; {HINT}")
         self._model = WhisperModel(

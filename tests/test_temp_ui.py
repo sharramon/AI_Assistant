@@ -10,7 +10,6 @@ from assistant.contracts import (
     AgentState,
     FocusChanged,
     InputReceived,
-    IVoice,
     ListAgents,
     ListeningState,
     Manifest,
@@ -22,19 +21,17 @@ from assistant.contracts import (
     ResponseReady,
     Result,
     SetFocus,
-    StartListening,
-    Status,
     StopListening,
     TaskInfo,
     TaskState,
     TaskUpdated,
-    VoiceDestination,
     VoiceState,
     VoiceTranscript,
 )
 from assistant.core import App
 from assistant.modules.temp_ui import TempUIModule
 from assistant.modules.temp_ui.module import CHAT_HISTORY, reset_target
+from assistant.testkit import FakeVoiceIn, next_item, post, request
 
 
 def test_reset_buttons_reset_the_pair_of_the_tab_you_are_in():
@@ -64,13 +61,6 @@ async def test_reset_post_publishes_for_the_helper_tab():
             assert (await resets.get()).agent_id == "talker:cv_agent"
     finally:
         await app.stop()
-
-
-async def request(port: int, raw: bytes) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-    reader, writer = await asyncio.open_connection("127.0.0.1", port)
-    writer.write(raw)
-    await writer.drain()
-    return reader, writer
 
 
 async def read_events(port: int, count: int) -> list[dict]:
@@ -136,77 +126,6 @@ async def test_page_input_and_events():
         assert [(i["pane"], i["kind"]) for i in items] == [("worker", "tool"), ("talker", "you"), ("talker", "talker")]
     finally:
         await app.stop()
-
-
-class _FakeVoice(IVoice):
-    """The fake's IVoice: the same sessions as its commands; finish ends only its own id."""
-
-    def __init__(self, fake: "FakeVoiceIn") -> None:
-        self.fake = fake
-
-    async def listen(self, session_id, destination=VoiceDestination.CALLER):
-        return await self.fake.listen(StartListening(id=session_id, send_as_input=destination == VoiceDestination.TALKER))
-
-    async def finish(self, session_id, discard=False):
-        if self.fake.session != session_id:
-            return Result.ok({"text": "", "ended": True})
-        return await self.fake.stop_listening(StopListening(discard=discard))
-
-
-class FakeVoiceIn(ModuleProtocol):
-    """Stands in for voice_in: answers the two commands and IVoice with the events voice_in publishes."""
-
-    manifest = Manifest(id="voice_in", provides=(IVoice,), handles=(StartListening, StopListening))
-
-    async def init(self, ctx: ModuleContext) -> None:
-        self.ctx, self.session, self.commands = ctx, None, []
-        self.fail: tuple[str, str] | None = None  # (reason, detail): the next start fails so
-        ctx.handle(StartListening, self.listen)
-        ctx.handle(StopListening, self.stop_listening)
-        ctx.provide(IVoice, _FakeVoice(self))
-
-    async def listen(self, command: StartListening) -> Result:
-        self.commands.append(command)
-        self.session = command.id
-        self.ctx.publish(VoiceState(state=ListeningState.STARTING, correlation_id=command.id))
-        if self.fail:
-            reason, detail = self.fail
-            self.ctx.publish(VoiceState(state=ListeningState.FAILED, reason=reason, detail=detail, correlation_id=command.id))
-            self.session = None
-            return Result(status=Status.NOT_AVAILABLE, error=detail, retryable=True)
-        self.ctx.publish(VoiceState(state=ListeningState.LISTENING, correlation_id=command.id))
-        return Result.ok({"session_id": command.id})
-
-    async def stop_listening(self, command: StopListening) -> Result:
-        self.commands.append(command)
-        sid = self.session
-        if sid is None:
-            return Result.ok(None)
-        if command.discard:
-            self.ctx.publish(VoiceTranscript(session_id=sid, text="", final=True, correlation_id=sid))
-            self.ctx.publish(VoiceState(state=ListeningState.IDLE, reason="cleared", detail="cleared", correlation_id=sid))
-            return Result.ok({"text": "", "discarded": True})
-        self.ctx.publish(VoiceTranscript(session_id=sid, text="hello there", final=True, correlation_id=sid))
-        self.ctx.publish(InputReceived(text="hello there", source="voice"))
-        self.ctx.publish(VoiceState(state=ListeningState.IDLE, correlation_id=sid))
-        return Result.ok({"text": "hello there", "latency_ms": 50})
-
-
-async def post(port: int, path: str, body: dict) -> dict:
-    data = json.dumps(body).encode()
-    reader, writer = await request(port, b"POST %s HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (path.encode(), len(data), data))
-    raw = await reader.read()
-    writer.close()
-    return json.loads(raw.split(b"\r\n\r\n", 1)[1])
-
-
-async def next_item(reader: asyncio.StreamReader, match) -> dict:
-    """The next item on an open /events stream for which `match(item)` is true."""
-    async with asyncio.timeout(2):
-        while True:
-            line = await reader.readline()
-            if line.startswith(b"data: ") and match(item := json.loads(line[6:])):
-                return item
 
 
 def voice(state: str):

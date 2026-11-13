@@ -27,7 +27,7 @@ Speech to text, so you can talk to the assistant instead of typing. It's **Voice
 > | **whisper `small.en`** (default) | **1.19 s** | **1.62 s** | **5.17 s** | 1.0 s |
 > | whisper `distil-large-v3.5` | 3.72 s | 3.85 s | 8.28 s | 2.8 s |
 >
-> Whisper's text was correct, cased and punctuated; the Zipformer's correct, in capitals. The swap was tried by hand on the real service: an `[audio]` change left it running; changing `[engine] name` logged "engine changed: fake → zipformer; restarting" and exited in 1.2 s, and the relaunch came up with the new engine. Your check after an app restart: set `[engine] name = "whisper"` in `config/voice_service.local.toml`, talk, stop, and see the text arrive on send.
+> Whisper's text was correct, cased and punctuated; the Zipformer's correct, in capitals. The swap was tried by hand on the real service: an `[audio]` change left it running; changing `[engine] name` logged "engine changed: fake → zipformer; restarting" and exited in 1.2 s, and the relaunch came up with the new engine. Your check after an app restart: set `[engine] name = "whisper"` in `voice_service.local.toml` (beside the service's `voice_service.toml`), talk, stop, and see the text arrive on send.
 >
 > **Built: two passes, chunked whisper** (2026-11-03): the Zipformer fills the live line while you talk; at each pause the audio so far becomes a piece that whisper cleans in the background, and its text replaces the rough words. On stop only the last piece is left, and whisper's joined text is sent. It's now the default (`[engine] final = "whisper"`). Design: [Two passes](#two-passes-live-text-cleaned-piece-by-piece). Measured with both real models over the test recordings fed at speech speed: on 49.8 s of speech in 4 pieces, CPU averaged 3.5 of 24 cores (2.8 with the Zipformer alone), peaking near 11; live words came at most 47 ms later than without whisper; never more than one piece waited; the wait after stop was **1.7 s** on `small.en` (0.7 s on `base.en`). Pass.
 
@@ -244,7 +244,7 @@ Written down so other apps can use it. It names no models and nothing about the 
 - **`send_as_input: bool = True`** on `StartListening` (decided 2026-11-02): with `False` (dictating into a text box, say), the text goes only to `VoiceTranscript` subscribers, never to the Talker.
 - **Where you see the text:** while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.
 - **Config:** `[modules.voice_in]` (`host`, `port`, `start_timeout`, `service_config`, `reply_timeout`, `live_text`, `final_timeout_on_send`), on (in `[modules] enabled` since step 4); the service has its own config file for the engine and model path, read with the shared [`app_kit.load_layered`](../../../../../docs/api/app_kit.md#load_layered) ([details](#the-voice-service-config)).
-- **Dependencies** (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) go in an optional `voice` extra, so the app installs without them. Model files download once.
+- **Dependencies** (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) are listed in voice_in's `module.toml` (`packages`; until 2026-11-13 the optional `voice` extra), so the app installs without them. Model files download once.
 
 ## The mic permission
 
@@ -294,7 +294,7 @@ flowchart LR
 ### The voice service: files and classes
 
 ```
-src/voice_service/          # never imports assistant
+src/assistant/modules/voice_in/app/voice_service/   # never imports assistant
 ├── __init__.py
 ├── __main__.py             # CLI: `python -m voice_service [--config F] [--host H] [--port P]`
 │                           #      `python -m voice_service download <zipformer|whisper> [--model small.en]`
@@ -404,7 +404,7 @@ classDiagram
 
 ### The voice service: config
 
-Its own TOML file, read with the shared [`app_kit.load_layered`](../../../../../docs/api/app_kit.md#load_layered) (revised 2026-11-02; no loader of its own, and still no `assistant` import): `config/voice_service.toml` in the repo, overridden by `config/voice_service.local.toml` (not committed), then by command-line flags. `--config` points at another file.
+Its own TOML file, read with the shared [`app_kit.load_layered`](../../../../../docs/api/app_kit.md#load_layered) (revised 2026-11-02; no loader of its own, and still no `assistant` import): `voice_service.toml` beside its code (`voice_in/app/voice_service/`; in `config/` until 2026-11-13), overridden by `voice_service.local.toml` next to it (not committed), then by command-line flags. `--config` points at another file.
 
 ```toml
 [server]
@@ -534,7 +534,7 @@ The wait for a dropped mic is the service's setting (`[audio] mic_recovery_secon
 - **Logging:** each session logs its start (the stand-in logs the permission warning), the final's length, `latency_ms`, and how it ended, plus one line with the raw and the cleaned final (`raw: '…' -> clean: '…'`); the service's `detail` on every error. The service's own log has the audio length and the text (the protocol doesn't carry the audio length, so `voice_in` doesn't log it).
 - **`stop()`** (app shutdown or deactivation): abort an open session (close the socket, no `InputReceived`), then `CompanionApp.stop()`: only if this module launched the service, `POST /quit`, wait 5 s, then kill.
 - **Reload** ([`ReloadModule`](../../../../../docs/architecture/core.md#reloading-a-modules-code), built 2026-11-03): `export_state()` hands its `CompanionApp` and its key (service, host, port, args) to the new code, so `stop()` leaves the voice app running and the new `init` reuses it if the key matches. An open mic session still ends and its words are dropped; the chat and the Talker aren't touched. While it swaps, the temp UI's mic is crossed out with the reason.
-- **The `websockets` client** is in the optional `voice` extra and imported in `init`; without it the module fails to start with "install the voice extra: pip install -e .[voice]", and the rest of the app runs.
+- **The `websockets` client** is in voice_in's `packages` (`module.toml`) and imported in `init`; without it the module fails to start with "voice_in needs its packages: pip install the packages in voice_in's module.toml", and the rest of the app runs.
 
 ```mermaid
 sequenceDiagram
@@ -581,7 +581,7 @@ sequenceDiagram
     V-->>U: VoiceState(idle)
 ```
 
-**The tests** (`tests/test_voice_in.py`) run this flow against the real service app with `FakeEngine` and `FakeSource`, under Uvicorn on a free local port in a thread (no mic, no model). They cover every row of [the errors](#the-voice_in-module-how-errors-reach-the-button) and the mic drop. A small stub of `CompanionApp` checks which calls the health check makes.
+**The tests** (`voice_in/tests/test_voice_in.py`) run this flow against the real service app with `FakeEngine` and `FakeSource`, under Uvicorn on a free local port in a thread (no mic, no model). They cover every row of [the errors](#the-voice_in-module-how-errors-reach-the-button) and the mic drop. A small stub of `CompanionApp` checks which calls the health check makes.
 
 #### The voice_in module: how errors reach the button
 

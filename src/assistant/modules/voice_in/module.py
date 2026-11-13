@@ -1,6 +1,7 @@
 """Voice input's handle in the app: the thin module in front of the voice service.
 
-The voice service is its own app (`src/voice_service`, run alone with `python -m voice_service`).
+The voice service is its own app (`app/voice_service` in this module's folder, which the core puts
+on the import path; run it alone with `python -m voice_service` and that folder on `PYTHONPATH`).
 This module imports nothing from it but `protocol`. It launches the service on the first mic
 click (through `CompanionApp`), opens one WebSocket per mic session, and relays:
 `StartListening` / `StopListening` in; `VoiceState` / `VoiceTranscript` out; and, with
@@ -119,7 +120,7 @@ class VoiceInModule(ModuleProtocol):
         try:
             from websockets.asyncio.client import connect
         except ImportError as exc:
-            raise RuntimeError("voice_in needs the voice extra: pip install -e .[voice]") from exc
+            raise RuntimeError("voice_in needs its packages: " + "pip install the packages in voice_in's module.toml") from exc
         self._connect = connect
         self._ctx = ctx
         host = ctx.config.get("host", "127.0.0.1")

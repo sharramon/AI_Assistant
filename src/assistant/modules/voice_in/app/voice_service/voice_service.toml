@@ -1,6 +1,6 @@
-# The voice service's config (src/voice_service). Override any value in
-# config/voice_service.local.toml (not committed), or with --config, --host, --port.
-# Spec: docs/architecture/voice.md#the-voice-service-config
+# The voice service's defaults, beside its code (voice_in's app/voice_service). Override any value in
+# voice_service.local.toml next to this file (not committed), or with --config, --host, --port.
+# Spec: src/assistant/modules/voice_in/docs/voice-service.md#the-voice-service-config
 
 [server]
 host = "127.0.0.1"

@@ -26,7 +26,11 @@ Item 7: job_search's defaults, needs and tests are in its folder. Its module.tom
 
 Item 8: html_viewer's app, events and tests are in its folder. The viewer app is `html_viewer/app/html_viewer/`
 (launched by folder), its defaults and `needs` are in its module.toml, its three event types left the
-contracts (its named events now, heard by name), its tests left `tests/`, and pyproject.toml names it no more."""
+contracts (its named events now, heard by name), its tests left `tests/`, and pyproject.toml names it no more.
+
+Item 9: voice_in's app, packages and tests are in its folder. The voice service is `voice_in/app/voice_service/`
+(launched by folder) with its defaults `voice_service.toml` beside its code, voice_in's defaults and `packages`
+are in its module.toml (the `voice` extra and the script entry left pyproject.toml), and no `tests/test_voice*` is left."""
 
 from __future__ import annotations
 
@@ -236,8 +240,8 @@ async def test_a_free_pick_never_lands_on_a_named_only_agent() -> None:
 
 # Item 4: the CV Tool app in cv's folder.
 
-# Where companion apps used to live, outside their module. Item 9 adds src/voice_service.
-OLD_APPS = ["src/cv_tool", "src/html_viewer"]
+# Where companion apps used to live, outside their module.
+OLD_APPS = ["src/cv_tool", "src/html_viewer", "src/voice_service"]
 CV_APP = CV / "app"
 
 
@@ -341,10 +345,12 @@ def test_only_tests_import_the_testkit() -> None:
 # Item 6: cv's packages and ruff rule in its folder.
 
 # Modules whose packages, extra and ruff rules have left pyproject.toml: the extra's name, a package
-# name for each of its packages, and its app's name if pyproject.toml must not name it at all (or None).
-# Item 9 adds voice_in's ("voice").
+# name for each of its packages, its app's name if pyproject.toml must not name it at all (or None), and
+# whether it has ruff rules of its own (a ruff.toml in its folder).
 MOVED_OUT = {
-    "cv": SimpleNamespace(extra="cv", packages=["pymupdf"], app="cv_tool"),
+    "cv": SimpleNamespace(extra="cv", packages=["pymupdf"], app="cv_tool", ruff=True),
+    "voice_in": SimpleNamespace(extra="voice", app="voice_service", ruff=False,
+                                packages=["fastapi", "uvicorn", "sherpa-onnx", "faster-whisper", "sounddevice", "websockets"]),
 }
 
 
@@ -366,6 +372,9 @@ def test_no_module_package_in_pyproject() -> None:
         assert cls.manifest.packages == tuple(listed)
         assert all(any(r.lower().startswith(p) for r in listed) for p in moved.packages)
         # Its ruff rules extend the root config, so every root setting still applies in its folder.
+        if not moved.ruff:
+            assert not (folder / "ruff.toml").exists()
+            continue
         ruff = tomllib.loads((folder / "ruff.toml").read_text(encoding="utf-8"))
         assert (folder / ruff["extend"]).resolve() == root.resolve()
     assert "cvlib.py" in str(tomllib.loads((CV / "ruff.toml").read_text(encoding="utf-8"))["lint"]["per-file-ignores"])
@@ -450,3 +459,34 @@ def test_html_viewer_app_defaults_and_tests_are_in_its_folder() -> None:
     assert not (REPO / "tests" / "test_html_viewer.py").exists()
     pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
     assert "html_viewer" not in pyproject and "html-viewer" not in pyproject
+
+
+# Item 9: voice_in's app, packages and tests in its folder.
+
+VOICE_IN = MODULES_FOLDER / "voice_in"
+
+
+def test_voice_in_app_packages_and_tests_are_in_its_folder() -> None:
+    toml = tomllib.loads((VOICE_IN / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == [] and toml["port"] == 8767 and toml["terms"]  # its defaults are here
+    assert any(p.startswith("websockets") for p in toml["packages"])
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert "voice_in" not in default["modules"]
+    # The service in its folder, its defaults beside its code, found by folder and launched from there.
+    app = VOICE_IN / "app"
+    assert (app / "voice_service" / "__main__.py").is_file() and not (app / "__init__.py").exists()
+    assert (app / "voice_service" / "voice_service.toml").is_file()
+    assert not (REPO / "config" / "voice_service.toml").exists()
+    from voice_service.config import DEFAULT_CONFIG
+
+    assert DEFAULT_CONFIG == app / "voice_service" / "voice_service.toml"
+    assert app in loader.app_folders() and package_root("voice_service") == app
+    base = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    child = subprocess.run([sys.executable, "-m", "voice_service", "--help"], env=launch_env("voice_service", base),
+                           capture_output=True, text=True, timeout=60, check=True)  # fmt: skip
+    assert "speech to text" in child.stdout.lower()
+    # Its tests are in its folder (voice_notes' in voice_notes'), none left central; no script entry.
+    assert (VOICE_IN / "tests" / "test_voice_in.py").is_file()
+    assert (MODULES_FOLDER / "voice_notes" / "tests" / "test_voice_notes.py").is_file()
+    assert not list((REPO / "tests").glob("test_voice*")) and not (REPO / "tests" / "voice_client.py").exists()
+    assert "voice-service" not in (REPO / "pyproject.toml").read_text(encoding="utf-8")

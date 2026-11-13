@@ -29,7 +29,7 @@ One copy of the Edge app-window code, merged from `assistant/infra/app_window.py
 
 ## `load_layered`
 
-**Reusable** · Used by: [`assistant.infra.load_config`](infra.md#load_config) (as a thin wrapper), `voice_service` (`config.py`: `config/voice_service.toml` and its `.local.toml`)
+**Reusable** · Used by: [`assistant.infra.load_config`](infra.md#load_config) (as a thin wrapper), `voice_service` (`config.py`: `voice_service.toml` beside its code and its `.local.toml`)
 
 `load_layered(base: str | Path, local: str | Path | None = None) -> dict[str, Any]`
 
@@ -144,4 +144,4 @@ Pair it with JSON-only POSTs (a web page can't send JSON cross-site without the 
     if not local_request(headers.get("host"), headers.get("origin")):
         return 403  # or close the WebSocket with 1008
 
-**Defined in:** `src/app_kit/local_guard.py` · **Tests:** `tests/test_app_kit.py`, `tests/test_voice_service.py`, `tests/test_html_viewer.py`
+**Defined in:** `src/app_kit/local_guard.py` · **Tests:** `tests/test_app_kit.py`, voice_in's `tests/test_voice_service.py`, html_viewer's `tests/test_html_viewer.py`

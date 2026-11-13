@@ -72,7 +72,7 @@ def _fetch_whisper(size: str, dest: Path) -> None:
     try:
         from faster_whisper import download_model as fetch
     except ImportError as exc:
-        raise RuntimeError(f"faster-whisper is not installed ({exc}); run: pip install -e .[voice]") from exc
+        raise RuntimeError(f"faster-whisper is not installed ({exc}); run: pip install the packages in voice_in's module.toml") from exc
     log.info("downloading whisper %s", size)
     fetch(size, output_dir=str(dest))
 

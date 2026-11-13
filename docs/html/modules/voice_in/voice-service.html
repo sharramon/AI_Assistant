@@ -65,7 +65,7 @@
 </tr>
 </tbody>
 </table>
-<p>Whisper's text was correct, cased and punctuated; the Zipformer's correct, in capitals. The swap was tried by hand on the real service: an <code>[audio]</code> change left it running; changing <code>[engine] name</code> logged "engine changed: fake → zipformer; restarting" and exited in 1.2 s, and the relaunch came up with the new engine. Your check after an app restart: set <code>[engine] name = "whisper"</code> in <code>config/voice_service.local.toml</code>, talk, stop, and see the text arrive on send.</p>
+<p>Whisper's text was correct, cased and punctuated; the Zipformer's correct, in capitals. The swap was tried by hand on the real service: an <code>[audio]</code> change left it running; changing <code>[engine] name</code> logged "engine changed: fake → zipformer; restarting" and exited in 1.2 s, and the relaunch came up with the new engine. Your check after an app restart: set <code>[engine] name = "whisper"</code> in <code>voice_service.local.toml</code> (beside the service's <code>voice_service.toml</code>), talk, stop, and see the text arrive on send.</p>
 <p><strong>Built: two passes, chunked whisper</strong> (2026-11-03): the Zipformer fills the live line while you talk; at each pause the audio so far becomes a piece that whisper cleans in the background, and its text replaces the rough words. On stop only the last piece is left, and whisper's joined text is sent. It's now the default (<code>[engine] final = "whisper"</code>). Design: <a href="#two-passes-live-text-cleaned-piece-by-piece">Two passes</a>. Measured with both real models over the test recordings fed at speech speed: on 49.8 s of speech in 4 pieces, CPU averaged 3.5 of 24 cores (2.8 with the Zipformer alone), peaking near 11; live words came at most 47 ms later than without whisper; never more than one piece waited; the wait after stop was <strong>1.7 s</strong> on <code>small.en</code> (0.7 s on <code>base.en</code>). Pass.</p>
 </blockquote>
 <h2 id="rules">Rules</h2>
@@ -442,7 +442,7 @@
 <li><strong><code>send_as_input: bool = True</code></strong> on <code>StartListening</code> (decided 2026-11-02): with <code>False</code> (dictating into a text box, say), the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker.</li>
 <li><strong>Where you see the text:</strong> while you speak, a grey line above the input box in the temp UI shows the partials. When the mic turns off, the final text appears in the chat as your own message, exactly like typed text. If nothing was heard, nothing is sent.</li>
 <li><strong>Config:</strong> <code>[modules.voice_in]</code> (<code>host</code>, <code>port</code>, <code>start_timeout</code>, <code>service_config</code>, <code>reply_timeout</code>, <code>live_text</code>, <code>final_timeout_on_send</code>), on (in <code>[modules] enabled</code> since step 4); the service has its own config file for the engine and model path, read with the shared <a href="../../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (<a href="#the-voice-service-config">details</a>).</li>
-<li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) go in an optional <code>voice</code> extra, so the app installs without them. Model files download once.</li>
+<li><strong>Dependencies</strong> (FastAPI, Uvicorn, sherpa-onnx, faster-whisper, sounddevice) are listed in voice_in's <code>module.toml</code> (<code>packages</code>; until 2026-11-13 the optional <code>voice</code> extra), so the app installs without them. Model files download once.</li>
 </ul>
 <h2 id="the-mic-permission">The mic permission</h2>
 <p>The <strong>voice handler</strong> asks, once, when you click the mic and before it sends <code>start</code>. The service never asks; it only needs Windows' mic access (<em>Settings → Privacy → Microphone → Let desktop apps access your microphone</em>).</p>
@@ -514,7 +514,7 @@
 <li><strong>Later, <code>/ws/audio</code></strong> plugs in as a second <code>AudioSource</code> (<code>RemoteSource</code>) that fills the same queue from WebSocket frames. <code>ListenSession</code> doesn't change.</li>
 </ul>
 <h3 id="the-voice-service-files-and-classes">The voice service: files and classes</h3>
-<pre><code>src/voice_service/          # never imports assistant
+<pre><code>src/assistant/modules/voice_in/app/voice_service/   # never imports assistant
 ├── __init__.py
 ├── __main__.py             # CLI: `python -m voice_service [--config F] [--host H] [--port P]`
 │                           #      `python -m voice_service download &lt;zipformer|whisper&gt; [--model small.en]`
@@ -621,7 +621,7 @@
 <li><strong>Local only (2026-11-08):</strong> the service refuses other hosts and other origins with <a href="../../api/app_kit.html#local_guard"><code>app_kit.local_guard</code></a>: every request and WebSocket whose <code>Host</code> isn't this machine, or whose browser <code>Origin</code> is another site, gets 403 (a WebSocket is closed with 1008), so a web page you visit can't open the mic or quit the service. <code>python -m voice_service</code> refuses a non-local <code>--host</code>.</li>
 </ul>
 <h3 id="the-voice-service-config">The voice service: config</h3>
-<p>Its own TOML file, read with the shared <a href="../../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (revised 2026-11-02; no loader of its own, and still no <code>assistant</code> import): <code>config/voice_service.toml</code> in the repo, overridden by <code>config/voice_service.local.toml</code> (not committed), then by command-line flags. <code>--config</code> points at another file.</p>
+<p>Its own TOML file, read with the shared <a href="../../api/app_kit.html#load_layered"><code>app_kit.load_layered</code></a> (revised 2026-11-02; no loader of its own, and still no <code>assistant</code> import): <code>voice_service.toml</code> beside its code (<code>voice_in/app/voice_service/</code>; in <code>config/</code> until 2026-11-13), overridden by <code>voice_service.local.toml</code> next to it (not committed), then by command-line flags. <code>--config</code> points at another file.</p>
 <pre><code class="language-toml">[server]
 host = &quot;127.0.0.1&quot;
 port = 8767                 # temp_ui is 8765, the HTML viewer 8766
@@ -833,7 +833,7 @@ terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&q
 <li><strong>Logging:</strong> each session logs its start (the stand-in logs the permission warning), the final's length, <code>latency_ms</code>, and how it ended, plus one line with the raw and the cleaned final (<code>raw: '…' -&gt; clean: '…'</code>); the service's <code>detail</code> on every error. The service's own log has the audio length and the text (the protocol doesn't carry the audio length, so <code>voice_in</code> doesn't log it).</li>
 <li><strong><code>stop()</code></strong> (app shutdown or deactivation): abort an open session (close the socket, no <code>InputReceived</code>), then <code>CompanionApp.stop()</code>: only if this module launched the service, <code>POST /quit</code>, wait 5 s, then kill.</li>
 <li><strong>Reload</strong> (<a href="../../architecture/core.html#reloading-a-modules-code"><code>ReloadModule</code></a>, built 2026-11-03): <code>export_state()</code> hands its <code>CompanionApp</code> and its key (service, host, port, args) to the new code, so <code>stop()</code> leaves the voice app running and the new <code>init</code> reuses it if the key matches. An open mic session still ends and its words are dropped; the chat and the Talker aren't touched. While it swaps, the temp UI's mic is crossed out with the reason.</li>
-<li><strong>The <code>websockets</code> client</strong> is in the optional <code>voice</code> extra and imported in <code>init</code>; without it the module fails to start with "install the voice extra: pip install -e .[voice]", and the rest of the app runs.</li>
+<li><strong>The <code>websockets</code> client</strong> is in voice_in's <code>packages</code> (<code>module.toml</code>) and imported in <code>init</code>; without it the module fails to start with "voice_in needs its packages: pip install the packages in voice_in's module.toml", and the rest of the app runs.</li>
 </ul>
 <pre><code class="language-mermaid">sequenceDiagram
     actor You
@@ -878,7 +878,7 @@ terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&q
     V-&gt;&gt;T: InputReceived(source=&quot;voice&quot;) if text and send_as_input
     V--&gt;&gt;U: VoiceState(idle)
 </code></pre>
-<p><strong>The tests</strong> (<code>tests/test_voice_in.py</code>) run this flow against the real service app with <code>FakeEngine</code> and <code>FakeSource</code>, under Uvicorn on a free local port in a thread (no mic, no model). They cover every row of <a href="#the-voice_in-module-how-errors-reach-the-button">the errors</a> and the mic drop. A small stub of <code>CompanionApp</code> checks which calls the health check makes.</p>
+<p><strong>The tests</strong> (<code>voice_in/tests/test_voice_in.py</code>) run this flow against the real service app with <code>FakeEngine</code> and <code>FakeSource</code>, under Uvicorn on a free local port in a thread (no mic, no model). They cover every row of <a href="#the-voice_in-module-how-errors-reach-the-button">the errors</a> and the mic drop. A small stub of <code>CompanionApp</code> checks which calls the health check makes.</p>
 <h4 id="the-voice_in-module-how-errors-reach-the-button">The voice_in module: how errors reach the button</h4>
 <p>Every failure ends the session: <code>VoiceState(failed, reason, detail)</code>, the socket closed, the module ready for the next click, and nothing sent to the Talker.</p>
 <table>

@@ -107,22 +107,8 @@ port = 8765
 window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"
 
 # html_viewer's defaults (port 8766, window, generated folders, start_on_use) are in its module.toml.
-
-[modules.voice_in]
-# Voice input (on: the temp UI's mic button sends it StartListening / StopListening): launches the voice service
-# (its own app, `python -m voice_service`) on the first mic click and quits it with the app
-# (one you started yourself is left running). The service's own settings, such as how long it
-# waits for a dropped mic, are in config/voice_service.toml.
-host = "127.0.0.1"
-port = 8767
-start_timeout = 20.0      # seconds for the service to answer /health after launching it
-service_config = ""       # optional path passed to the service as --config
-reply_timeout = 10.0      # seconds to wait for the service's `started` after start, and its final text after stop
-live_text = true          # false = the text appears when you stop, even with a live engine (whisper is always on send)
-final_timeout_on_send = 90.0  # seconds to wait for the final when the text comes on send (whisper decodes it all at the stop)
-cleanup = true            # sentence case for the engine's all-caps text, one end mark per final; cased text (whisper) keeps its case (false = raw text)
-# Words the cleanup writes back as given instead of lowercasing; set your own list in config/local.toml.
-terms = ["Isaac Sim", "USD", "glTF", "Unity", "Unitree", "Zipformer"]
+# voice_in's defaults (port 8767, timeouts, cleanup, terms) are in its module.toml; the voice
+# service's own settings in voice_in's app/voice_service/voice_service.toml.
 
 [modules.voice_notes]
 # Voice notes v1: a page at http://127.0.0.1:8770/ with Record / Stop, a live line, and Copy. The words

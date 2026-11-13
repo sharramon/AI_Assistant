@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import ast
 import asyncio
-import socket
 import sys
 import threading
 import time
@@ -29,7 +28,7 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.modules.voice_in import VoiceInModule
-from assistant.testkit import wait_until
+from assistant.testkit import free_port, wait_until
 from voice_service.audio import FakeSource
 from voice_service.config import ServiceConfig
 from voice_service.engines.fake import FakeEngine
@@ -39,12 +38,6 @@ from voice_service.session import ListenSession
 
 CHUNK = bytes(1024)  # 32 ms of silence
 TEXT = "hello big world"  # the fake engine: one word per two chunks
-
-
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
 
 
 def take(*sources):
@@ -703,7 +696,7 @@ FAST_PIECES = {"pause_seconds": 0.1, "min_seconds": 0.3, "max_seconds": 1.0, "cu
 async def test_two_passes_settle_the_line_and_send_the_cleaned_text(service):
     import asyncio
 
-    from tests.test_voice_pieces import TALK, LiveEngine, PieceEngine
+    from assistant.modules.voice_in.tests.test_voice_pieces import TALK, LiveEngine, PieceEngine
 
     final = PieceEngine(slow={2}, slow_seconds=1.0)  # the last piece takes 1 s: past reply_timeout
     svc = service(LiveEngine(), source=TALK, final=final, pieces=FAST_PIECES)
@@ -727,7 +720,7 @@ async def test_two_passes_settle_the_line_and_send_the_cleaned_text(service):
 async def test_a_failed_piece_keeps_its_live_words_in_the_sent_text(service, caplog):
     import asyncio
 
-    from tests.test_voice_pieces import TALK, LiveEngine, PieceEngine
+    from assistant.modules.voice_in.tests.test_voice_pieces import TALK, LiveEngine, PieceEngine
 
     svc = service(LiveEngine(), source=TALK, final=PieceEngine(fail={1}), pieces=FAST_PIECES)
     app, rec = await start_app(svc.port)
@@ -745,5 +738,5 @@ async def test_a_failed_piece_keeps_its_live_words_in_the_sent_text(service, cap
 
 async def test_without_websockets_init_names_the_extra(monkeypatch):
     monkeypatch.setitem(sys.modules, "websockets.asyncio.client", None)
-    with pytest.raises(RuntimeError, match=r"pip install -e \.\[voice\]"):
+    with pytest.raises(RuntimeError, match=r"voice_in's module\.toml"):
         await VoiceInModule().init(None)

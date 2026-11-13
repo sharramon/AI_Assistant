@@ -296,13 +296,13 @@ The live text: each partial (`final=False`), then once the final text (`final=Tr
 | `dump(message)` | function | A message as one JSON text frame |
 | `ProtocolError` | exception (`ValueError`) | Not JSON, not an object, unknown `type`, a missing or bad field, or the wrong direction; the service answers `bad_message` |
 
-**Defined in:** `src/voice_service/protocol.py`
+**Defined in:** `src/assistant/modules/voice_in/app/voice_service/protocol.py`
 
 ### The voice service's parts
 
 **Reusable** · Used by: `voice_service` (`server.py`, `session.py`, `transcribe.py`, `__main__.py`); `WhisperEngine` adds an `SttEngine`, `FileSource` an `AudioSource`; the Nemotron engine (step 7, planned) adds an `SttEngine` and reuses `transcribe` for the comparison; `RemoteSource` for `/ws/audio` (later) adds an `AudioSource`
 
-The service's own API, inside `src/voice_service/` (its own app: never imported by the assistant; `voice_in` uses only the protocol above). Built 2026-11-03; design: [Voice: files and classes](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice-service-files-and-classes).
+The service's own API, inside `voice_in/app/voice_service/` (its own app, in voice_in's folder: never imported by the assistant; `voice_in` uses only the protocol above). Built 2026-11-03; design: [Voice: files and classes](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice-service-files-and-classes).
 
 | Item | Kind | Summary |
 |------|------|---------|
@@ -318,13 +318,13 @@ The service's own API, inside `src/voice_service/` (its own app: never imported 
 | `FakeEngine(text, *, chunks_per_word=2, fail_on_load=False, fail_on_accept=False, load_gate=None)` | class (`engines.fake`) | For tests: one more word every `chunks_per_word` chunks; can fail on load, or once on accept; `load_gate` holds the load |
 | `AudioSource` | ABC (`audio`) | `start(on_chunk, on_lost)` (raises `MicUnavailable`), `stop()`; `on_chunk` comes from the source's thread and must not block |
 | `MicSource(device="", chunk_ms=32)` | class (`audio`) | The mic through a sounddevice `RawInputStream` (int16, 16 kHz, mono); a stream that ends without `stop` calls `on_lost`. sounddevice is imported only in `start`. After a lost mic, or one stopped while it had gone quiet, the next `start` reloads PortAudio's device list (`MicSource.stale_devices`) |
-| `run_check(config, seconds=3.0, model=True, out=print) -> bool`, `level(samples)`, `mic_privacy()` | functions (`check`) | `python -m voice_service check`: the voice extra, Windows' mic privacy values (read only), the input devices, the model's load time, and a real-mic level check through `MicSource`, transcribing what it heard. True if sound arrived (and the model loaded) |
+| `run_check(config, seconds=3.0, model=True, out=print) -> bool`, `level(samples)`, `mic_privacy()` | functions (`check`) | `python -m voice_service check`: voice_in's packages, Windows' mic privacy values (read only), the input devices, the model's load time, and a real-mic level check through `MicSource`, transcribing what it heard. True if sound arrived (and the model loaded) |
 | `FileSource(path, *, chunk_ms=32, realtime=False)` | class (`audio`) | A 16 kHz mono 16-bit WAV in chunks: read whole (`chunks`, `seconds`) or `start`ed like a mic, at the speed of speech with `realtime=True`. Any other format raises `ValueError` (added 2026-11-03) |
 | `FakeSource(chunks=(), *, interval=0, fail_on_open=False, lose_after=None)`, `FakeSource.from_wav(path, *, chunk_ms=32, realtime=True)` | class (`audio`) | Chunks from a list or a 16 kHz mono WAV (read by `FileSource`), for tests and offline checks; can fail to open or "unplug" after N chunks |
 | `rms(pcm) -> float` | function (`session`) | A PCM16 chunk's level (0 to 32768); the silence stop's speech test without live text, against `[audio] speech_rms` |
 | `MicUnavailable` | exception (`RuntimeError`) | The source couldn't open; the message names the device and the reason |
 | `create_app(config, engine, source_factory, *, config_path=None, watch_seconds=2.0) -> FastAPI` | function (`server`) | `GET /health`, `POST /quit`, `WS /ws/listen`, one listener at a time; loads the engine on a background thread at startup. With `config_path`, watches that file and its `.local` override and quits (through `app.state.on_quit`) once the `[engine]` section changed and nothing is listening (added 2026-11-03). Set `app.state.on_quit` to what ends the server |
-| `ServiceConfig`, `load_service_config(path=None, *, host=None, port=None)`, `models_dir(config)` | model, functions (`config`) | Built-in defaults, then `config/voice_service.toml` and its `.local.toml` through `load_layered`, then flags; the models folder (env `VOICE_SERVICE_MODELS`, `[engine] models_dir`, else `%LOCALAPPDATA%\AI_Assistant\voice_models`) |
+| `ServiceConfig`, `load_service_config(path=None, *, host=None, port=None)`, `models_dir(config)` | model, functions (`config`) | Built-in defaults, then `voice_service.toml` (beside `config.py`) and its `.local.toml` through `load_layered`, then flags; the models folder (env `VOICE_SERVICE_MODELS`, `[engine] models_dir`, else `%LOCALAPPDATA%\AI_Assistant\voice_models`) |
 | `download_model(engine, config, *, fetch=None) -> Path` | function (`download`) | Fetch and extract a model once (tarfile's safe `data` filter); does nothing if it's there. `python -m voice_service download zipformer`, or `download whisper [--model small.en]` (a CTranslate2 model from Hugging Face into `faster-whisper-<model>`) |
 
 **Examples** (an offline check on a recording, the whole service path, no mic; and a file straight through an engine, no server):
@@ -332,4 +332,4 @@ The service's own API, inside `src/voice_service/` (its own app: never imported 
     app = create_app(config, load_engine("zipformer", config), lambda: FakeSource.from_wav("0.wav"))
     text = transcribe_file("talk.wav", "whisper")
 
-**Defined in:** `src/voice_service/` (`engines/`, `audio.py`, `transcribe.py`, `server.py`, `config.py`, `download.py`)
+**Defined in:** `src/assistant/modules/voice_in/app/voice_service/` (`engines/`, `audio.py`, `transcribe.py`, `server.py`, `config.py`, `download.py`)

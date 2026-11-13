@@ -476,10 +476,10 @@ text = (await voice.finish(session)).value["text"]
 </tr>
 </tbody>
 </table>
-<p><strong>Defined in:</strong> <code>src/voice_service/protocol.py</code></p>
+<p><strong>Defined in:</strong> <code>src/assistant/modules/voice_in/app/voice_service/protocol.py</code></p>
 <h3 id="the-voice-services-parts">The voice service's parts</h3>
 <p><strong>Reusable</strong> · Used by: <code>voice_service</code> (<code>server.py</code>, <code>session.py</code>, <code>transcribe.py</code>, <code>__main__.py</code>); <code>WhisperEngine</code> adds an <code>SttEngine</code>, <code>FileSource</code> an <code>AudioSource</code>; the Nemotron engine (step 7, planned) adds an <code>SttEngine</code> and reuses <code>transcribe</code> for the comparison; <code>RemoteSource</code> for <code>/ws/audio</code> (later) adds an <code>AudioSource</code></p>
-<p>The service's own API, inside <code>src/voice_service/</code> (its own app: never imported by the assistant; <code>voice_in</code> uses only the protocol above). Built 2026-11-03; design: <a href="../modules/voice_in/voice-service.html#the-voice-service-files-and-classes">Voice: files and classes</a>.</p>
+<p>The service's own API, inside <code>voice_in/app/voice_service/</code> (its own app, in voice_in's folder: never imported by the assistant; <code>voice_in</code> uses only the protocol above). Built 2026-11-03; design: <a href="../modules/voice_in/voice-service.html#the-voice-service-files-and-classes">Voice: files and classes</a>.</p>
 <table>
 <thead>
 <tr>
@@ -552,7 +552,7 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>run_check(config, seconds=3.0, model=True, out=print) -&gt; bool</code>, <code>level(samples)</code>, <code>mic_privacy()</code></td>
 <td>functions (<code>check</code>)</td>
-<td><code>python -m voice_service check</code>: the voice extra, Windows' mic privacy values (read only), the input devices, the model's load time, and a real-mic level check through <code>MicSource</code>, transcribing what it heard. True if sound arrived (and the model loaded)</td>
+<td><code>python -m voice_service check</code>: voice_in's packages, Windows' mic privacy values (read only), the input devices, the model's load time, and a real-mic level check through <code>MicSource</code>, transcribing what it heard. True if sound arrived (and the model loaded)</td>
 </tr>
 <tr>
 <td><code>FileSource(path, *, chunk_ms=32, realtime=False)</code></td>
@@ -582,7 +582,7 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>ServiceConfig</code>, <code>load_service_config(path=None, *, host=None, port=None)</code>, <code>models_dir(config)</code></td>
 <td>model, functions (<code>config</code>)</td>
-<td>Built-in defaults, then <code>config/voice_service.toml</code> and its <code>.local.toml</code> through <code>load_layered</code>, then flags; the models folder (env <code>VOICE_SERVICE_MODELS</code>, <code>[engine] models_dir</code>, else <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>)</td>
+<td>Built-in defaults, then <code>voice_service.toml</code> (beside <code>config.py</code>) and its <code>.local.toml</code> through <code>load_layered</code>, then flags; the models folder (env <code>VOICE_SERVICE_MODELS</code>, <code>[engine] models_dir</code>, else <code>%LOCALAPPDATA%\AI_Assistant\voice_models</code>)</td>
 </tr>
 <tr>
 <td><code>download_model(engine, config, *, fetch=None) -&gt; Path</code></td>
@@ -595,7 +595,7 @@ text = (await voice.finish(session)).value["text"]
 <pre><code>app = create_app(config, load_engine("zipformer", config), lambda: FakeSource.from_wav("0.wav"))
 text = transcribe_file("talk.wav", "whisper")
 </code></pre>
-<p><strong>Defined in:</strong> <code>src/voice_service/</code> (<code>engines/</code>, <code>audio.py</code>, <code>transcribe.py</code>, <code>server.py</code>, <code>config.py</code>, <code>download.py</code>)</p>
+<p><strong>Defined in:</strong> <code>src/assistant/modules/voice_in/app/voice_service/</code> (<code>engines/</code>, <code>audio.py</code>, <code>transcribe.py</code>, <code>server.py</code>, <code>config.py</code>, <code>download.py</code>)</p>
 <footer>Generated from <code>docs/api/messaging.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

@@ -1,12 +1,14 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 9 of 20 done** (items 1 to 8 and 20).
+**Count: 10 of 20 done** (items 1 to 9 and 20).
 
 **Architecture check after the cv chunk (items 2–6):** modularity OK (no cv-specific code in the core, contracts, infra or `app_kit`, only examples in comments; every module's `app/` is checked never to import `assistant`); reuse OK (`add_app_folders`, `launch_env`, `apply_module_toml` and `assistant.testkit` are in the reusable index with Used by lines); fit OK (the core reads `needs` and `packages` from any `module.toml`, no names).
 
 ## Morning list, kept as the run goes
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
+- **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **Hand check, item 9:** after the restart, click the mic in temp_ui, speak, and see the text reach the Talker; open voice_notes and record once.
 - **Hand check, item 8:** after the restart, open a page from the chat, take a snip, paste an image, drop a snip with ×, and see the Talker's `[Viewer] open:` line.
 - **Hand check, item 7:** after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.
 - **Hand check, item 4:** after the restart, `cv.open_tool` opens the CV Tool from `modules/cv/app/cv_tool/`.
@@ -58,6 +60,11 @@ For you to review. Each picks the option closest to the approved picture.
 20. **The SHOW-to-viewer mapping (`show_page`) moves in item 15, not item 8**: it's called by the Talker and the worker (core), so it waits for the page-opener slot instead of moving into an add-on that core code would then import.
 21. **The dropped-snip event is `temp_ui.clip_dropped`** (item 8), not `html_viewer.clip_dropped`: a module may publish named events only under its own id, and the drop (and the pasted image, `temp_ui.clip`) come from temp_ui. html_viewer publishes `html_viewer.tabs_changed` and `html_viewer.clip`.
 22. **The Talker's and temp_ui's snip tests sit in `tests/test_viewer_listeners.py`** (item 8) until item 11 moves the core modules' tests. The `html-viewer` script entry left `pyproject.toml` (it can't resolve without a reinstall); html_viewer's README says how to run the app by hand.
+23. **`test_voice_notes.py` went straight to `voice_notes/tests/`** (item 9), not `voice_in/tests/`, so item 10 only adds voice_notes' `module.toml`. It uses voice_in's test rig, which is allowed since voice_notes needs voice_in.
+24. **temp_ui's shared test helpers moved into the test kit** (item 9: `assistant.testkit.pages`: `request`, `post`, `next_item`, `FakeVoiceIn`), so no module test imports `tests.*`.
+25. **The voice service's defaults sit next to its code** (item 9: `app/voice_service/voice_service.toml`, like `cv_tool.toml`), and its local override is `voice_service.local.toml` beside it (gitignored). No `config/voice_service.local.toml` existed, so nothing was left behind.
+26. **voice_in gets no `ruff.toml`** (item 9): it has no ruff rules of its own; the tripwire's `MOVED_OUT` has a `ruff` flag for that.
+27. **The `StartListening` / `StopListening` timeouts stay in `[core.command_timeouts]`** (item 9): they're core settings. `scripts/build_docs.py` calls `add_app_folders()` before importing modules.
 
 ## The safeguards (from the audit, section 4)
 
@@ -153,7 +160,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** `git mv`; `module.toml` with its defaults and `needs = []`; viewer events become `ModuleEvent`s (`html_viewer.tabs_changed`, `html_viewer.clip`, `html_viewer.clip_dropped`) and their listeners subscribe by name; `show_page` asks the slot from item 15 instead of naming `viewer.open`; the `html-viewer` entry point is updated. Docs and the API indexes.
 - **Done when:** `src/html_viewer` doesn't exist; `git grep -n "ViewerClip\|ViewerTabsChanged" src/assistant/contracts` finds nothing; `tests/test_html_viewer.py` is gone and its tests pass from the module. **Needs an app restart** (contracts).
 
-### 9. voice_in: the voice service app, packages and tests in the module
+### 9. voice_in: the voice service app, packages and tests in the module: **done** (2026-11-13)
+
+**Checked:** `src/voice_service` doesn't exist; `modules/voice_in/app/voice_service/__main__.py` exists; `pyproject.toml` has no `voice` extra, no voice package and no `voice-service` script; no `tests/test_voice*` file is left; `test_voice_in_app_packages_and_tests_are_in_its_folder` and the voice tests pass from the module; full suite 867 passed, 2 deselected; ruff clean. **Needs an app restart.**
 
 - **What:** `src/voice_service/` moves to `modules/voice_in/app/voice_service/`, the `voice` packages go into `voice_in/module.toml`, `config/voice_service.toml` becomes the app's defaults in its folder, and the 7 voice test files move into `voice_in/tests/`.
 - **Why:** the picture: "voice_in/ voice_service app · docs · tests · voice packages".

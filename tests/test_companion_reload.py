@@ -6,7 +6,7 @@ from assistant.contracts import ReloadModule
 from assistant.core import App
 from assistant.modules.html_viewer import HtmlViewerModule
 from assistant.modules.voice_in import VoiceInModule
-from tests.test_voice_in import free_port
+from assistant.testkit import free_port
 
 
 @pytest.mark.parametrize("module_id", ["voice_in", "html_viewer"])

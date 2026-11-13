@@ -12,7 +12,7 @@ from array import array
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.voice_client import LocalClient
+from assistant.modules.voice_in.tests.voice_client import LocalClient
 from voice_service.audio import FakeSource, FileSource
 from voice_service.config import ServiceConfig, final_engine_name, models_dir, whisper_folder
 from voice_service.engines import EngineError, SttEngine, SttStream

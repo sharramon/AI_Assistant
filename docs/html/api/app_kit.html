@@ -59,7 +59,7 @@
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/app_kit/window.py</code></p>
 <h2 id="load_layered"><code>load_layered</code></h2>
-<p><strong>Reusable</strong> · Used by: <a href="infra.html#load_config"><code>assistant.infra.load_config</code></a> (as a thin wrapper), <code>voice_service</code> (<code>config.py</code>: <code>config/voice_service.toml</code> and its <code>.local.toml</code>)</p>
+<p><strong>Reusable</strong> · Used by: <a href="infra.html#load_config"><code>assistant.infra.load_config</code></a> (as a thin wrapper), <code>voice_service</code> (<code>config.py</code>: <code>voice_service.toml</code> beside its code and its <code>.local.toml</code>)</p>
 <p><code>load_layered(base: str | Path, local: str | Path | None = None) -&gt; dict[str, Any]</code></p>
 <p>Load the TOML file <code>base</code>, then deep-merge <code>local</code> over it if it exists (default: <code>base</code> with <code>.local</code> before the suffix, e.g. <code>voice_service.local.toml</code>). Tables merge key by key; other values, lists included, are replaced.</p>
 <p><strong>Raises:</strong> <code>FileNotFoundError</code> if <code>base</code> is missing; <code>tomllib.TOMLDecodeError</code> for invalid TOML.</p>
@@ -235,7 +235,7 @@ await app.stop()
 <pre><code>if not local_request(headers.get("host"), headers.get("origin")):
     return 403  # or close the WebSocket with 1008
 </code></pre>
-<p><strong>Defined in:</strong> <code>src/app_kit/local_guard.py</code> · <strong>Tests:</strong> <code>tests/test_app_kit.py</code>, <code>tests/test_voice_service.py</code>, <code>tests/test_html_viewer.py</code></p>
+<p><strong>Defined in:</strong> <code>src/app_kit/local_guard.py</code> · <strong>Tests:</strong> <code>tests/test_app_kit.py</code>, voice_in's <code>tests/test_voice_service.py</code>, html_viewer's <code>tests/test_html_viewer.py</code></p>
 <footer>Generated from <code>docs/api/app_kit.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

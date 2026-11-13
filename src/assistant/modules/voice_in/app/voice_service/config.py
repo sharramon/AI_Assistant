@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app_kit import load_layered
 
-DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "voice_service.toml"
+DEFAULT_CONFIG = Path(__file__).with_name("voice_service.toml")  # the defaults, beside this package's code
 WHISPER_PREFIX = "faster-whisper-"  # whisper model folders: faster-whisper-<size>, e.g. faster-whisper-small.en
 
 
@@ -101,7 +101,7 @@ def final_engine_name(config: ServiceConfig) -> str:
 def load_service_config(
     path: str | Path | None = None, *, host: str | None = None, port: int | None = None
 ) -> ServiceConfig:
-    """Defaults, then `path` (default `config/voice_service.toml`) and its `.local.toml`, then `host` / `port`.
+    """Defaults, then `path` (default `voice_service.toml` beside this file) and its `.local.toml`, then `host` / `port`.
 
     A missing default file means the built-in defaults; a missing `path` raises `FileNotFoundError`.
     """

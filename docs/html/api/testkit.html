@@ -18,7 +18,7 @@
 </blockquote>
 <p>It may import <code>assistant.*</code>; the builders that need a module (<code>start_hub</code>, <code>pre_grant_kinds</code>) import it when called. It needs no pytest: fixtures stay in the test files (<code>tests/test_agents.py</code>'s <code>hub</code> wraps <code>start_hub</code>).</p>
 <h2 id="helpers">Helpers</h2>
-<p><strong>Reusable</strong> · Used by: almost every central test; <code>cv</code> (<code>test_worker.py</code>: <code>pre_grant</code>, <code>wait_until</code>), <code>agent_hub</code> (<code>test_gate.py</code>: <code>wait_until</code>), <code>echo_orchestrator</code> (<code>test_echo.py</code>: <code>make_config</code>), <code>job_search</code> (<code>test_job_search.py</code>: <code>pre_grant</code>, <code>module_config</code>, <code>stand_in</code>, <code>free_port</code>, <code>wait_until</code>); <code>module_config</code> and <code>stand_in</code> also <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code></p>
+<p><strong>Reusable</strong> · Used by: almost every central test; <code>cv</code> (<code>test_worker.py</code>: <code>pre_grant</code>, <code>wait_until</code>), <code>agent_hub</code> (<code>test_gate.py</code>: <code>wait_until</code>), <code>echo_orchestrator</code> (<code>test_echo.py</code>: <code>make_config</code>), <code>job_search</code> (<code>test_job_search.py</code>: <code>pre_grant</code>, <code>module_config</code>, <code>stand_in</code>, <code>free_port</code>, <code>wait_until</code>), <code>voice_in</code> (<code>test_voice_in.py</code>: <code>free_port</code>, <code>wait_until</code>), <code>test_companion_reload</code>, <code>test_swap_every_module</code> (<code>free_port</code>); <code>module_config</code> and <code>stand_in</code> also <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code></p>
 <table>
 <thead>
 <tr>
@@ -57,7 +57,7 @@
 </tr>
 <tr>
 <td><code>free_port() -&gt; int</code></td>
-<td>A free TCP port on 127.0.0.1, for a test server (some central tests still keep their own copy)</td>
+<td>A free TCP port on 127.0.0.1, for a test server</td>
 </tr>
 <tr>
 <td><code>pre_grant_kinds(app, module_config, module_id="task_agents")</code></td>
@@ -66,6 +66,35 @@
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/testkit/support.py</code></p>
+<h2 id="pages-and-a-voice_in-stand-in">Pages and a voice_in stand-in</h2>
+<p><strong>Reusable</strong> · Used by: <code>test_temp_ui</code>, <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code> and <code>request</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code>, <code>test_viewer_listeners</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>await request(port, raw) -&gt; (reader, writer)</code></td>
+<td>Send raw HTTP bytes to <code>127.0.0.1:port</code>; the open stream</td>
+</tr>
+<tr>
+<td><code>await post(port, path, body) -&gt; dict</code></td>
+<td>POST <code>body</code> as JSON; the JSON answer</td>
+</tr>
+<tr>
+<td><code>await next_item(reader, match) -&gt; dict</code></td>
+<td>The next item on an open <code>/events</code> stream that <code>match</code> accepts, within 2 s</td>
+</tr>
+<tr>
+<td><code>FakeVoiceIn</code></td>
+<td>A module with id <code>voice_in</code> that answers <code>StartListening</code> / <code>StopListening</code> and <code>IVoice</code> with the events voice_in publishes (no voice service); <code>fail</code> makes the next start fail</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/testkit/pages.py</code> (moved from <code>tests/test_temp_ui.py</code>, 2026-11-13)</p>
 <h2 id="the-fake-claude-and-agent-fakes">The fake <code>claude</code> and agent fakes</h2>
 <p><strong>Reusable</strong> · Used by: the central agent tests (<code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, <code>test_task_agents</code>, ...); <code>cv</code> (<code>test_worker.py</code>: <code>FAKE</code>), <code>agent_hub</code> (<code>test_end_waiting.py</code>, <code>test_end_report_race.py</code>: <code>StubSession</code>, <code>StubContext</code>; <code>test_gate.py</code>: <code>FakeAgent</code>)</p>
 <table>

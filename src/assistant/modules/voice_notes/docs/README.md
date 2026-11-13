@@ -19,5 +19,5 @@ A small page in its own window: Record / Stop, a notes area you can edit, a stat
 ## Code and tests
 
 - `src/assistant/modules/voice_notes/` (`module.py`, `page.html`)
-- `tests/test_voice_notes.py`
+- `tests/test_voice_notes.py` in this folder (on the [test kit](../../../../../docs/api/testkit.md), and voice_in's test rig for the real voice service)
 - `docs/`: this overview, [Architecture](architecture.md), [Tools](tools.md) (generated from its menu), and `docs.toml` (its docs tab and group)

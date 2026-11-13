@@ -20,7 +20,9 @@ import threading
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "src"))
+sys.path.insert(0, str(REPO / "src/assistant/modules/voice_in/app"))  # the voice service, in its module
 
 from starlette.testclient import TestClient  # noqa: E402
 

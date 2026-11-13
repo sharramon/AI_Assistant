@@ -20,7 +20,7 @@ from .config import DEFAULT_CONFIG, LoggingConfig, final_engine_name, load_servi
 
 def _parse(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="voice_service", description="Local speech to text over a WebSocket.")
-    parser.add_argument("--config", help="config file (default: config/voice_service.toml)")
+    parser.add_argument("--config", help="config file (default: voice_service.toml beside the code)")
     parser.add_argument("--host")
     parser.add_argument("--port", type=int)
     if argv[:1] == ["download"]:

@@ -1,4 +1,4 @@
-"""The voice service app (src/voice_service) with the fake engine and fake sources: no mic, no model, no network."""
+"""The voice service app (voice_in's app/voice_service) with the fake engine and fake sources: no mic, no model, no network."""
 
 import io
 import os
@@ -16,7 +16,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from tests.voice_client import LocalClient
+from app_kit.companion import launch_env
+from assistant.modules.voice_in.tests.voice_client import LocalClient
 from voice_service.audio import FakeSource, FileSource
 from voice_service.config import DEFAULT_CONFIG, ServiceConfig, load_service_config, models_dir
 from voice_service.download import download_model
@@ -531,7 +532,7 @@ def test_whisper_download_goes_through_a_temp_folder(monkeypatch, tmp_path):
 
 def test_whisper_without_the_package_names_the_install(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "faster_whisper", None)
-    with pytest.raises(EngineError, match=r"pip install -e \.\[voice\]"):
+    with pytest.raises(EngineError, match=r"voice_in's module\.toml"):
         WhisperEngine(tmp_path, ServiceConfig().engine.whisper).load()
 
 
@@ -615,7 +616,8 @@ def test_transcribe_imports_neither_the_server_nor_the_mic():
         " if m in sys.modules]\n"
         "print(bad)\nsys.exit(1 if bad else 0)\n"
     )
-    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    env = launch_env("voice_service", {k: v for k, v in os.environ.items() if k != "PYTHONPATH"})  # its app/ folder
+    done = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=60)
     assert done.returncode == 0, done.stdout + done.stderr
 
 
