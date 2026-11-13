@@ -124,7 +124,7 @@ class HtmlViewerModule(ModuleProtocol):
 <strong>See also:</strong> <a href="core.html#menutools"><code>MenuTools</code></a>, <a href="tools.html#tools-offered-today">tools offered today</a>, <a href="../architecture/module-library.html">the module library</a></p>
 <h2 id="manifest"><code>Manifest</code></h2>
 <p><strong>Reusable</strong> · Used by: every module</p>
-<p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())</code></p>
+<p><code>Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = (), publishes_named: tuple[str, ...] = (), listens_named: tuple[str, ...] = ())</code></p>
 <p>Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated <a href="../architecture/module-library.html">module library</a>). Dependencies are on contracts, never on other modules. <code>permissions</code> and <code>optional_permissions</code> are declarations: single names aren't checked yet (<a href="#modulecontextpermissions"><code>ctx.permissions</code></a> allows and logs them). <code>agent.access</code> says the module asks for its config's access list with <code>request_set</code> when turned on.</p>
 <p><strong>Fields</strong></p>
 <table>
@@ -209,10 +209,22 @@ class HtmlViewerModule(ModuleProtocol):
 <td>no</td>
 <td>Events it subscribes to (events in)</td>
 </tr>
+<tr>
+<td><code>publishes_named</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>no</td>
+<td><a href="messaging.html#moduleevent">Named events</a> it publishes, each <code>&lt;its id&gt;.&lt;what&gt;</code> (built 2026-11-12; no module declares one now)</td>
+</tr>
+<tr>
+<td><code>listens_named</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td>no</td>
+<td>Named events it listens to: <code>&lt;module&gt;.&lt;what&gt;</code>, or <code>&lt;module&gt;.*</code> for all of one module</td>
+</tr>
 </tbody>
 </table>
-<p>Every type in <code>provides</code>, <code>requires</code>, <code>optional</code> and <code>uses</code> must be a <a href="#contract"><code>Contract</code></a> from <code>assistant.contracts</code>, or startup fails. A subscription or lookup the manifest doesn't declare is logged once (<a href="core.html#scopedcontext"><code>ScopedContext</code></a>).</p>
-<p><strong>Raises</strong> (when the manifest is made): <code>ValueError</code> if <code>id</code> isn't a Python identifier or <code>description</code> has a line break; <code>TypeError</code> if <code>handles</code> / <code>sends</code> hold anything but <code>Command</code> types, or <code>publishes</code> / <code>listens</code> anything but <code>Event</code> types.</p>
+<p>Every type in <code>provides</code>, <code>requires</code>, <code>optional</code> and <code>uses</code> must be a <a href="#contract"><code>Contract</code></a> from <code>assistant.contracts</code>, or startup fails. A subscription, lookup or named event the manifest doesn't declare is logged once (<a href="core.html#scopedcontext"><code>ScopedContext</code></a>).</p>
+<p><strong>Raises</strong> (when the manifest is made): <code>ValueError</code> if <code>id</code> isn't a Python identifier, <code>description</code> has a line break, a <code>publishes_named</code> name isn't <code>&lt;id&gt;.&lt;what&gt;</code>, or a <code>listens_named</code> name isn't <code>&lt;module&gt;.&lt;what&gt;</code> or <code>&lt;module&gt;.*</code>; <code>TypeError</code> if <code>handles</code> / <code>sends</code> hold anything but <code>Command</code> types, or <code>publishes</code> / <code>listens</code> anything but <code>Event</code> types.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code></p>
 <h2 id="modulecontext"><code>ModuleContext</code></h2>
 <p><strong>Reusable</strong> · Used by: every module</p>
@@ -328,11 +340,27 @@ transcript = ctx.logs.sink(name) if name else None
 granted = await ctx.permissions.request_set(access_items(config), "its folders", subject="job_search_agent")
 </code></pre>
 <h3 id="modulecontextsubscribe"><code>ModuleContext.subscribe</code></h3>
-<p><code>subscribe(event_type: type[E], handler: Callable[[E], Awaitable[None]]) -&gt; None</code></p>
-<p>Receive every published event that is an instance of <code>event_type</code> (subclasses included). The handler runs on this subscription's own worker, one event at a time, in order. It is cancelled after <code>core.event_handler_timeout</code>; exceptions are logged.</p>
+<p><code>subscribe(event_type: type[E], handler: Callable[[E], Awaitable[None]]) -&gt; SubscriptionHandle</code></p>
+<p>Receive every published event that is an instance of <code>event_type</code> (subclasses included). The handler runs on this subscription's own worker, one event at a time, in order. It is cancelled after <code>core.event_handler_timeout</code>; exceptions are logged. Any time while the module runs. Returns a <code>SubscriptionHandle</code> for <a href="#modulecontextunsubscribe"><code>unsubscribe</code></a> (it returned <code>None</code> before 2026-11-12, so old callers are unaffected).</p>
 <h3 id="modulecontextpublish"><code>ModuleContext.publish</code></h3>
 <p><code>publish(event: Event) -&gt; None</code></p>
 <p>Publish an event. Returns immediately and never waits on subscribers. Events are dropped for a subscriber whose queue is full.</p>
+<h3 id="modulecontextpublish_named"><code>ModuleContext.publish_named</code></h3>
+<p><strong>Reusable</strong> · Used by: cv (<code>cv.job_finished</code>, <code>cv.job_submitted</code>) · built 2026-11-12</p>
+<p><code>publish_named(name: str, data: Mapping[str, Any] | None = None) -&gt; None</code></p>
+<p>Publish a <a href="messaging.html#moduleevent"><code>ModuleEvent</code></a> named <code>name</code>, which must be <code>&lt;this module's id&gt;.&lt;what&gt;</code>; the core sets its <code>source</code>. <code>data</code> is copied through JSON, so it holds plain values only and the listener never shares the publisher's objects. Returns immediately, like <code>publish</code>. A name not in <code>publishes_named</code> still goes out and is logged once.</p>
+<p><strong>Raises:</strong> <code>ValueError</code> for another module's name (or not a name), or data that isn't plain JSON (objects, NaN).</p>
+<pre><code>self._ctx.publish_named("cv.job_finished", {"reply_to": "job_search_agent", "job_dir": "...", "state": "done"})
+</code></pre>
+<h3 id="modulecontextsubscribe_named"><code>ModuleContext.subscribe_named</code></h3>
+<p><strong>Reusable</strong> · Used by: job_search (<code>cv.job_finished</code>, <code>cv.job_submitted</code>) · built 2026-11-12</p>
+<p><code>subscribe_named(name: str, handler: Callable[[ModuleEvent], Awaitable[None]]) -&gt; SubscriptionHandle</code></p>
+<p>Receive every <code>ModuleEvent</code> named <code>name</code>, or every one of a module with a trailing <code>.*</code> (<code>cv.*</code>). A filter over one bus subscription to <code>ModuleEvent</code>, so delivery works as for <code>subscribe</code>. Matched by name, not class, so publisher and listener each reload on their own; an event published while this module is off or reloading is missed (the bus keeps nothing). A name not in <code>listens_named</code> still works and is logged once.</p>
+<p><strong>Raises:</strong> <code>ValueError</code> if <code>name</code> isn't <code>&lt;module&gt;.&lt;what&gt;</code> or <code>&lt;module&gt;.*</code>.</p>
+<h3 id="modulecontextunsubscribe"><code>ModuleContext.unsubscribe</code></h3>
+<p><strong>Reusable</strong> · built 2026-11-12</p>
+<p><code>unsubscribe(handle: SubscriptionHandle) -&gt; None</code></p>
+<p>Drop one subscription, typed or named, without stopping the module; events still queued for it are dropped. Does nothing if it's already gone. Everything left is dropped at the module's stop anyway.</p>
 <h3 id="modulecontexthandle"><code>ModuleContext.handle</code></h3>
 <p><code>handle(command_type: type[K], handler: Callable[[K], Awaitable[Result]]) -&gt; None</code></p>
 <p>Become the single handler for <code>command_type</code>. The handler must return a <a href="messaging.html#result"><code>Result</code></a>. List the type in <code>manifest.handles</code>: if it isn't there, <code>handle</code> raises <code>ValueError</code> and the module fails to start (strict since 2026-11-05).</p>

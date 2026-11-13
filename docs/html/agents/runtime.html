@@ -501,7 +501,10 @@
     [*] --&gt; idle
     idle --&gt; working: assign → send task (or an answer: the same task id)
     paused --&gt; working: assign → drops the stopped task for the new one
-    working --&gt; idle: result, no NEED → report done
+    working --&gt; settling: result, no tag (or its card open) → report turn_end
+    settling --&gt; idle: the Hub answers wait → drop the task (session and open approval kept for it)
+    settling --&gt; idle: the Hub answers done → report done
+    settling --&gt; working: an approval's outcome or a message came meanwhile → send it
     working --&gt; idle: result is an error we didn't cause → report failed
     working --&gt; asking: result ends with NEED → report need, drop the task
     asking --&gt; idle: the Hub has the report
@@ -518,8 +521,9 @@
 <p><strong>A question is a message:</strong> after a <code>NEED</code> the agent holds no task and takes new work. The answer comes back as <code>assign</code> of the same task id with <code>question_key</code> set: in the live session if that still has the question (nothing ran since), otherwise in a fresh one, whose first message adds the module's notes for the key (<code>set_context</code>; by default the handoff note). Design: <a href="../architecture/agents.html#questions-are-messages">questions are messages</a>.</p>
 </li>
 <li>
-<p><strong>Interrupt isn't failure:</strong> in <code>interrupting</code> the agent knows it caused the <code>error_during_execution</code> result (<a href="spike.html#findings">spike finding</a>) and doesn't report <code>failed</code>.</p>
+<p><strong>The Hub decides wait or done</strong> (built 2026-11-13): a turn with no tag, or with its card still open, puts the agent in <code>settling</code> (active, so nothing new is given to it; a message meanwhile is held) and sends <code>turn_end</code> with the task's key. The Hub's answer: <code>wait</code> → the task ends waiting: dropped like a <code>need</code> (<code>_asked</code> set, so the live session takes it back), its open approval parked in the gate, and what came while settling goes to the Hub as the task's <code>progress</code>; the agent is idle and free. An approval answered later reports its outcome the same way, and the Hub gives the task back with it. <code>done</code> → the end-of-task Chrome check, then <code>done</code> as before; a message or outcome that came meanwhile carries the task on instead. If its card was answered meanwhile and the action is still running, it waits for the outcome as before. Design: <a href="../architecture/agents.html#task-state">a waiting task ends with a note</a>.</p>
 </li>
+<li><strong>Interrupt isn't failure:</strong> in <code>interrupting</code> the agent knows it caused the <code>error_during_execution</code> result (<a href="spike.html#findings">spike finding</a>) and doesn't report <code>failed</code>.</li>
 <li><strong><code>message</code> and <code>cancel</code> return as soon as the interrupt is sent</strong>; the rest happens as events arrive. So the Hub never waits on the agent while the agent is reporting to the Hub.</li>
 <li><strong>Cancel fallback:</strong> if no <code>result</code> arrives within a few seconds of the interrupt, close the process; the next task starts a fresh session.</li>
 <li><strong>Reports and events while working:</strong></li>

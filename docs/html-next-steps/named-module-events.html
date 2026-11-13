@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Named module events: any module raises and hears custom events, reload only</title>
+<!-- Generated from docs/next-steps/named-module-events.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="named-module-events.html"></nav>
+<main>
+<h1 id="named-module-events-any-module-raises-and-hears-custom-events-reload-only">Named module events: any module raises and hears custom events, reload only</h1>
+<blockquote>
+<p><strong>Status (2026-11-12): built; in use as the way modules talk to each other.</strong> cv publishes <code>cv.job_finished</code> and <code>cv.job_submitted</code>, and job_search hears them and wakes its agent with a message: <a href="job-cv-finish-event.html">job-cv-finish-event</a> (built, waiting for the restart and the check).</p>
+<p><strong>First check (2026-11-12):</strong> after the restart, the fake job 2 rerun showed <code>cv.job_finished</code> reaching job_search_agent, but only as a background line that woke nobody (an <code>AgentNotice</code>); job-cv-finish-event makes it a <code>DeliverMessage</code>. Details: <a href="handoff-5eff4e83.html">handoff-5eff4e83.md</a>, session 4. Tests: <code>tests/test_named_events.py</code>, <code>cv/tests/test_reply_delivery.py</code>. The user approved it with all five recommended answers: own-id names only; no bus queue for missed events; cv's Submit message unchanged; the Hub fix separate (built first, 2026-11-12: a child task's end goes to its parent's agent as a message); (iii) named events only for module-owned events, typed shared events kept.</p>
+</blockquote>
+<p><strong>Asked (2026-11-12):</strong> after the smoke test, cv_agent's "CV SMOKE OK" never reached the job agent. You expected the job_search module to subscribe to the cv module's events and pass them on to its agent. You asked for subscribing and unsubscribing to be functions any module can use at runtime, and for a generic <code>ModuleEvent(name, source, data)</code> with <code>ctx.publish_named</code>, <code>ctx.subscribe_named</code> and <code>ctx.unsubscribe</code>, reusable by every module.</p>
+<p><strong>Why:</strong></p>
+<ul>
+<li>The Event Bus matches by Python class (<code>core/bus.py</code>: <code>isinstance(event, sub.event_type)</code>). A publisher and a listener must share one class, so every new event type goes into <code>assistant.contracts</code>. That package loads once, so each new type needs an app restart (<code>core.md</code>, "What still needs a restart").</li>
+<li>A module can't own its event class either. The listener would have to import the publisher ("no module imports another module", <code>code-map.md</code>), and a reload of the publisher makes a new class object, so the listener silently stops matching.</li>
+<li><code>ctx.subscribe</code> already works at any time while a module runs, but there's no way to drop a single subscription: they all go together when the module stops.</li>
+<li>No generic event exists today. <code>AgentNotice</code> is addressed to an agent and becomes a background note. <code>TaskUpdated</code> is about tasks only.</li>
+<li>This settles the open decision "How general event types are" (<code>decisions.md</code>) for module-to-module notices: one general, named event instead of a new type each time.</li>
+</ul>
+<p><strong>Touches:</strong></p>
+<ul>
+<li><strong>Contracts (needs the one restart):</strong></li>
+<li><code>contracts/messages.py</code>: <code>ModuleEvent(Event)</code>.</li>
+<li><code>contracts/module.py</code>:<ul>
+<li><code>ModuleContext.publish_named</code>, <code>subscribe_named</code> and <code>unsubscribe</code>.</li>
+<li><code>subscribe</code> and <code>subscribe_named</code> return a <code>SubscriptionHandle</code>.</li>
+<li><code>Manifest</code> gets <code>publishes_named</code> and <code>listens_named</code> (tuples of names).</li>
+</ul>
+</li>
+<li><strong>Core:</strong> <code>core/context.py</code> (<code>ScopedContext</code>: the three methods, the name checks). The bus itself doesn't change.</li>
+<li><strong>Modules (reloads, after the restart):</strong> <code>cv</code> (raises <code>cv.job_finished</code>) and <code>job_search</code> (listens, messages its agent). Their tests and docs.</li>
+<li><strong>Docs:</strong></li>
+<li>API pages: <code>docs/api/modules.md</code> and <code>messaging.md</code>.</li>
+<li>Architecture pages: <code>docs/architecture/modules.md</code>, <code>communication.md</code> and <code>decisions.md</code> (the open decision moves to decided).</li>
+<li>The reusable index <code>docs/api/reusable.md</code>.</li>
+<li>The module library generator, so named events show per module.</li>
+</ul>
+<p><strong>Approach:</strong></p>
+<ol>
+<li><strong>The event:</strong> one shared class, added once.
+   <code>python
+   class ModuleEvent(Event):
+       name: str            # "&lt;module_id&gt;.&lt;what&gt;", e.g. "cv.job_finished"
+       source: str          # the publishing module's id, set by the core (never by the caller)
+       data: dict[str, Any] # plain JSON values only: no classes, so nothing breaks on a reload</code></li>
+<li><strong>On <code>ctx</code> (every module):</strong>
+   - <code>ctx.publish_named(name, data)</code>:<ul>
+<li>The core sets <code>source</code> to the module's id.</li>
+<li>It refuses a name that doesn't start with <code>&lt;module_id&gt;.</code>, so a module can't speak for another.</li>
+<li>It checks that <code>data</code> is JSON-safe.</li>
+<li>It publishes a <code>ModuleEvent</code>, returns at once and never waits on listeners, like <code>publish</code>.</li>
+<li><code>ctx.subscribe_named(name, handler) -&gt; SubscriptionHandle</code>:</li>
+<li>It's a thin filter over a bus subscription to <code>ModuleEvent</code>, so only events with that <code>name</code> reach the handler.</li>
+<li>A trailing <code>.*</code> (<code>"cv.*"</code>) takes every event of one module.</li>
+<li>It can be called at any time while the module runs, for example only while the job agent has a CV job out.</li>
+<li><code>ctx.unsubscribe(handle)</code>:</li>
+<li>It drops one subscription, named or typed. <code>subscribe</code> returns a handle too, which is backward compatible because today it returns <code>None</code>.</li>
+<li>Everything a module subscribed to is still dropped at its stop, as now.</li>
+<li><strong>Declared like the rest (principle 17):</strong></li>
+<li><code>Manifest.publishes_named</code> and <code>listens_named</code> list the names.</li>
+<li>An undeclared one still works and is logged once, the same as <code>listens</code> today.</li>
+<li>The module library lists them.</li>
+</ul>
+</li>
+<li><strong>The one restart:</strong>
+   - <code>ModuleEvent</code>, the <code>ctx</code> methods and the manifest fields are contracts and core, so they need one app restart.
+   - After that, any new named event is only a string. A module that raises one, or starts listening, is changed and reloaded, never restarted.</li>
+<li><strong>How it reloads afterwards:</strong>
+   - Matching is by name, not class, so either side can reload on its own.
+   - The publisher's new copy publishes the same name. The listener's new copy subscribes again in <code>start</code>, as every module already does.
+   - An event published while its listener is off or mid-reload is missed: the bus has no queue or store. That's a gap only where missing one matters, see open question 2.</li>
+<li><strong>First use, cv → job_search:</strong>
+   <code>mermaid
+   flowchart LR
+       W["cv_agent's task ends&lt;br/&gt;(done · failed)"] -- "TaskUpdated" --&gt; CV["cv module"]
+       CV -- "publish_named('cv.job_finished',&lt;br/&gt;{reply_to, task_id, state, cv_result, job_dir, company, role})" --&gt; Bus(("Event Bus"))
+       Bus -- "subscribe_named('cv.job_finished')" --&gt; JS["job_search module"]
+       JS -- "AgentNotice&lt;br/&gt;(reply_to == its agent)" --&gt; Hub["Agent Hub"]
+       Hub -- "a line for its next turn" --&gt; JA["job_search_agent"]</code>
+   - <strong>Changed while building (2026-11-12):</strong> job_search passes the event to its agent as an <code>AgentNotice</code> (a background line for its next turn), not a <code>DeliverMessage</code>. The Hub fix, built first, already messages the job agent its child task's end, so a second message would wake it twice for the same CV. The paragraph below is the original sketch.
+   - <strong>cv</strong> listens to <code>TaskUpdated</code> for its own <code>cv_agent</code>. When a task ends <code>done</code> or <code>failed</code>, it reads the job's <code>job_start.json</code>: <code>reply_to</code> and the folder. With <code>cv.read_result</code>'s parser it reads the <code>CV_RESULT</code> line, then it publishes <code>cv.job_finished</code>.
+   - <strong>job_search</strong> subscribes to <code>cv.job_finished</code> in <code>start</code>. For an event whose <code>reply_to</code> is its own agent, it sends a <code>DeliverMessage</code>, for example "cv_agent finished the CV for Smoke Test Engineer at Nonexistent Test Co: status ready, … Your Submit message comes separately". The Hub delivers it as it delivers any message: never into a running turn, a new task if the agent is idle. The job agent never waits.
+   - The Submit message stays as it is: cv sends it straight to <code>reply_to</code> and marks it in <code>job_start.json</code>, so it survives relaunches.</li>
+</ol>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li><strong>Name rule:</strong> must a module publish only under its own id (<code>cv.*</code>)? <strong>Recommended: yes.</strong> The core enforces it, so a listener knows who spoke.</li>
+<li><strong>Missed while off:</strong> should named events be kept for a listener that's off or reloading? <strong>Recommended: no, not in the bus.</strong> A module that must never miss one keeps its own record, the way cv keeps <code>replied</code> in <code>job_start.json</code>. For <code>cv.job_finished</code>, job_search can check <code>cv.read_result</code> on its next start if needed.</li>
+<li><strong>Move cv's Submit message onto the event too</strong> (<code>cv.submitted</code>)? <strong>Recommended: not now.</strong> It works and survives relaunches; revisit once named events have been used for a while.</li>
+<li><strong>The Hub fix (a)</strong> (a finished child task sent to its parent's agent) is a separate choice that's still open. It covers every agent; this note covers module-to-module events. They don't conflict.</li>
+<li><strong>What <code>ModuleEvent</code> is, against the typed events.</strong> Three ways:
+   - <strong>(i) Every event becomes a <code>ModuleEvent</code>,</strong> and the typed ones are migrated. About 25 typed events live in <code>assistant.contracts</code> today (<code>messages.py</code>, <code>agents.py</code>, <code>voice.py</code>, <code>permissions.py</code>, <code>control.py</code>). The core publishes <code>ModuleStateChanged</code> itself, and the Hub, the Talker, temp_ui, voice, the viewer, cv and their tests publish and subscribe to the rest.<ul>
+<li><strong>What it costs:</strong> every publish and subscribe site and its tests change, plus the module library generator, which reads manifest types.</li>
+<li><strong>What it breaks:</strong></li>
+<li>pydantic's field checking at publish time, which becomes an unchecked dict;</li>
+<li>subscriptions by class (a typo is a NameError today, and would become a silently empty subscription);</li>
+<li>IDE and type-checker help;</li>
+<li>the docs' rule that events are contracts (<code>modules.md</code>, <code>communication.md</code>).</li>
+<li><strong>What it buys:</strong> nothing for shared events, which already need no restart once they exist.</li>
+<li><strong>(ii) A <code>Contract</code> interface or base class that typed events inherit:</strong> this doesn't fit.</li>
+<li><code>Contract</code> is the DI interface type (<code>container.py</code>: only <code>Contract</code> subclasses in <code>assistant.contracts</code> are resolved), not a message type.</li>
+<li>The events already share a base, <code>Event</code>, and the bus matches on it (<code>isinstance</code>).</li>
+<li>A typed event that inherits from anything is still a class that publisher and listener must share, so it still lives in <code>assistant.contracts</code> and still needs the restart. That's the very problem this note solves.</li>
+<li><strong>(iii) Two kinds, each for its own job:</strong></li>
+<li><code>ModuleEvent</code> is the generic named event for <strong>module-owned</strong> events: those only the publishing module defines, which change with its reloads (<code>cv.job_finished</code>).</li>
+<li><strong>Shared</strong> events stay typed in <code>assistant.contracts</code>, as now: those the core or the Hub raise, or that several modules agree on (<code>TaskUpdated</code>, <code>VoiceTranscript</code>, <code>PermissionRequested</code>, …).</li>
+<li><strong>Promotion rule:</strong> a named event that becomes widely used, or whose payload needs checking, gets a typed class at the next planned restart, and its listeners move over.</li>
+<li><code>ModuleEvent</code> is itself one typed <code>Event</code>, so the bus, <code>ctx.subscribe</code> and the manifests need no new mechanism, only the name filter.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Recommended: (iii).</strong> It keeps the checking and the typo-proof subscriptions where most events are, adds no migration, and gives modules reload-only events where they need them.</p>
+<footer>Generated from <code>docs/next-steps/named-module-events.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

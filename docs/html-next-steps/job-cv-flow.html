@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job ↔ cv flow: who talks to whom, and how</title>
+<!-- Generated from docs/next-steps/job-cv-flow.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="job-cv-flow.html"></nav>
+<main>
+<h1 id="job-cv-flow-who-talks-to-whom-and-how">Job ↔ cv flow: who talks to whom, and how</h1>
+<blockquote>
+<p>Drawn 2026-11-12 from the built code (not yet loaded: the app restart is waiting on you), for <a href="job-cv-finish-event.html">job-cv-finish-event</a>. Every arrow's file and line is in the table under the chart.</p>
+</blockquote>
+<p><strong>Line kinds:</strong></p>
+<ul>
+<li><strong>(T)</strong> a tool call through the module door (<code>use_item</code> → <code>InvokeTool</code> → the module's menu). Solid arrow.</li>
+<li><strong>(E)</strong> a named event (<code>ModuleEvent</code>). Thick arrow, drawn in two halves: from the publishing module into the <strong>Event bus</strong> block (<code>publish_named</code>), and out of it to the subscribing module (<code>subscribe_named</code>).</li>
+<li><strong>(H)</strong> a Hub message or a Hub typed event or command (<code>StartTask</code>, <code>ReportTask</code>, <code>TaskUpdated</code>, <code>DeliverMessage</code>). Dotted arrow.</li>
+<li><strong>(A)</strong> a companion app call, or the app's event stream (<code>CompanionHandover</code>). Arrow with a circle end.</li>
+</ul>
+<p>The event bus is part of the core, not a module: no module owns it, and every module reaches it through its own context (<code>ctx</code>).</p>
+<p>Lines with no letter are code inside one module. Numbers 1 to 11 are the job's end. S1 to S5 are your Submit, which then follows 10 and 11 again.</p>
+<pre><code class="language-mermaid">flowchart TB
+  MA[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&quot;]
+
+  Door[&quot;&lt;b&gt;Module door (core)&lt;/b&gt;&lt;br/&gt;MCP: list · menu · use_item&lt;br/&gt;→ InvokeTool → the module's menu&quot;]
+  Bus[[&quot;&lt;b&gt;Event bus (core)&lt;/b&gt;&lt;br/&gt;ModuleEvent&lt;br/&gt;publish_named / subscribe_named&lt;br/&gt;keeps nothing&quot;]]
+
+  subgraph HUB[&quot;agent_hub module&quot;]
+    HubMenu[&quot;menu: hub.start · hub.send · hub.status …&quot;]
+    Board[&quot;TaskBoard&lt;br/&gt;StartTask · ReportTask → TaskUpdated&lt;br/&gt;tell_parent=False: no child-ended message&quot;]
+    Deliv[&quot;Delivery&lt;br/&gt;DeliverMessage, never into a turn&quot;]
+  end
+
+  subgraph JS[&quot;job_search module&quot;]
+    JSMenu[&quot;menu: job.search · job.open_ui&quot;]
+    JSListen[&quot;_on_cv&lt;br/&gt;subscribe_named cv.job_finished · cv.job_submitted&lt;br/&gt;keeps reply_to = its agent&quot;]
+    JA[&quot;&lt;b&gt;job agent&lt;/b&gt;&lt;br/&gt;job_search_agent&quot;]
+  end
+
+  Tracker[(&quot;job project&lt;br/&gt;tracker row&quot;)]
+
+  subgraph CV[&quot;cv module&quot;]
+    CVMenu[&quot;menu: cv.task · cv.read_result · cv.open_tool&lt;br/&gt;cv.tool_* · rezi.*&lt;br/&gt;(CallerMenu checks who may call)&quot;]
+    Gate[&quot;JobStartAgent&lt;br/&gt;job folder + job_start.json&quot;]
+    Rec[(&quot;job_start.json&lt;br/&gt;request.reply_to · replied&quot;)]
+    CA[&quot;&lt;b&gt;cv_agent&lt;/b&gt;&quot;]
+    OnTask[&quot;_on_task&quot;]
+    Watch[&quot;SubmitWatch&quot;]
+    Pass[&quot;_pass_submit&quot;]
+    Comp[&quot;CvTool&lt;br/&gt;CompanionHandover&quot;]
+    Mcp[&quot;McpClient&quot;]
+  end
+
+  CVTool[&quot;&lt;b&gt;CV Tool app&lt;/b&gt;&lt;br/&gt;own process&quot;]
+  Rezi[&quot;&lt;b&gt;Rezi&lt;/b&gt;&lt;br/&gt;app.rezi.ai&quot;]
+  Lost{{&quot;⚠ lost if job_search is off,&lt;br/&gt;reloading, or the app restarts&quot;}}
+
+  MA --&gt;|&quot;1 (T) hub.start&quot;| Door
+  Door --&gt;|&quot;(T) InvokeTool&quot;| HubMenu
+  HubMenu -.-&gt;|&quot;2 (H) StartTask → assign&quot;| JA
+  JA --&gt;|&quot;3 (T) cv.task&quot;| Door
+  Door --&gt;|&quot;(T) InvokeTool&quot;| CVMenu
+  CVMenu -.-&gt;|&quot;4 (H) StartTask tell_parent=False&quot;| Board
+  Board -.-&gt;|&quot;(H) assign&quot;| Gate
+  Gate --&gt;|&quot;writes request + reply_to&quot;| Rec
+  Gate --&gt;|&quot;the job, set up&quot;| CA
+  CA --&gt;|&quot;5 (T) cv.open_tool · cv.tool_* · rezi.*&quot;| Door
+  CVMenu --o|&quot;(A) open · status · round · result&quot;| Comp
+  Comp --o|&quot;(A) HTTP API, launches it&quot;| CVTool
+  CVMenu --&gt;|&quot;rezi.*&quot;| Mcp
+  Mcp --&gt;|&quot;Rezi step: MCP over HTTPS&quot;| Rezi
+  CA -.-&gt;|&quot;Rezi step: Chrome reads the Score&quot;| Rezi
+  CA -.-&gt;|&quot;6 (H) ReportTask done or failed&quot;| Board
+  Board -.-&gt;|&quot;7 (H) TaskUpdated&quot;| OnTask
+  OnTask --&gt;|&quot;reads reply_to&quot;| Rec
+  OnTask ==&gt;|&quot;8 (E) cv.job_finished: publish_named, into the bus&quot;| Bus
+  Bus ==&gt;|&quot;9 (E) cv.job_finished: subscribe_named, out to job_search&quot;| JSListen
+  JSListen -.-&gt;|&quot;10 (H) DeliverMessage&quot;| Deliv
+  Deliv -.-&gt;|&quot;(H) its task, a new task, or after its turn&quot;| JA
+  JA --&gt;|&quot;11 updates the row&quot;| Tracker
+  CVTool --o|&quot;S1 (A) /api/events: submitted&quot;| Comp
+  Comp --o|&quot;(A) events()&quot;| Watch
+  Watch --&gt;|&quot;S2&quot;| Pass
+  Pass --&gt;|&quot;S3 once per Submit: checks, writes replied&quot;| Rec
+  Pass ==&gt;|&quot;S4 (E) cv.job_submitted: publish_named, into the bus&quot;| Bus
+  Bus ==&gt;|&quot;S5 (E) cv.job_submitted: subscribe_named, out to job_search&quot;| JSListen
+  CVTool --o|&quot;R (A) /api/events: rezi_request&quot;| Comp
+  Watch -.-&gt;|&quot;R (H) DeliverMessage: the Rezi click&quot;| Deliv
+  Deliv -.-&gt;|&quot;(H)&quot;| CA
+  Bus --- Lost
+
+  classDef port fill:#ffffff,stroke:#6b4fa0,color:#1d1d1b
+  classDef bus fill:#fff4d6,stroke:#b07d00,stroke-width:4px,color:#1d1d1b
+  classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
+  classDef app fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
+  classDef agent fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
+  classDef warn fill:#fdecea,stroke:#b03a2e,color:#1d1d1b
+  class Door port
+  class Bus bus
+  class HubMenu,Board,Deliv,JSMenu,JSListen,CVMenu,Gate,OnTask,Watch,Pass,Comp,Mcp module
+  class CVTool,Rezi app
+  class MA,JA,CA agent
+  class Lost warn
+</code></pre>
+<h2 id="each-arrow-in-the-code">Each arrow in the code</h2>
+<p>Paths are under <code>src/assistant/</code> unless they start with <code>src/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Kind</th>
+<th>What</th>
+<th>File and line</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>T</td>
+<td>The Main Assistant's <code>use_item hub.start</code> → <code>InvokeTool</code> → the Hub's menu</td>
+<td><code>infra/mcp_door.py:153-158</code>, <code>core/tools.py:33</code>, <code>modules/agent_hub/module.py:200-213</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>H</td>
+<td>The Hub starts the job agent's task</td>
+<td><code>modules/agent_hub/module.py:135</code> (handles <code>StartTask</code>), <code>modules/agent_hub/tasks.py:252</code> (<code>agent.assign</code>)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>T</td>
+<td>The job agent's <code>use_item cv.task</code> → cv's menu, caller checked</td>
+<td><code>infra/mcp_door.py:158</code>, <code>modules/cv/module.py:99-102</code> (<code>CallerMenu</code>), <code>modules/cv/module.py:383</code> (<code>cv.task</code>)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>H</td>
+<td>cv starts cv_agent as the job agent's child, <code>tell_parent=False</code></td>
+<td><code>modules/cv/module.py:414-415</code>, <code>modules/agent_hub/tasks.py:249</code> (kept on the record)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>H</td>
+<td>The Hub gives the task to cv's gate, which sets the job up</td>
+<td><code>modules/agent_hub/tasks.py:252</code>, <code>modules/cv/job_start.py:235</code> (<code>JobStartAgent.assign</code>)</td>
+</tr>
+<tr>
+<td>–</td>
+<td>code</td>
+<td>The gate writes <code>job_start.json</code> with the request and <code>reply_to</code></td>
+<td><code>modules/cv/job_start.py:133</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>T</td>
+<td>cv_agent's tools: <code>cv.open_tool</code>, <code>cv.tool_*</code>, <code>rezi.*</code></td>
+<td><code>modules/cv/module.py:537</code> (<code>cv.open_tool</code>), <code>:584</code> (<code>cv.tool_result</code>), <code>:318-377</code> (<code>rezi.*</code>)</td>
+</tr>
+<tr>
+<td>A</td>
+<td>A</td>
+<td>cv → the CV Tool app: launch and HTTP calls</td>
+<td><code>modules/cv/module.py:246</code> (<code>CvTool</code>), <code>modules/cv/tool.py:128</code> (<code>CompanionHandover</code>), <code>:164</code> (<code>open</code>), <code>:230</code> (<code>result</code>)</td>
+</tr>
+<tr>
+<td>Rezi</td>
+<td>–</td>
+<td><code>rezi.*</code> through Rezi's MCP server</td>
+<td><code>modules/cv/module.py:242</code> (<code>rezi_client</code>), <code>modules/cv/mcp.py:277</code> (<code>McpClient</code>)</td>
+</tr>
+<tr>
+<td>Rezi</td>
+<td>–</td>
+<td>cv_agent reads the Score in Chrome on app.rezi.ai</td>
+<td><code>modules/cv/module.toml:61</code> (<code>chrome = true</code>), <code>modules/cv/worker.py:31</code> (its prompt); see below</td>
+</tr>
+<tr>
+<td>6</td>
+<td>H</td>
+<td>cv_agent's session reports done (or failed) to the Hub</td>
+<td><code>infra/session_agent.py:590</code>, <code>:604</code>, <code>:748</code> (<code>_report(ReportKind.DONE, …)</code>), <code>modules/agent_hub/tasks.py:337</code>, <code>:356-357</code></td>
+</tr>
+<tr>
+<td>–</td>
+<td>H</td>
+<td>No child-ended message for this task</td>
+<td><code>modules/agent_hub/tasks.py:440</code> (<code>not record.tell_parent</code> returns)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>H</td>
+<td>The Hub publishes <code>TaskUpdated</code>; cv hears it</td>
+<td><code>modules/agent_hub/tasks.py:456</code>, <code>modules/cv/module.py:249</code> (subscribe), <code>:227</code> (manifest <code>listens</code>), <code>:448</code> (<code>_on_task</code>)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>E</td>
+<td>cv publishes <code>cv.job_finished</code></td>
+<td><code>modules/cv/module.py:464</code>, <code>modules/cv/handoff.py:73</code> (the data), <code>modules/cv/module.py:225</code> (manifest <code>publishes_named</code>), <code>core/context.py:67-76</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>E</td>
+<td>job_search hears it, only for its own agent</td>
+<td><code>modules/job_search/module.py:133-134</code>, <code>:114</code> (manifest <code>listens_named</code>), <code>:139</code> (<code>reply_to</code> check), <code>core/context.py:78-91</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>H</td>
+<td>job_search wakes its agent with a <code>DeliverMessage</code></td>
+<td><code>modules/job_search/module.py:142</code>, <code>modules/agent_hub/module.py:143</code> (handler), <code>modules/agent_hub/delivery.py:73</code> (<code>deliver</code>), <code>:120-138</code> (into its task or a new task), <code>modules/agent_hub/module.py:146</code>, <code>:305</code> (after its turn)</td>
+</tr>
+<tr>
+<td>11</td>
+<td>–</td>
+<td>The job agent updates the tracker row</td>
+<td>no code line: see below</td>
+</tr>
+<tr>
+<td>S1</td>
+<td>A</td>
+<td>The CV Tool's Submit goes out on its event stream; cv reads it</td>
+<td><code>src/cv_tool/server.py:246-248</code> (<code>/api/submit</code> publishes <code>submitted</code>), <code>:313</code> (<code>/api/events</code>), <code>modules/cv/tool.py:136</code> (<code>events</code>), <code>modules/cv/submit_watch.py:104</code>, <code>:110</code></td>
+</tr>
+<tr>
+<td>S2</td>
+<td>–</td>
+<td>The watch hands the Submit to <code>_pass_submit</code></td>
+<td><code>modules/cv/submit_watch.py:162-167</code>, <code>modules/cv/module.py:253</code> (wired), <code>:486</code>; also from <code>cv.tool_result</code>: <code>:589</code></td>
+</tr>
+<tr>
+<td>S3</td>
+<td>–</td>
+<td>Once per Submit: <code>pending_reply</code>, then <code>mark_replied</code> writes <code>replied</code></td>
+<td><code>modules/cv/reply.py:23</code>, <code>:33</code>, <code>modules/cv/module.py:507</code></td>
+</tr>
+<tr>
+<td>S4</td>
+<td>E</td>
+<td>cv publishes <code>cv.job_submitted</code> into the bus</td>
+<td><code>modules/cv/module.py:504</code>, <code>modules/cv/reply.py:40</code> (the data), <code>core/context.py:67-76</code></td>
+</tr>
+<tr>
+<td>S5</td>
+<td>E</td>
+<td>job_search hears <code>cv.job_submitted</code> (same listener as 9); then 10 and 11 again</td>
+<td><code>modules/job_search/module.py:133-134</code>, <code>:139</code> (<code>reply_to</code> check), <code>core/context.py:78-91</code></td>
+</tr>
+<tr>
+<td>R</td>
+<td>A, H</td>
+<td>The Send JD and CV to Rezi click: the app's event, then a message to cv_agent</td>
+<td><code>src/cv_tool/server.py:233</code>, <code>modules/cv/submit_watch.py:112</code>, <code>:152</code>, <code>modules/cv/module.py:473-480</code></td>
+</tr>
+<tr>
+<td>⚠</td>
+<td>E</td>
+<td>Where an event is lost</td>
+<td><code>core/context.py:106</code> (a stopped module's context drops what it publishes); <code>core/context.py:91</code> (a live bus subscription only: nothing is queued for a module that's off, reloading or not started after a restart)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-replied-record-and-the-lost-events">The replied record and the lost events</h2>
+<ul>
+<li><strong><code>job_start.json</code></strong> holds the request, with <code>reply_to</code> (written at step 4, read at 7 and S3), and <code>replied</code> (written at S3), so one Submit goes out once.</li>
+<li><strong>An event is lost</strong> if job_search is off or reloading when cv publishes, or if the app restarts in between. With <code>tell_parent=False</code> nothing else wakes the job agent then. The result is still in the Hub's task record and the job folder. No fallback: decided 2026-11-13, accepted as normal at-most-once event delivery (<a href="job-cv-finish-event.html#lost-events-decided-no-fallback">job-cv-finish-event</a>).</li>
+</ul>
+<h2 id="what-could-not-be-verified">What could not be verified</h2>
+<ul>
+<li><strong>Step 11, the tracker update:</strong> it's the job agent's own action. No code does it; job_search's message only asks for it (<code>modules/job_search/module.py</code>, <code>cv_finished_text</code> and <code>cv_submitted_text</code>). The job project's skills (<code>C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md</code>) have no step for a cv result, so no line can be named there.</li>
+<li><strong>The Rezi step in Chrome:</strong> cv_agent reads the Score with Claude in Chrome. Only the setting and the prompt can be named; the browser calls aren't in this repo's code.</li>
+<li><strong>The module door's process side:</strong> steps 1, 3 and 5 go from the agent's <code>claude</code> session through the stdio relay (<code>python -m assistant.infra.mcp_door</code>) to the app. The lines named are the app side of the door.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/job-cv-flow.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

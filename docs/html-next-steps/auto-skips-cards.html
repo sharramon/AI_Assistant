@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An agent in Auto gets no permission cards, and a waiting worker is paused by the Hub</title>
+<!-- Generated from docs/next-steps/auto-skips-cards.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="auto-skips-cards.html"></nav>
+<main>
+<h1 id="an-agent-in-auto-gets-no-permission-cards-and-a-waiting-worker-is-paused-by-the-hub">An agent in Auto gets no permission cards, and a waiting worker is paused by the Hub</h1>
+<p><strong>Status:</strong> checked by you 2026-11-13 (answers below). <strong>Rule 1 built.</strong> <strong>Rule 2, corrected, built</strong> (approved by you 2026-11-13): a waiting task <strong>ends</strong> with a note and is resumed from it, never held paused (<a href="#rule-2-corrected-a-waiting-task-ends-with-a-note">rule 2, corrected</a>). Full suite 841 passed, ruff clean, docs rebuilt. <strong>Left:</strong> the app restart (core, infra and contracts changed); you said you'll restart it yourself (2026-11-13). Not committed. Date: 2026-11-13. Two code rules in one change: the Auto check at the gate (below), and <a href="#rule-2-the-hub-pauses-a-worker-thats-only-waiting">the Hub pauses a worker that's only waiting</a>.</p>
+<h2 id="what-you-asked">What you asked</h2>
+<p>Why do permission cards and asks still reach you when an agent is in Auto, and can one check at the gate stop that: "if the calling agent is in Auto, skip the card"? <code>git push</code> stays blocked, and the "very risky" pause (<code>NEED: Risky: …</code>) stays as it is.</p>
+<h2 id="why-the-cards-come">Why the cards come</h2>
+<p>There are <strong>two card paths</strong>, and only one of them knows about Auto:</p>
+<ol>
+<li><strong>The agent's own gate</strong> (<code>PermissionGate</code>, in <code>infra/</code>). It already checks the agent's mode: in Auto it answers tool requests itself, with <code>git push</code> refused.</li>
+<li><strong>The core's permissions handler</strong> (<code>core/permissions/handler.py</code>). It shows the message cards, access-list cards and grant cards. It never looks at anyone's mode.</li>
+</ol>
+<p><strong>The smoke test's cards are Manual cards.</strong> The mode is per agent, every agent starts in Manual, and only your button switches one to Auto. In Manual, every <code>use_item</code> call through the module door (turning cv on, passing the job to cv) asks on a card by design: the door's read-only tools are allowed, <code>use_item</code> isn't. So those cards came from path 1 working as meant. The proposed check wouldn't have removed them unless the job agent had been switched to Auto. I didn't read the run's logs, so I can't say which card the "card from the CV agent" was.</p>
+<h2 id="every-place-a-card-or-an-ask-is-raised">Every place a card or an ask is raised</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Where</th>
+<th>What raises it</th>
+<th>Checks the caller's mode?</th>
+<th>Can the mode be read there?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Tool permission requests: <code>PermissionGate.on_tool_request</code> (<code>infra/permission_gate.py:104</code>)</td>
+<td><code>claude</code> asks for a tool its rules don't allow (<code>can_use_tool</code>)</td>
+<td><strong>Yes</strong> (line 113): in Auto it's allowed, except <code>git push</code>. An Auto session runs <code>bypassPermissions</code>, so most never arrive</td>
+<td>Yes, <code>mode()</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>The module door (<code>use_item</code> → <code>InvokeTool</code>)</td>
+<td>No card of its own. In Manual, <code>use_item</code> arrives as #1 (<code>agent_profile.py:180</code>). The core menu's <code>modules.off</code> with dependents and <code>modules.add</code> call <code>ctx.permissions.request(name)</code> (<code>core/directory.py:71, 86</code>), but single names aren't checked yet: always allowed, no card</td>
+<td>Not needed today. Once single names are checked, they'll go through the handler, so #5 to #7 cover them</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Reload or add from a <code>RELOAD:</code> / <code>ADD_MODULE:</code> line: <code>SessionTaskAgent</code> (<code>infra/session_agent.py:701</code>)</td>
+<td>The agent's last line</td>
+<td><strong>Yes</strong>: in Auto it runs at once</td>
+<td>Yes, <code>self._permission_mode</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>request_approval</code> (<code>infra/session_agent.py:451</code>), used by <code>agents.launch</code> on <code>task_agents</code></td>
+<td>A helper launch</td>
+<td><strong>No, on purpose</strong>: "a launch always asks, even in Auto" (<a href="../html/architecture/agents.html#launching-a-helper">agents</a>)</td>
+<td>Yes, <code>self._permission_mode</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>The message card: <code>MessageGate.send</code> (<code>agent_hub/gate.py:44, 68</code>) → <code>handler.ask</code> (<code>handler.py:226</code>)</td>
+<td>An agent messages one that isn't its child (<code>hub.send</code> with <code>agent_id</code>)</td>
+<td><strong>No</strong></td>
+<td>In the Hub, yes (<code>self._agent(sender).info().permission_mode</code>). In the core handler, only by asking (<code>ListAgents</code> through its <code>send</code>)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Access-list cards: <code>handler.request_set</code> (<code>handler.py:188</code>), from a module's start (<code>request_access</code> in job_search, cv, task_agents)</td>
+<td>A task-agent module turned on with a new or changed list</td>
+<td><strong>No</strong></td>
+<td><strong>No.</strong> The card has no caller: <code>modules.on</code> (<code>directory.py:64</code>) sends <code>ActivateModule</code> with no caller, so who turned the module on is lost before <code>start()</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Grant cards: <code>handler.grant</code>, <code>handler.request</code>, <code>handler.revoke</code> (<code>handler.py:291, 310, 344</code>)</td>
+<td>An agent's <code>permissions.grant / request / revoke</code></td>
+<td><strong>No</strong> (only "you", the temp UI, skips the card)</td>
+<td>The caller is on the card (<code>card.caller</code>); the mode only by asking (<code>ListAgents</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-proposal">The proposal</h2>
+<p>Two small checks, one on each card path, so every card goes past exactly one mode check.</p>
+<p><strong>A. The core handler: one check in <code>_open(card)</code>.</strong> Every handler card goes through <code>_open</code>, so this is the single gate for #5 and #7, and later for single names. Before the card shows:</p>
+<ul>
+<li>If <code>card.caller</code> is set and that agent is in Auto, the card isn't shown, and the agent gets a note saying it went through in Auto.</li>
+<li>The mode is read with <code>ListAgents</code> through the router's <code>send</code> (contracts only, so the handler still imports no module and names no agent). If the caller isn't found or the call fails, it's treated as Manual and the card shows.</li>
+<li><strong>A message card (#5) in Auto is Allow once:</strong> delivered, nothing saved. Switching back to Manual brings the card back.</li>
+</ul>
+<p><strong>B. The agent's gate: the Auto rule moves into <code>PermissionGate.ask</code>.</strong> Today #3 checks the mode in <code>SessionTaskAgent</code> and #1 checks it in the gate. Moving #3's check into <code>gate.ask</code> makes the gate the one place on the agent side. #4 (helper launch) would then follow it too, unless you keep its exception (question 3).</p>
+<p><strong>Unchanged:</strong></p>
+<ul>
+<li><strong><code>git push</code></strong> stays refused in Auto: it's in <code>--disallowedTools</code> and in <code>PermissionGate.auto_answer</code>. Neither check touches tool requests.</li>
+<li><strong>The "very risky" pause</strong> stays a prompt rule. A <code>NEED: Risky: …</code> is still a question held for you, never a card, so these checks don't see it.</li>
+<li><strong>Manual</strong> is unchanged: every card shows as today.</li>
+</ul>
+<h2 id="your-answers-2026-11-13">Your answers (2026-11-13)</h2>
+<p><strong>The general rule:</strong> in Auto everything is allowed: no cards, no asks, and no extra cards or configs added, unless something very dangerous might happen. The risky-step stop (<code>NEED: Risky:</code>) stays, and <code>git push</code> stays blocked.</p>
+<ol>
+<li><strong>Grant cards (#7):</strong> skipped in Auto; the grant, request or revoke is carried out at once.</li>
+<li><strong>Access-list cards (#6):</strong> skipped in Auto. <strong>No contract change was needed:</strong> <code>modules.on</code> already knows its caller, so it sets <code>ACTING_FOR</code> (a context variable in the core handler) around its <code>ActivateModule</code>; the module's start, and its requires', run in tasks copied from that context, so <code>request_set</code> reads who turned it on. In Auto the list is allowed for this launch and <strong>not saved</strong> (Allow once, like a message), so a Manual launch asks again. Protected-zone refusals still apply.</li>
+<li><strong>Helper launch (#4):</strong> asks in Manual; once you press Auto on that agent, it stops asking. Each pair's own mode governs its own asks.</li>
+<li><strong>Where:</strong> the core handler, as the single place that reads each pair's flag: <code>_in_auto(caller)</code> sends <code>ListAgents</code> and reads that agent's <code>permission_mode</code>; a helper tab's Talker <code>talker:&lt;id&gt;</code> counts as <code>&lt;id&gt;</code>. On the agent side, <code>PermissionGate.ask</code> is the one check for approvals. <strong>Limit:</strong> the main tab's Talker calls as plain <code>talker</code>, and the core handler can't name the coordinator (shared code names no module), so its cards still show. It rarely makes these calls.</li>
+<li><strong>Yes:</strong> a helper's result reaches the Main Assistant as a message. After your correction, it resumes the Main Assistant's ended, waiting task from its note; nothing is held paused.</li>
+<li><strong>Yes:</strong> tasks started with <code>tell_parent=False</code> don't count as waiting.</li>
+<li><strong>The risky-step stop stays in Auto</strong>, and <code>git push</code> stays blocked.</li>
+</ol>
+<h2 id="rule-1-what-was-built">Rule 1: what was built</h2>
+<ul>
+<li><code>core/permissions/handler.py</code>: <code>_in_auto(caller)</code> and <code>ACTING_FOR</code>; the check in <code>ask</code> (Allow once), <code>request_set</code> (allowed this launch, not saved), <code>grant</code>, <code>request</code> and <code>revoke</code> (carried out at once). You, an unknown caller, plain <code>talker</code> or a failed lookup: the card.</li>
+<li><code>core/directory.py</code>: <code>modules.on</code> takes its caller and sets <code>ACTING_FOR</code>.</li>
+<li><code>infra/permission_gate.py</code>: <code>ask</code> runs the approval at once in Auto; <code>infra/session_agent.py</code> drops its own check for <code>RELOAD:</code> / <code>ADD_MODULE:</code> and <code>request_approval</code> follows the gate.</li>
+<li>Tests: <code>tests/test_auto_skips_cards.py</code> (Auto message, the pair's Talker, Manual / unknown / plain <code>talker</code> / you, a failed lookup, an access list turned on in Auto and in Manual, grant / request / revoke in Auto, <code>modules.on</code> passing its caller, the gate in Auto and Manual). Full suite: 831 passed.</li>
+<li>Docs: <a href="../html/architecture/permissions.html#permission-mode-built">permissions</a>, <a href="../html/architecture/agents.html">agents</a> (launching a helper), the <a href="../html/api/agents.html">Agents API</a>, <a href="../html/api/infra.html">infra API</a>, <a href="../html/api/reusable.html">reusable</a>.</li>
+</ul>
+<h2 id="rule-2-corrected-a-waiting-task-ends-with-a-note">Rule 2, corrected: a waiting task ends with a note</h2>
+<p><strong>Your correction (2026-11-13):</strong> a task must never sit in an open-ended pause. A task that is only waiting, on a card, a helper's result or you, <strong>ends</strong>. It leaves a short note of what it waits for, so it never holds a working slot or gets in the way. When the answer, the result or a message comes, the work starts again from that note.</p>
+<p><strong>This is the <code>NEED:</code> path, used for every kind of waiting.</strong> A <code>NEED:</code> already works this way: the agent drops the task and is free, the Hub's record keeps the question and its <code>question_key</code>, and the answer gives the same task id back (<code>TaskBoard._answer</code>). It goes into the live session if nothing ran since (<code>_asked</code>), else into a fresh one with the key's notes (<code>CONTEXT_AGAIN</code>). Rule 2 now just adds two more things a task can wait on.</p>
+<h3 id="what-the-ending-note-holds">What the ending note holds</h3>
+<p>It's the Hub's record of the ended task, the same record a <code>NEED:</code> leaves. It outlives a Hub reload (<code>export_questions</code>):</p>
+<ul>
+<li><strong>What it waits on</strong>, as the record's question: "waiting on child task 3fa2 (cv)", or "waiting on your answer to its card: reload cv". Its kind is a new <code>QuestionKind.WAIT</code> (typed, so nobody parses the text). A <code>NEED:</code> keeps <code>need</code> / <code>risky</code>.</li>
+<li><strong>The task's own text and recent reports</strong>, as today.</li>
+<li><strong>Where to pick up:</strong> the <code>question_key</code> (the module's context key, e.g. the job's folder) or else the task's last handoff note, sent with the <code>turn_end</code> report exactly as a <code>NEED:</code> sends it. A fresh session gets the original task, the "waiting on" line, and those notes.</li>
+<li><strong>The turn's last text</strong>, cut short, so the resumed turn knows what it had just said.</li>
+</ul>
+<h3 id="what-wakes-the-work">What wakes the work</h3>
+<table>
+<thead>
+<tr>
+<th>Waiting on</th>
+<th>It ends when</th>
+<th>What wakes it</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>You</strong> (<code>NEED:</code>, <code>NEED: Risky:</code>)</td>
+<td>as today</td>
+<td>your answer</td>
+<td>as today: <code>_answer</code></td>
+</tr>
+<tr>
+<td><strong>A helper's result</strong> (child tasks with <code>tell_parent</code>)</td>
+<td>its turn ends with no tag while they're open</td>
+<td>each child's end</td>
+<td><code>_to_parent</code> delivers the result <strong>into that parent task</strong> (<code>Delivery.later</code> with the parent's task id, so it can't land in another task of the same agent); <code>_answer</code> resumes it. If other children are still open, the resumed turn ends waiting again</td>
+</tr>
+<tr>
+<td><strong>Your answer to a card</strong> (a <code>RELOAD:</code> / <code>ADD_MODULE:</code> approval or a helper launch, in Manual)</td>
+<td>its turn ends with the card open</td>
+<td>your answer on the card</td>
+<td>the gate keeps that one approval past the drop. On Allow the action runs. Its outcome (or "denied") comes to the Hub as a <code>progress</code> report on the waiting task, and the Hub gives the task back with it (<code>_answer</code>)</td>
+</tr>
+<tr>
+<td><strong>Any of these</strong></td>
+<td></td>
+<td>your message to that task</td>
+<td><code>hub.send</code> into a waiting record is an answer, as for a <code>NEED:</code></td>
+</tr>
+</tbody>
+</table>
+<p>If the agent is in another task when the wake comes, it waits in <code>Delivery</code> until the agent is free (<code>pending</code>), as every message does. A tool request held mid-turn (Manual <code>can_use_tool</code>) isn't touched: that turn is still running ("shouldn't catch", below). In Auto there are no cards, so only helpers and <code>NEED:</code> can leave a task waiting.</p>
+<p><strong>While it waits, the agent is free:</strong> it takes new tasks and messages, the slot is free (only <code>active</code> records count), and the Hub can reload (the note is exported). The record isn't behind the <strong>!</strong> for a helper wait (nothing for you to answer); a card shows as it does today.</p>
+<h3 id="what-happens-to-the-code-already-built">What happens to the code already built</h3>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Fate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ReportKind.TURN_END</code>, <code>ReportTask.card_open</code>, <code>TURN_DONE</code></td>
+<td><strong>Kept.</strong> The agent still reports the turn's end and the Hub still decides. <code>turn_end</code> also carries <code>key</code> now</td>
+</tr>
+<tr>
+<td><code>TURN_PAUSED</code></td>
+<td><strong>Renamed <code>TURN_WAIT</code></strong>: "the task ends waiting"</td>
+</tr>
+<tr>
+<td>Hub <code>_settle</code> (card open, or open <code>tell_parent</code> children)</td>
+<td><strong>Kept as the decision.</strong> Instead of <code>idle</code> + <code>waiting_on</code> with the agent holding the task, it records the note (question, <code>QuestionKind.WAIT</code>, key) and the agent drops the task</td>
+</tr>
+<tr>
+<td><code>TaskRecord.waiting_on</code>, <code>_waiting_task</code>, the refusals in <code>start</code> and <code>_answer</code> ("paused waiting on …"), the <code>progress</code> case that woke a paused record</td>
+<td><strong>Removed.</strong> A waiting record is now one kind of <code>asked</code> record. The <code>progress</code> case becomes "a card's outcome resumes its waiting task"</td>
+</tr>
+<tr>
+<td><code>_to_parent</code>'s coordinator rule (answer 5)</td>
+<td><strong>Kept</strong>, retargeted: it delivers into the waiting parent task by id</td>
+</tr>
+<tr>
+<td>Agent: mode <code>SETTLING</code>, <code>_settle</code>, the messages-while-settling hand-off</td>
+<td><strong>Kept</strong> (it still waits for the Hub's answer, so nothing slips in)</td>
+</tr>
+<tr>
+<td>Agent: <code>_after_settle</code>'s "paused" branch, <code>_send_outcome</code> waking a paused task</td>
+<td><strong>Replaced</strong>: on <code>TURN_WAIT</code> it drops the task like <code>_ask_user</code> (live session kept for <code>_asked</code>). An outcome for a dropped task goes to the Hub as that task's <code>progress</code> report</td>
+</tr>
+<tr>
+<td><code>PermissionGate</code></td>
+<td><strong>Changed a little:</strong> <code>clear()</code> on a wait drop keeps the open approval, tied to its task id; <code>answer_permission</code> takes that id though it's no longer the current task</td>
+</tr>
+<tr>
+<td>Docs edited for the pause (agents "Paused by the Hub", runtime mode diagram, Agents API <code>turn_end</code>)</td>
+<td><strong>Rewritten</strong> to "ends waiting, resumed from its note"</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-changes-for-the-main-assistant">What changes for the Main Assistant</h3>
+<p>Its turn that ends with helpers still open now <strong>ends waiting</strong> too, instead of ending <code>done</code> (before rule 2) or sitting paused (the first build). It's free at once: the Talker's next request starts a new task on it, which the pause used to refuse. Each helper's end arrives as a message into the waiting task. It resumes in the live session if nothing ran since, else in a fresh one from the note. It never holds a slot either way (the coordinator doesn't count against <code>max_extra_agents</code>). Its feed line for each child's end stays.</p>
+<h3 id="the-tests-838-today">The tests (838 today)</h3>
+<ul>
+<li><strong><code>agent_hub/tests/test_pause_waiting.py</code></strong> (6 tests): rewritten, and renamed <code>test_end_waiting.py</code>. Same cases, new expectations: nothing open → done (unchanged); a parent with an open child ends waiting, its agent is free and <strong>takes a new task</strong>, and the child's end resumes the <strong>same task id</strong>; <code>tell_parent=False</code> doesn't count (unchanged); the coordinator ends waiting and is resumed by its helper's end; a card open at the turn's end ends waiting, and the card's answer resumes it with the outcome; a <code>NEED</code> untouched. Added: two waiting tasks on one agent, each child's end lands in its own parent; a waiting record outlives a Hub reload.</li>
+<li><strong><code>agent_hub/tests/test_end_report_race.py</code></strong> (3 tests): <code>turn_end</code> then <code>done</code> and the message-while-settling test unchanged; any check for <code>TURN_PAUSED</code> reads <code>TURN_WAIT</code>.</li>
+<li><strong>Session-agent tests:</strong> one added: a <code>TURN_WAIT</code> answer drops the task with the gate's approval kept, and the answer goes back into the live session.</li>
+<li>Everything else (the rule 1 tests, the <code>NEED</code> tests, Delivery, child results) should pass unchanged. If any other test changes, the report will name it.</li>
+</ul>
+<h3 id="build-of-the-corrected-rule-2-handoff-2026-11-13-approved-by-you">Build of the corrected rule 2: handoff (2026-11-13, approved by you)</h3>
+<p><strong>Done in code (not yet tested, no test run since):</strong></p>
+<ul>
+<li><code>contracts/agents.py</code> + <code>__init__.py</code>: <code>TURN_PAUSED</code> → <code>TURN_WAIT</code> ("wait"); <code>QuestionKind.WAIT</code>; <code>ReportTask.key</code> also with <code>turn_end</code>; <code>TURN_END</code> comment says a <code>progress</code> on a dropped task is new input for it.</li>
+<li><code>infra/permission_gate.py</code>: <code>parked=</code> callback; <code>park(task_id)</code> (keeps an open approval, or one whose action runs, tied to the dropped task, out of the next task's way), <code>unpark(task_id)</code> (the task given back first), <code>answer_parked</code>, <code>parked</code> property; <code>_run_approved(run, action, task_id)</code> and <code>_outcome(task_id, text)</code> route an outcome to the current task or to <code>parked</code>; the expiry handles a parked approval.</li>
+<li><code>infra/session_agent.py</code>: <code>_after_settle</code> on <code>TURN_WAIT</code> → <code>_drop_waiting</code> (<code>_asked = task_id</code>, <code>gate.park</code>, idle, what came while settling goes to <code>_on_parked</code>); <code>_on_parked</code> = a <code>progress</code> report on that task id (<code>_report</code> takes <code>task_id</code>); <code>_settle</code> sends <code>key</code>; <code>assign</code> calls <code>gate.unpark</code>; <code>answer_permission</code> answers a parked card; the PAUSED wake in <code>_send_outcome</code> removed.</li>
+<li><code>agent_hub/tasks.py</code>: <code>waiting_on</code>, <code>_waiting_task</code> and the "paused waiting" refusals removed; <code>asked</code> also covers <code>WAIT</code> and a dropped card (<code>permission</code> with <code>holder is None</code>); <code>_settle(record, key)</code> ends the task waiting (holder None, key kept; a child wait sets question "waiting on child task … " with <code>WAIT</code>; <strong>a card wait keeps <code>question_kind = permission</code></strong> so the Talker and temp UI cards keep working: a deviation from the design above); <code>progress</code> on an asked record → <code>tell_parent(agent, text, record.id)</code> (Delivery gives it back through <code>_answer</code>); <code>answer()</code> on a dropped card → question "waiting on the outcome of: …", <code>WAIT</code>; <code>_answer</code> keeps a still-open card's question; <code>_to_parent</code> targets the parent task id when it's waiting (<code>WAIT</code>), the coordinator only then.</li>
+<li><code>agent_hub/delivery.py</code>: <code>tell(agent_id, text, task_id="", sender=...)</code>, <code>deliver(command, task_id="")</code>. <code>module.py</code> and <code>test_child_result.py</code> wiring pass <code>task_id</code>.</li>
+</ul>
+<p><strong>Finished (2026-11-13, next session):</strong> <code>test_pause_waiting.py</code> replaced by <code>agent_hub/tests/test_end_waiting.py</code> (9 tests: the 6 cases, two waiting tasks on one agent, a waiting record outliving a Hub reload, and the session-agent test: <code>TURN_WAIT</code> drops the task, <code>gate.parked</code> set, the answer goes into the live session with no restart). <code>test_end_report_race.py</code> passes unchanged. Full suite <strong>841 passed</strong>, ruff clean. Docs rewritten (agents "A waiting task ends with a note", the state diagram, runtime mode diagram and bullet, Agents API <code>QuestionKind.WAIT</code> / <code>ReportTask</code> / <code>TURN_WAIT</code>, API index, infra <code>PermissionGate.park</code>, reusable) and rebuilt. Left: the app restart after your yes; <code>talker/restart.py</code>'s <code>ASKED</code> doesn't list <code>WAIT</code> (out of scope). Not committed.</p>
+<p><strong>The plan this session followed:</strong></p>
+<ol>
+<li>Rewrite <code>agent_hub/tests/test_pause_waiting.py</code> as <code>test_end_waiting.py</code> (delete the old file; its rig's <code>tell_parent</code> lambda needs the <code>task_id</code> arg). Cases as in "The tests" above; the card case: after <code>end_turn</code> with <code>RELOAD: ghost</code>, <code>record.asked</code>, <code>not agent.has_task</code>, <code>agent.info()</code> idle; <code>board.answer(AnswerPermission(allow=True))</code> → the reload runs, the outcome resumes the same task id (<code>sessions["worker"].sent[-1]</code> has "Answer to your question in task" and the "[App] Reload the ghost module" outcome text: check the actual <code>CODE_LOADED</code> wording). Child case: the parent agent takes a new task while waiting (<code>board.start</code> ok), then the child's end resumes the parent task once the agent is free.</li>
+<li>Add a session-agent test: <code>TURN_WAIT</code> answer → task dropped, <code>gate.parked == task id</code>, the answer goes into the live session (no fresh session).</li>
+<li><code>test_end_report_race.py</code>: check it still passes (no <code>TURN_PAUSED</code> there).</li>
+<li>Run <code>.\.venv\Scripts\python -m pytest</code> and <code>.\.venv\Scripts\ruff check</code>; hand failures to the <code>debugger</code> subagent.</li>
+<li>Docs: rewrite the pause wording in <a href="../html/architecture/agents.html">agents</a> ("Paused by the Hub", kinds, the state diagram), <a href="../html/agents/runtime.html">runtime</a> (mode diagram), <a href="../html/api/agents.html">Agents API</a> (<code>ReportTask</code>, <code>turn_end</code>, <code>TURN_WAIT</code>, <code>QuestionKind.wait</code>), <a href="../html/api/index.html">API index</a>; add <code>QuestionKind.WAIT</code> / <code>PermissionGate.park</code> wording to <a href="../html/api/infra.html">infra API</a> and <a href="../html/api/reusable.html">reusable</a>; then <code>.\.venv\Scripts\python scripts\build_docs.py</code>.</li>
+<li>Architecture check, then the final report with the real test count and ruff. Not in scope yet: <code>talker/restart.py</code>'s <code>ASKED</code> doesn't list <code>WAIT</code> (the restart note lists only tasks waiting on the user; say so in the report).</li>
+<li>Ask the user before the app restart (contracts, infra changed). Don't commit. No Chrome tabs open.</li>
+</ol>
+<h2 id="rule-2-what-was-built-first-version-being-replaced-as-above">Rule 2: what was built (first version, being replaced as above)</h2>
+<ul>
+<li><code>contracts/agents.py</code>: <code>ReportKind.TURN_END</code>, <code>TURN_PAUSED</code> / <code>TURN_DONE</code> (exported), and <code>ReportTask.card_open</code> (a tool request that timed out leaves a stale <code>permission</code> question in the Hub; <code>card_open=False</code> on <code>turn_end</code> clears it).</li>
+<li><code>infra/session_agent.py</code>: a new mode <code>SETTLING</code>. A turn with no tag, a turn ending with its approval card open, or a last line (<code>RELOAD:</code> / <code>ADD_MODULE:</code>) that opened a card → <code>_settle</code> reports <code>turn_end</code>; <code>_after_settle</code> reads the Hub's answer: paused → <code>PAUSED</code>; done → the Chrome check, then <code>done</code>; something that came meanwhile (an approval's outcome, a message) → carries on. If the card was answered meanwhile and its action still runs, it waits as before. The gate's <code>send</code> is <code>_send_outcome</code> (held while settling; wakes a task paused on its card, with a <code>progress</code> report). Dropping a paused task clears the gate. Cancel while settling: idle.</li>
+<li><code>agent_hub/tasks.py</code>: <code>TaskRecord.waiting_on</code>; <code>_settle</code> (paused if it waits on its card or on open <code>tell_parent</code> children); a <code>progress</code> report on a waiting record wakes it (active; clears its card question); <code>start</code> and <code>_answer</code> refuse an agent paused waiting, so it isn't dropped; <code>_to_parent</code> tells the coordinator when its parent task is paused waiting (answer 5).</li>
+<li><strong>Differences from the plan:</strong> the Hub doesn't finish the task on <code>turn_end</code>; it answers <code>done</code> and the agent sends its own <code>done</code> (no double end around the Chrome check). Waiting on a child doesn't set the <strong>!</strong> (nothing for you to answer); a card still does, as before.</li>
+<li>Tests: <code>agent_hub/tests/test_pause_waiting.py</code> (new: done with nothing open, paused on a child then woken, <code>tell_parent=False</code> doesn't count, the coordinator woken, a card pauses until answered, a <code>NEED</code> untouched); <code>test_end_report_race.py</code> updated (<code>turn_end</code> then <code>done</code>) plus a new one (a message while settling carries the task on). Full suite: <strong>838 passed</strong>; ruff clean.</li>
+<li>Docs edited: <a href="../html/architecture/agents.html">agents</a> (kinds, state diagram, "Paused by the Hub"), <a href="../html/agents/runtime.html">runtime</a> (mode diagram, bullet), <a href="../html/api/agents.html">Agents API</a> (<code>ReportTask</code>, <code>turn_end</code>), <a href="../html/api/index.html">API index</a>.</li>
+</ul>
+<p><strong>Finished (second session):</strong> docs rebuilt; architecture check: the handler and the Hub import contracts only, nothing module-specific in the core; one fix, <code>TURN_DONE</code> / <code>TURN_PAUSED</code> now imported from <code>assistant.contracts</code> (not <code>contracts.agents</code>) in <code>tasks.py</code> and <code>session_agent.py</code>. Left: the app restart, after you say yes. Not committed.</p>
+<h2 id="rule-2-build-plan-done">Rule 2: build plan (done)</h2>
+<p>As proposed in <a href="#rule-2-the-hub-pauses-a-worker-thats-only-waiting">rule 2</a>, with answers 5 and 6:</p>
+<ol>
+<li><code>contracts/agents.py</code>: <code>ReportKind.TURN_END</code>.</li>
+<li><code>infra/session_agent.py</code> <code>_finish_turn</code>: a turn with no last-line tag, and a turn ending with <code>self._gate.waiting</code>, send <code>turn_end</code> instead of <code>done</code> / only logging; the report worker reads the Hub's <code>Result</code> (<code>"paused"</code> → mode <code>PAUSED</code>, keep the task and session; <code>"done"</code> → <code>_end_task</code> as today, after the Chrome tab close). Stays <code>working</code> until the answer.</li>
+<li><code>agent_hub/tasks.py</code>: <code>TaskBoard._settle(record)</code> for <code>turn_end</code>: an open <code>permission</code> question, or open child tasks with <code>tell_parent</code> → <code>idle</code>, held out of focus, <code>TaskUpdated</code> "waiting on …", answer <code>paused</code>; else <code>_finish(DONE, hold=True)</code>, answer <code>done</code>.</li>
+<li>Answer 5: <code>_to_parent</code> also messages the coordinator when its task is paused waiting on that child (into the paused task through <code>Delivery</code>).</li>
+<li>Tests in <code>agent_hub/tests</code> and <code>tests/test_session_agent*</code> as in the table below; docs: <a href="../html/architecture/agents.html">agents</a> task states, <a href="../html/agents/runtime.html">runtime</a> mode diagram, <a href="../html/api/agents.html">Agents API</a> <code>ReportKind</code>; rebuild.</li>
+<li>Then ask the user before the app restart (rule 1's core change already needs it). Don't commit.</li>
+</ol>
+<h2 id="your-decisions-as-asked">Your decisions (as asked)</h2>
+<ol>
+<li><strong>Grant cards (#7) in Auto.</strong> <code>permissions.grant / request / revoke</code> save a grant that outlives Auto. An Auto session already has every tool, so it doesn't need these to work. <strong>Recommended: keep the card.</strong> A lasting grant is a settings change, which is on the very-risky list. Or skip it in Auto too.</li>
+<li><strong>Access-list cards (#6).</strong> Skipping them needs the caller carried on <code>ActivateModule</code> (a contract change), and it would save another agent's whole list for good. <strong>Recommended: leave them as they are.</strong> They show once per list change.</li>
+<li><strong>Helper launch (#4).</strong> It was decided that a launch always asks, even in Auto. <strong>Recommended: keep it</strong>, since a launch starts a new agent that spends tokens. Or let Auto launch at once.</li>
+<li><strong>Where A lives.</strong> In the core handler (recommended: one place for every handler card, now and later; needs an app restart) or only in the Hub's <code>MessageGate</code> (a <code>RELOAD: agent_hub</code>, no restart, but it covers messages only). If you keep 1 and 2 as recommended, both cover the same cards today. They differ only for cards added later.</li>
+</ol>
+<h2 id="rule-2-the-hub-pauses-a-worker-thats-only-waiting">Rule 2: the Hub pauses a worker that's only waiting</h2>
+<p><strong>What you asked:</strong> when a worker's task is only waiting on you or on another agent, the Hub pauses it in code, so nobody has to remember to send a pause (<code>hub.send</code> with <code>pause</code>).</p>
+<h3 id="what-happens-today">What happens today</h3>
+<p>A task has two states in the Hub, <code>active</code> and <code>idle</code> (<a href="../html/architecture/agents.html">two states</a>). Only <code>active</code> tasks count against <code>max_extra_agents</code>, only an idle agent takes a message or a new task, and an open task blocks the Hub's reload. Three kinds of waiting, checked in the code:</p>
+<table>
+<thead>
+<tr>
+<th>Waiting on</th>
+<th>Today</th>
+<th>Paused?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>You, with a <code>NEED:</code></strong> (and <code>NEED: Risky:</code>)</td>
+<td>The agent drops the task and is free; the record is <code>idle</code> holding the question (<code>TaskBoard.report</code>, <code>tasks.py:343</code>)</td>
+<td><strong>Already, in code.</strong> Nothing to add</td>
+</tr>
+<tr>
+<td><strong>You, with a held card</strong> (a tool request in Manual, a <code>RELOAD:</code> / helper-launch approval), the turn already over</td>
+<td>The agent stays in its <code>working</code> mode with <code>PermissionGate.waiting</code> set (<code>session_agent.py:584</code>), so it reads <strong>active</strong>; the record stays <code>active</code> (<code>tasks.py:348</code>). It holds a slot, messages to it wait in <code>Delivery</code>, and the Hub can't reload</td>
+<td><strong>No.</strong> This is the gap</td>
+</tr>
+<tr>
+<td><strong>A helper's result</strong> (it started a child task with <code>hub.start</code>), the turn over</td>
+<td>A turn ending with no last-line tag reports <code>done</code> (<code>session_agent.py:593</code>): the task ends. The child's end then arrives as a <strong>new</strong> task (<code>Delivery</code>), in a fresh session, so the parent's context is lost. The coordinator's children only reach its feed (<code>_to_parent</code>, <code>tasks.py:440</code>)</td>
+<td><strong>No.</strong> It's ended, not paused</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-proposal-one-report-at-a-turns-end-one-check-in-the-hub">The proposal: one report at a turn's end, one check in the Hub</h3>
+<ul>
+<li><strong>The agent reports a fact, the Hub decides.</strong> When a turn ends with no last-line tag, <code>SessionTaskAgent._finish_turn</code> sends a new report kind, <strong><code>turn_end</code></strong> (with the turn's text), instead of <code>done</code>. When the turn ends while its gate holds a card, it sends <code>turn_end</code> too, instead of only logging "waiting for the user's answer".</li>
+<li><strong>The check lives in the Hub: <code>TaskBoard._settle(record)</code></strong> (<code>agent_hub/tasks.py</code>), called from <code>report()</code> for <code>turn_end</code>. It answers in the report's <code>Result</code>:</li>
+<li>the record has an open <code>permission</code> question, <strong>or</strong> it has open child tasks (records whose <code>parent_task_id</code> is this task) → <strong>paused</strong>: <code>state = idle</code>, held behind the agent's <strong>!</strong> if it's out of focus, a <code>TaskUpdated</code> with "waiting on …" naming what it waits on;</li>
+<li>otherwise → <strong>done</strong>, exactly as today (<code>_finish(..., hold=True)</code>).</li>
+<li><strong>The agent follows the answer.</strong> <code>paused</code>: its mode goes to <code>PAUSED</code> (idle, still holding the task, the same session kept). <code>done</code>: it ends the task as today. Until the answer comes, it stays in <code>working</code>, so nothing slips in between.</li>
+<li><strong>What wakes it:</strong> the card's answer (<code>TaskBoard.answer</code> already sets it active), a child's end (<code>tell_parent</code> → <code>DeliverMessage</code>, which goes into the agent's open task, now the paused one, with <code>resume</code>), or your message. Each child's end wakes it; if others are still open, its next turn ends, <code>_settle</code> pauses it again.</li>
+</ul>
+<p><strong>It should catch:</strong></p>
+<ul>
+<li>A turn that ended with a card still open (Manual tool requests, <code>RELOAD:</code> / <code>ADD_MODULE:</code> approvals, a helper launch's approval).</li>
+<li>A turn that ended with no tag while a child task it started is still open (active, paused, or holding its own question).</li>
+</ul>
+<p><strong>It shouldn't catch:</strong></p>
+<ul>
+<li><strong>An agent still in a turn</strong>: tools running, a long command, its own subagents, a card raised mid-turn that the turn is still running past. Only a turn's end is looked at; code can't pause a turn from outside without interrupting it.</li>
+<li><strong>The in-between modes</strong>: <code>interrupting</code>, <code>replying</code> with resume, <code>compacting</code>, <code>closing_tabs</code>. They end in their own report.</li>
+<li><strong>A <code>NEED:</code></strong>: it's already dropped and idle. <code>_settle</code> leaves it alone.</li>
+<li><strong>A turn that ended with no tag and no open children</strong>: that's done, as today.</li>
+<li><strong>Messages it sent that wait elsewhere</strong>: a message on the user's card (<code>MessageGate</code>) or one waiting in <code>Delivery</code> for a busy agent. They're another agent's mail, not a child task, so the sender ends <code>done</code> as today.</li>
+<li><strong>A child started with <code>tell_parent=False</code></strong> (a module reports its end itself, e.g. cv to job_search): no message would wake the parent. See question 6.</li>
+</ul>
+<p><strong>What doesn't change:</strong> <code>hub.send</code> with <code>pause</code> still works for you. The two task states stay two: "paused" is <code>idle</code> without a question, as today (<code>TaskRecord.paused</code>).</p>
+<h3 id="your-decisions-for-rule-2">Your decisions for rule 2</h3>
+<ol start="5">
+<li><strong>The coordinator's helpers.</strong> The Main Assistant's child tasks only reach its feed, never as a message, so a paused coordinator wouldn't be woken by them. <strong>Recommended: wake it too</strong>: when the coordinator's task is paused waiting on a child, the child's end goes to it as a message (into the paused task). Or leave the coordinator out of rule 2 (it ends <code>done</code> as today).</li>
+<li><strong>Children started with <code>tell_parent=False</code>.</strong> <strong>Recommended: they don't count</strong> as "waiting on a helper", so the parent ends <code>done</code> and the module's own notice reaches it as today. Or count them, and wake the parent on the module's <code>AgentNotice</code> too.</li>
+</ol>
+<h2 id="what-the-build-touches">What the build touches</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/assistant/core/permissions/handler.py</code></td>
+<td>The Auto check in <code>_open</code>, reading the mode with <code>ListAgents</code>; a message card in Auto is Allow once</td>
+</tr>
+<tr>
+<td><code>src/assistant/infra/permission_gate.py</code>, <code>infra/session_agent.py</code></td>
+<td>The reload/add Auto rule moves into <code>PermissionGate.ask</code>; <code>request_approval</code> according to question 3. Rule 2: <code>_finish_turn</code> sends <code>turn_end</code> (no tag, or a card still open) and follows the Hub's answer (<code>PAUSED</code> or the task's end)</td>
+</tr>
+<tr>
+<td><code>src/assistant/contracts/agents.py</code></td>
+<td>Rule 2: <code>ReportKind.TURN_END</code></td>
+</tr>
+<tr>
+<td><code>src/assistant/modules/agent_hub/tasks.py</code> (and <code>module.py</code> for question 5)</td>
+<td>Rule 2: <code>TaskBoard._settle</code> and the <code>turn_end</code> case in <code>report()</code>; waking a paused coordinator per question 5</td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>Handler: an Auto caller gets no <code>PermissionRequested</code> and nothing is saved; a Manual or unknown caller, or a failed <code>ListAgents</code>, still gets the card. Gate: <code>ask</code> in Auto runs at once. The <code>git push</code> tests stay as they are. Rule 2: a turn end with an open card or an open child → <code>idle</code>, held out of focus, the slot free, a message goes in; a child's end wakes it; no children → <code>done</code>; a <code>NEED</code> and a mid-turn agent untouched</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td><a href="../html/architecture/permissions.html">Permissions</a> (messages between agents, permission mode), <a href="../html/architecture/agents.html">Agents</a> (task states, pausing), <a href="../html/agents/runtime.html">agent runtime</a> (the mode diagram), the <a href="../html/api/agents.html">Agents API</a> (<code>ReportKind</code>), then rebuild</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Loading it:</strong> the handler is core, the gate and <code>SessionTaskAgent</code> are infra, and <code>ReportKind</code> is a contract, so it needs <strong>an app restart</strong>. No module toggles. The paused smoke test isn't touched.</p>
+<footer>Generated from <code>docs/next-steps/auto-skips-cards.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

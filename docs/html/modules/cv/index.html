@@ -13,14 +13,14 @@
 <main>
 <h1 id="cv-tailor-a-cv-for-one-job-with-rezi-one-clean-page-your-yes">cv: tailor a CV for one job with Rezi, one clean page, your yes</h1>
 <h2 id="purpose">Purpose</h2>
-<p>Takes a CV as a PDF (<code>CV_Test_*.pdf</code>) and a job description (JD) as text. Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the one-page PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through <code>cv.task</code>.</p>
+<p>Takes a CV as a PDF (any <code>.pdf</code>) and a job description (JD) as text. Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the one-page PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through <code>cv.task</code>.</p>
 <p><strong>Status (2026-11-07):</strong> built and tested, chunks 1 to 8. That covers the menu (<code>rezi.*</code>, <code>cv.*</code>), the Rezi connection with its resume guard, the one-page build and checks, the worker <code>cv_agent</code>, and the in-and-out contract below. Everything is tested against a fake Rezi and a fake <code>claude</code>. Chunk 9, the real run, is under way: the real Rezi sign-in, live tool list and reads work, and the module now reads and writes Rezi's real resume format. Off by default; turning it on asks for the worker's access on one card.</p>
-<p><strong>PDF in, PDF out (2026-11-09, built, waiting on a <code>cv</code> reload):</strong> the base CV comes in as a <code>CV_Test_*.pdf</code> and an <code>.odt</code> is refused everywhere; the JD stays text; <code>cv.build</code> exports the final PDF into the job's folder, and no <code>.odt</code> comes out (<code>odt_path</code> is gone from the result). The plan: <code>docs/next-steps/cv-pdf-only.md</code>. Left out at your request: cutting the worker's read access to <code>C:\Chang\Jobs\CV</code>.</p>
+<p><strong>PDF in, PDF out (2026-11-09, built, waiting on a <code>cv</code> reload):</strong> the base CV comes in as a <code>.pdf</code> and an <code>.odt</code> is refused everywhere; the JD stays text; <code>cv.build</code> exports the final PDF into the job's folder, and no <code>.odt</code> comes out (<code>odt_path</code> is gone from the result). The plan: <code>docs/next-steps/cv-pdf-only.md</code>. Left out at your request: cutting the worker's read access to <code>C:\Chang\Jobs\CV</code>.</p>
 <p><strong>The CV Tool build (2026-11-09, building):</strong> the module side is built and tested, but not live yet: <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.check_fonts</code> and <code>cv.tool_result</code>, the CV Tool launched through <code>CompanionHandover</code> (<code>tool.py</code>), the rules folder loaded at every job, <code>CvRequest.tool</code>, and the 5-step prompt. They go live with a <code>cv</code> reload. The app itself (<code>src/cv_tool/</code>) runs and is tested; <code>pymupdf</code> 1.28.2 is in the repo's <code>.venv</code> (installed 2026-11-09 with your yes). The plan: <code>docs/next-steps/cv-uses-cv-tool.md</code>.</p>
 <p>How it works inside: <a href="architecture.html">Architecture</a>. Its menu, and what a job sends in and gets back: <a href="tools.html">Tools</a>.</p>
 <h2 id="in-and-out">In and out</h2>
 <ul>
-<li><strong>In</strong> (<code>cv.task</code>): the job's company and role, the job description as text or as a <code>.txt</code>, <code>.md</code> or <code>.html</code> file, and the CV file (<code>CV_Test_*.pdf</code> in <code>C:\Chang\Jobs\CV</code>; an <code>.odt</code> is refused). Optional: the posting's URL, Education first, a target score, notes.</li>
+<li><strong>In</strong> (<code>cv.task</code>): the job's company and role, the job description as text or as a <code>.txt</code>, <code>.md</code> or <code>.html</code> file, and the CV file: the path of any existing <code>.pdf</code>, in any folder and with any name, used as given (a non-<code>.pdf</code>, an <code>.odt</code> too, is refused, and so is a missing or 0-byte file; since 2026-11-13 there's no <code>cv_dir</code> or <code>&lt;cv_prefix&gt;</code> rule for it). Optional: the posting's URL, Education first, a target score, notes.</li>
 <li><strong>Out</strong> (<code>cv.read_result</code> on the task's result): the new one-page PDF and <code>report.md</code> (in the job's folder), and with them the Rezi Score after each round against the target, the keywords still missing and those left out because you don't have them, recommendations, the one-page check, and the compare of what Rezi read. Also the new Rezi resume and its check copy, and whether you approved it.</li>
 </ul>
 <p>The calls and every field: <a href="tools.html#the-hand-off-cvtask-and-cvread_result">Tools</a>.</p>
@@ -346,17 +346,17 @@
 <tr>
 <td><code>cv_dir</code></td>
 <td><code>C:\Chang\Jobs\CV</code></td>
-<td>Your CVs, read only: <code>cv.read</code> reads <code>&lt;cv_prefix&gt;*.pdf</code> files here, in <code>output_dir</code> and in <code>work_dir</code>; never an <code>.odt</code></td>
+<td>Your CVs, read only. The CV Tool lists the <code>&lt;cv_prefix&gt;*</code> CVs here, and the worker never runs a command on a file here. Not a rule for <code>cv.task</code>'s <code>base_cv</code> or <code>cv.read</code>: both take any existing <code>.pdf</code> (since 2026-11-13); an <code>.odt</code> is refused</td>
 </tr>
 <tr>
 <td><code>cv_prefix</code></td>
 <td><code>CV_Test_</code></td>
-<td>The start of your CV file names: base CVs are found by it (<code>&lt;cv_prefix&gt;*.pdf</code>) and the PDFs made are named with it (<code>&lt;cv_prefix&gt;&lt;Company&gt;.pdf</code>). Letters, digits, <code>_</code>, <code>-</code>. Your real prefix goes in the gitignored <code>config/local.toml</code> (<code>[modules.cv]</code>) and <code>src/cv_tool/cv_tool.local.toml</code>; the module passes it to the CV Tool (<code>--cv-prefix</code>). This page's examples use <code>CV_Test_</code></td>
+<td>The start of the PDFs the module makes (<code>&lt;cv_prefix&gt;&lt;Company&gt;.pdf</code>) and of the CVs the CV Tool lists. It is not a rule for <code>cv.task</code>'s <code>base_cv</code>, which takes any <code>.pdf</code>. Letters, digits, <code>_</code>, <code>-</code>. Your real prefix goes in the gitignored <code>config/local.toml</code> (<code>[modules.cv]</code>) and <code>src/cv_tool/cv_tool.local.toml</code>; the module passes it to the CV Tool (<code>--cv-prefix</code>). This page's examples use <code>CV_Test_</code></td>
 </tr>
 <tr>
 <td><code>work_dir</code></td>
 <td><code>""</code>: <code>&lt;agent.workspace&gt;\work</code></td>
-<td>Where each job's folder is made, <code>&lt;date&gt;_&lt;Company&gt;_&lt;Role&gt;</code> (folder-safe), with its copy of the base CV, <code>jd.txt</code> and <code>job_start.json</code>. Must be in the workspace, never in <code>cv_dir</code> or the repo</td>
+<td>Where each job's folder is made, <code>&lt;date&gt;_&lt;Company&gt;_&lt;Role&gt;</code> (folder-safe), with its copy of the base CV (<code>base_&lt;its name&gt;.pdf</code>, so it's never taken for a tailored CV), <code>jd.txt</code> and <code>job_start.json</code>. Must be in the workspace, never in <code>cv_dir</code> or the repo</td>
 </tr>
 <tr>
 <td><code>rules_dir</code></td>
@@ -481,7 +481,7 @@
 <tr>
 <td>Inputs (cv.task)</td>
 <td>Built, live</td>
-<td><code>cv.task</code> takes the JD as text and a <code>CV_Test_*.pdf</code>; <code>cv</code> is on</td>
+<td><code>cv.task</code> takes the JD as text and any <code>.pdf</code> as the base CV (name and folder rules removed 2026-11-13, live after a <code>cv</code> reload)</td>
 </tr>
 <tr>
 <td>Job-start gate</td>

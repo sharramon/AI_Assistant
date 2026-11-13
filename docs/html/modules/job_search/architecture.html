@@ -31,7 +31,7 @@
 </tr>
 <tr>
 <td>Calls</td>
-<td><a href="../../api/modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a> on start (through <a href="../../api/infra.html#agent_access"><code>request_access</code></a>); <a href="../../api/agents.html#reporttask"><code>ReportTask</code></a>; the <a href="../../api/agents.html#the-hubs-menu">Hub's menu</a> through the door, as <code>job_search_agent</code>; <a href="../../api/agents.html#iagentnames"><code>IAgentNames</code></a> (<code>ProfileAgent</code> claims the id on start, releases it on stop)</td>
+<td><a href="../../api/modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a> on start (through <a href="../../api/infra.html#agent_access"><code>request_access</code></a>); <a href="../../api/agents.html#reporttask"><code>ReportTask</code></a>; <a href="../../api/agents.html#delivermessage"><code>DeliverMessage</code></a> to its own agent (cv's events); the <a href="../../api/agents.html#the-hubs-menu">Hub's menu</a> through the door, as <code>job_search_agent</code>; <a href="../../api/agents.html#iagentnames"><code>IAgentNames</code></a> (<code>ProfileAgent</code> claims the id on start, releases it on stop)</td>
 </tr>
 <tr>
 <td>Publishes</td>
@@ -39,7 +39,7 @@
 </tr>
 <tr>
 <td>Listens to</td>
-<td><a href="../../api/agents.html#resetrequested"><code>ResetRequested</code></a> (for the job agent)</td>
+<td><a href="../../api/agents.html#resetrequested"><code>ResetRequested</code></a> (for the job agent). cv's named events (<a href="../../api/messaging.html#moduleevent"><code>ModuleEvent</code></a>) <code>cv.job_finished</code> and <code>cv.job_submitted</code>: one whose <code>reply_to</code> is its agent becomes one <code>DeliverMessage</code> waking it (<code>cv_finished_text</code>: the job, the folder, cv's one-line summary, "update this job's row in the tracker", <code>cv.read_result task_id=…</code>; <code>cv_submitted_text</code>: cv's summary, the folder, the tracker row, carry on). The agent updates the tracker; the module writes nothing into the job project. An event published while job_search is off or reloading, or across an app restart, is lost (the bus keeps nothing); that's accepted, with no fallback (<a href="../../architecture/decisions.html#decided">decisions</a>, 2026-11-13)</td>
 </tr>
 </tbody>
 </table>

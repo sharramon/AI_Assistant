@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: cv → job_search through the `cv.job_finished` named event only (task 4dca192a)</title>
+<!-- Generated from docs/next-steps/handoff-4dca192a.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-4dca192a.html"></nav>
+<main>
+<h1 id="handoff-cv-job_search-through-the-cvjob_finished-named-event-only-task-4dca192a">Handoff: cv → job_search through the <code>cv.job_finished</code> named event only (task 4dca192a)</h1>
+<blockquote>
+<p><strong>Status: built (2026-11-12, session 2).</strong> Code, tests and docs done, including the Submit as <code>cv.job_submitted</code> (the user confirmed it). The current state is in <a href="job-cv-finish-event.html">job-cv-finish-event</a>. Left: the user's go for the app restart, then the fake-job check. No restart, no smoke test, no agent started. The rest of this note is session 1's plan, kept as history.</p>
+</blockquote>
+<h2 id="what-the-user-decided-all-approved">What the user decided (all approved)</h2>
+<ul>
+<li><strong>The design:</strong> modules talk to each other through <code>ModuleEvent</code>s (<code>ctx.publish_named</code> / <code>ctx.subscribe_named</code>). Direct tools are only for calls out. The job agent calls <code>cv.task</code> to pass the job. cv publishes <code>cv.job_finished</code> when cv_agent's task ends. job_search subscribes and wakes its agent with a <code>DeliverMessage</code>. The job agent then updates the job's tracker row as its skill says; the module writes nothing into the job project.</li>
+<li><strong>One path only.</strong> <code>StartTask.tell_parent: bool = True</code> (new, optional). <code>cv.task</code> sets it to False, so the Hub sends no "child task ended" message for cv's task.</li>
+<li><strong>Remove last session's road:</strong> <code>StartTask.parent_note</code>, the Hub quoting the parent's brief (<code>PARENT_TEXT</code>, the brief part of <code>CHILD_ENDED</code>), <code>hub.start</code>'s <code>parent_note</code> input, <code>cv/handoff.parent_note</code>, and the "read it with cv.read_result task_id=…" pointer in the Hub message. Put <code>CHILD_ENDED</code> back to <code>"Your child task {id} on {agent} ended {state}: {result}"</code>. <strong>Keep <code>cv.read_result</code></strong> (with <code>task_id</code>): job_search's message points the agent to it.</li>
+<li><strong>Kill every other parallel track</strong> between cv and the job agent (user, latest message). See the audit below.</li>
+<li><strong>Move the Submit message onto a named event</strong> too (for example <code>cv.job_submitted</code>), unless there's a reason it's wrong. If there is one, tell the user.</li>
+<li><strong>The lost-event gap: record it in the note, don't build a fallback.</strong> A named event is lost if job_search is off or reloading, or the app restarts, when cv publishes (the bus keeps nothing: <code>docs/api/modules.md:222</code>, <code>core/context.py:103-109</code>). With <code>tell_parent=False</code>, nothing else wakes the job agent then. The result stays in the Hub's task record (last 20 finished) and the job folder. The fallback I suggested (cv marks the job finished in <code>job_start.json</code>, and job_search reports unreported finished jobs when it starts) waits for the user's decision.</li>
+<li><strong>The notes:</strong> say plainly that the design is module-to-module ModuleEvents and tools only for calls out. No "restore" or "re-add" wording. Keep it short and plain. Mark <a href="job-cv-result-via-tools.html">job-cv-result-via-tools</a>'s tool-plus-Hub-message result path as <strong>replaced</strong>. Fix <a href="named-module-events.html">named-module-events</a>'s status lines (lines 3 and 5) and the README rows to match.</li>
+</ul>
+<h2 id="done-so-far-unrun">Done so far (unrun)</h2>
+<ul>
+<li><code>src/assistant/contracts/agents.py</code>: <code>StartTask.tell_parent: bool = True</code> added, with its docstring. <code>parent_note</code> is <strong>still there</strong>: remove it, and its docstring sentence.</li>
+<li><code>src/assistant/modules/agent_hub/tasks.py</code>: <code>TaskRecord.tell_parent</code>, in <code>export</code> / <code>restore</code> and in <code>start</code>. <code>_to_parent</code> returns early when <code>not record.tell_parent</code>. Still to do in this file, in one pass: remove <code>parent_note</code> (record field <code>:69</code>, export, restore, start), <code>PARENT_TEXT</code> (<code>:50</code>), and the brief and note parts of <code>CHILD_ENDED</code> (<code>:51</code>) and <code>_to_parent</code> (<code>:435-453</code>).</li>
+<li><code>src/assistant/modules/cv/handoff.py</code>: the module docstring says the end goes out as <code>cv.job_finished</code>. <code>parent_note()</code> (<code>:69-74</code>) is <strong>still there</strong>: replace it with <code>JOB_FINISHED</code> and <code>job_finished()</code> (below).</li>
+</ul>
+<h2 id="next-in-order">Next, in order</h2>
+<ol>
+<li><strong>Audit first (the user's request), then cut.</strong> List every route that carries a cv result, finish or status to the job agent, with file and line. The candidates I know of:
+   - <code>cv/module.py</code>: <code>_tell_asker</code> / <code>_deliver_submit</code> (the Submit's <code>DeliverMessage</code> to <code>reply_to</code>, about <code>:433-475</code>), and the <code>AgentNotice</code> to cv_agent (<code>:473</code>, which goes to cv's own worker, not the job agent).
+   - <code>cv/module.py</code> <code>cv.task</code>'s <code>next</code> text (<code>:407-415</code>): the Hub message, the Submit message, and <code>hub.send</code>.
+   - <code>cv/submit_watch.py</code> (the Submit watch and its reminder).
+   - <code>cv/reply.py</code> (<code>reply_text</code>, <code>pending_reply</code>, <code>mark_replied</code>).
+   - The Hub's <code>_to_parent</code> (<code>agent_hub/tasks.py</code>).
+   - <code>agent_hub/module.py</code>'s <code>hub.start</code> text about the end coming back as a message (about <code>:195-215</code>).
+   - The <code>job_start.json</code> <code>replied</code> record.
+   - The job project: <code>C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md:29-37</code> and <code>C:\Chang\Jobs\CV\CLAUDE.md</code> (grep <code>cv.task</code>, <code>cv.read_result</code>, <code>CV_RESULT</code>, <code>job_start.json</code>, "wait", "poll").
+   - cv's worker prompt (<code>cv/worker.py</code>), for anything that tells cv_agent to message the asker.</li>
+</ol>
+<p>Report the list to the user before the restart question, and record what was cut in <a href="job-cv-finish-event.html">job-cv-finish-event</a>.
+2. <strong>cv</strong> (<code>cv/module.py</code>, <code>cv/handoff.py</code>):
+   - <code>JOB_FINISHED = "cv.job_finished"</code>, plus <code>job_finished(task_id, state, parent_task_id, folder, record, text) -&gt; dict</code> returning <code>{reply_to, task_id, parent_task_id, state, job_dir, company, role, cv_result}</code>. <code>cv_result</code> is <code>read_result(text).model_dump(mode="json")</code>, or None on a ValueError. reply_to, company and role come from <code>record["request"]</code>.
+   - In the manifest: <code>listens</code> gets <code>TaskUpdated</code>, and <code>publishes_named=(JOB_FINISHED,)</code> (plus the Submit event if it moves).
+   - In <code>init</code>: <code>ctx.subscribe(TaskUpdated, self._on_task)</code>.
+   - <code>_on_task</code> acts only when <code>agent_id == self._agent_id</code>, <code>kind in (ReportKind.DONE, ReportKind.FAILED)</code> and <code>self.gate</code> is set. Folder = <code>self.gate.question_key(task_id)</code>, then <code>read_record</code> in a thread. If there's no <code>reply_to</code>, log it and skip. Otherwise <code>publish_named</code> and a log line.
+   - <code>cv.task</code>: <code>StartTask(..., tell_parent=False)</code> with no <code>parent_note</code>. The <code>next</code> text says: end your turn; cv publishes <code>cv.job_finished</code>, your module wakes you with the result; <code>cv.read_result task_id=…</code> gives the whole result.
+   - Fix the imports: drop <code>parent_note</code>, add <code>ReportKind</code>, <code>TaskUpdated</code>, <code>read_record</code>.
+   - Update the module docstring (<code>:10-13</code>).
+3. <strong>job_search</strong> (<code>job_search/module.py</code>):
+   - <code>CV_FINISHED = "cv.job_finished"</code>. In the manifest: <code>sends=(*AGENT_SENDS, DeliverMessage)</code> and <code>listens_named=(CV_FINISHED,)</code>.
+   - In <code>init</code>: <code>ctx.subscribe_named(CV_FINISHED, self._on_cv_finished)</code>.
+   - Act only when <code>data["reply_to"] == self._agent_id</code>, then send <code>DeliverMessage(agent_id=self._agent_id, text=cv_finished_text(data), sender="job_search")</code>.
+   - The text names the role, company, folder, task and state, and the result's status, PDF and last score (or "no valid CV_RESULT line"). It ends with "Next: update the job's tracker row as your apply-session skill says; the whole result: cv.read_result task_id=…".
+   - Do <strong>not</strong> quote the parent's brief: the user removed that road. Note in the change note that a fresh session gets no brief.
+   - Do the same for the Submit event if it moves.
+4. <strong>agent_hub/module.py:</strong> remove <code>hub.start</code>'s <code>parent_note</code> input (about <code>:205-215</code>).
+5. <strong>Tests:</strong>
+   - <code>agent_hub/tests/test_child_result.py</code>: put the old texts back, remove the note/brief test, and add a test that <code>tell_parent=False</code> tells no one (the feed line still goes out).
+   - <code>cv/tests/test_reply_delivery.py</code>: the stand-in job module (<code>JobModule</code>) subscribes to <code>cv.job_finished</code>. Check one event with reply_to, task_id, parent_task_id, job_dir, company and role (the fake echo gives <code>cv_result</code> None), and no Hub message. Change the Submit part if it moves to an event.
+   - New <code>src/assistant/modules/job_search/tests/</code> with <code>__init__.py</code> and <code>test_cv_finished.py</code>: a fake ctx records the <code>DeliverMessage</code>; another <code>reply_to</code> is ignored; check the manifest's <code>listens_named</code>.
+   - <code>cv/tests/test_handoff.py:134</code> stays (<code>"cv.read_result" in next</code>).
+   - Run the full suite (<code>.\.venv\Scripts\python -m pytest</code>) and <code>.\.venv\Scripts\ruff check</code>.
+6. <strong>Docs:</strong>
+   - <code>docs/api/agents.md</code> (<code>StartTask</code>: drop <code>parent_note</code>, add <code>tell_parent</code>; the <code>hub.start</code> row).
+   - <code>docs/api/messaging.md:124, :138</code> (<code>ModuleEvent</code> Used by: cv, job_search; the named events today).
+   - <code>docs/api/modules.md:214</code>.
+   - <code>docs/api/reusable.md</code>, and <code>docs/api/README.md</code> if a row changes.
+   - <code>docs/architecture/communication.md:66</code>, <code>modules.md</code>, <code>decisions.md</code> (module-to-module = ModuleEvents, tools for calls out), <code>agents.md</code> (the child-result message: plain text again, <code>tell_parent</code>).
+   - <code>cv/docs/architecture.md:26</code>, <code>cv/docs/tools.md</code>, <code>job_search/docs/architecture.md:11</code>, <code>agent_hub/docs/architecture.md</code>.
+   - Then the notes (above), and run <code>.\.venv\Scripts\python scripts\build_docs.py</code>.
+7. <strong>Architecture check</strong> (the skill), then a NEED: the audit list, then the restart question (contracts changed: <code>StartTask</code>), with the recommendation. No smoke test until the user says so.</p>
+<h2 id="other-facts-from-this-task">Other facts from this task</h2>
+<ul>
+<li>The cancelled SMOKE TEST 3 left nothing behind. There's no NonexistentTestCo folder anywhere under <code>C:\Chang\Jobs</code>, so nothing was deleted.</li>
+<li>The history question, answered for the user: <code>cv.job_finished</code> was built on <code>publish_named</code> / <code>subscribe_named</code> (never committed). job_search turned it into an <code>AgentNotice</code> (wakes nobody), not the approved <code>DeliverMessage</code>. It was removed after the user approved the assistant's recommendation (<code>logs/2026-11-12_05-20-12_running-tests-after-restart/talker.jsonl</code>, lines 172, 179, 181).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/handoff-4dca192a.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

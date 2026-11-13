@@ -125,7 +125,7 @@
 <p>Not abstract. A background line for the agent's next turn: another agent's <code>STATUS:</code> milestone, the end of another agent's task, a focus move, or a module's callback (<a href="#agentnotice"><code>AgentNotice</code></a>). Never interrupts and never starts work. The default drops it. Called by the Hub, only on the coordinator for the feed lines and on the named agent for a notice. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> keeps the lines in a <a href="infra.html#milestonefeed"><code>MilestoneFeed</code></a> and adds them at the end of the next message it writes to its session. Built 2026-11-05.</p>
 <h3 id="itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></h3>
 <p><code>async request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -&gt; Result</code></p>
-<p>Not abstract. Ask you to allow <code>action</code> on this agent's open task. It puts a <code>permission</code> report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with <a href="#answerpermission"><code>AnswerPermission</code></a>. It always asks, even in Auto. On Allow, <code>run()</code> is called and its outcome reaches the agent as its next message (<code>[App] &lt;action&gt;: &lt;outcome&gt; Continue the task...</code>). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with <code>not_available</code>, for agents without tasks.</p>
+<p>Not abstract. Ask you to allow <code>action</code> on this agent's open task. It puts a <code>permission</code> report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with <a href="#answerpermission"><code>AnswerPermission</code></a>. In Manual it asks; in Auto (the agent's own mode) there's no card and <code>run()</code> runs at once. On Allow, <code>run()</code> is called and its outcome reaches the agent as its next message (<code>[App] &lt;action&gt;: &lt;outcome&gt; Continue the task...</code>). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with <code>not_available</code>, for agents without tasks.</p>
 <p><a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it. Called by <code>task_agents</code>' <code>agents.launch</code> on its caller; <code>SessionTaskAgent</code>'s own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request uses the same path. Built 2026-11-05.</p>
 <p><strong>Returns:</strong> <code>ok</code> once the question is open; <code>not_available</code> if there is no open task, a question is already open, or the agent keeps the default.</p>
 <p><strong>Example</strong></p>
@@ -386,7 +386,7 @@
 <p><code>task.question_line</code>: the question for a person or an agent to read, <code>Permission: &lt;text&gt;</code> for a permission request, else the text (<code>""</code> with none). The Talker's task lines and the restart note use it.</p>
 <h2 id="questionkind"><code>QuestionKind</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>agent_hub</code> sets it (<code>QuestionKind.of</code>); <code>talker</code>, <code>temp_ui</code> read it</p>
-<p><code>class QuestionKind(StrEnum)</code>: <code>NONE = ""</code>, <code>NEED = "need"</code>, <code>RISKY = "risky"</code>, <code>PERMISSION = "permission"</code>. What a task's open question is, on <a href="#taskinfo"><code>TaskInfo</code></a> and <a href="#taskupdated"><code>TaskUpdated</code></a>, so no reader parses a text prefix (<a href="../architecture/principles.html">principle 19</a>). <code>QuestionKind.of(kind, text)</code> is the one place the text is read: a <code>permission</code> report is <code>PERMISSION</code>; a <code>need</code> starting with <code>RISKY_PREFIX</code> (<code>"Risky:"</code>, also in the contracts) is <code>RISKY</code>; any other <code>need</code> is <code>NEED</code>; anything else <code>NONE</code>.</p>
+<p><code>class QuestionKind(StrEnum)</code>: <code>NONE = ""</code>, <code>NEED = "need"</code>, <code>RISKY = "risky"</code>, <code>PERMISSION = "permission"</code>, <code>WAIT = "wait"</code>. <code>WAIT</code> (2026-11-13): the task ended waiting, on child tasks or on an approval's outcome; the question is what it waits on ("waiting on child task 3fa2 (cv)"), set by the Hub (<code>TaskBoard._settle</code>), never by <code>of</code>. A task that ended waiting on its card keeps <code>PERMISSION</code>, so the card shows as before. What a task's open question is, on <a href="#taskinfo"><code>TaskInfo</code></a> and <a href="#taskupdated"><code>TaskUpdated</code></a>, so no reader parses a text prefix (<a href="../architecture/principles.html">principle 19</a>). <code>QuestionKind.of(kind, text)</code> is the one place the text is read: a <code>permission</code> report is <code>PERMISSION</code>; a <code>need</code> starting with <code>RISKY_PREFIX</code> (<code>"Risky:"</code>, also in the contracts) is <code>RISKY</code>; any other <code>need</code> is <code>NEED</code>; anything else <code>NONE</code>.</p>
 <h2 id="listagents"><code>ListAgents</code></h2>
 <p><code>ListAgents()</code> (command)</p>
 <p>Every registered agent, whether it's active or idle, and its permission mode. Handled by the Agent Hub, which reads <a href="#itaskagentinfo"><code>ITaskAgent.info</code></a> from each provider. For UIs and the Talker.</p>
@@ -396,8 +396,8 @@
 active = [a.agent_id for a in result.value if a.active]
 </code></pre>
 <h2 id="starttask"><code>StartTask</code></h2>
-<p><code>StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None)</code> (command)</p>
-<p>Give work to a free (idle) agent, or to <code>agent_id</code> only. Handled by the Agent Hub. <code>parent_task_id</code> is set by the Hub's <code>hub.start</code> item for an agent's child task, or by a module that starts an agent for a caller (<code>cv.task</code>). Several agents may run at once, one task each: the coordinator plus at most <code>[modules.agent_hub] max_extra_agents</code> (3) other agents with an active task; past that, <code>not_available</code>. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no <code>agent_id</code>) skips the agents in <code>[modules.agent_hub] named_only</code> (and <code>start_only_by</code>).</p>
+<p><code>StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None, tell_parent: bool = True)</code> (command)</p>
+<p>Give work to a free (idle) agent, or to <code>agent_id</code> only. Handled by the Agent Hub. <code>parent_task_id</code> is set by the Hub's <code>hub.start</code> item for an agent's child task, or by a module that starts an agent for a caller (<code>cv.task</code>). <code>context</code> goes to the agent doing the task. <code>tell_parent=False</code> (2026-11-12): the Hub sends the parent's agent no message when this task ends, because the module that started it reports the end itself as a named event (<code>cv.task</code>: <code>cv.job_finished</code>). The parent link stays, so the parent's agent may still <code>hub.send</code> to the task. Several agents may run at once, one task each: the coordinator plus at most <code>[modules.agent_hub] max_extra_agents</code> (3) other agents with an active task; past that, <code>not_available</code>. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no <code>agent_id</code>) skips the agents in <code>[modules.agent_hub] named_only</code> (and <code>start_only_by</code>).</p>
 <p><strong>Returns:</strong> <code>Result.ok(task_id)</code>; <code>not_available</code> if no agent is free, the cap is reached, or the agent would write a folder another active task's agent writes (<a href="#agentinfo"><code>AgentInfo.write_folders</code></a>); <code>invalid_arguments</code> for an unknown <code>agent_id</code>.</p>
 <h2 id="delivermessage"><code>DeliverMessage</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>cv</code> sends (the result at Submit); <code>agent_hub</code> handles (<code>Delivery</code>, <code>delivery.py</code>) and its message gate delivers through it · built 2026-11-10</p>
@@ -427,8 +427,8 @@ active = [a.agent_id for a in result.value if a.active]
 <p>Switch a task agent between Manual and Auto. Handled by the Agent Hub, which calls <a href="#itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></a>; later the permissions handler takes it over, with no change for the senders. <strong>Only you switch to Auto</strong>, with the button; the Talker only ever asks for Manual (<code>hub.mode</code> refuses Auto), and the Main Assistant has no route to it.</p>
 <p><strong>Returns:</strong> the agent's <code>Result</code>; <code>invalid_arguments</code> for an unknown agent.</p>
 <h2 id="reporttask"><code>ReportTask</code></h2>
-<p><code>ReportTask(task_id: str, kind: ReportKind, text: str, key: str = "")</code> (command)</p>
-<p>Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it. <code>key</code>: with a <code>need</code>, the question's context key (the agent's module decides it, through <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.set_context</code></a>; <code>""</code> for none). The Hub keeps it as <a href="#taskinfo"><code>TaskInfo.question_key</code></a>.</p>
+<p><code>ReportTask(task_id: str, kind: ReportKind, text: str, key: str = "", card_open: bool = False)</code> (command)</p>
+<p>Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it. <code>key</code>: with a <code>need</code> or a <code>turn_end</code>, the task's context key (the agent's module decides it, through <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.set_context</code></a>; <code>""</code> for none). The Hub keeps it as <a href="#taskinfo"><code>TaskInfo.question_key</code></a>. <code>card_open</code>: with a <code>turn_end</code>, the agent's card is still open; without it, a <code>permission</code> question the Hub still lists is closed (a tool request that timed out).</p>
 <table>
 <thead>
 <tr>
@@ -440,8 +440,8 @@ active = [a.agent_id for a in result.value if a.active]
 <tbody>
 <tr>
 <td><code>progress</code></td>
-<td>What it's doing</td>
-<td>unchanged</td>
+<td>What it's doing. For a task that ended waiting, new input for it (an approval's outcome): the Hub gives the task back with it</td>
+<td>unchanged (<code>ACTIVE</code> once given back)</td>
 </tr>
 <tr>
 <td><code>reply</code></td>
@@ -464,6 +464,11 @@ active = [a.agent_id for a in result.value if a.active]
 <td>unchanged</td>
 </tr>
 <tr>
+<td><code>turn_end</code></td>
+<td>A turn ended with no last-line tag, or with its card open. The Hub decides: waiting on its card or on open child tasks (<code>tell_parent</code>) → the task <strong>ends waiting</strong>: the agent drops it and is free, and the record keeps the note (what it waits on, <code>key</code>) until the card's outcome, a child's end or a message gives it back; else nothing changes and the agent sends its own <code>done</code></td>
+<td><code>IDLE</code> (with its note: <code>question_kind</code> <code>wait</code>, or <code>permission</code> for its card) or unchanged</td>
+</tr>
+<tr>
 <td><code>done</code></td>
 <td>Finished; <code>text</code> is the result</td>
 <td><code>DONE</code></td>
@@ -476,7 +481,7 @@ active = [a.agent_id for a in result.value if a.active]
 </tbody>
 </table>
 <p><code>ReportKind</code> is a <code>StrEnum</code> with these values.</p>
-<p><strong>Returns:</strong> <code>ok</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
+<p><strong>Returns:</strong> <code>ok</code>, or <code>invalid_arguments</code> for an unknown or finished task. For a <code>turn_end</code>, the value is <code>TURN_WAIT</code> (<code>"wait"</code>: the agent drops the task like a <code>need</code>, its live session and any open approval kept for it) or <code>TURN_DONE</code> (<code>"done"</code>: it ends the task as usual); both are in <code>assistant.contracts</code>.</p>
 <h2 id="taskupdated"><code>TaskUpdated</code></h2>
 <p><code>TaskUpdated(task_id: str, state: TaskState, kind: ReportKind | None = None, text: str = "", agent_id: str = "", parent_task_id: str | None = None, held: bool = False, question_kind: QuestionKind = QuestionKind.NONE)</code> (event)</p>
 <p>Published by the Hub on every report and state change; the Talker listens. <code>question_kind</code>: what the task's open question is now (<a href="#questionkind"><code>QuestionKind</code></a>), so the Talker and the temp UI tell a permission request or a risky step from its kind, not its text. <code>kind</code> is <code>None</code> for changes the Hub made itself (start, with <code>text</code> "started"; <code>SendToTask</code>; <code>AnswerPermission</code>, with "permission allowed" / "permission denied"; cancel). <code>held</code>: the task's question, reply or end waits behind its agent's <strong>!</strong> (a <code>need</code>, <code>permission</code>, <code>reply</code>, <code>done</code> or <code>failed</code> while another agent has the focus). May be dropped; <code>GetTaskStatus</code> is authoritative.</p>
@@ -521,7 +526,7 @@ active = [a.agent_id for a in result.value if a.active]
 <tr>
 <td><code>hub.start(text, agent_id?, context?)</code></td>
 <td>anyone</td>
-<td><a href="#starttask"><code>StartTask</code></a>; the caller's open task becomes the new task's parent</td>
+<td><a href="#starttask"><code>StartTask</code></a>; the caller's open task becomes the new task's parent. Its end (<code>done</code> or <code>failed</code>) comes back to the parent's agent as a message: <code>[Message from agent_hub] Your child task &lt;id&gt; on &lt;agent&gt; ended &lt;state&gt;: &lt;result&gt;</code> (cut at 4000 characters; the coordinator: only its feed line)</td>
 </tr>
 <tr>
 <td><code>hub.send(text, task_id?, agent_id?, pause?)</code></td>

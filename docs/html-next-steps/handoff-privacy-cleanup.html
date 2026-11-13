@@ -59,6 +59,13 @@
 <li>Rebuild, ruff, the full suite, then commit "module docs move" and "docs rebuilt". No push.</li>
 <li>Not in scope, noted: personal paths in <code>config/default.toml</code>, <code>cv/module.toml</code>, <code>cv_tool.toml</code>, <code>.claude/</code>; the tracked <code>spikes/</code> scripts.</li>
 </ul>
+<h2 id="history-rewrite-push-and-backups-done-2026-11-12">History rewrite, push and backups: done (2026-11-12)</h2>
+<ul>
+<li>History scrubbed and force-pushed with the user's yes: <code>git push --force-with-lease=main:1ca9231 origin main</code>; origin/main = local main = <code>ee67133</code> (only main pushed).</li>
+<li>Local backups deleted with the user's yes: <code>backup/before-scrub-2026-11-12</code> (<code>a8f12f4</code>), <code>backup/before-redate-2026-11-12</code> (<code>594997c</code>), <code>refs/original/refs/heads/main</code>. Only <code>main</code> and <code>origin/main</code> remain.</li>
+<li>Kept on purpose: the reflog and <code>.git/filter-repo</code> (old commits recoverable locally until git expires them, ~30–90 days); no GitHub Support purge (the user keeps old commits reachable for now).</li>
+<li><strong>Left:</strong> the app restart (picks up the <code>app_kit.module_docs</code> <code>group</code> change). Optional later, only if the user asks: <code>git reflog expire</code> + <code>git gc</code> to drop the old commits locally; a GitHub Support purge.</li>
+</ul>
 <p>No Chrome tabs are open for this task.</p>
 <footer>Generated from <code>docs/next-steps/handoff-privacy-cleanup.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

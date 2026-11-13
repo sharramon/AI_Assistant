@@ -205,6 +205,62 @@
 <p><code>SessionTheme(text: str)</code> (event)</p>
 <p>A few words about what this app session is about, from your first question. The Talker publishes it once; <code>__main__</code> passes it to <a href="infra.html#logsession"><code>LogSession.set_theme</code></a>, which creates the session's log folder with it in the name. Until then nothing is written to disk. If the first turn fails, the Talker still publishes it, with the message itself.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
+<h2 id="moduleevent"><code>ModuleEvent</code></h2>
+<p><strong>Reusable</strong> · Used by: cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens to both) · built 2026-11-12</p>
+<p><code>ModuleEvent(name: str, source: str, data: dict[str, Any] = {})</code> (event)</p>
+<p>A <strong>module-owned</strong> event, matched by its name rather than its class, so a new one needs no restart and either side reloads on its own. Never built by hand: published with <a href="modules.html#modulecontextpublish_named"><code>ctx.publish_named</code></a> (the core sets <code>source</code> and copies <code>data</code> through JSON) and heard with <a href="modules.html#modulecontextsubscribe_named"><code>ctx.subscribe_named</code></a>. Declared in the manifest's <code>publishes_named</code> / <code>listens_named</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td><code>&lt;module_id&gt;.&lt;what&gt;</code>, e.g. <code>cv.job_ready</code>; only that module may publish it</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>The publishing module's id</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>Plain JSON values only</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Named or typed:</strong> shared events (the core's, the Hub's, ones several modules agree on: <code>TaskUpdated</code>, <code>VoiceTranscript</code>, …) stay typed classes here, with their fields checked. A named event that becomes widely used, or whose payload needs checking, gets a typed class at the next planned restart (<a href="../architecture/decisions.html#decided">decisions</a>). Helpers: <code>event_name_ok(name, pattern=False)</code> (is it <code>&lt;module&gt;.&lt;what&gt;</code>, or with <code>pattern</code> also <code>&lt;module&gt;.*</code>) and <code>SubscriptionHandle</code> (from <code>subscribe</code> and <code>subscribe_named</code>, for <code>unsubscribe</code>), both in <code>assistant.contracts</code>.</p>
+<p><strong>Named events today</strong> (modules talk to each other through named events; a tool is only for a call out, <a href="../architecture/decisions.html#decided">decisions</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Published by</th>
+<th>When</th>
+<th>Data</th>
+<th>Heard by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cv.job_finished</code></td>
+<td>cv</td>
+<td>cv_agent's job task ends (<code>done</code> or <code>failed</code>)</td>
+<td><code>reply_to</code>, <code>agent_id</code>, <code>task_id</code>, <code>parent_task_id</code>, <code>state</code>, <code>job_dir</code>, <code>company</code>, <code>role</code>, <code>cv_result</code> (the <code>CV_RESULT</code> as JSON, or null), <code>summary</code></td>
+<td>job_search: wakes its agent if <code>reply_to</code> is it</td>
+</tr>
+<tr>
+<td><code>cv.job_submitted</code></td>
+<td>cv</td>
+<td>the user's Submit in the CV Tool, once per Submit</td>
+<td><code>reply_to</code>, <code>job_id</code>, <code>job_dir</code>, <code>company</code>, <code>role</code>, <code>submitted_at</code>, <code>pdf_path</code>, <code>final_score</code>, <code>target_score</code>, <code>result</code> (result.json), <code>summary</code></td>
+<td>job_search: wakes its agent if <code>reply_to</code> is it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="viewertabschanged"><code>ViewerTabsChanged</code></h2>
 <p><code>ViewerTabsChanged(tabs: tuple[str, ...] = (), active: str | None = None, highlights: tuple[tuple[str, str], ...] = ())</code> (event)</p>
 <p>The <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>'s open tabs or highlights changed: a tab opened, closed, or was switched to, or a highlight was added, cleared, or dropped. <code>tabs</code> are the open files' full paths in tab order; <code>active</code> is the one showing; <code>highlights</code> are <code>(path, quoted text)</code> pairs. The <code>html_viewer</code> module publishes it; the Talker keeps the latest and hears it, as a <code>[Viewer] open: ...; highlighted: ...</code> line, with your next message.</p>

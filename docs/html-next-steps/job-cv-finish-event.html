@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job ↔ cv: module-to-module through named events</title>
+<!-- Generated from docs/next-steps/job-cv-finish-event.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="job-cv-finish-event.html"></nav>
+<main>
+<h1 id="job-cv-module-to-module-through-named-events">Job ↔ cv: module-to-module through named events</h1>
+<blockquote>
+<p><strong>Status (2026-11-13, 02:51): the smoke test's order is rewritten (step 2 of <a href="#loading-and-the-check-both-after-your-go">Loading and the check</a>): job_search on alone, the job agent turns cv on. Smoke test 4 ran in that order and was blocked at <code>cv.task</code> (<a href="#smoke-test-4-results-2026-11-13">results</a>): the job agent turned cv on itself (pass), but cv refused the task because the Main Assistant's own task was open. cv and job_search are off again. Rerun with the Main Assistant ending its task right after the <code>hub.start</code>.</strong></p>
+<p>Earlier status (2026-11-13): <strong>the fixes for problems A and B, and the <code>base_</code> rename (problem C), are verified: 821 tests pass and ruff is clean (<a href="#tests-2026-11-13">Tests</a>). Decided: no fallback for lost events. Nothing is reloaded, restarted or committed. Next, each on your go: the app restart, then smoke test 4.</strong></p>
+<p>Earlier status (2026-11-12, evening): the fake-job check ran; the event path works. See <a href="#the-fake-job-check-results-2026-11-12">The fake-job check: results</a>.</p>
+<p>Earlier status: built (2026-11-12), waiting on you: one app restart (<code>StartTask.tell_parent</code> is a contract change), then the fake-job check below, both after your go. <strong>2026-11-12, before the restart:</strong> 818 tests pass, docs rebuilt; the flow page <a href="job-cv-flow.html">job-cv-flow</a> is drawn (event bus as its own block) and you approved it; you gave the go for the restart ("build it"). <strong>Left after the restart:</strong> the fake-job check (step 2 below) only on your go; then the design-notes skill task, also on your go. No agent is started until you say so. Approved with your three answers: (1) <code>tell_parent=False</code>; (2) the job agent updates the tracker row, the module writes nothing into the job project; (3) the Submit goes the same way, as a named event (your later message).</p>
+</blockquote>
+<h2 id="the-design">The design</h2>
+<p>Modules talk to each other through named events (<a href="../html/api/messaging.html#moduleevent"><code>ModuleEvent</code></a>: <code>ctx.publish_named</code> / <code>ctx.subscribe_named</code>). A direct tool is only for a call out.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Step</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>The job agent passes the job to cv</td>
+<td>the <code>cv.task</code> tool (a call out). cv starts cv_agent as the job agent's child task, with <code>tell_parent=False</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>cv_agent ends the job (<code>done</code> or <code>failed</code>)</td>
+<td>cv hears its own worker's end (<code>TaskUpdated</code>) and publishes <strong><code>cv.job_finished</code></strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>The user presses Submit in the CV Tool</td>
+<td>the app tells cv on its event stream; cv publishes <strong><code>cv.job_submitted</code></strong>, once per Submit</td>
+</tr>
+<tr>
+<td>4</td>
+<td>job_search hears both</td>
+<td><code>subscribe_named</code>; it keeps the events whose <code>reply_to</code> is its agent and wakes the agent with one <code>DeliverMessage</code> each</td>
+</tr>
+<tr>
+<td>5</td>
+<td>The job agent acts</td>
+<td>updates the job's tracker row as its project's skills say; the whole result with <code>cv.read_result task_id=…</code></td>
+</tr>
+</tbody>
+</table>
+<p>One path only. The Hub sends no child-task message for cv's task (<code>tell_parent=False</code>), and cv sends the job agent no message of its own. The parent link stays, so the job agent can still <code>hub.send</code> to cv's task without a card.</p>
+<p>Event data (<a href="../html/api/messaging.html#moduleevent">the table</a>): both carry <code>reply_to</code>, the job folder, company, role and a one-line <code>summary</code> written by cv. <code>cv.job_finished</code> adds the task, its state and the parsed <code>CV_RESULT</code>; <code>cv.job_submitted</code> adds the PDF, the score and the whole <code>result.json</code>.</p>
+<h2 id="what-was-cut-the-audit">What was cut (the audit)</h2>
+<p>Every other route between cv and the job agent, checked 2026-11-12:</p>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Where</th>
+<th>Now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The Hub's child-task message, with <code>parent_note</code> and the parent's brief quoted</td>
+<td><code>agent_hub/tasks.py</code> <code>_to_parent</code>, <code>contracts/agents.py</code> <code>StartTask.parent_note</code>, <code>hub.start</code>'s <code>parent_note</code> input, <code>cv/handoff.parent_note</code></td>
+<td><code>parent_note</code> and the brief quote removed everywhere; the plain message stays for other parents; cv's task sets <code>tell_parent=False</code></td>
+</tr>
+<tr>
+<td>cv's Submit message to the asker (<code>DeliverMessage</code> to <code>reply_to</code>)</td>
+<td><code>cv/module.py</code> <code>_tell_asker</code></td>
+<td>replaced by <code>_pass_submit</code>, which publishes <code>cv.job_submitted</code></td>
+</tr>
+<tr>
+<td><code>cv.task</code>'s <code>next</code> text ("comes to you as a message naming your brief")</td>
+<td><code>cv/module.py</code></td>
+<td>now says: cv publishes the events, your module wakes you</td>
+</tr>
+<tr>
+<td><code>job_start.json</code> <code>replied</code> record</td>
+<td><code>cv/reply.py</code></td>
+<td>kept, to pass each Submit on once; <code>how</code> is now <code>published cv.job_submitted</code></td>
+</tr>
+<tr>
+<td>cv_agent's <code>AgentNotice</code> about a Submit</td>
+<td><code>cv/module.py</code></td>
+<td>kept: it goes to cv's own worker, not the job agent</td>
+</tr>
+<tr>
+<td>The Rezi click message</td>
+<td><code>cv/module.py</code> <code>_tell_worker_rezi</code></td>
+<td>kept: it goes to cv_agent, not the job agent</td>
+</tr>
+<tr>
+<td>The job project (<code>C:\Chang\Jobs\CV</code> CLAUDE.md, skills)</td>
+<td></td>
+<td>nothing to cut: it only calls <code>cv.task</code>. It has no step for the result either; the message tells the agent to update the tracker row</td>
+</tr>
+<tr>
+<td>cv's worker prompt (<code>cv/worker.py</code>)</td>
+<td></td>
+<td>nothing: it never tells cv_agent to message the asker</td>
+</tr>
+</tbody>
+</table>
+<h2 id="known-gap-not-built-your-call">Known gap (not built, your call)</h2>
+<p>A named event published while job_search is off or reloading, or across an app restart, is lost: the bus keeps nothing. With <code>tell_parent=False</code> nothing else wakes the job agent then. The result is still in the Hub's task record (last 20 finished) and the job folder. A fallback (cv marks the job finished in <code>job_start.json</code>, job_search reports unreported ones when it starts) was proposed. <strong>Decided 2026-11-13: no fallback.</strong> Losing these events is accepted, as normal at-most-once event behavior.</p>
+<p>A job agent woken in a fresh session gets the job, the folder, the summary and what next, but not its own earlier brief.</p>
+<h2 id="files">Files</h2>
+<ul>
+<li>Contract: <code>contracts/agents.py</code> (<code>StartTask.tell_parent</code>; <code>parent_note</code> removed).</li>
+<li>agent_hub: <code>tasks.py</code> (<code>TaskRecord.tell_parent</code>, <code>_to_parent</code>, the plain <code>CHILD_ENDED</code>), <code>module.py</code> (<code>hub.start</code> without <code>parent_note</code>).</li>
+<li>cv: <code>module.py</code> (<code>_on_task</code>, <code>_pass_submit</code>, <code>cv.task</code>, manifest <code>publishes_named</code> and <code>TaskUpdated</code>), <code>handoff.py</code> (<code>JOB_FINISHED</code>, <code>job_finished</code>, <code>finish_summary</code>), <code>reply.py</code> (<code>JOB_SUBMITTED</code>, <code>job_submitted</code>, <code>submit_notice</code>), <code>submit_watch.py</code> (docstring).</li>
+<li>job_search: <code>module.py</code> (<code>CV_FINISHED</code>, <code>CV_SUBMITTED</code>, <code>_on_cv</code>, <code>cv_finished_text</code>, <code>cv_submitted_text</code>, manifest <code>listens_named</code> and <code>DeliverMessage</code>).</li>
+<li>Tests: <code>agent_hub/tests/test_child_result.py</code> (plain text; <code>tell_parent=False</code> tells no one), <code>cv/tests/test_reply_delivery.py</code> (cv → both events, no message), <code>cv/tests/test_tool.py</code>, new <code>job_search/tests/test_cv_events.py</code>.</li>
+<li>Docs: <code>docs/api/agents.md</code>, <code>messaging.md</code>, <code>modules.md</code>, <code>reusable.md</code>, <code>README.md</code>; <code>docs/architecture/decisions.md</code>, <code>communication.md</code>, <code>modules.md</code>, <code>agents.md</code>; the cv, job_search and agent_hub module pages.</li>
+</ul>
+<h2 id="loading-and-the-check-both-after-your-go">Loading and the check (both after your go)</h2>
+<ol>
+<li><strong>One app restart:</strong> the contract changed. It loads agent_hub, cv and job_search with it; no reloads needed. (Done 2026-11-13 02:19, launch <code>logs/2026-11-13_02-19-03_wtf</code>.)</li>
+<li><strong>The fake job, in this order (updated 2026-11-13 on your request):</strong></li>
+<li><strong>Start: cv off.</strong> The Main Assistant checks with <code>modules.list</code> that cv is off (<code>modules.off cv</code> if not) and that no earlier fake-job task is open. Then it turns on <strong>job_search only</strong> (<code>modules.on job_search</code>). The job_search module subscribes to <code>cv.job_finished</code> and <code>cv.job_submitted</code> when it starts.</li>
+<li><strong>The job agent turns on cv itself.</strong> The Main Assistant makes one <code>hub.start</code> on <code>job_search_agent</code> with the fake-job brief (NonexistentTestCo / Smoke Test Engineer, a <code>CV_Test_*.pdf</code> base CV; notes for cv_agent: no Chrome, no Rezi, end at once with <code>CV_RESULT</code> status "stopped"). The brief tells the job agent that cv is off and that it turns cv on with <code>modules.on cv</code> before its <code>cv.task</code> call. Give <code>base_cv</code> as the full path (<code>C:/Chang/Jobs/CV/&lt;name&gt;.pdf</code>): the bare file name was refused on 2026-11-13. <strong>The Main Assistant then ends its own task at once</strong> (its turn ends right after the <code>hub.start</code>): cv refuses <code>cv.task</code> while any open task writes the repo, which cv_agent also writes, and the Main Assistant's task counts. The log check (step 4) is a separate, later task.</li>
+<li><strong>cv fires its event:</strong> cv_agent ends the job and cv publishes <code>cv.job_finished</code>.</li>
+<li><strong>The check:</strong> the logs show that job_search received the event and the job agent was woken by it.</li>
+</ol>
+<p><strong>The Main Assistant must NOT turn cv on by hand.</strong> That hides whether the job_search side brings cv up, which is what this order tests. If the job agent can't turn cv on, that's a result to report, not something to work around.</p>
+<p>Permission cards the job agent raises (its <code>modules.on</code> and <code>cv.task</code> calls) show in <strong>the job agent's tab</strong>, and only you can answer them there. When one waits, the Main Assistant stops, tells you once which card it is, and waits for your "continue". It doesn't ask the Talker to keep relaying it.</p>
+<p>Checks, from <code>assistant.log</code> and the agents' logs:
+   1. <code>Activated job_search</code> with no <code>Activated cv</code> before it; then <code>Activated cv</code> after the job agent's task started (its own <code>modules.on</code> call). <code>cv.task</code> from job_search_agent; a work folder with <code>job_start.json</code>.
+   2. cv_agent ends with <code>CV_RESULT</code>, no Chrome, no Rezi.
+   3. cv logs "published cv.job_finished"; job_search logs it received it.
+   4. Exactly one message reaches the job agent, <code>[Message from job_search]</code>; no <code>[Message from agent_hub] Your child task</code> message.
+   5. The job agent reports <code>SMOKE TEST 3 DONE</code> with the job and the status.
+   6. Cleanup: delete the new work folder and its CV Tool job only, after looking at them.</p>
+<h3 id="why-the-same-conversation-kept-coming-back-logs-2026-11-12-and-2026-11-13">Why the same conversation kept coming back (logs, 2026-11-12 and 2026-11-13)</h3>
+<p>Five launches ran this test, and each ended the same way: the job agent waited on a card, and the Talker asked you again and again whether to go to its tab.</p>
+<table>
+<thead>
+<tr>
+<th>Launch</th>
+<th>Who turned cv on</th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>2026-11-12_04-41-44</code></td>
+<td>Main Assistant: <code>Activated job_search</code> 04:43:42, <code>Activated cv</code> 04:43:48</td>
+<td>the job agent's questions waited ("2 question(s) released" at 04:45:00); focus flipped between job_search_agent and cv_agent eleven times in two minutes</td>
+</tr>
+<tr>
+<td><code>2026-11-12_05-20-12</code></td>
+<td>Main Assistant: cv 05:25:16, job_search 05:25:17</td>
+<td>a card waited; then <code>cv.task</code> was refused twice (cv_agent would write the repo, which the Main Assistant's open task wrote)</td>
+</tr>
+<tr>
+<td><code>2026-11-12_05-53-09</code></td>
+<td>Main Assistant: cv, job_search, then cv off again within 4 s</td>
+<td>you had said to launch only job_search; cv was turned on by hand anyway, then off</td>
+</tr>
+<tr>
+<td><code>2026-11-12_17-30-04</code></td>
+<td>Main Assistant: cv and job_search 28 ms apart (17:49:47)</td>
+<td>the job agent's <code>cv.task</code> card waited 6.5 minutes (17:49:57 → 17:56:25)</td>
+</tr>
+<tr>
+<td><code>2026-11-13_02-19-03</code></td>
+<td>Main Assistant: cv and job_search 31 ms apart (02:45:26)</td>
+<td>task 8580d066 waited on its <code>cv.task</code> card; the Talker relayed the suggestion again; you stopped it, and both were cancelled at 02:46–02:47</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The causes:</strong></p>
+<ol>
+<li><strong>cv was turned on by hand every time.</strong> The plan's step 2 didn't say who turns cv on, so the Main Assistant turned on both modules before the <code>hub.start</code>. So the run never tested whether the job side brings cv up, which is the order you asked for from the start.</li>
+<li><strong>The plan didn't say who answers the cards or what the Main Assistant does meanwhile.</strong> The job agent's cards show only in its own tab. Each time, the Main Assistant and the Talker asked you in the main tab whether to go there, and asked again on the next update.</li>
+</ol>
+<p><strong>So it doesn't come back:</strong> step 2 now names the order and who does each step, says the Main Assistant never turns cv on, and says the Main Assistant tells you about a waiting card once and then waits for your "continue".</p>
+<h2 id="smoke-test-4-results-2026-11-13">Smoke test 4: results (2026-11-13)</h2>
+<p>Launch <code>logs/2026-11-13_02-19-03_wtf</code>, the new order. Main Assistant task 92bd651e; job agent task 7b19925b. The earlier task 8580d066 was confirmed <code>cancelled</code> first, and cv and job_search were both off. There's still no <code>CV_Test_*.pdf</code> in <code>C:\Chang\Jobs</code>, so the brief named the real <code>&lt;cv_prefix&gt;SWE.pdf</code> (copy only).</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Result</th>
+<th>Evidence (<code>assistant.log</code>, the Hub's task record)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(a) Main Assistant turns on job_search only</td>
+<td><strong>pass</strong></td>
+<td>02:49:32 "Activated job_search"; no <code>Activated cv</code> before it</td>
+</tr>
+<tr>
+<td>(b) the job agent turns cv on</td>
+<td><strong>pass</strong></td>
+<td>task started 02:49:42; its <code>modules.on cv</code> card was allowed in its tab; 02:49:59 "Activated cv"</td>
+</tr>
+<tr>
+<td>(b) the job agent's <code>cv.task</code></td>
+<td><strong>fail</strong></td>
+<td>1st call, <code>base_cv: "&lt;cv_prefix&gt;SWE.pdf"</code>: refused, "base_cv must be one of your CVs in C:/Chang/Jobs/CV" (the file is there). 2nd call with the full path: 02:50:36 "cv.task from job_search_agent refused: cv_agent would write C:\Chang\Git_projects\AI_Assistant, which main_assistant's open task 92bd651e writes"</td>
+</tr>
+<tr>
+<td>(c) cv fires <code>cv.job_finished</code></td>
+<td><strong>not reached</strong></td>
+<td>cv_agent never started</td>
+</tr>
+<tr>
+<td>(d) job_search receives it</td>
+<td><strong>not reached</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>Job agent's end</td>
+<td>done, as told</td>
+<td>02:50:43 "Task 7b19925b done", last line "SMOKE TEST 4 DONE: … status none (cv.task refused …), read_result not called (no task_id), cv turned on by job_search_agent yes"</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The blocker</strong> is the same as in launch <code>2026-11-12_05-20-12</code>: cv's write-folder check refuses a cv_agent task while another open task writes the repo, and the Main Assistant running the test is such a task. The fix for the run is in step 2.2 above: the Main Assistant ends its task right after the <code>hub.start</code>. <strong>Open, not looked at:</strong> why the bare <code>base_cv</code> name was refused although the file exists.</p>
+<p>After the run, cv and job_search were turned off again (<code>modules.off</code>), so the next run starts from cv off. Nothing was created on disk: no work folder, since cv_agent never started.</p>
+<h2 id="the-fake-job-check-results-2026-11-12">The fake-job check: results (2026-11-12)</h2>
+<p>Launch <code>logs/2026-11-12_17-30-04_yes</code>. The app was restarted on your go. Main Assistant task 9b894240 turned on cv and job_search and made one <code>hub.start</code> on job_search_agent (task e3bdad67). cv_agent's task was cf403d73, and the job agent's wake-up task was 71c0616e. <strong>Evidence:</strong> <code>assistant.log</code> only. <code>cv_agent.jsonl</code>, <code>job_search_agent.jsonl</code> and their Talkers' logs are 0 bytes in this launch, so the agents' own turns are known only from the Hub's task records.</p>
+<p>There was no <code>CV_Test_*.pdf</code> anywhere, so the base CV was the real <code>C:\Chang\Jobs\CV\&lt;cv_prefix&gt;SWE.pdf</code>. It was only copied, never changed.</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+<th>Evidence (<code>assistant.log</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.1 <code>cv.task</code> from job_search_agent; work folder with <code>job_start.json</code></td>
+<td><strong>pass</strong></td>
+<td>17:56:26 "cv job set up in …\work\2026-11-12_NonexistentTestCo_SmokeTestEngineer (copy <cv_prefix>SWE.pdf, 15 rule file(s))"; "cv.task from job_search_agent: task cf403d73 on cv_agent". The job agent saw <code>job_start.json</code> and <code>jd.txt</code> in the folder</td>
+</tr>
+<tr>
+<td>2.2 cv_agent ends with <code>CV_RESULT</code>, no Chrome, no Rezi</td>
+<td><strong>pass, with a defect</strong></td>
+<td>17:56:33 "Task cf403d73 done". Its last line was <code>CV_RESULT: {"status": "stopped", …}</code>, and it reported no CV Tool, Chrome or Rezi. No Chrome or Rezi activity is logged. Defect: <code>section_order</code> was capitalized, so the line failed validation (problem B)</td>
+</tr>
+<tr>
+<td>2.3 cv publishes <code>cv.job_finished</code>; job_search receives it</td>
+<td><strong>pass</strong></td>
+<td>17:56:33.687 "cv: task cf403d73 ended done; published cv.job_finished for job_search_agent"; same ms "job_search: cv.job_finished for job_search_agent -&gt; pending"</td>
+</tr>
+<tr>
+<td>2.4 Exactly one message reaches the job agent, <code>[Message from job_search]</code>; no <code>[Message from agent_hub] Your child task</code></td>
+<td><strong>pass</strong></td>
+<td>17:56:40 "Task 71c0616e started on job_search_agent" / "A waiting message from job_search for job_search_agent: task 71c0616e". The task text starts <code>[Message from job_search]</code>, and there's no child-task message in the log. It came in as a new task because of the Hub race (problem A)</td>
+</tr>
+<tr>
+<td>2.5 Job agent reports <code>SMOKE TEST 3 DONE</code></td>
+<td><strong>fail</strong></td>
+<td>17:56:40 "Task e3bdad67 failed"; "Hub refused done report: Task 'e3bdad67' is already failed" (problem A). The wake-up task 71c0616e ended done without the <code>SMOKE TEST 3 DONE</code> line, because a fresh session doesn't get its earlier brief (the known gap above). It reported the job and folder, and said <code>cv.read_result</code> fails</td>
+</tr>
+<tr>
+<td>2.6 Cleanup</td>
+<td><strong>pass, per the earlier session</strong></td>
+<td>Task 9b894240 reported that the work folder is deleted and the base CV is still in place. Not re-checked by hand in this session</td>
+</tr>
+</tbody>
+</table>
+<h3 id="problem-a-the-hub-race-fixed-verified-2026-11-13">Problem A: the Hub race (fixed; verified 2026-11-13)</h3>
+<p><strong>What happened:</strong> cv_agent finished while job_search_agent was still in its turn, so job_search's message waited (<code>pending</code>). The job agent's turn ended, and its <code>idle</code> state was published before its DONE report reached the Hub. The Hub flushed the waiting message into the old task. The agent answered "not my current task" (<code>invalid_arguments</code>), and the board took that as "the agent was reloaded" (<code>tasks.py</code>, "no longer holds this task (reloaded)"). It marked e3bdad67 <strong>failed</strong> and then refused the late DONE report.</p>
+<p><strong>The fix (in <code>infra/session_agent.py</code>):</strong> a <code>_ended</code> set holds tasks whose DONE or FAILED report is queued but not yet taken by the Hub. While a task is in it, <code>message()</code> returns <code>not_available</code> ("has just ended … try again"), so the Delivery keeps the message waiting instead of failing the task. The message then goes in as a new task once the report is in. <code>agent_hub/delivery.py</code> and <code>module.py</code> also changed (<code>Delivery.tell</code> / <code>drain</code> for the parent message).</p>
+<p><strong>Tests:</strong> new <code>agent_hub/tests/test_end_report_race.py</code> (the turn ends before its DONE report: the task ends DONE and the message becomes a new task; the agent says <code>not_available</code> for a task it just ended).</p>
+<p><strong>Not verified:</strong> the debugger subagent (started 18:00 by task 9b894240) never reported back. Its session was killed at 18:02:39 when the next task started, so it's unknown whether it finished or ran the tests. <strong>Verified 2026-11-13:</strong> the full suite passes, with <code>test_end_report_race.py</code> in it. The fix needs an <strong>app restart</strong>, not a reload, because <code>infra/</code> changed.</p>
+<h3 id="problem-b-section_order-case-fixed-verified-2026-11-13">Problem B: <code>section_order</code> case (fixed; verified 2026-11-13)</h3>
+<p>cv_agent wrote <code>["Summary", "Skills", …]</code>, but <code>check_sections</code> accepted only lowercase ids. So the <code>CV_RESULT</code> line was "not valid" in the event, and <code>cv.read_result task_id=cf403d73</code> failed. <strong>Fix:</strong> <code>cv/content.py</code> <code>check_sections</code> now trims and lowercases each name. Duplicates are still refused ("Summary" and "summary" count as one name twice). <code>cv/worker.py</code>'s prompt now says "section ids in lowercase". <strong>Test:</strong> <code>cv/tests/test_cv.py::test_a_results_section_order_ignores_case_as_the_worker_may_write_it</code>. Verified 2026-11-13 in the full run. It loads with a cv reload, or with the restart that problem A needs.</p>
+<h3 id="problem-c-the-stray-pdf-fixed-2026-11-13-the-copy-is-named-base_">Problem C: the stray PDF (fixed 2026-11-13: the copy is named <code>base_</code>)</h3>
+<p><strong>Fixed 2026-11-13</strong> (<a href="cv-base-copy-name.html">cv-base-copy-name</a>): the copy is now <code>base_&lt;name&gt;.pdf</code>. What was found on 2026-11-12:</p>
+<p>The job agent saw <code>&lt;cv_prefix&gt;SWE.pdf</code> (148 KB) in the work folder and took it for a CV that cv_agent made. It's the <strong>base CV's copy</strong>: <code>JobStart.prepare</code> always copies the base CV into the job folder under its own name. The log says so at 17:56:26 ("copy <cv_prefix>SWE.pdf"), before cv_agent started. cv_agent said it didn't read or change "the base CV or its copy". Nothing was fixed. The open question for you is whether the copy should get a clearer name (<code>base_…pdf</code>) so it isn't mistaken for a tailored CV. Also unexplained: a <code>folder_for(company, role)</code> helper was added to <code>cv/job_start.py</code> (used by <code>prepare</code> only). It changes nothing, but it has no test of its own.</p>
+<h3 id="tests-2026-11-13">Tests (2026-11-13)</h3>
+<p>Full suite, run in the foreground: <strong>821 passed, 2 deselected, 0 failed</strong> (177.9 s). It covers problems A and B and the <code>base_</code> rename. 4 warnings: <code>PytestUnraisableExceptionWarning</code> ("I/O operation on closed pipe" from an unclosed asyncio subprocess transport) in <code>test_talker_agents.py::test_a_helper_tabs_talker_starts_on_use_has_its_own_usage_row_and_closes_with_its_agent</code> and <code>test_voice_in.py::test_send_as_input_off_keeps_the_text_from_the_talker</code>. These are Windows clean-up noise in tests this work didn't touch. <code>ruff check</code>: "All checks passed!" (run 2026-11-13 after the rename; no file changed since).</p>
+<p>The earlier run on 2026-11-12 was stopped before it finished, and the 818 passing before that came before these fixes.</p>
+<h3 id="whats-next-each-waits-for-your-go">What's next (each waits for your go)</h3>
+<ol>
+<li>~~Run the full suite and <code>ruff check</code>.~~ Done 2026-11-13, all pass.</li>
+<li><strong>App restart</strong> (problem A touches <code>infra/</code>). It also loads problem B's fix.</li>
+<li><strong>Hand checks:</strong> a fresh fake job (smoke test 4), to see 2.5 pass (the job agent's own task ends DONE and the result is read by <code>cv.read_result</code>). Re-check by hand that the 2026-11-12 work folder is gone and the CV Tool has no NonexistentTestCo job.</li>
+<li>~~Rename the base CV's copy (problem C).~~ Done 2026-11-13.</li>
+<li>~~The known gap.~~ Decided 2026-11-13: no fallback.</li>
+<li><strong>The design-notes skill task.</strong></li>
+</ol>
+<footer>Generated from <code>docs/next-steps/job-cv-finish-event.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

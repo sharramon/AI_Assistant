@@ -85,9 +85,16 @@
 <tr>
 <td>Event Bus (<code>ctx.subscribe</code> / <code>ctx.publish</code>)</td>
 <td>core</td>
-<td>The stream for any event: voice text, agent activity, usage</td>
-<td><code>core/bus.py</code></td>
+<td>The stream for any event: voice text, agent activity, usage. <code>subscribe</code> returns a handle; <a href="modules.html#modulecontextunsubscribe"><code>ctx.unsubscribe</code></a> drops one subscription</td>
+<td><code>core/bus.py</code>, <code>core/context.py</code></td>
 <td>every module</td>
+</tr>
+<tr>
+<td><a href="messaging.html#moduleevent"><code>ModuleEvent</code></a>, <a href="modules.html#modulecontextpublish_named"><code>ctx.publish_named</code></a> / <a href="modules.html#modulecontextsubscribe_named"><code>subscribe_named</code></a> / <a href="modules.html#modulecontextunsubscribe"><code>unsubscribe</code></a>, <code>event_name_ok</code>, <code>SubscriptionHandle</code></td>
+<td>event, interface</td>
+<td>A module-owned event matched by name (<code>cv.job_ready</code>, <code>cv.*</code>): no new class, no restart, either side reloads alone; declared in <code>publishes_named</code> / <code>listens_named</code></td>
+<td><code>contracts/messages.py</code>, <code>contracts/module.py</code>, <code>core/context.py</code></td>
+<td>cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens)</td>
 </tr>
 <tr>
 <td><a href="messaging.html#inputreceived"><code>InputReceived</code></a></td>
@@ -134,7 +141,7 @@
 <tr>
 <td><a href="agents.html#itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></a></td>
 <td>method</td>
-<td>Ask you to allow an app action on the agent's open task: the permission card, even in Auto; on Allow, <code>run()</code>'s outcome is the task's next message</td>
+<td>Ask you to allow an app action on the agent's open task: the permission card in Manual, at once in Auto (the agent's own mode); on Allow, <code>run()</code>'s outcome is the task's next message</td>
 <td><code>contracts/agents.py</code>, <code>infra/session_agent.py</code></td>
 <td><code>SessionTaskAgent</code> implements (also its own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request); <code>task_agents</code> (<code>agents.launch</code>) calls</td>
 </tr>
@@ -190,7 +197,7 @@
 <tr>
 <td><a href="agents.html#questionkind"><code>QuestionKind</code></a>, <code>RISKY_PREFIX</code></td>
 <td>enum, constant</td>
-<td>What a task's open question is (<code>permission</code>, <code>risky</code>, <code>need</code>, none), on <code>TaskInfo</code> and <code>TaskUpdated</code>; <code>QuestionKind.of</code> reads <code>Risky:</code> once</td>
+<td>What a task's open question is (<code>permission</code>, <code>risky</code>, <code>need</code>, <code>wait</code>, none), on <code>TaskInfo</code> and <code>TaskUpdated</code>; <code>QuestionKind.of</code> reads <code>Risky:</code> once</td>
 <td><code>contracts/agents.py</code></td>
 <td><code>agent_hub</code> sets it → <code>talker</code>, <code>temp_ui</code> read it</td>
 </tr>
@@ -443,7 +450,7 @@
 <tr>
 <td><a href="infra.html#permissiongate"><code>PermissionGate</code></a></td>
 <td>class</td>
-<td>A task agent's one open question: tool requests, approvals, the timer, the Auto policy and the <code>git push</code> block</td>
+<td>A task agent's one open question: tool requests, approvals, the timer, the Auto policy and the <code>git push</code> block; an approval kept for a task that ended waiting (<code>park</code>, <code>unpark</code>, <code>answer_parked</code>)</td>
 <td><code>infra/permission_gate.py</code></td>
 <td><code>SessionTaskAgent</code></td>
 </tr>

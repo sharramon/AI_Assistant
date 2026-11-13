@@ -130,6 +130,11 @@
 <td>A few words about the session, for its log folder name</td>
 </tr>
 <tr>
+<td><a href="messaging.html#moduleevent"><code>ModuleEvent</code></a></td>
+<td>event</td>
+<td>♻ A module-owned event matched by name (cv → job_search: <code>cv.job_finished</code>, <code>cv.job_submitted</code>): <code>ctx.publish_named</code> / <code>subscribe_named</code> / <code>unsubscribe</code>, no restart for a new one</td>
+</tr>
+<tr>
 <td><a href="messaging.html#viewertabschanged"><code>ViewerTabsChanged</code></a></td>
 <td>event</td>
 <td>The HTML viewer's open tabs or highlights changed</td>
@@ -356,7 +361,7 @@
 <tr>
 <td><a href="agents.html#questionkind"><code>QuestionKind</code></a></td>
 <td>enum</td>
-<td>♻ What a task's open question is: <code>permission</code>, <code>risky</code>, <code>need</code> or none; set by the Hub, so nobody parses the text</td>
+<td>♻ What a task's open question is: <code>permission</code>, <code>risky</code>, <code>need</code>, <code>wait</code> (it ended waiting) or none; set by the Hub, so nobody parses the text</td>
 </tr>
 <tr>
 <td><a href="agents.html#taskstate"><code>TaskState</code></a></td>
@@ -411,7 +416,7 @@
 <tr>
 <td><a href="agents.html#reporttask"><code>ReportTask</code></a></td>
 <td>command</td>
-<td>Agent → Hub: <code>progress</code>, <code>milestone</code>, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code></td>
+<td>Agent → Hub: <code>progress</code>, <code>milestone</code>, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>turn_end</code> (the Hub answers wait or done), <code>done</code>, <code>failed</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#taskupdated"><code>TaskUpdated</code></a></td>

@@ -784,6 +784,11 @@
       "href": "index.html",
       "home": [
         "index.html",
+        "module-folders-audit.html",
+        "auto-skips-cards.html",
+        "job-cv-finish-event.html",
+        "job-cv-result-via-tools.html",
+        "named-module-events.html",
         "you-means-the-pair.html",
         "agent-talk-and-questions.html",
         "cv-submit-delivers.html",
@@ -840,8 +845,11 @@
         "chrome-tabs-close.html",
         "taskbar-flash.html",
         "usage-tokens-only.html",
+        "cv-base-copy-name.html",
         "handoff-20c1d08e.html",
         "handoff-3720fc90.html",
+        "handoff-4dca192a.html",
+        "handoff-5eff4e83.html",
         "handoff-73fc479c.html",
         "handoff-8c52a851.html",
         "handoff-99c9ff7c.html",
@@ -850,6 +858,7 @@
         "handoff-d729a7ef.html",
         "handoff-e519644c.html",
         "handoff-privacy-cleanup.html",
+        "job-cv-flow.html",
         "live-permission-mode.html",
         "archive/index.html",
         "archive/logs-button.html",
@@ -891,6 +900,26 @@
             {
               "name": "Overview",
               "href": "index.html"
+            },
+            {
+              "name": "Module folders: what was promised, what was done, and why it was called done",
+              "href": "module-folders-audit.html"
+            },
+            {
+              "name": "An agent in Auto gets no permission cards, and a waiting worker is paused by the Hub",
+              "href": "auto-skips-cards.html"
+            },
+            {
+              "name": "Job ↔ cv: module-to-module through named events",
+              "href": "job-cv-finish-event.html"
+            },
+            {
+              "name": "Job ↔ cv through tools and the Hub's child-result message, not the named event",
+              "href": "job-cv-result-via-tools.html"
+            },
+            {
+              "name": "Named module events: any module raises and hears custom events, reload only",
+              "href": "named-module-events.html"
             },
             {
               "name": "\"You\" means the Talker and its worker together",
@@ -1117,12 +1146,24 @@
               "href": "usage-tokens-only.html"
             },
             {
+              "name": "The base CV's copy in a job folder is named `base_…`",
+              "href": "cv-base-copy-name.html"
+            },
+            {
               "name": "Handoff 20c1d08e: cv module, PDF in and PDF out (build)",
               "href": "handoff-20c1d08e.html"
             },
             {
               "name": "Handoff: hand checks 1, 2, 4 of agent-talk-and-questions (task 3720fc90)",
               "href": "handoff-3720fc90.html"
+            },
+            {
+              "name": "Handoff: cv → job_search through the `cv.job_finished` named event only (task 4dca192a)",
+              "href": "handoff-4dca192a.html"
+            },
+            {
+              "name": "Handoff: smoke test of the job and CV agents, the Hub child-result fix, named module events (task 5eff4e83)",
+              "href": "handoff-5eff4e83.html"
             },
             {
               "name": "Handoff: the agent-permissions build (task 73fc479c)",
@@ -1155,6 +1196,10 @@
             {
               "name": "Handoff: personal-data cleanup and module docs into modules",
               "href": "handoff-privacy-cleanup.html"
+            },
+            {
+              "name": "Job ↔ cv flow: who talks to whom, and how",
+              "href": "job-cv-flow.html"
             },
             {
               "name": "Auto / Manual applies at once",

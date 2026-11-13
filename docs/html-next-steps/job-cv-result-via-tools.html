@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job ↔ cv through tools and the Hub&#x27;s child-result message, not the named event</title>
+<!-- Generated from docs/next-steps/job-cv-result-via-tools.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="job-cv-result-via-tools.html"></nav>
+<main>
+<h1 id="job-cv-through-tools-and-the-hubs-child-result-message-not-the-named-event">Job ↔ cv through tools and the Hub's child-result message, not the named event</h1>
+<blockquote>
+<p><strong>Replaced (2026-11-12) by <a href="job-cv-finish-event.html">job-cv-finish-event</a>.</strong> The result path in this note (the Hub's child-result message with <code>parent_note</code> and the parent's brief) is gone. The design is module-to-module named events, with tools only for calls out: the job agent calls <code>cv.task</code>, cv publishes <code>cv.job_finished</code> and <code>cv.job_submitted</code>, and job_search wakes its agent. Kept from this note: <code>cv.read_result task_id=…</code>. The rest below is history.</p>
+<p><strong>Old status: built (2026-11-12); the user said yes to the restart, and the app is restarting now.</strong> The user approved option 1 (<code>StartTask.parent_note</code>, one app restart). Code, tests and docs done (session 2: every doc spot below updated, docs rebuilt, 814 tests pass, ruff clean). The restart loads the contract field and the new agent_hub, cv and job_search code, so no reloads are needed. <strong>Left after the restart:</strong> wait for the user's go, then the fake-job hand checks in part 5 (the Main Assistant only starts the job agent and stays idle), then the cleanup in part 5.7.</p>
+<p><strong>Build status (handoff, session 1 → 2; session 2 finished the docs):</strong>
+- <strong>Code: done</strong> as written in parts 1 and 2:
+  - <code>contracts/agents.py</code>: <code>StartTask.parent_note</code>.
+  - <code>agent_hub/tasks.py</code>: <code>PARENT_TEXT = 600</code>, the new <code>CHILD_ENDED</code>, <code>TaskRecord.parent_note</code> (also in export / restore), <code>_to_parent</code>.
+  - <code>agent_hub/module.py</code>: the <code>parent_note</code> input on <code>hub.start</code>.
+  - <code>cv/module.py</code>: <code>cv.task</code> sets <code>parent_note</code> through <code>handoff.parent_note</code> and <code>JobStart.folder_for</code> (new, in <code>job_start.py</code>); its <code>next</code> text names <code>cv.read_result task_id=…</code>. <code>cv.read_result</code> takes <code>task_id</code> or <code>text</code>, one of them. <code>_on_task</code>, the <code>TaskUpdated</code> listen and <code>publishes_named</code> are gone.
+  - <code>cv/handoff.py</code>: <code>JOB_FINISHED</code> and <code>job_finished</code> are gone.
+  - <code>job_search/module.py</code>: the listener, <code>cv_finished_note</code> and <code>listens_named</code> are gone.
+- <strong>Tests: updated.</strong> <code>agent_hub/tests/test_child_result.py</code> has the new texts plus a test for the note and the brief cut at 600 characters. <code>cv/tests/test_reply_delivery.py</code> lost its listener and checks the note and the brief. <code>cv/tests/test_handoff.py</code> covers <code>cv.read_result task_id</code> and its refusals. The job_search test is out of <code>tests/test_named_events.py</code>.
+- <strong>ruff passes.</strong> pytest got to 268 passed and stopped at <code>tests/test_module_docs.py::test_the_library_table_is_generated…</code>. That failure is expected: the module library is stale until <code>build_docs.py</code> runs. Run the whole suite again after the docs.
+- <strong>Next (session 2):</strong>
+  1. Update the docs in part 4. Spots found:
+     - <code>docs/api/agents.md:368</code> (<code>hub.start</code>, the message text) and the <code>StartTask</code> section (<code>parent_note</code>).
+     - <code>docs/api/modules.md:128-129, 206, 214, 218</code>: the cv/job_search examples become "no module uses it now; kept".
+     - <code>docs/api/messaging.md:124, 142</code>: the <code>cv.job_finished</code> row goes.
+     - <code>docs/api/README.md:49</code> and <code>docs/api/reusable.md:20</code>.
+     - <code>docs/architecture/modules.md:117</code>, <code>communication.md:66</code>, <code>agents.md:315</code> (the new message: note and brief), <code>decisions.md:24</code> (add: module-to-module results go through tools and the Hub; named events wait for a real second listener).
+     - <code>src/assistant/modules/job_search/docs/architecture.md:11</code>.
+     - <code>src/assistant/modules/agent_hub/docs/architecture.md:23</code>, and <code>tools.md</code> if it isn't generated.
+     - <code>src/assistant/modules/cv/docs/architecture.md:26-27, 462</code> and <code>cv/docs/tools.md</code> (<code>cv.read_result task_id</code>, <code>cv.task</code>'s note).
+     - <code>named-module-events.md</code> (status: first use removed, mechanism kept) and <code>handoff-5eff4e83.md</code> open point 1 (answered here).
+     - The README row of this note.
+  2. Run <code>build_docs.py</code> (<code>module-library.md</code> is generated), then pytest and ruff, then the architecture check.
+  3. Ask the user in a NEED for the app restart (contracts changed), with the recommendation. The hand checks come only after the restart and the user's go. Decision you approved: job_search and cv talk through tools (<code>cv.task</code>, <code>cv.read_result</code>) plus the Hub's child-result message. The named event <code>cv.job_finished</code> goes; <code>ModuleEvent</code> and <code>ctx.publish_named / subscribe_named / unsubscribe</code> stay in the core, built and tested, with nothing more built on them for now.</p>
+</blockquote>
+<p><strong>Asked (2026-11-12):</strong> the code read showed two tracks for one thing. When cv_agent's task ends, the Hub sends the job agent a child-result message, which wakes it. cv also publishes <code>cv.job_finished</code>, which job_search turns into a background note that wakes nobody. You wanted the tools to be the way in, as first intended. So keep one path, the tools and the Hub message, and make the Hub message say which job ended and what the job agent was doing. That also closes open point 1 of <a href="handoff-5eff4e83.html">handoff-5eff4e83</a>: the job agent woke "in a fresh session without the original brief".</p>
+<h2 id="1-the-small-fix-the-child-result-message-carries-its-context">1. The small fix: the child-result message carries its context</h2>
+<p><strong>Today</strong> (<code>agent_hub/tasks.py:50</code>, <code>:431-441</code>): <code>"Your child task {id} on {agent} ended {state}: {result}"</code>, the result cut at 4000 characters. If the job agent's own task has already ended, this message starts a <strong>new task</strong> (<code>delivery.py:138</code>) in a fresh session. That session has no brief, no job, and no "what next". The cut can also drop the <code>CV_RESULT</code> line, which is the result's last line.</p>
+<p><strong>After:</strong></p>
+<pre><code>Your child task 3f2a91c0 on cv_agent ended done.
+It was for: the CV for Smoke Test Engineer at NonexistentTestCo, job folder C:\Chang\Jobs\CV_Module\work\2026-11-12_NonexistentTestCo_SmokeTestEngineer.
+Your task 632c9ff5 started it, with: &quot;Fake job smoke test: call cv.task for … then write the report SMOKE TEST 2 DONE …&quot; (first 600 characters)
+Next: read the result with cv.read_result task_id=3f2a91c0.
+Result (start): …
+</code></pre>
+<p>Where each part comes from:</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Who supplies it</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The job's company, role, folder, and the "Next:" line</td>
+<td><code>cv.task</code></td>
+<td>A new optional field on <code>StartTask</code>: <strong><code>parent_note: str = ""</code></strong>, a short text for the parent's agent when this child ends. The Hub keeps it on the <code>TaskRecord</code> and puts it in the message. cv builds it from the <code>CvRequest</code>. The folder name uses <code>job_start.job_folder_name(company, role, today)</code>, the same helper the gate uses (<code>job_start.py:52</code>, <code>:115</code>).</td>
+</tr>
+<tr>
+<td>The job agent's original instructions</td>
+<td><strong>the Hub itself</strong></td>
+<td>The parent task's own text, from the parent's <code>TaskRecord</code>, which is always still there: <code>_prune</code> keeps the parent of an open task (<code>tasks.py:443-447</code>), and <code>_to_parent</code> runs before <code>_prune</code> (<code>tasks.py:428-429</code>). This works for every parent-child pair, not only cv.</td>
+</tr>
+<tr>
+<td>The details</td>
+<td><code>cv.read_result</code></td>
+<td>It gets an optional <strong><code>task_id</code></strong>. cv fetches that task's full result itself (<code>GetTaskStatus(task_id=…)</code>, a command cv already sends), so the agent never pastes text or calls a huge <code>hub.status</code>, and the 4000-character cut doesn't matter. <code>text</code> still works as before.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why a new field rather than the existing <code>StartTask.context</code>:</strong> <code>context</code> already goes to the <em>child</em> agent. <code>session_agent.py:895-896</code> adds it to the child's first message. Putting the job agent's brief there would show "write the report SMOKE TEST 2 DONE" to cv_agent, which might act on it. <code>parent_note</code> only goes to the parent.</p>
+<p><strong>What it touches:</strong></p>
+<ul>
+<li><strong>Contracts</strong> (<code>contracts/agents.py</code>, <code>StartTask</code>): one optional field. <strong>This needs an app restart.</strong> The field is optional with a default, so every other sender (<code>task_agents</code>, <code>hub.start</code>, <code>Delivery</code>) is unchanged.</li>
+<li><strong>The core:</strong> nothing.</li>
+<li><strong>agent_hub</strong> (a module): <code>TaskRecord.parent_note</code>, the new <code>CHILD_ENDED</code> text, the parent's text in it. <code>hub.start</code> gets an optional <code>parent_note</code> input as well, so an agent starting a child by hand can say why (one line in the menu item).</li>
+<li><strong>cv</strong> (a module): <code>cv.task</code> sets <code>parent_note</code>. <code>cv.read_result</code> takes <code>task_id</code>. Its <code>next</code> text says "read it with cv.read_result task_id=…".</li>
+</ul>
+<p><strong>A reload-only alternative, if you'd rather skip the restart:</strong> the Hub quotes the parent's own text (no contract change), and cv puts the job's line in the child's <code>context</code> instead of a new field. The cost: cv_agent sees that line too. It's harmless, since it is cv_agent's own job, but it isn't clean, and job details would ride on a field meant for something else. I recommend the new field. The restart can be batched with others.</p>
+<h2 id="2-remove-the-duplicate-path">2. Remove the duplicate path</h2>
+<ul>
+<li><strong>job_search:</strong> remove <code>CV_FINISHED</code>, <code>cv_finished_note</code>, <code>_on_cv_finished</code>, the <code>ctx.subscribe_named(...)</code> in <code>init</code>, <code>listens_named</code> in the manifest, and the <code>ModuleEvent</code> import (<code>job_search/module.py:38</code>, <code>:72-87</code>, <code>:99</code>, <code>:118-124</code>). <code>AgentNotice</code> stays, because <code>job.search</code> still uses it (<code>:171</code>). The module docstring and the job prompt don't mention the note, so they stay.</li>
+<li><strong>cv:</strong> remove the <code>TaskUpdated</code> subscription and <code>_on_task</code> (<code>cv/module.py:257</code>, <code>:288-300</code>), <code>publishes_named=(JOB_FINISHED,)</code> (<code>:217</code>), and <code>TaskUpdated</code> from its <code>listens</code>, if nothing else uses it there (checked at build time). Also remove <code>JOB_FINISHED</code> and <code>job_finished()</code> from <code>cv/handoff.py:68-81</code>, plus imports left unused (<code>read_record</code> in module.py, if nothing else uses it).</li>
+<li><strong>Keep:</strong> <code>ModuleEvent</code>, <code>SubscriptionHandle</code>, <code>ctx.publish_named / subscribe_named / unsubscribe</code>, <code>Manifest.publishes_named / listens_named</code>, and their core tests. After this change no module uses them. The docs will say so, and say they're kept as the general mechanism for when a real second listener needs one.</li>
+</ul>
+<h2 id="3-the-risk-the-child-ends-while-the-parent-is-busy-or-after-its-task-ended">3. The risk: the child ends while the parent is busy, or after its task ended</h2>
+<p>Checked in the code. <strong>The message is never lost and never cut into a turn.</strong> <code>Delivery.deliver</code> (<code>agent_hub/delivery.py:73-87</code>) calls <code>_try</code> (<code>:120-143</code>):</p>
+<table>
+<thead>
+<tr>
+<th>The job agent when cv_agent's task ends</th>
+<th>What happens</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>In a turn</strong> (its task still running)</td>
+<td><code>_try</code> returns None. The message is queued as <strong>pending</strong>, in order behind any other waiting message for that agent. When the agent's state changes, <code>flush</code> delivers it (<code>agent_hub/module.py:301-304</code> → <code>delivery.py:97-111</code>).</td>
+<td><code>delivery.py:124-125</code>, <code>:81-84</code></td>
+</tr>
+<tr>
+<td><strong>Idle, its task still open</strong> (stopped, or holding a question)</td>
+<td>The message goes into that same task (<code>SendToTask</code>), so its session and brief are still there.</td>
+<td><code>delivery.py:130-134</code></td>
+</tr>
+<tr>
+<td><strong>Idle, its task already ended</strong> (the usual case: it ends its turn after <code>cv.task</code>)</td>
+<td>A <strong>new task</strong> on the job agent with the message as its text, in a fresh session. This is why the message must carry the brief and the job (part 1).</td>
+<td><code>delivery.py:138-140</code></td>
+</tr>
+<tr>
+<td><strong>Its module is off, or the cap / a folder clash refuses the new task</strong></td>
+<td>Pending again, retried at the next state change. What still waits is passed to the next Hub copy on a reload (<code>export</code>).</td>
+<td><code>delivery.py:123-125</code>, <code>:141-142</code>, <code>:113-115</code></td>
+</tr>
+</tbody>
+</table>
+<p>Tests that already cover the first and third rows: <code>agent_hub/tests/test_child_result.py</code> (<code>test_a_parent_in_a_turn_gets_it_when_the_turn_ends</code>, <code>test_an_idle_parent_whose_task_ended_gets_the_result_as_a_new_task</code>). One gap: if the parent's agent stays off for a long time, the message waits with no time limit. That's the right default (nothing is lost) and doesn't change here.</p>
+<h2 id="4-files-tests-docs-loading">4. Files, tests, docs, loading</h2>
+<p><strong>Code:</strong></p>
+<ul>
+<li><code>src/assistant/contracts/agents.py</code>: <code>StartTask.parent_note</code>.</li>
+<li><code>src/assistant/modules/agent_hub/tasks.py</code>: <code>TaskRecord.parent_note</code>, <code>CHILD_ENDED</code>, <code>_to_parent</code> (the note and the parent's text, first 600 characters), the record's export / restore.</li>
+<li><code>src/assistant/modules/agent_hub/module.py</code>: <code>hub.start</code>'s optional <code>parent_note</code> input.</li>
+<li><code>src/assistant/modules/cv/module.py</code>: <code>cv.task</code> sets <code>parent_note</code>; <code>cv.read_result</code> gets <code>task_id</code>; the event publish is removed.</li>
+<li><code>src/assistant/modules/cv/handoff.py</code>: <code>JOB_FINISHED</code>, <code>job_finished</code> removed.</li>
+<li><code>src/assistant/modules/job_search/module.py</code>: the listener and the note are removed.</li>
+</ul>
+<p><strong>Tests:</strong></p>
+<ul>
+<li><code>agent_hub/tests/test_child_result.py</code>: the message carries the note and the start of the parent's text, in both the queued case and the new-task case. A child with no note still works (today's text, plus the parent's text). The parent's text is cut at 600 characters.</li>
+<li><code>cv/tests/test_callers.py</code> (or <code>test_handoff.py</code>): <code>cv.task</code> sends a <code>StartTask</code> whose <code>parent_note</code> names the company, role and folder. <code>cv.read_result task_id=…</code> reads the task's result. A <code>task_id</code> it can't find is refused, and the caller check still applies.</li>
+<li><code>cv/tests/test_reply_delivery.py</code>: the <code>cv.job_finished</code> listener part (<code>:71-115</code>) is removed, with an assert that cv publishes no named event at a task's end.</li>
+<li><code>tests/test_named_events.py</code>: the job_search part (<code>:170-195</code>, <code>cv_finished_note</code>) is removed. The core tests stay.</li>
+<li>The whole suite and <code>ruff</code>.</li>
+</ul>
+<p><strong>Docs</strong> (then rebuild with <code>build_docs.py</code>):</p>
+<ul>
+<li><code>docs/api/agents.md</code> (<code>StartTask.parent_note</code>, the Hub's menu: <code>hub.start</code>), <code>docs/api/messaging.md</code> and <code>docs/api/modules.md</code> (<code>ModuleEvent</code>: kept, no module uses it now), <code>docs/api/reusable.md</code> (its Used by line).</li>
+<li><code>docs/architecture/agents.md</code> (the child-result message), <code>communication.md</code> and <code>modules.md</code> (the cv → job_search example removed), <code>decisions.md</code> (a line: module-to-module results go through tools and the Hub, named events only when a real second listener needs one), <code>module-library.md</code>.</li>
+<li>Module docs: <code>agent_hub/docs/architecture.md</code> and <code>tools.md</code>, <code>cv/docs/architecture.md</code> (the Publishes and Listens rows) and <code>tools.md</code> (<code>cv.task</code>, <code>cv.read_result task_id</code>), <code>job_search/docs/architecture.md</code> (Listens row).</li>
+<li>Next steps: this note's status, <a href="named-module-events.html">named-module-events</a> (the first use removed, the mechanism kept), and <a href="handoff-5eff4e83.html">handoff-5eff4e83</a> open point 1 (answered by this note).</li>
+</ul>
+<p><strong>Loading:</strong> the contract field needs <strong>one app restart</strong>. The restart loads agent_hub, cv and job_search with it, so no separate reloads are needed. I'll ask before the restart. With the reload-only alternative, it would be <code>RELOAD: agent_hub</code>, <code>RELOAD: cv</code>, <code>RELOAD: job_search</code>, each asked first.</p>
+<h2 id="5-hand-checks-after-the-build-and-the-restart">5. Hand checks (after the build and the restart)</h2>
+<p>The fake job again: no real application, no Submit, no Rezi, no Chrome.</p>
+<ol>
+<li><strong>Only the job agent is started.</strong> The Main Assistant does one <code>hub.start</code> on <code>job_search_agent</code> with the fake-job brief, then ends its turn and stays <strong>idle</strong>. It doesn't watch or call <code>hub.status</code> in a loop, so there's no folder clash with cv_agent (open point 2 of handoff-5eff4e83). The brief tells the job agent to call <code>cv.task</code> for NonexistentTestCo / Smoke Test Engineer with the test CV (<code>CV_Test_*.pdf</code>), with notes telling cv_agent: no Chrome, no Rezi, end at once with <code>CV_RESULT</code> status <code>"stopped"</code>. Then end its turn, and when the result comes, write the report <code>SMOKE TEST 3 DONE</code> with the job and the result's status.</li>
+<li><strong>The job agent's task ends</strong> after <code>cv.task</code> (its turn over, as before).</li>
+<li><strong>cv_agent ends its task</strong> with the <code>CV_RESULT</code> line, and touches no Chrome or Rezi.</li>
+<li><strong>One message reaches the job agent</strong>, as a new task. It names the job (company, role, folder), quotes the start of its original brief, and says to use <code>cv.read_result task_id=…</code>. The log has no <code>cv.job_finished</code> and no <code>[cv.job_finished]</code> note.</li>
+<li><strong>The job agent acts on it with no help:</strong> it calls <code>cv.read_result task_id=…</code> and writes the <code>SMOKE TEST 3 DONE</code> report. This is what failed in fake job 2.</li>
+<li><strong>Busy-parent variant (optional):</strong> you send the job agent a message to keep it in a turn while cv_agent ends. The child-result message waits as pending and arrives right after that turn.</li>
+<li><strong>Cleanup:</strong> delete the new work folder under <code>C:\Chang\Jobs\CV_Module\work\</code> and its CV Tool job, as in session 4 of handoff-5eff4e83.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/job-cv-result-via-tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module folders: what was promised, what was done, and why it was called done</title>
+<!-- Generated from docs/next-steps/module-folders-audit.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-folders-audit.html"></nav>
+<main>
+<h1 id="module-folders-what-was-promised-what-was-done-and-why-it-was-called-done">Module folders: what was promised, what was done, and why it was called done</h1>
+<blockquote>
+<p><strong>Status: findings complete (2026-11-13).</strong> Sections 1–3 checked; section 4 waits on the user. Read-only investigation. Nothing was changed except this note, its row in the <a href="index.html">next-steps list</a> and the rebuilt HTML: no code, no grants, no module on or off, no restart, no commit.</p>
+</blockquote>
+<p><strong>Asked:</strong> the user's plan <a href="module-folders.html">module-folders.html</a> (commit <code>cce352c</code>, 2026-11-11 23:36, made with snips in that session) was taken as done, but most of it isn't. Find out what it promised, what is really there, where it was reported done and what that report was based on, and propose safeguards.</p>
+<h2 id="1-and-2-every-item-the-plan-promised-checked-against-the-code-2026-11-13">1 and 2: every item the plan promised, checked against the code (2026-11-13)</h2>
+<p>Checked against the files themselves (folder listings, <code>config/default.toml</code>, <code>pyproject.toml</code>, <code>contracts/messages.py</code>, <code>infra/show_pages.py</code>, imports in module tests, <code>data/permissions.toml</code>), not against notes.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>The plan's words (quoted)</th>
+<th>Today</th>
+<th>Done?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Companion apps into the module: "voice_in/ · voice_service app", "html_viewer/ · viewer app", cv "app/ ← src/cv_tool"</td>
+<td><code>src/voice_service</code>, <code>src/html_viewer</code>, <code>src/cv_tool</code> are still top-level in <code>src/</code>; <code>pyproject.toml</code> still has their entry points</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Config defaults in the module: "module.toml defaults", "config/ … your choices only", "one file per module"</td>
+<td>Only <code>cv</code> has a <code>module.toml</code>. <code>config/default.toml</code> still holds <code>[modules.&lt;id&gt;]</code> for console_io, talker, main_assistant, agent_hub, task_agents (with the kinds), job_search, temp_ui, html_viewer, voice_in, voice_notes. <code>config/voice_service.toml</code> still central. No per-module files in <code>config/</code></td>
+<td><strong>not done</strong> (cv only)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>agent_hub's cv_agent entry into cv: "[agent] cv_agent ← agent_hub's section"</td>
+<td>cv_agent's own settings are in <code>cv/module.toml</code> <code>[agent]</code> (agent_id, workspace, read_dirs, chrome, mode). agent_hub's part, <code>named_only = ["cv_agent"]</code>, is still in <code>[modules.agent_hub]</code> in <code>config/default.toml</code> (corrected 2026-11-13 after a second look at <code>module.toml</code>)</td>
+<td><strong>partly</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Tests into the module: "all cv tests, on the core test kit"; job_search, html_viewer, voice_notes, voice_in, task_agents, usage "tests"</td>
+<td>Still central in <code>tests/</code>: <code>test_job_search</code>, <code>fake_job_ui</code>, <code>test_html_viewer</code>, <code>test_voice_notes</code>, 7 voice files, <code>test_task_agents</code>, <code>test_usage</code>. Only cv, job_search (1 file), agent_hub and echo have a <code>tests/</code> folder</td>
+<td><strong>partly</strong> (cv, agent_hub, echo)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>"public test kit (from tests/support)"; reason 3: module tests must not import central test files</td>
+<td>Still imported: <code>cv/tests/test_worker.py</code> (<code>tests.test_agents</code>), <code>agent_hub/tests/test_gate.py</code> (<code>tests.test_multi_agent</code>), <code>test_end_waiting.py</code> and <code>test_end_report_race.py</code> (<code>tests.test_agents</code>). No public test kit</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Docs into the module: "own docs" for every module</td>
+<td>Every module has its own <code>docs/</code> (README, architecture, tools, <code>docs.toml</code>); <code>docs/modules/</code> and <code>docs/job-project/</code> are gone (<code>c0d2a5d</code>, <code>ee67133</code>)</td>
+<td><strong>done</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Packages into the module: "pymupdf · ruff rule ← pyproject", "voice packages"</td>
+<td><code>cv</code> and <code>voice</code> extras and the <code>src/cv_tool/cvlib.py</code> ruff rule are still in <code>pyproject.toml</code></td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td>Viewer types out of the core: "html_viewer/ … its events · SHOW handling"</td>
+<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code> still in <code>contracts/messages.py</code>; <code>infra/show_pages.py</code> still names <code>viewer.open</code></td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td>"never core → add-on": temp_ui and talker naming the viewer; "a snip/open slot an add-on can fill"</td>
+<td><code>temp_ui/module.py:738</code> still sends <code>InvokeTool viewer.open</code>; no slot</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>10</td>
+<td>A "needs" list per module ("needs cv", "needs voice_in", "reads 'needs' lists")</td>
+<td>No <code>needs</code> key in any manifest or <code>module.toml</code>; <code>requires</code> still lists contracts only</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>generated/</code>: "live module list · installed dependencies · module directory · module library page"</td>
+<td>No <code>generated/</code> folder; the library page is still <code>docs/architecture/module-library.md</code></td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>12</td>
+<td>"saved grants (now data/permissions.toml)" into <code>config/</code></td>
+<td>Still <code>data/permissions.toml</code></td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>13</td>
+<td>Remove "warns if another module needs it"; the overview adds "removing a module asks whether to purge its settings or keep them"</td>
+<td>Nothing in <code>src/</code> for either</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>14</td>
+<td>The rule: "nothing of cv lives outside modules/cv/, except your own choices"</td>
+<td>cv's app, packages and ruff rule live outside; its agent works in <code>C:\Chang\Jobs\CV_Module</code></td>
+<td><strong>not done</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Not in the page's pictures:</strong> the agents' working folders and tools outside the repo (<code>C:\Chang\Jobs\CV</code> and <code>C:\Chang\Jobs</code>, the Resume project <code>C:\Chang\Git_projects\Resume</code> with its <code>.venv</code>, <code>C:\Chang\Jobs\CV_Module</code>, and the old <code>C:\Chang\Jobs\rezi</code>). The plan's rule ("nothing of cv lives outside modules/cv/") implies them but no box names them. The user expects them to be part of "moved into the module folder" (said on 2026-11-13, see section 3), so they're checked too.</p>
+<p><strong>Does another note cover them?</strong> Only the two reports the agents saved today, outside the repo (section 3d). In <code>docs/next-steps/</code>, no note plans moving a workspace into a module folder. The one note about an agent's folders, <a href="cv-agent-folders.html">cv-agent-folders.md</a> (2026-11-09, still marked "proposed"), says the opposite: one project folder <strong>outside</strong> the repo per agent, "the app's code stays in this repo". That is how <code>C:\Chang\Jobs\CV_Module</code> came about. The 2026-11-11 plan never revisited that decision, and that note's status was never updated though its move happened.</p>
+<p><strong>The overview's parts table</strong> lists the CV tool at <code>src/cv_tool/</code>, the voice service at <code>src/voice_service/</code> and the HTML viewer at <code>src/html_viewer/</code>. That isn't stale: the folders really are still there (row 1). The table is right about today and wrong only against the plan.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>Today</th>
+<th>Done?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>15</td>
+<td>job_search_agent works from its module folder</td>
+<td>Saved grant (2026-11-05): workspace <code>C:\Chang\Jobs\CV</code>, read <code>C:\Chang\Jobs</code> and <code>C:\Chang\Git_projects\Resume</code>, Resume's <code>.venv</code> Python, Chrome. Nothing on <code>src/assistant/modules/job_search</code></td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>16</td>
+<td>The old job tools cloned into the module folder</td>
+<td><code>job_search/</code> holds <code>module.py</code>, <code>ui.py</code>, 5 docs, 2 test files. Every skill, script and piece of job state is still in <code>C:\Chang\Jobs\CV</code>. The job agent's own read-only comparison says the same: "the tools were never cloned" (<code>C:\Chang\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code>)</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>17</td>
+<td>cv_agent works from its module folder</td>
+<td>Saved grant (2026-11-13): workspace <code>C:\Chang\Jobs\CV_Module</code>, read the repo. Its <code>added</code> list names writes on <code>src/cv_tool</code>, <code>cv/docs</code> and <code>tests</code>, but they aren't in its <code>granted</code> list, so I can't tell whether they're live</td>
+<td><strong>not done</strong></td>
+</tr>
+<tr>
+<td>18</td>
+<td>The old cv tools cloned</td>
+<td>Yes, in two halves: <code>rezi\cv_tool</code> → <code>src\cv_tool</code> (and the cv module around it), <code>rezi\cv_agent</code> → <code>C:\Chang\Jobs\CV_Module</code> (cv_agent's report, <code>C:\Chang\Jobs\CV_Module\cv-tools-move-plan.md</code>). The copy went to a folder outside the repo, not into <code>modules/cv/</code></td>
+<td><strong>done, but not into the module folder</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Summary:</strong> of the 14 items in the plan's pictures, one is done (docs), two are partly done (tests for three modules; cv's <code>[agent]</code> section), eleven are not. Of the four workspace items, the cv code was cloned but neither agent's workspace moved.</p>
+<h2 id="3-where-it-was-reported-done-and-on-what">3: where it was reported done, and on what</h2>
+<p>Searched one source at a time; each result was written here as it came in.</p>
+<h3 id="3a-git-history-since-the-plan-git-log-since2026-11-11">3a. Git history (since the plan, <code>git log --since=2026-11-11</code>)</h3>
+<p>11 commits. The plan is <code>cce352c</code> (11-11 23:36). <code>4e9a822</code> (23:58) adds "Currently fixing: self-contained module folders" to the overview. The only commit that calls anything a move is <code>c0d2a5d</code> (11-12 03:18), <strong>"Module docs move: every module's docs in its own folder…"</strong>, with <code>ee67133</code> rebuilding the HTML. <strong>No commit says the module-folders plan is done.</strong> Its message names docs only; nothing after it touches the plan's other items (all commits since are docs, placeholders or the <code>cv_prefix</code> setting).</p>
+<h3 id="3b-next-steps-notes-grep-for-module-folders-docs-move-in-docsnext-steps">3b. Next-steps notes (<code>grep</code> for module folders / docs move in <code>docs/next-steps/</code>)</h3>
+<ul>
+<li><strong>The only "done" in a note</strong> is <a href="handoff-privacy-cleanup.html">handoff-privacy-cleanup.md</a>, heading "<strong>Module docs move: done (2026-11-12)</strong>". That task was asked as "move each module's docs into its own folder", alongside the privacy cleanup. Its evidence is real but only for docs: the build (72 pages), ruff, the full suite (800 passed), and an architecture check that docs are found by folder. <strong>It never names the module-folders plan, and never lists the plan's other items as still open.</strong> Its only scope note is a list of personal paths left alone.</li>
+<li>The overview's "Currently fixing" (from <code>4e9a822</code>) still says the module-folders work is in progress; it was never changed to done.</li>
+<li>An older plan, <a href="module-self-contained.html">module-self-contained.md</a> (2026-11-06), audited the same gaps (apps in <code>src/</code>, <code>[modules.&lt;id&gt;]</code> sections in <code>default.toml</code>, central tests, core naming modules). Its status is still "building" (steps 0–2 and the docs layout). The module-folders plan of 2026-11-11 is its follow-up, and neither note links to the other.</li>
+<li>No note says the plan's items 1–5 or 7–14 were done.</li>
+</ul>
+<h3 id="3c-the-apps-logs-the-talkers-and-the-main-assistants-transcripts">3c. The app's logs (the Talker's and the Main Assistant's transcripts)</h3>
+<p>The plan, its commits and the docs move all ran in one app launch, <code>logs/2026-11-10_22-58-47_launch-the-job-agent/</code> (it ran from 11-10 to 11-12). In order:</p>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>Who</th>
+<th>What was said (log line in <code>talker.jsonl</code> unless named)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>11-11 23:21–23:50</td>
+<td>user</td>
+<td>Asked whether modules are separate and downloadable (L33), shaped the page with snips (L147: "for cv this layout will still live in its own folder in modules/cv. Do make it truly modular"), asked about purging config (L189) and whether to edit modules in place (L200)</td>
+</tr>
+<tr>
+<td>11-11 23:50</td>
+<td>Talker</td>
+<td>Answered the design questions (L207). <strong>No build task was proposed</strong></td>
+</tr>
+<tr>
+<td>11-11 23:52</td>
+<td>user</td>
+<td>"Okay for now, commit in chunks that make sense … then ask me for the pushes" (L208)</td>
+</tr>
+<tr>
+<td>11-11 23:52</td>
+<td>Talker</td>
+<td>Handed the Main Assistant a <strong>commit-only</strong> task: the page went in as "the new … module-folders.html page and its next-steps notes" (L214)</td>
+</tr>
+<tr>
+<td>11-11 23:53</td>
+<td>user → Talker</td>
+<td>"Add a 'currently fixing' section … and a link to module-folders.html" (L215); the Talker's ASK folded it into the last commit (L229) → <code>4e9a822</code>. The overview then said the work was under way, though no task was building it</td>
+</tr>
+<tr>
+<td>11-12 00:31</td>
+<td>user</td>
+<td>During the privacy cleanup: "Also do the modules hold their own docs? They should" (L291)</td>
+</tr>
+<tr>
+<td>11-12 00:31</td>
+<td>Talker</td>
+<td>"Only partly … <strong>That's one of the steps in the self-contained plan</strong>" (L298). The only time the docs move was linked to the plan, and it was linked as one step</td>
+</tr>
+<tr>
+<td>11-12 00:51</td>
+<td>Talker</td>
+<td>Decision 2, "where module docs live", asked and answered (L314, L331)</td>
+</tr>
+<tr>
+<td>11-12 03:18</td>
+<td>Main Assistant → Talker</td>
+<td>"[Task update: done] The privacy cleanup and <strong>the module docs move are finished</strong>" (L362; commits then <code>df9abe7</code>/<code>a8f12f4</code>, now <code>c0d2a5d</code>/<code>ee67133</code> after the history rewrite)</td>
+</tr>
+<tr>
+<td>11-12 03:18</td>
+<td>Talker → user</td>
+<td>"Every module's docs live in its own folder, with the core modules first and the add-ons after … Ruff is clean and all 800 tests pass" (L367). True, but nothing said the rest of the plan was still open</td>
+</tr>
+<tr>
+<td>11-12 04:41</td>
+<td>restart message</td>
+<td><code>2026-11-12_04-41-44_i-want-you-to-try/</code> (talker.jsonl and main_assistant.jsonl, line 1): "<strong>Done:</strong> … the module docs move [is] built and committed". Its "<strong>Left:</strong>" list names the restart, the git cleanup and personal paths. <strong>It names none of the plan's other items</strong></td>
+</tr>
+<tr>
+<td>11-13 03:50</td>
+<td>user</td>
+<td>In the job agent's tab: "I thought we did an update to move everything into the new module folders" (<code>2026-11-13_02-19-03_wtf/talker.jsonl</code> L327)</td>
+</tr>
+<tr>
+<td>11-13 ~03:55</td>
+<td>user</td>
+<td>"you'll see that I asked for everything to be restructured then ported into the module folders … When I give you literal … pictures and instructions and then you say it gets done, and it's NOT DONE" (same log, L341)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What I couldn't verify:</strong> I searched the Talker's transcript and the restart message, not every line of the Main Assistant's 11-10 transcript (152 hits for these words, mostly its own file reads). I found no message that says the whole plan or "the module move" is done. Claude Code sessions run outside the app aren't in <code>logs/</code>.</p>
+<h3 id="3d-the-two-agents-own-reports-2026-11-13">3d. The two agents' own reports (2026-11-13)</h3>
+<p>Each agent was asked in its own tab whether its tools were cloned into its module folder. They checked their own module, not where "done" was reported.</p>
+<ul>
+<li><strong>Job agent:</strong> <code>C:\Chang\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code> (its read-only tools comparison; log <code>2026-11-13_02-19-03_wtf/talker-job_search_agent.jsonl</code> L502–L514). Finding: "<strong>the tools were never cloned</strong>". <code>job_search/</code> holds the wrapper only (3 code files, 5 docs, 2 tests). The CLAUDE.md, 6 skills, about 30 scripts, the UI pages and all job state are in <code>C:\Chang\Jobs\CV</code>, running on the Resume <code>.venv</code>.</li>
+<li><strong>cv agent:</strong> <code>C:\Chang\Jobs\CV_Module\cv-tools-move-plan.md</code> (log <code>talker-cv_agent.jsonl</code> L40–L75). Finding: "<strong>the clone happened, in two halves</strong>". <code>C:\Chang\Jobs\rezi\cv_tool</code> → <code>src\cv_tool</code> (plus the cv module), and <code>rezi\cv_agent</code> → <code>C:\Chang\Jobs\CV_Module</code>. Unchanged files match by MD5. Nothing needed lives only in the old setup, but <strong>the workspace has not moved into the module folder</strong>.</li>
+</ul>
+<p><strong>Where they agree:</strong></p>
+<ul>
+<li>Neither agent's workspace is in its module folder.</li>
+<li>Both say the same things block the move or would break it: the Hub refuses an agent whose write folder overlaps the Main Assistant's whole-repo grant; a session under the repo would load the repo's <code>CLAUDE.md</code> and skills; Claude's memory is keyed to the folder path (22 and 28 notes); hard-coded paths would quietly keep using the old folder; personal data could reach git.</li>
+<li>Both say the "every module edits itself" change in the Hub comes first.</li>
+<li>Both match this audit's code check (rows 15–18).</li>
+</ul>
+<p><strong>Where they differ:</strong></p>
+<ul>
+<li><strong>The clone:</strong> done for cv (outside the repo), not done for job_search. That's a real difference between the modules, not a disagreement.</li>
+<li><strong>The target:</strong> cv proposes everything in <code>modules/cv/workspace/</code> (already gitignored as <code>workspace/</code>). job_search proposes tools in the module but data kept in <code>C:\Chang\Jobs\CV</code>, which goes against the plan's rule.</li>
+<li><strong>Python:</strong> cv already runs on the app's <code>.venv</code>. job_search needs the Resume <code>.venv</code> (jobspy, requests) and advises against adding them to the app's.</li>
+<li><strong><code>.gitignore</code>:</strong> cv says the existing rules cover its data. job_search lists gaps for its files (<code>StartUp/</code>, <code>UnderRadar/</code>, a personal <code>CLAUDE.md</code>, <code>*.png</code>, <code>*.tsv</code>).</li>
+<li><strong>cv's app:</strong> cv's plan still keeps <code>src\cv_tool</code> outside the module ("or <code>src\cv_tool</code> moves under the module"), so on its own it would leave row 1 open.</li>
+</ul>
+<h3 id="3e-conclusion-why-it-was-taken-as-done">3e. Conclusion: why it was taken as done</h3>
+<ol>
+<li><strong>The plan was never started as a build.</strong> After it was approved, the only tasks were "commit" and "add Currently fixing". No task, change note or checklist ever said "build the module-folders plan". <code>module-self-contained.md</code> (2026-11-06) is the closest, and it predates this plan and stops at its docs steps.</li>
+<li><strong>A narrower task with a similar name finished.</strong> The docs move came out of the privacy cleanup. It was reported as "the module docs move", and its evidence (build, ruff, 800 tests) was true for docs only.</li>
+<li><strong>No report listed what was still open.</strong> The done message, the Talker's summary and the restart's "Left:" list never said "items 1–5 and 7–14 of the module-folders plan are still not started". Read next to "Currently fixing: module folders", "the module docs move is done" sounds like the move.</li>
+<li><strong>The agents' folders were outside every plan.</strong> The plan's picture doesn't name them, and the one note on them (<code>cv-agent-folders.md</code>) put them outside the repo on purpose.</li>
+</ol>
+<p>So no report I found said anything false. It was reported done by omission: a true report about part of the plan, with nothing that kept the rest open.</p>
+<h2 id="4-safeguards-proposed-not-built">4: safeguards (proposed, not built)</h2>
+<ol>
+<li><strong>A plan gets a checklist before work starts.</strong> When the user gives a plan as pictures or an HTML page, the first step writes a Markdown change note listing every item, quoting the plan's own words, one row each. The work, the handoffs and the final report refer to those rows by number.</li>
+<li><strong>"Done" only after a check against the code itself.</strong> An item is marked done only after a check of the files (a listing, a grep, a test that fails when the item is missing), with the evidence written in the row. Passing tests, a commit or an earlier note are not evidence for an item they don't test.</li>
+<li><strong>Never close a plan without a done and not-done list.</strong> A final report or handoff on a plan ends with the full checklist: done, partly done, not done, out of scope. A scope cut (for example "docs only for now") is written there in the user's words with its date, and the rest stays open.</li>
+<li><strong>Name the narrowed scope in every report.</strong> When a task covers part of a plan, its title and every report say so ("module <strong>docs</strong> move, part 1 of the module-folders plan, items 2–14 still open"), so neither the Talker nor the user reads "module move: done" as the whole plan.</li>
+<li><strong>The overview's "Currently fixing" and the next-steps row move with the checklist.</strong> They stay until every row is done or the user drops it, and they show the count (for example "1 of 14 done").</li>
+<li><strong>A test as the tripwire.</strong> A test per finished item (no <code>src/&lt;app&gt;</code> outside its module, no <code>[modules.&lt;id&gt;]</code> defaults in <code>default.toml</code>, no module test importing <code>tests.test_*</code>) makes "done" checkable and stops it from slipping back. These would fail today, so they're added as each item is built.</li>
+<li>
+<p><strong>Grants and workspaces are part of "moved".</strong> Moving a module includes its agent's saved grant and workspace, checked in <code>data/permissions.toml</code>, not only its code.</p>
+</li>
+<li>
+<p><strong>An approved plan is either started or marked "not started".</strong> When the user approves a plan page, the Talker asks once whether to build it now. If the answer is "not now", the plan's status says "approved, not started" with the date, and "Currently fixing" says the same. A plan never sits as "current work" with no task behind it.</p>
+</li>
+<li><strong>A "Left:" list includes every open plan the work touched.</strong> Done reports, handoffs and restart messages end with the open items of each plan the work belonged to, not only the task's own leftovers.</li>
+<li><strong>Plans that change an earlier decision say so.</strong> When a new plan reverses an older note (here, workspaces outside the repo in <code>cv-agent-folders.md</code>), it names that note, and the old note's status is updated.</li>
+</ol>
+<p>These change how agents work (prompts, skills, a test), so they need the user's yes before any is built.</p>
+<footer>Generated from <code>docs/next-steps/module-folders-audit.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

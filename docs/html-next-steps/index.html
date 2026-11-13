@@ -50,6 +50,31 @@
 </thead>
 <tbody>
 <tr>
+<td><a href="module-folders-audit.html">Module folders: what was promised, what was done, why it was called done</a></td>
+<td>findings: of the 14 items in the <a href="module-folders.html">module-folders plan</a>, docs done, 2 partly, 11 not done; neither agent's workspace moved; the plan was never started as a build, only a docs move was reported done, with no open list; ten safeguards proposed, waiting on you</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="auto-skips-cards.html">An agent in Auto gets no permission cards: one check at the gate</a></td>
+<td>proposed: why Auto still shows cards (the core handler never reads the mode; the smoke test's cards were Manual ones), every place a card is raised, and one check in the handler's <code>_open</code>; four decisions waiting on you</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="job-cv-finish-event.html">Job ↔ cv: module-to-module through named events</a></td>
+<td>fake-job check run 2026-11-12: the event path works (2.1–2.4 pass, 2.5 fail on a Hub race). Fixes for the race and the <code>section_order</code> case are on disk but <strong>not verified</strong> (suite stopped mid-run). Next, on your go: tests, restart, smoke test 4, the lost-events gap, the design-notes skill. The job agent calls <code>cv.task</code>; cv publishes <code>cv.job_finished</code> and <code>cv.job_submitted</code>; job_search wakes its agent; one path only</td>
+<td>2026-11-12</td>
+</tr>
+<tr>
+<td><a href="job-cv-result-via-tools.html">Job ↔ cv through tools and the Hub's child-result message</a></td>
+<td>replaced by <a href="job-cv-finish-event.html">job-cv-finish-event</a>: its result path (<code>parent_note</code>, the brief quote) is removed; <code>cv.read_result task_id</code> kept</td>
+<td>2026-11-12</td>
+</tr>
+<tr>
+<td><a href="named-module-events.html">Named module events: any module raises and hears custom events, reload only</a></td>
+<td>built: <code>ModuleEvent(name, source, data)</code>, <code>ctx.publish_named / subscribe_named / unsubscribe</code>; the way modules talk to each other (cv → job_search, <a href="job-cv-finish-event.html">job-cv-finish-event</a>)</td>
+<td>2026-11-12</td>
+</tr>
+<tr>
 <td><a href="you-means-the-pair.html">"You" means the Talker and its worker together</a></td>
 <td>built (waiting on you): <code>RELOAD: talker</code>, then ask a tab "can you look over the files" and check it hands the work over</td>
 <td>2026-11-10</td>

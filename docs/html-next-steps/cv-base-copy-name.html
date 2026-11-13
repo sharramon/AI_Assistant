@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The base CV&#x27;s copy in a job folder is named `base_…`</title>
+<!-- Generated from docs/next-steps/cv-base-copy-name.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-base-copy-name.html"></nav>
+<main>
+<h1 id="the-base-cvs-copy-in-a-job-folder-is-named-base_">The base CV's copy in a job folder is named <code>base_…</code></h1>
+<blockquote>
+<p><strong>Status: built and tested (2026-11-13): 821 tests pass, ruff clean. Waiting on you:</strong> a cv reload, or the app restart the Hub fix needs anyway, loads it. Not committed.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Yes, give clearer name" (2026-11-13). The job agent's fake-job check found <code>CV_&lt;name&gt;.pdf</code> in a job folder and took it for a CV that cv_agent had made. It was the base CV's copy (<a href="job-cv-finish-event.html#problem-c-the-stray-pdf-fixed-2026-11-13-the-copy-is-named-base_">problem C</a>).
+<strong>Why:</strong> the copy had the base CV's own name, which looks just like a tailored CV.
+<strong>Touches:</strong> cv only: <code>job_start.py</code>, <code>module.py</code> (<code>cv.read</code>'s argument text, <code>_pdf_target</code>'s docstring), <code>tests/test_job_start.py</code>, cv's <code>README.md</code> and <code>architecture.md</code>.
+<strong>Approach:</strong></p>
+<ul>
+<li><code>JobStart.prepare</code> copies the base CV as <code>BASE_COPY_PREFIX + name</code> (<code>BASE_COPY_PREFIX = "base_"</code>), e.g. <code>base_CV_Test_ExampleCorp.pdf</code>. Never overwriting still holds (<code>base_CV_Test_ExampleCorp_2.pdf</code> for a changed copy).</li>
+<li>The worker's start block says the <code>base_</code> prefix marks the untouched base.</li>
+<li><code>cv.build</code> with <code>job_dir</code> now writes <code>CV_Test_&lt;Company&gt;.pdf</code> with no clash, because the copy has a different name. The <code>_tailored</code> guard stays for job folders made before this change.</li>
+<li>Nothing checks the copy's name against <code>cv_prefix</code>: <code>cv.read</code> and <code>cv.build</code> take any PDF in the work folder, and the CV Tool gets the copy's path and content from the module.</li>
+</ul>
+<p><strong>Open questions:</strong> none.</p>
+<h2 id="tests">Tests</h2>
+<p>2026-11-13, full suite in the foreground: <strong>821 passed, 2 deselected, 0 failed</strong>. <code>tests/test_job_start.py</code> is included. <code>ruff check</code>: all checks passed. Details and the 4 unrelated warnings: <a href="job-cv-finish-event.html#tests-2026-11-13">job-cv-finish-event: tests (2026-11-13)</a>. That run covers this change and the two earlier fixes.</p>
+<footer>Generated from <code>docs/next-steps/cv-base-copy-name.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

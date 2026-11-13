@@ -291,7 +291,7 @@ await session.send("Hello")
 </tr>
 <tr>
 <td><code>async request_approval(action, run) -&gt; Result</code></td>
-<td><a href="agents.html#itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></a>: ask you on the current task, even in Auto. <code>not_available</code> with no task or with a question already open</td>
+<td><a href="agents.html#itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></a>: ask you on the current task in Manual; in Auto it runs at once (the one check is <code>PermissionGate.ask</code>). <code>not_available</code> with no task or with a question already open</td>
 </tr>
 <tr>
 <td><code>async close()</code></td>
@@ -623,7 +623,7 @@ elif outcome.quote_missing: ...
 <h2 id="permissiongate"><code>PermissionGate</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> · built 2026-11-08</p>
 <p><code>from assistant.infra import PermissionGate</code> · <code>src/assistant/infra/permission_gate.py</code></p>
-<p>A task agent's one open question to you: a tool's permission request or an app action's approval (<code>request_approval</code>, <code>RELOAD</code>, <code>ADD_MODULE</code>), the answer timer (<code>permission_timeout</code>), the Auto policy (allow and log; refuse a shell command with <code>git push</code>), and an approval's outcome delivered after the turn ends. Helpers <code>describe_request</code>, <code>is_git_push</code>, <code>summarize</code>; the texts <code>CODE_LOADED</code>, <code>APPROVAL_PENDING</code>, <code>GIT_PUSH_BLOCKED</code>, <code>NO_TASK</code>, <code>TIMED_OUT</code>. <strong>Tests:</strong> <code>tests/test_worker_parts.py</code></p>
+<p>A task agent's one open question to you: a tool's permission request or an app action's approval (<code>request_approval</code>, <code>RELOAD</code>, <code>ADD_MODULE</code>), the answer timer (<code>permission_timeout</code>), the Auto policy (allow and log; refuse a shell command with <code>git push</code>), and an approval's outcome delivered after the turn ends. A task that ends waiting on its approval (rule 2, built 2026-11-13) leaves it here: <code>park(task_id)</code> keeps an open approval (or one whose action still runs) tied to that task and out of the next task's way; <code>answer_parked(task_id, allow)</code> answers it; its outcome goes to the <code>parked(task_id, text)</code> callback (the agent sends it to the Hub as that task's <code>progress</code>), unless <code>unpark(task_id)</code> gave the task back first; <code>parked</code> is that task's id. Helpers <code>describe_request</code>, <code>is_git_push</code>, <code>summarize</code>; the texts <code>CODE_LOADED</code>, <code>APPROVAL_PENDING</code>, <code>GIT_PUSH_BLOCKED</code>, <code>NO_TASK</code>, <code>TIMED_OUT</code>. <strong>Tests:</strong> <code>tests/test_worker_parts.py</code></p>
 <h2 id="handoffkeeper"><code>HandoffKeeper</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> · built 2026-11-08</p>
 <p><code>from assistant.infra import HandoffKeeper</code> · <code>src/assistant/infra/handoff_keeper.py</code></p>
