@@ -253,7 +253,7 @@ One big agent put together from its config section, the same way for every agent
 
 Config keys besides `AgentProfile.from_config`'s: `description`, `capabilities`, `permission_timeout`, `fresh_sessions`, `max_handoffs`, `context_reminder`, `edit_note`, `transcript`, `door`.
 
-**Defined in:** `src/assistant/infra/profile_agent.py` · **Tests:** `tests/test_task_agents.py`, `tests/test_agents.py`, `tests/test_agent_names.py`
+**Defined in:** `src/assistant/infra/profile_agent.py` · **Tests:** `task_agents/tests/test_task_agents.py`, `tests/test_agents.py`, `tests/test_agent_names.py`
 
 ## `agent_access`
 

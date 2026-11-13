@@ -30,8 +30,8 @@ from assistant.infra import check_agent_id, free_agent_id
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.agent_hub.module import RESERVED_AGENT_IDS
 from assistant.modules.job_search import JobSearchModule
+from assistant.modules.task_agents.tests.test_task_agents import agent, start_app
 from assistant.testkit import FAKE, FakeAgent, module_config, next_matching, pre_grant, report, stand_in, wait_until
-from tests.test_task_agents import agent, start_app
 
 # --- the rules ---
 
@@ -160,7 +160,7 @@ async def test_two_agents_with_one_id_list_once_and_log_once(caplog):
 
 
 async def launch_app(tmp_path):
-    """task_agents with one kind, `helper` (not autostarted), and a coordinator with a task
+    """task_agents with its kind `helper` (not autostarted; the module's defaults bring `rezi` too), and a coordinator with a task
     whose `request_approval` keeps the proposal instead of asking anyone."""
     app, main, events = await start_app(tmp_path, {"helper": {"autostart": False}})
     asked: list = []
@@ -182,7 +182,8 @@ async def test_a_launch_only_proposes_and_starts_on_allow(tmp_path):
     app, main_task, asked = await launch_app(tmp_path)
     try:
         kinds = (await app.router.send(InvokeTool(name="agents.kinds", caller="main_assistant"))).value
-        assert [k["kind"] for k in kinds["kinds"]] == ["helper"] and kinds["running"] == []
+        # its own `helper`, over the module's default kind of that name, and the default `rezi`
+        assert [k["kind"] for k in kinds["kinds"]] == ["helper", "rezi"] and kinds["running"] == []
 
         proposed = await app.router.send(launch("flight_search"))
         assert proposed.is_ok and "End your turn" in proposed.value

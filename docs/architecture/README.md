@@ -117,7 +117,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 
 ## Currently fixing
 
-Making modules truly self-contained: each module's code, companion app, defaults, tests, docs and dependency list live in its own `modules/<id>` folder. Beside them sit a core group (the host and the core modules), `config/` (your choices only) and `generated/`. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: [module folders](../../html-next-steps/module-folders.html). Progress: **11 of 20 done**, item by item in the checklist `docs/next-steps/module-folders-checklist.md`, each checked against the code.
+Making modules truly self-contained: each module's code, companion app, defaults, tests, docs and dependency list live in its own `modules/<id>` folder. Beside them sit a core group (the host and the core modules), `config/` (your choices only) and `generated/`. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: [module folders](../../html-next-steps/module-folders.html). Progress: **12 of 20 done**, item by item in the checklist `docs/next-steps/module-folders-checklist.md`, each checked against the code.
 
 ## Pages
 

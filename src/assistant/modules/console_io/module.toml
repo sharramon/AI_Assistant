@@ -1,0 +1,10 @@
+# console_io's own defaults. `[modules.console_io]` in the app's config only overrides them (merged key by key).
+
+# The modules console_io can't run without, by id (Manifest.needs): none. It publishes what you type
+# (InputReceived) and prints the replies (ResponseReady), whoever answers.
+needs = []
+
+# The pip packages console_io needs beyond the app's own (Manifest.packages): none.
+packages = []
+
+prompt = "> "             # the prompt terminal 1 shows before your line

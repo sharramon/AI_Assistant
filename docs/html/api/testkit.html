@@ -14,11 +14,11 @@
 <h1 id="test-kit">Test kit</h1>
 <p>The fakes and helpers every test may use: the central tests in <code>tests/</code> and each module's own tests in <code>src/assistant/modules/&lt;id&gt;/tests/</code>. All items: <code>from assistant.testkit import ...</code>. Every item is reusable and listed in the <a href="reusable.html">reusable parts index</a>. Back to the <a href="index.html">API index</a>.</p>
 <blockquote>
-<p><strong>Status: built (2026-11-13).</strong> A module's tests import shared helpers from here only, never from <code>tests.*</code>, so a module's folder carries its tests whole. <strong>For tests only:</strong> nothing in the app imports it, and the core treats it as shared code (it can't be reloaded). Checked by <code>tests/test_module_folders.py</code> (<code>test_module_tests_use_only_the_testkit</code>, <code>test_only_tests_import_the_testkit</code>, <code>test_no_cv_only_test_is_central</code>).</p>
+<p><strong>Status: built (2026-11-13).</strong> A module's tests import shared helpers from here only, never from <code>tests.*</code>, so a module's folder carries its tests whole. <strong>For tests only:</strong> nothing in the app imports it, and the core treats it as shared code (it can't be reloaded). Checked by <code>tests/test_module_folders.py</code> (<code>test_module_tests_use_only_the_testkit</code>, <code>test_only_tests_import_the_testkit</code>, <code>test_no_cv_only_test_is_central</code>, <code>test_no_module_only_test_file_is_central</code>).</p>
 </blockquote>
 <p>It may import <code>assistant.*</code>; the builders that need a module (<code>start_hub</code>, <code>pre_grant_kinds</code>) import it when called. It needs no pytest: fixtures stay in the test files (<code>tests/test_agents.py</code>'s <code>hub</code> wraps <code>start_hub</code>).</p>
 <h2 id="helpers">Helpers</h2>
-<p><strong>Reusable</strong> · Used by: almost every central test; <code>cv</code> (<code>test_worker.py</code>: <code>pre_grant</code>, <code>wait_until</code>), <code>agent_hub</code> (<code>test_gate.py</code>: <code>wait_until</code>), <code>echo_orchestrator</code> (<code>test_echo.py</code>: <code>make_config</code>), <code>job_search</code> (<code>test_job_search.py</code>: <code>pre_grant</code>, <code>module_config</code>, <code>stand_in</code>, <code>free_port</code>, <code>wait_until</code>), <code>voice_in</code> (<code>test_voice_in.py</code>: <code>free_port</code>, <code>wait_until</code>), <code>test_companion_reload</code>, <code>test_swap_every_module</code> (<code>free_port</code>); <code>module_config</code> and <code>stand_in</code> also <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code></p>
+<p><strong>Reusable</strong> · Used by: almost every central test; <code>cv</code> (<code>test_worker.py</code>: <code>pre_grant</code>, <code>wait_until</code>), <code>agent_hub</code> (<code>test_gate.py</code>: <code>wait_until</code>), <code>echo_orchestrator</code> (<code>test_echo.py</code>: <code>make_config</code>), <code>agent_hub</code>, <code>main_assistant</code>, <code>task_agents</code>, <code>console_io</code>, <code>temp_ui</code> and <code>usage</code> (their defaults tests: <code>module_config</code>), <code>console_io</code> (<code>test_console_io.py</code>: <code>make_config</code>, <code>wait_until</code>), <code>temp_ui</code> (<code>test_taskbar_flash.py</code>: <code>sample_card</code>, <code>wait_until</code>), <code>job_search</code> (<code>test_job_search.py</code>: <code>pre_grant</code>, <code>module_config</code>, <code>stand_in</code>, <code>free_port</code>, <code>wait_until</code>), <code>voice_in</code> (<code>test_voice_in.py</code>: <code>free_port</code>, <code>wait_until</code>), <code>test_companion_reload</code>, <code>test_swap_every_module</code> (<code>free_port</code>); <code>module_config</code> and <code>stand_in</code> also <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code>; <code>sample_card</code> also <code>test_access_cards</code></p>
 <table>
 <thead>
 <tr>
@@ -60,14 +60,18 @@
 <td>A free TCP port on 127.0.0.1, for a test server</td>
 </tr>
 <tr>
-<td><code>pre_grant_kinds(app, module_config, module_id="task_agents")</code></td>
-<td>Pre-grant every kind of a <code>task_agents</code> config</td>
+<td><code>sample_card(**over) -&gt; PermissionRequested</code></td>
+<td>An access card as a module's access list opens it (job_search asking for job_search_agent's workspace and Chrome, not reviewed); <code>over</code> replaces any field. Moved from <code>tests/test_access_cards.py</code> (module folders item 11)</td>
+</tr>
+<tr>
+<td><code>pre_grant_kinds(app, section, module_id="task_agents")</code></td>
+<td>Pre-grant every kind of a <code>task_agents</code> config: its <code>module.toml</code> defaults (the shipped kinds too) with <code>section</code> (its <code>[modules.task_agents]</code>) merged over them</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/testkit/support.py</code></p>
 <h2 id="pages-and-a-voice_in-stand-in">Pages and a voice_in stand-in</h2>
-<p><strong>Reusable</strong> · Used by: <code>test_temp_ui</code>, <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code> and <code>request</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code>, <code>test_viewer_listeners</code></p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (<code>test_temp_ui.py</code>, <code>test_temp_ui_snips.py</code>), <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code>, <code>request</code>, <code>ui_port</code> and <code>read_events</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code>; <code>clip_event</code> and <code>dropped_event</code>: <code>talker</code> (<code>test_talker_snips.py</code>), <code>temp_ui</code> (<code>test_temp_ui_snips.py</code>)</p>
 <table>
 <thead>
 <tr>
@@ -89,14 +93,30 @@
 <td>The next item on an open <code>/events</code> stream that <code>match</code> accepts, within 2 s</td>
 </tr>
 <tr>
+<td><code>ui_port(app, module_id="temp_ui") -&gt; int</code></td>
+<td>The port a started app's page module listens on, from its <code>url</code></td>
+</tr>
+<tr>
+<td><code>await read_events(port, count) -&gt; list[dict]</code></td>
+<td>The first <code>count</code> items on a page's <code>/events</code> stream after its leading <code>hello</code> (checked, and returned first)</td>
+</tr>
+<tr>
+<td><code>clip_event(snip_id, image, file, heading=None, source="html_viewer")</code></td>
+<td>A snip as its publisher sends it: the named event <code>&lt;source&gt;.clip</code> (<code>html_viewer.clip</code>, or <code>temp_ui.clip</code> for a pasted image)</td>
+</tr>
+<tr>
+<td><code>dropped_event(snip_id)</code></td>
+<td>The temp UI's <code>temp_ui.clip_dropped</code>: you dropped that snip with its x</td>
+</tr>
+<tr>
 <td><code>FakeVoiceIn</code></td>
 <td>A module with id <code>voice_in</code> that answers <code>StartListening</code> / <code>StopListening</code> and <code>IVoice</code> with the events voice_in publishes (no voice service); <code>fail</code> makes the next start fail</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Defined in:</strong> <code>src/assistant/testkit/pages.py</code> (moved from <code>tests/test_temp_ui.py</code>, 2026-11-13)</p>
+<p><strong>Defined in:</strong> <code>src/assistant/testkit/pages.py</code> (moved from <code>tests/test_temp_ui.py</code>, 2026-11-13; the snip events from <code>tests/test_viewer_listeners.py</code>, and <code>ui_port</code> / <code>read_events</code> from <code>tests/test_temp_ui.py</code>, module folders item 11)</p>
 <h2 id="the-fake-claude-and-agent-fakes">The fake <code>claude</code> and agent fakes</h2>
-<p><strong>Reusable</strong> · Used by: the central agent tests (<code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, <code>test_task_agents</code>, ...); <code>cv</code> (<code>test_worker.py</code>: <code>FAKE</code>), <code>agent_hub</code> (<code>test_end_waiting.py</code>, <code>test_end_report_race.py</code>: <code>StubSession</code>, <code>StubContext</code>; <code>test_gate.py</code>: <code>FakeAgent</code>)</p>
+<p><strong>Reusable</strong> · Used by: the central agent tests (<code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, ...); <code>task_agents</code> (<code>test_task_agents.py</code>), <code>talker</code> (<code>test_talker.py</code>: <code>FAKE</code>, <code>next_matching</code>), <code>cv</code> (<code>test_worker.py</code>: <code>FAKE</code>), <code>agent_hub</code> (<code>test_end_waiting.py</code>, <code>test_end_report_race.py</code>: <code>StubSession</code>, <code>StubContext</code>; <code>test_gate.py</code>: <code>FakeAgent</code>)</p>
 <table>
 <thead>
 <tr>

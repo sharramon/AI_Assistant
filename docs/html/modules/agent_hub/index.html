@@ -39,15 +39,25 @@
 <td>permissions</td>
 <td>none</td>
 </tr>
+<tr>
+<td>needs</td>
+<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): a core module, it needs no other module by id</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none</td>
+</tr>
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p><code>[modules.agent_hub]</code>: <code>coordinator</code> (default <code>main_assistant</code>), <code>max_extra_agents</code> (default 3: big agents besides the coordinator with an active task at once), <code>named_only</code> (an optional fallback list of agent ids a free-agent pick, <code>hub.start</code> with no <code>agent_id</code>, never lands on; empty by default. The usual place is the agent's own config: <code>named_only = true</code> in its section, read from <a href="../../api/agents.html#agentinfo"><code>AgentInfo.named_only</code></a>; cv_agent sets it in cv's <code>[agent]</code>, since its jobs come from <code>cv.task</code>. Anyone may still name such an agent), <code>start_only_by</code> (agent id → the only callers whose <code>hub.start</code> may start it; the Talker always may, and a free-agent pick skips these agents too; empty by default), <code>door</code>, <code>door_host</code>, <code>door_port</code>.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder, with their comments; <code>[modules.agent_hub]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>coordinator</code> (default <code>main_assistant</code>), <code>max_extra_agents</code> (default 3: big agents besides the coordinator with an active task at once), <code>named_only</code> (an optional fallback list of agent ids a free-agent pick, <code>hub.start</code> with no <code>agent_id</code>, never lands on; empty by default. The usual place is the agent's own config: <code>named_only = true</code> in its section, read from <a href="../../api/agents.html#agentinfo"><code>AgentInfo.named_only</code></a>; cv_agent sets it in cv's <code>[agent]</code>, since its jobs come from <code>cv.task</code>. Anyone may still name such an agent), <code>start_only_by</code> (agent id → the only callers whose <code>hub.start</code> may start it; the Talker always may, and a free-agent pick skips these agents too; empty by default), <code>door</code>, <code>door_host</code>, <code>door_port</code>.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
+<li><code>src/assistant/modules/agent_hub/module.toml</code>: its defaults, <code>needs</code>, <code>packages</code></li>
 <li><code>src/assistant/modules/agent_hub/module.py</code>: <code>AgentHubModule</code>, the small coordinator (commands, events, the menu, the door, the running-agent lookup and the coordinator's feed)</li>
 <li><code>tasks.py</code>: <code>TaskBoard</code> and <code>TaskRecord</code> (the task records and their state machine, the cap, the folder check; a record keeps the agent object that took it, and when a reload provides a new agent under that id the board closes the old record as failed, "reloaded", so it never counts as open, never blocks the Hub's reload, and never catches the tab's messages; an agent's tab messages go to its newest open task; a send or cancel the agent refuses as "not my task" closes the record too. Built 2026-11-09 after task 20c1d08e stayed open across two <code>cv</code> reloads; tests in <code>agent_hub/tests/test_stale_task.py</code>, live after the next app restart); <code>focus.py</code>: <code>Focus</code> (the focus and releasing what was held); <code>names.py</code>: <code>AgentNames</code> and <code>RESERVED_AGENT_IDS</code> (split 2026-11-08); <code>delivery.py</code>: <code>Delivery</code> and <code>Waiting</code>; <code>gate.py</code>: <code>MessageGate</code> (2026-11-10)</li>
-<li><code>tests/test_agents.py</code>, <code>tests/test_multi_agent.py</code>, <code>tests/test_mcp_door.py</code>, <code>tests/test_agent_names.py</code>, <code>tests/test_agent_hub_parts.py</code>, <code>tests/test_questions_as_messages.py</code>; <code>agent_hub/tests/test_delivery.py</code>, <code>test_gate.py</code>, <code>test_stale_task.py</code></li>
+<li>In this folder's <code>tests/</code> (on the <a href="../../api/testkit.html">test kit</a>): <code>test_agent_hub_parts.py</code> (the board, the focus, the names, the Talker's menu items, its defaults under <code>module.toml</code>), <code>test_delivery.py</code>, <code>test_gate.py</code>, <code>test_stale_task.py</code>, <code>test_end_waiting.py</code>, <code>test_end_report_race.py</code>, <code>test_child_result.py</code></li>
+<li>Centrally, with other modules: <code>tests/test_agents.py</code>, <code>tests/test_multi_agent.py</code>, <code>tests/test_mcp_door.py</code>, <code>tests/test_agent_names.py</code>, <code>tests/test_questions_as_messages.py</code></li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/agent_hub/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

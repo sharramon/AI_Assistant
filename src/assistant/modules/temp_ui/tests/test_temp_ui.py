@@ -1,4 +1,5 @@
-"""The temporary two-pane UI: the page, posting input, and the event stream."""
+"""The temporary two-pane UI: its defaults in its `module.toml`, the page, posting input, the event stream,
+the mic button, the agent tabs and the reset buttons. Uses only the shared test kit."""
 
 import asyncio
 import json
@@ -31,7 +32,20 @@ from assistant.contracts import (
 from assistant.core import App
 from assistant.modules.temp_ui import TempUIModule
 from assistant.modules.temp_ui.module import CHAT_HISTORY, reset_target
-from assistant.testkit import FakeVoiceIn, next_item, post, request
+from assistant.testkit import FakeVoiceIn, module_config, next_item, post, read_events, request, ui_port
+
+# The old [modules.temp_ui] in config/default.toml, before its defaults moved to module.toml.
+OLD_SECTION = {"port": 8765, "window": "app"}
+
+
+def test_its_defaults_are_in_its_module_toml_under_the_apps_section():
+    defaults = module_config("temp_ui")
+    assert defaults["needs"] == [] and defaults["packages"] == []  # a core module never needs an add-on
+    assert {k: v for k, v in defaults.items() if k not in ("needs", "packages")} == OLD_SECTION
+    assert TempUIModule.manifest.needs == ()
+    yours = {"port": 0, "window": "none"}
+    app = App([TempUIModule], {"modules": {"enabled": [], "temp_ui": yours}, "core": {}})
+    assert app._config_of("temp_ui") == {**defaults, **yours}
 
 
 def test_reset_buttons_reset_the_pair_of_the_tab_you_are_in():
@@ -61,24 +75,6 @@ async def test_reset_post_publishes_for_the_helper_tab():
             assert (await resets.get()).agent_id == "talker:cv_agent"
     finally:
         await app.stop()
-
-
-async def read_events(port: int, count: int) -> list[dict]:
-    """The first `count` items on /events, after its leading `hello`."""
-    reader, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
-    items = []
-    async with asyncio.timeout(2):
-        while len(items) < count + 1:
-            line = await reader.readline()
-            if line.startswith(b"data: "):
-                items.append(json.loads(line[6:]))
-    writer.close()
-    assert items[0]["kind"] == "hello" and items[0]["launch"]
-    return items
-
-
-def ui_port(app: App) -> int:
-    return int(app._lifecycle._active["temp_ui"][0].url.rsplit(":", 1)[1].strip("/"))
 
 
 async def test_each_launch_has_its_own_id():

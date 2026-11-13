@@ -1,0 +1,17 @@
+# talker's own defaults. `[modules.talker]` in the app's config only overrides them (merged key by key).
+
+# The modules the Talker can't run without, by id (Manifest.needs): none. It reaches the Agent Hub
+# through its menu (hub.*) and the module door (IModuleDoor, optional); without them it says so.
+needs = []
+
+# The pip packages the Talker needs beyond the app's own (Manifest.packages): none.
+packages = []
+
+model = "sonnet"
+turn_timeout = 120.0      # seconds before a Talker turn is interrupted
+context_exchanges = 6     # recent exchanges passed to the Main Assistant with a task
+context_warning = 150000  # tokens: it tells you once when its own or the worker's context passes this
+transcript = "talker.jsonl"  # every line to and from its claude, in the session's log folder
+restart_note = ".claude/state/reset-instructions.md"  # reset instructions kept across a restart, used once
+restart_timeout = 120.0   # seconds to wait for the worker's reset instructions before restarting anyway
+# cwd = "..."             # the Talker's working directory (it has no tools)

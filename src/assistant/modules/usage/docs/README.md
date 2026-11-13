@@ -12,13 +12,16 @@ Keeps the usage tally of the whole app: every agent's tokens since the app start
 | provides | nothing |
 | requires / optional | none |
 | permissions | none |
+| needs | none ([`Manifest.needs`](../../../../../docs/api/modules.md#manifest), from its `module.toml`): a core module, it needs no other module by id |
+| packages | none |
 
 ## Config
 
-None.
+None: its `module.toml` holds only `needs = []` and `packages = []`.
 
 ## Code and tests
 
-- `src/assistant/modules/usage/module.py`
-- `tests/test_usage.py`: the menu, `ClaudeSession`'s sub-agent tally, `UsageLedger`, closed agents (with `agent_hub`), the temp UI's total and the Talker's `[Usage]` line
+- `src/assistant/modules/usage/module.py`, `module.toml`
+- In this folder's `tests/` (on the [test kit](../../../../../docs/api/testkit.md)): `test_usage_module.py` (its `module.toml`, the menu)
+- Centrally, with shared parts and other modules: `tests/test_usage.py` (`ClaudeSession`'s sub-agent tally, `UsageLedger`, closed agents with `agent_hub`, the temp UI's total and the Talker's `[Usage]` line)
 - `docs/`: this overview, [Architecture](architecture.md), [Tools](tools.md) (generated from its menu), and `docs.toml` (its docs tab and group)

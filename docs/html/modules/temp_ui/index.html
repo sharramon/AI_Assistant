@@ -39,14 +39,23 @@
 <td>permissions</td>
 <td>none declared</td>
 </tr>
+<tr>
+<td>needs</td>
+<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): a core module, it needs no other module by id. Its Open in viewer button still sends <code>viewer.open</code> directly; module folders item 15 moves that behind a slot</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none</td>
+</tr>
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p><code>[modules.temp_ui]</code>: <code>port</code> (8765), <code>window</code>.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder; <code>[modules.temp_ui]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>port</code> (8765), <code>window</code> (<code>"app"</code>); <code>host</code>, <code>window_profile</code> and <code>worker</code> have their defaults in code.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>agent_tabs.py</code>, <code>page.html</code>, <code>static/grants.js</code>, <code>static/agent_tabs.js</code>)</li>
-<li><code>tests/test_temp_ui.py</code>, <code>tests/test_agent_tabs.py</code>, <code>tests/test_access_cards.py</code>, <code>tests/test_taskbar_flash.py</code>, and the snip tests in <code>tests/test_html_viewer.py</code></li>
+<li><code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>module.toml</code>, <code>agent_tabs.py</code>, <code>page.html</code>, <code>static/grants.js</code>, <code>static/agent_tabs.js</code>)</li>
+<li>In this folder's <code>tests/</code> (on the <a href="../../api/testkit.html">test kit</a>): <code>test_temp_ui.py</code> (its defaults, the page, the mic button, the agent tabs, the reset buttons), <code>test_temp_ui_snips.py</code> (snips heard by name, a pasted image, the Open in viewer button), <code>test_taskbar_flash.py</code></li>
+<li>Centrally, with other modules: <code>tests/test_agent_tabs.py</code>, <code>tests/test_access_cards.py</code>, <code>tests/test_permission_mode.py</code>, <code>tests/test_usage.py</code> (the usage tally on the page)</li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/temp_ui/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

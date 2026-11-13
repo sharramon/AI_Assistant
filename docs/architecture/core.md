@@ -277,7 +277,7 @@ stateDiagram-v2
 | `logging.level` / `stderr` | `INFO` / `false` | See `setup_logging` |
 | `modules.<id>.transcript` | | A file name; the module writes it through `ctx.logs.sink(name)`, in the session folder |
 
-Config comes from `config/default.toml`, with `config/local.toml` deep-merged over it. `ASSISTANT_CONFIG_DIR` points elsewhere (e.g. on a server).
+Config comes from `config/default.toml`, with `config/local.toml` deep-merged over it. A module's own defaults are in its `module.toml`, under its `[modules.<id>]` section from that config, merged key by key (`App._config_of`); Every module folder has a `module.toml` (module folders item 11), so `config/default.toml` keeps only the core settings (`[modules] enabled`, `[core]`, `[core.permissions]`, `[core.command_timeouts]`, `[logging]`) and no module's defaults; a tripwire (`tests/test_module_folders.py`) keeps it so. `ASSISTANT_CONFIG_DIR` points elsewhere (e.g. on a server).
 
 ## Logging
 

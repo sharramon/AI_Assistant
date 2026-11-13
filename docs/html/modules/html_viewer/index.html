@@ -64,7 +64,7 @@
 <ul>
 <li>Module: <code>src/assistant/modules/html_viewer/module.py</code>, defaults in <code>module.toml</code></li>
 <li>App: <code>src/assistant/modules/html_viewer/app/html_viewer/</code></li>
-<li>Tests: <code>tests/test_html_viewer.py</code> in this module's folder (the app and the module, on the <a href="../../api/testkit.html">test kit</a>); centrally, <code>tests/test_viewer_listeners.py</code> (the Talker and the temp UI hearing its events) and <code>tests/test_start_on_use.py</code></li>
+<li>Tests: <code>tests/test_html_viewer.py</code> in this module's folder (the app and the module, on the <a href="../../api/testkit.html">test kit</a>); the Talker hearing its events in <code>talker/tests/test_talker_snips.py</code>, the temp UI hearing them in <code>temp_ui/tests/test_temp_ui_snips.py</code> (each with the names it declares); centrally, <code>tests/test_start_on_use.py</code></li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), <a href="viewer-app.html">the viewer app</a>, and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/html_viewer/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

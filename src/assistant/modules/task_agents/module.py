@@ -85,6 +85,10 @@ YOU = ("temp_ui",)
 # their rights here). The Hub's `IAgentNames` reserves more when it's on.
 TRUSTED_CALLERS = frozenset({TALKER, *YOU})
 
+# The module's own keys at its config's top level that every kind doesn't get: its kinds, and the
+# manifest keys from its `module.toml`.
+NOT_KIND_KEYS = frozenset({"agents", "needs", "packages"})
+
 menu = Menu()
 
 
@@ -298,8 +302,9 @@ class TaskAgentsModule(ModuleProtocol):
 
 
 def kind_configs(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Each kind of helper and its full config: the module's defaults, then its own section."""
-    defaults = {k: v for k, v in config.items() if k != "agents"}
+    """Each kind of helper and its full config: the module's defaults, then its own section.
+    The module's own `needs` and `packages` (from its `module.toml`) aren't a kind's settings."""
+    defaults = {k: v for k, v in config.items() if k not in NOT_KIND_KEYS}
     return {kind: {**defaults, **section} for kind, section in (config.get("agents") or {}).items()}
 
 

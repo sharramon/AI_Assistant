@@ -1,0 +1,16 @@
+# agent_hub's own defaults. `[modules.agent_hub]` in the app's config only overrides them (merged key by key).
+
+# The modules agent_hub can't run without, by id (Manifest.needs): none. It finds the agents through
+# the ITaskAgent contract (optional), whoever provides them.
+needs = []
+
+# The pip packages agent_hub needs beyond the app's own (Manifest.packages): none.
+packages = []
+
+coordinator = "main_assistant"  # the agent that hears the others' STATUS milestones, and holds the focus by default
+max_extra_agents = 3      # big agents besides the coordinator that may work at once (the coordinator isn't counted)
+# A free-agent pick (hub.start with no agent_id) skips an agent whose own config says
+# `named_only = true` (in its [agent] section); it's started only when named.
+# named_only = []         # optional fallback: more agent ids a free pick skips (e.g. in config/local.toml)
+# start_only_by = { agent_id = ["caller", ...] }  # optional: only these callers may hub.start that agent
+# door = true             # the agents' MCP door to the module menus (door_host, door_port = 0: any free port)

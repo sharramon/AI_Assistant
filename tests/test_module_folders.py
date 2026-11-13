@@ -30,7 +30,17 @@ contracts (its named events now, heard by name), its tests left `tests/`, and py
 
 Item 9: voice_in's app, packages and tests are in its folder. The voice service is `voice_in/app/voice_service/`
 (launched by folder) with its defaults `voice_service.toml` beside its code, voice_in's defaults and `packages`
-are in its module.toml (the `voice` extra and the script entry left pyproject.toml), and no `tests/test_voice*` is left."""
+are in its module.toml (the `voice` extra and the script entry left pyproject.toml), and no `tests/test_voice*` is left.
+
+Item 10: voice_notes' defaults and `needs = ["voice_in"]` are in its module.toml, its tests in its folder.
+
+Item 11 (first half): agent_hub, talker, main_assistant and task_agents (its kinds of helper too) have
+their defaults in their module.toml, config/default.toml has no section of theirs, and their own tests
+are in their folders; the tests that run them together stay in `tests/`.
+
+Item 11 (second half): console_io, temp_ui, usage, assistant_view and echo_orchestrator have their
+module.toml too, so every module folder has one; config/default.toml has no module's defaults left (only
+the core's settings); and no central test file names only one module unless it's listed with its reason."""
 
 from __future__ import annotations
 
@@ -64,9 +74,9 @@ from assistant.core import App, StartupError, loader
 from assistant.infra import MODULES_FOLDER, access_items, module_folder, module_folder_of, request_access
 from assistant.infra.profile_agent import named_only
 from assistant.modules.agent_hub.tasks import folders_clash
+from assistant.modules.agent_hub.tests.test_agent_hub_parts import FakeAgent, Rig
 from assistant.modules.cv import CvModule
 from assistant.testkit import FAKE, FAKE_JOB_UI, make_config
-from tests.test_agent_hub_parts import FakeAgent, Rig
 
 REPO = MODULES_FOLDER.parents[2]
 CV = MODULES_FOLDER / "cv"
@@ -509,3 +519,93 @@ def test_voice_notes_has_its_module_toml() -> None:
     assert (VOICE_NOTES / "page.html").is_file()
     assert (VOICE_NOTES / "tests" / "test_voice_notes.py").is_file()
     assert not (REPO / "tests" / "test_voice_notes.py").exists()
+
+# Item 11, first half: the core agent modules' defaults and tests in their folders.
+
+CORE_AGENT_TESTS = {
+    "agent_hub": ("test_agent_hub_parts.py",),
+    "talker": ("test_talker.py", "test_talker_parts.py", "test_talker_prompt.py", "test_talker_snips.py"),
+    "main_assistant": ("test_main_assistant.py",),
+    "task_agents": ("test_task_agents.py",),
+}
+
+
+@pytest.mark.parametrize("module_id", sorted(CORE_AGENT_TESTS))
+def test_core_agent_modules_have_their_module_toml_and_tests(module_id: str) -> None:
+    folder = MODULES_FOLDER / module_id
+    toml = tomllib.loads((folder / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == [] and toml["packages"] == []  # a core module never needs an add-on
+    cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
+    assert cls.manifest.needs == ()
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert module_id not in default["modules"]  # its defaults are in its module.toml, none here
+    for name in CORE_AGENT_TESTS[module_id]:
+        assert (folder / "tests" / name).is_file() and not (REPO / "tests" / name).exists(), name
+    assert (folder / "tests" / "__init__.py").is_file()
+    if module_id == "task_agents":  # its kinds of helper are its defaults
+        assert {"helper", "rezi"} <= set(toml["agents"])
+
+# Item 11, second half: the other core modules, then the whole item's rule for every module.
+
+CORE_MODULE_TESTS = {
+    "console_io": ("test_console_io.py",),
+    "temp_ui": ("test_temp_ui.py", "test_temp_ui_snips.py", "test_taskbar_flash.py"),
+    "usage": ("test_usage_module.py",),
+    "echo_orchestrator": ("test_echo.py",),
+    "assistant_view": (),  # no test of its own: it opens a console window (tests/test_swap_every_module.py swaps it)
+}
+LEFT_TESTS = ("test_temp_ui.py", "test_viewer_listeners.py", "test_taskbar_flash.py")  # moved out of tests/
+
+# A central test file that names only one module, and why it stays central: it tests the core or a
+# shared part, with that module as an example. Any other central file naming one module is module-only.
+CENTRAL_ON_PURPOSE = {
+    "test_app.py": "the core's App, with echo_orchestrator as the stand-in orchestrator",
+    "test_directory.py": "the core's directory; modules.add loads echo_orchestrator's package",
+    "test_edit_note.py": "the edit hook (scripts/hooks) and its env; one line of the worker's prompt",
+    "test_menu.py": "the core's Menu part; html_viewer's menu as a real one",
+    "test_permissions_handler.py": "the core's permissions handler; the Hub in two of its tests",
+    "test_questions_as_messages.py": "the Hub's questions flow; cv's job notes as a module's notes",
+    "test_reload.py": "the core's reload; voice_in named as a reloadable package",
+}
+
+
+def module_folders() -> list[Path]:
+    return sorted(p for p in MODULES_FOLDER.iterdir() if (p / "__init__.py").is_file())
+
+
+@pytest.mark.parametrize("module_id", sorted(CORE_MODULE_TESTS))
+def test_the_other_core_modules_have_their_module_toml_and_tests(module_id: str) -> None:
+    folder = MODULES_FOLDER / module_id
+    toml = tomllib.loads((folder / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == [] and toml["packages"] == []  # a core module never needs an add-on
+    cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
+    assert cls.manifest.needs == () and cls.manifest.packages == ()
+    for name in CORE_MODULE_TESTS[module_id]:
+        assert (folder / "tests" / name).is_file() and not (REPO / "tests" / name).exists(), name
+    for name in LEFT_TESTS:
+        assert not (REPO / "tests" / name).exists(), name
+
+
+def test_every_module_folder_has_its_module_toml() -> None:
+    missing = [p.name for p in module_folders() if not (p / "module.toml").is_file()]
+    assert not missing, f"module folders without a module.toml: {missing}"
+    assert len(module_folders()) >= 14
+
+
+def test_config_default_toml_holds_no_module_defaults() -> None:
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    left = sorted(k for k, v in default["modules"].items() if isinstance(v, dict) and v)
+    assert not left, f"[modules.<id>] defaults still in config/default.toml (move them to module.toml): {left}"
+    assert {"core", "logging"} <= set(default)  # the core's own settings stay
+
+
+def test_no_module_only_test_file_is_central() -> None:
+    """A central test that names exactly one module is that module's, unless it's listed with its reason."""
+    ids = {p.name for p in module_folders()}
+    module_only = []
+    for path in sorted((REPO / "tests").glob("test_*.py")):
+        named = set(re.findall(r"assistant\.modules\.(\w+)", path.read_text(encoding="utf-8"))) & ids
+        if len(named) == 1 and path.name not in CENTRAL_ON_PURPOSE:
+            module_only.append(f"{path.name} ({named.pop()})")
+    assert not module_only, f"module-only tests under tests/ (move them into the module's tests/): {module_only}"
+    assert all((REPO / "tests" / name).is_file() for name in CENTRAL_ON_PURPOSE)  # the list stays true

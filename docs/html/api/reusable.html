@@ -600,28 +600,28 @@
 <td>functions, fakes</td>
 <td>A test config; wait on a condition; a single-provider contract and a tool provider for tests</td>
 <td><code>testkit/support.py</code></td>
-<td>most central tests; <code>echo_orchestrator</code> (<code>make_config</code>), <code>agent_hub</code>, <code>cv</code> (<code>wait_until</code>)</td>
+<td>most central tests; <code>echo_orchestrator</code>, <code>console_io</code> (<code>make_config</code>), <code>agent_hub</code>, <code>cv</code>, <code>console_io</code>, <code>temp_ui</code>, <code>usage</code> (<code>wait_until</code>)</td>
 </tr>
 <tr>
 <td><a href="testkit.html#helpers"><code>pre_grant</code>, <code>pre_grant_kinds</code></a></td>
 <td>functions</td>
 <td>Save a grant for a module's whole access list (or every <code>task_agents</code> kind), so it turns on with no card</td>
 <td><code>testkit/support.py</code></td>
-<td><code>cv</code> (<code>test_worker.py</code>), <code>job_search</code> (<code>test_job_search.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code>, <code>test_task_agents</code></td>
+<td><code>cv</code> (<code>test_worker.py</code>), <code>job_search</code> (<code>test_job_search.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code>, <code>task_agents</code> (<code>test_task_agents.py</code>)</td>
 </tr>
 <tr>
-<td><a href="testkit.html#helpers"><code>module_config</code>, <code>stand_in</code>, <code>free_port</code></a></td>
+<td><a href="testkit.html#helpers"><code>module_config</code>, <code>stand_in</code>, <code>free_port</code>, <code>sample_card</code></a></td>
 <td>functions</td>
-<td>The config a module sees (its <code>module.toml</code> under a section, with the core's reader); a bare module standing in for one another <code>needs</code>; a free local port</td>
+<td>The config a module sees (its <code>module.toml</code> under a section, with the core's reader); a bare module standing in for one another <code>needs</code>; a free local port; an access card (<code>PermissionRequested</code>) to publish</td>
 <td><code>testkit/support.py</code></td>
-<td><code>job_search</code> (<code>test_job_search.py</code>), <code>html_viewer</code> (<code>test_html_viewer.py</code>, <code>free_port</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code> (<code>module_config</code>, <code>stand_in</code>)</td>
+<td><code>job_search</code> (<code>test_job_search.py</code>), <code>html_viewer</code> (<code>test_html_viewer.py</code>, <code>free_port</code>), every core module's defaults test (<code>module_config</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code> (<code>module_config</code>, <code>stand_in</code>); <code>sample_card</code>: <code>temp_ui</code> (<code>test_taskbar_flash.py</code>), <code>test_access_cards</code></td>
 </tr>
 <tr>
-<td><a href="testkit.html#pages-and-a-voice_in-stand-in"><code>request</code>, <code>post</code>, <code>next_item</code>, <code>FakeVoiceIn</code></a></td>
+<td><a href="testkit.html#pages-and-a-voice_in-stand-in"><code>request</code>, <code>post</code>, <code>next_item</code>, <code>ui_port</code>, <code>read_events</code>, <code>FakeVoiceIn</code>, <code>clip_event</code>, <code>dropped_event</code></a></td>
 <td>functions, fake</td>
-<td>Talk to a module's local page over raw HTTP (send, post JSON, the next matching <code>/events</code> item); a voice_in stand-in answering the mic commands and <code>IVoice</code></td>
+<td>Talk to a module's local page over raw HTTP (send, post JSON, the next matching <code>/events</code> item, a started page's port, the first items after <code>hello</code>); a voice_in stand-in answering the mic commands and <code>IVoice</code>; the snip events as html_viewer and temp_ui publish them (<code>clip_event</code>, <code>dropped_event</code>: <code>talker</code>'s <code>test_talker_snips.py</code>, <code>temp_ui</code>'s <code>test_temp_ui_snips.py</code>)</td>
 <td><code>testkit/pages.py</code></td>
-<td><code>test_temp_ui</code>, <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code> and <code>request</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code>, <code>test_viewer_listeners</code> (through <code>test_temp_ui</code>)</td>
+<td><code>temp_ui</code> (<code>test_temp_ui.py</code>, <code>test_temp_ui_snips.py</code>), <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code>, <code>request</code>, <code>ui_port</code> and <code>read_events</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code></td>
 </tr>
 <tr>
 <td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>FAKE</code>, <code>FAKE_JOB_UI</code>, <code>TIMEOUT</code></a></td>
@@ -635,7 +635,7 @@
 <td>functions</td>
 <td>A started Hub with a Main Assistant on the fake <code>claude</code>; the next matching update; a report-kind predicate; a task's status</td>
 <td><code>testkit/agents.py</code></td>
-<td><code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, <code>test_questions_as_messages</code>, <code>test_restart</code>, <code>test_mcp_door</code>, <code>test_agent_names</code>, <code>test_task_agents</code></td>
+<td><code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, <code>test_questions_as_messages</code>, <code>test_restart</code>, <code>test_mcp_door</code>, <code>test_agent_names</code>, <code>task_agents</code> (<code>test_task_agents.py</code>), <code>talker</code> (<code>test_talker.py</code>: <code>next_matching</code>)</td>
 </tr>
 <tr>
 <td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>StubSession</code>, <code>StubContext</code>, <code>FakeAgent</code>, <code>agent_module</code></a></td>

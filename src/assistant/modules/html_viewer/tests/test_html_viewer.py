@@ -1,7 +1,7 @@
 """The HTML viewer: its document model, its own HTTP API (the app in app/html_viewer, imported by its
 own name from the module's app/ folder), and the html_viewer module with its named events
-(`html_viewer.tabs_changed`, `html_viewer.clip`). The listeners' side (the Talker, the temp UI) is
-tested centrally in tests/test_viewer_listeners.py."""
+(`html_viewer.tabs_changed`, `html_viewer.clip`). The listeners' side is tested with them: the
+Talker's in talker/tests/test_talker_snips.py, the temp UI's in tests/test_viewer_listeners.py."""
 
 import asyncio
 import json

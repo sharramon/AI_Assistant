@@ -20,9 +20,9 @@ from assistant.core import App
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.job_search import JobSearchModule
 from assistant.modules.task_agents import TaskAgentsModule
+from assistant.modules.task_agents.module import kind_configs
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE, agent_module, module_config, pre_grant, stand_in, wait_until
-from tests.test_temp_ui import post, request, ui_port
+from assistant.testkit import FAKE, agent_module, module_config, post, pre_grant, request, stand_in, ui_port, wait_until
 
 
 async def start(tmp_path, grant_helper: bool = True, helpers_on: bool = True) -> App:
@@ -36,9 +36,10 @@ async def start(tmp_path, grant_helper: bool = True, helpers_on: bool = True) ->
     config = {"modules": {"enabled": enabled, "agent_hub": {"door": False}, "task_agents": {"agents": kinds},
                           "job_search": job, "temp_ui": {"port": 0, "window": "none"}}, "core": {}}  # fmt: skip
     app = App([AgentHubModule, main_module, TaskAgentsModule, stand_in("cv"), JobSearchModule, TempUIModule], config)
-    pre_grant(app, "task_agents", "scout", kinds["scout"])
+    seen = kind_configs(module_config("task_agents", {"agents": kinds}))  # over its module.toml kinds
+    pre_grant(app, "task_agents", "scout", seen["scout"])
     if grant_helper:
-        pre_grant(app, "task_agents", "helper", kinds["helper"])
+        pre_grant(app, "task_agents", "helper", seen["helper"])
     pre_grant(app, "job_search", "job_search_agent", module_config("job_search", job))
     await app.start()
     return app
@@ -62,7 +63,7 @@ async def test_plus_opens_an_idle_helper_with_a_free_name_and_takes_the_focus(tm
     try:
         kinds = await post(port, "/agent-tabs", {"action": "kinds"})
         assert kinds["ok"] and {k["kind"]: k["free_name"] for k in kinds["value"]["kinds"]} == {
-            "helper": "helper", "scout": "scout_2"}  # `scout` runs (autostart)
+            "helper": "helper", "rezi": "rezi", "scout": "scout_2"}  # `scout` runs (autostart); `rezi` from its module.toml
 
         opened = await post(port, "/agent-tabs", {"action": "open", "kind": "helper", "name": "helper", "task": ""})
         assert opened["ok"] and opened["value"].startswith("Opening helper")  # no card for your own click

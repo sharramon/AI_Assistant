@@ -1,0 +1,9 @@
+# echo_orchestrator's own defaults: none besides the two lists below. A `[modules.echo_orchestrator]`
+# section in the app's config would only override them (merged key by key).
+
+# The modules echo_orchestrator can't run without, by id (Manifest.needs): none. It answers InputReceived
+# and lists the tools of whatever IToolProvider is there (optional).
+needs = []
+
+# The pip packages echo_orchestrator needs beyond the app's own (Manifest.packages): none.
+packages = []

@@ -1,8 +1,6 @@
 """Runtime module control: activating and deactivating modules while the app runs."""
 
 import asyncio
-import queue
-import threading
 
 from assistant.contracts import (
     ActivateModule,
@@ -19,8 +17,6 @@ from assistant.contracts import (
     Status,
 )
 from assistant.core import App
-from assistant.modules.console_io import ConsoleIO
-from assistant.modules.console_io import module as console_module
 from assistant.testkit import Calculator, Speaker, make_config, wait_until
 
 
@@ -258,34 +254,6 @@ async def test_closed_context_stops_publishing():
     await asyncio.sleep(0.02)
     assert inputs == []
     await app.stop()
-
-
-async def test_console_io_restart_reuses_one_input_thread(monkeypatch):
-    lines: queue.Queue[str | None] = queue.Queue()
-
-    def fake_input() -> str:
-        line = lines.get()
-        if line is None:
-            raise EOFError
-        return line
-
-    monkeypatch.setattr("builtins.input", fake_input)
-    monkeypatch.setattr(console_module, "_stdin", console_module._StdinReader())
-    app = App([ConsoleIO], make_config("console_io"))
-    inputs: list[str] = []
-
-    async def record(event: InputReceived) -> None:
-        inputs.append(event.text)
-
-    app.bus.subscribe(InputReceived, record)
-    await app.start()
-    await send(app, DeactivateModule(module_id="console_io"))
-    await send(app, ActivateModule(module_id="console_io"))
-    lines.put("hello")
-    await wait_until(lambda: inputs == ["hello"])
-    assert sum(t.name == "console-input" for t in threading.enumerate()) == 1
-    await app.stop()
-    lines.put(None)  # end the reader thread
 
 
 async def test_activation_finishes_even_if_the_command_times_out():

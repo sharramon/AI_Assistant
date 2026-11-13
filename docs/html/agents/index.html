@@ -57,7 +57,7 @@
 <h2 id="permissions">Permissions</h2>
 <ul>
 <li><strong>Talker:</strong> no tools.</li>
-<li><strong>Main Assistant:</strong> for now, the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (<code>tools = "default"</code>, shell included), <code>acceptEdits</code> mode, and the repo as its working folder, so it loads <code>CLAUDE.md</code> and reads the docs like Claude Code does. Settings in <code>[modules.main_assistant]</code> (<code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>):</li>
+<li><strong>Main Assistant:</strong> for now, the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (<code>tools = "default"</code>, shell included), <code>acceptEdits</code> mode, and the repo as its working folder, so it loads <code>CLAUDE.md</code> and reads the docs like Claude Code does. Settings in its <code>module.toml</code> (<code>modules/main_assistant/</code>; <code>[modules.main_assistant]</code> in <code>config/local.toml</code> overrides them): (<code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>):</li>
 </ul>
 <table>
 <thead>

@@ -1,0 +1,15 @@
+# temp_ui's own defaults. `[modules.temp_ui]` in the app's config only overrides them (merged key by key).
+
+# The modules temp_ui can't run without, by id (Manifest.needs): none. It talks to the agents, the mic
+# and the usage tally through commands and events; when one is off, the page says so. (Its Open in
+# viewer button still sends `viewer.open` directly; module folders item 15 moves that behind a slot.)
+needs = []
+
+# The pip packages temp_ui needs beyond the app's own (Manifest.packages): none. Its page is served
+# with the standard library.
+packages = []
+
+# TEMPORARY two-pane UI (Main Assistant | Talker) at http://127.0.0.1:8765/,
+# until the UI handler and its configurations are designed.
+port = 8765
+window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"

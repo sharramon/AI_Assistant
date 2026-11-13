@@ -1,6 +1,8 @@
 """Talking to a module's local page (temp_ui, voice_notes) over raw HTTP, and a voice_in stand-in:
-`request`, `post`, `next_item` on an open `/events` stream, and `FakeVoiceIn`, which answers the mic
-commands and `IVoice` with the events voice_in publishes (no voice service)."""
+`request`, `post`, `next_item` on an open `/events` stream, `ui_port` (a started page's port),
+`read_events` (the first items after `hello`), and `FakeVoiceIn`, which answers the mic
+commands and `IVoice` with the events voice_in publishes (no voice service). Also the snips a page
+sends, as their publishers send them (`clip_event`, `dropped_event`), for the Talker's and temp_ui's tests."""
 
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from assistant.contracts import (
     ListeningState,
     Manifest,
     ModuleContext,
+    ModuleEvent,
     ModuleProtocol,
     Result,
     StartListening,
@@ -48,6 +51,26 @@ async def next_item(reader: asyncio.StreamReader, match) -> dict:
             line = await reader.readline()
             if line.startswith(b"data: ") and match(item := json.loads(line[6:])):
                 return item
+
+
+def ui_port(app, module_id: str = "temp_ui") -> int:
+    """The port a started app's page module (temp_ui by default) listens on, from its `url`."""
+    return int(app._lifecycle._active[module_id][0].url.rsplit(":", 1)[1].strip("/"))
+
+
+async def read_events(port: int, count: int) -> list[dict]:
+    """The first `count` items on a page's /events stream, after its leading `hello` (checked, and
+    returned first)."""
+    reader, writer = await request(port, b"GET /events HTTP/1.1\r\n\r\n")
+    items = []
+    async with asyncio.timeout(2):
+        while len(items) < count + 1:
+            line = await reader.readline()
+            if line.startswith(b"data: "):
+                items.append(json.loads(line[6:]))
+    writer.close()
+    assert items[0]["kind"] == "hello" and items[0]["launch"]
+    return items
 
 
 class _FakeVoice(IVoice):
@@ -102,3 +125,14 @@ class FakeVoiceIn(ModuleProtocol):
         self.ctx.publish(InputReceived(text="hello there", source="voice"))
         self.ctx.publish(VoiceState(state=ListeningState.IDLE, correlation_id=sid))
         return Result.ok({"text": "hello there", "latency_ms": 50})
+
+def clip_event(snip_id: str, image, file: str, heading: str | None = None, source: str = "html_viewer") -> ModuleEvent:
+    """A snip as its publisher sends it: html_viewer's `html_viewer.clip`, or the temp UI's `temp_ui.clip`
+    (a pasted image). `image` is the snip's image file."""
+    data = {"id": snip_id, "image_path": str(image), "file": file, "heading": heading}
+    return ModuleEvent(name=f"{source}.clip", source=source, data=data)
+
+
+def dropped_event(snip_id: str) -> ModuleEvent:
+    """The temp UI's `temp_ui.clip_dropped`: you dropped snip `snip_id` with its x."""
+    return ModuleEvent(name="temp_ui.clip_dropped", source="temp_ui", data={"id": snip_id})

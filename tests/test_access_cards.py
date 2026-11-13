@@ -6,7 +6,6 @@ words a card and how the temp UI shows one."""
 import asyncio
 
 from assistant.contracts import (
-    AccessItem,
     AccessKind,
     ActivateModule,
     AnswerPermissionRequest,
@@ -24,8 +23,18 @@ from assistant.modules.job_search import JobSearchModule
 from assistant.modules.talker.module import access_card_text
 from assistant.modules.task_agents import TaskAgentsModule
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE, agent_module, module_config, pre_grant, stand_in, wait_until
-from tests.test_temp_ui import post, read_events, ui_port
+from assistant.testkit import (
+    FAKE,
+    agent_module,
+    module_config,
+    post,
+    pre_grant,
+    read_events,
+    sample_card,
+    stand_in,
+    ui_port,
+    wait_until,
+)
 
 # --- helpers ---
 
@@ -187,13 +196,6 @@ async def test_two_autostart_kinds_open_two_cards_and_copies_share_a_kinds_grant
 
 
 # --- the Talker and the temp UI ---
-
-
-def sample_card(**over) -> PermissionRequested:
-    items = (AccessItem(kind=AccessKind.WORKSPACE, target="C:/x/ws"), AccessItem(kind=AccessKind.CHROME))
-    base = dict(request_id="r1", module_id="job_search", subject="job_search_agent", action="access",
-                reason="the job agent", items=items, reviewed=False)  # fmt: skip
-    return PermissionRequested(**{**base, **over})
 
 
 def test_the_talker_words_a_card_with_its_labels_and_not_reviewed():

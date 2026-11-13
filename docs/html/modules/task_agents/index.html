@@ -36,18 +36,26 @@
 <td>none (uses <a href="../../api/agents.html#iagentnames"><code>IAgentNames</code></a> when the Hub runs)</td>
 </tr>
 <tr>
+<td>needs</td>
+<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): a core module, it needs no other module by id; launching a helper goes through the Hub (<code>StartTask</code>)</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none</td>
+</tr>
+<tr>
 <td>permissions</td>
 <td><code>agent.access</code>: each kind's access list is asked for on one card (<a href="../../architecture/permissions.html#access-lists-built">access lists</a>)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p><code>[modules.task_agents]</code>: defaults for every kind. <code>[modules.task_agents.agents.&lt;kind&gt;]</code>: one kind, with the keys of <code>[modules.main_assistant]</code> plus <code>description</code>, <code>prompt</code>, <code>autostart</code> (start at launch; default false) and <code>instances</code> (how many to autostart). The shipped <code>helper</code> kind works in <code>../assistant-helper</code> (outside the repo, which the Main Assistant writes) and isn't autostarted.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder, its kinds of helper included: the keys at its top level are defaults for every kind (<code>permission_mode</code>, <code>permission_timeout</code>, <code>chrome = true</code>; never <code>needs</code> or <code>packages</code>), and <code>[agents.&lt;kind&gt;]</code> is one kind. <code>[modules.task_agents]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key: <code>[modules.task_agents.agents.&lt;kind&gt;]</code> there changes the keys it names of a shipped kind, or adds a kind. <code>config/default.toml</code> has no section for it. A kind takes the keys of main_assistant's config plus <code>description</code>, <code>prompt</code>, <code>autostart</code> (start at launch; default false) and <code>instances</code> (how many to autostart). The shipped kinds: <code>helper</code> works in <code>../assistant-helper</code> (outside the repo, which the Main Assistant writes); <code>rezi</code> (the Rezi helper) in <code>../assistant-rezi</code>, reading the repo's <code>docs</code> (point it at your own folders in <code>config/local.toml</code>). Neither is autostarted.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/task_agents/module.py</code>; <code>src/assistant/infra/profile_agent.py</code></li>
-<li><code>tests/test_task_agents.py</code> (two agents at once, <code>STATUS:</code> to the coordinator, <code>NEED:</code> held until focused, the cap refusing a fourth extra agent, the door under each agent's name, a kind's grant reaching all its helpers, an idle session restarting on a grant and a busy one waiting)</li>
-<li><code>tests/test_agent_names.py</code> (launch proposes, allowed, denied, refused from the Talker or with no task)</li>
+<li><code>src/assistant/modules/task_agents/module.py</code>, <code>module.toml</code> (defaults and kinds, <code>needs</code>, <code>packages</code>); <code>src/assistant/infra/profile_agent.py</code></li>
+<li><code>tests/test_task_agents.py</code> in this folder (on the <a href="../../api/testkit.html">test kit</a>): its defaults and kinds under <code>module.toml</code>; two agents at once, <code>STATUS:</code> to the coordinator, <code>NEED:</code> held until focused, the cap refusing a fourth extra agent, the door under each agent's name, a kind's grant reaching all its helpers, an idle session restarting on a grant and a busy one waiting)</li>
+<li>Centrally: <code>tests/test_agent_names.py</code> (launch proposes, allowed, denied, refused from the Talker or with no task)</li>
 <li><code>tests/test_agent_tabs.py</code> (opened by you: idle or with a task, free names, a denied access card, closing)</li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>

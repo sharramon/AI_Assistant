@@ -60,6 +60,17 @@ def stand_in(module_id: str) -> type[ModuleProtocol]:
     return type(f"StandIn_{module_id}", (ModuleProtocol,), {"manifest": Manifest(id=module_id), "init": init})
 
 
+def sample_card(**over: Any) -> Any:
+    """An access card (`PermissionRequested`) as a module's access list opens it: job_search asking for
+    job_search_agent's workspace and Chrome, not reviewed. `over` replaces any of its fields."""
+    from assistant.contracts import AccessItem, AccessKind, PermissionRequested
+
+    items = (AccessItem(kind=AccessKind.WORKSPACE, target="C:/x/ws"), AccessItem(kind=AccessKind.CHROME))
+    base = dict(request_id="r1", module_id="job_search", subject="job_search_agent", action="access",
+                reason="the job agent", items=items, reviewed=False)  # fmt: skip
+    return PermissionRequested(**{**base, **over})
+
+
 def module_config(module_id: str, section: dict[str, Any] | None = None) -> dict[str, Any]:
     """The config module `module_id` sees, as the core builds it: its `module.toml` defaults (none
     if it has none) with `section` (its `[modules.<id>]`) merged over them. For `pre_grant`, whose
@@ -86,9 +97,10 @@ def pre_grant(app: Any, module_id: str, subject: str, config: dict[str, Any], ow
     app.permissions.store.put(Grant(module_id, subject, fingerprint(items), keys).with_granted(keys))
 
 
-def pre_grant_kinds(app: Any, module_config: dict[str, Any], module_id: str = "task_agents") -> None:
-    """Pre-grant every kind of the task_agents config (autostart or launched)."""
+def pre_grant_kinds(app: Any, section: dict[str, Any], module_id: str = "task_agents") -> None:
+    """Pre-grant every kind of the task_agents config (autostart or launched): its `module.toml`
+    defaults (their kinds too) with `section` (its `[modules.task_agents]`) merged over them."""
     from assistant.modules.task_agents.module import kind_configs
 
-    for kind, config in kind_configs(module_config).items():
+    for kind, config in kind_configs(module_config(module_id, section)).items():
         pre_grant(app, module_id, kind, config)

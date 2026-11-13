@@ -3,12 +3,10 @@ or asks you something, and on a permissions card; not on progress, replies or a 
 
 import asyncio
 
-from app_kit import window
 from assistant.contracts import QuestionKind, ReportKind, TaskState, TaskUpdated
 from assistant.core import App
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import wait_until
-from tests.test_access_cards import sample_card
+from assistant.testkit import sample_card, wait_until
 
 
 async def flashing_app():
@@ -63,8 +61,3 @@ async def test_progress_replies_and_a_cancel_dont_flash():
         assert flashes == []
     finally:
         await app.stop()
-
-
-def test_flash_window_finds_nothing_for_an_unknown_window():
-    # Off Windows it never flashes; on Windows no window has this title and no Edge has pid 0.
-    assert window.flash_window(0, "no such window title 7f3a") is False

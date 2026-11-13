@@ -39,14 +39,23 @@
 <td>permissions</td>
 <td>none declared; its file and shell access are its <code>claude</code> rules (config below)</td>
 </tr>
+<tr>
+<td>needs</td>
+<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): a core module, it needs no other module by id</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none</td>
+</tr>
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p><code>[modules.main_assistant]</code>: <code>workspace</code>, <code>tools</code>, <code>permission_mode</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>, <code>fresh_sessions</code>, <code>max_handoffs</code>, <code>context_reminder</code>, <code>edit_note</code>, <code>permission_prompts</code>, <code>permission_timeout</code>, <code>transcript</code>, <code>model</code>.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder, with their comments; <code>[modules.main_assistant]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (a list such as <code>write_dirs</code> is replaced whole; <a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>workspace</code>, <code>tools</code>, <code>permission_mode</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>, <code>fresh_sessions</code>, <code>max_handoffs</code>, <code>context_reminder</code>, <code>edit_note</code>, <code>permission_prompts</code>, <code>permission_timeout</code>, <code>transcript</code>, <code>model</code>.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/main_assistant/module.py</code>; the agent itself is <code>src/assistant/infra/session_agent.py</code>, its setup <code>infra/agent_profile.py</code></li>
-<li><code>tests/test_agents.py</code>, <code>test_permission_mode.py</code>, <code>test_edit_note.py</code>, <code>test_multi_agent.py</code></li>
+<li><code>src/assistant/modules/main_assistant/module.py</code>, <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>); the agent itself is <code>src/assistant/infra/session_agent.py</code>, its setup <code>infra/agent_profile.py</code></li>
+<li>In this folder's <code>tests/</code>: <code>test_main_assistant.py</code> (its defaults under <code>module.toml</code>, the same as the old section)</li>
+<li>Centrally, since each runs it with the Hub or tests shared parts: <code>tests/test_agents.py</code>, <code>test_permission_mode.py</code>, <code>test_edit_note.py</code>, <code>test_multi_agent.py</code>, <code>test_mcp_door.py</code></li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/main_assistant/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

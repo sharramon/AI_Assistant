@@ -19,7 +19,7 @@ from assistant.contracts import (
 from assistant.core import App, find_modules
 from assistant.testkit import FAKE, free_port
 
-SKIP = {"console_io"}  # reads the console; its reload is covered in tests/test_reload.py
+SKIP = {"console_io"}  # reads the console; its off-and-on is covered in its own tests (modules/console_io/tests)
 
 
 def config(tmp_path) -> dict:

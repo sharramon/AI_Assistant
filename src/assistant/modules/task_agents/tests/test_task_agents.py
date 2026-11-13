@@ -2,6 +2,7 @@
 coordinator through the real SessionTaskAgent (the fake claude), within the Hub's cap."""
 
 import json
+import re
 
 import pytest
 
@@ -190,3 +191,29 @@ async def test_an_idle_open_session_restarts_on_a_grant_and_a_busy_one_waits(tmp
         assert path_rule("Read", str((tmp_path / "more").resolve())) in ",".join(helper.profile.command("p", PermissionMode.MANUAL))
     finally:
         await app.stop()
+
+
+# --- its defaults, its kinds of helper included, in its module.toml ---
+
+
+def test_its_defaults_and_kinds_are_in_its_module_toml_under_the_apps_section():
+    from assistant.modules.task_agents.module import kind_configs
+    from assistant.testkit import module_config
+
+    defaults = module_config("task_agents")
+    assert defaults["needs"] == [] and defaults["packages"] == []
+    assert TaskAgentsModule.manifest.needs == ()
+    # the same top-level keys as the old [modules.task_agents] in config/default.toml
+    assert {k: v for k, v in defaults.items() if k not in ("needs", "packages", "agents")} == {
+        "permission_mode": "acceptEdits", "permission_timeout": 600.0, "chrome": True}
+    assert set(defaults["agents"]) == {"helper", "rezi"}
+    assert defaults["agents"]["helper"]["workspace"] == "../assistant-helper"
+    # A kind gets the module's defaults but never its manifest keys; your section changes one key of
+    # a kind, and adds a kind.
+    yours = {"agents": {"rezi": {"workspace": "elsewhere"}, "scout": {"prompt": "Look."}}}
+    kinds = kind_configs(module_config("task_agents", yours))
+    assert set(kinds) == {"helper", "rezi", "scout"}
+    assert kinds["rezi"]["workspace"] == "elsewhere" and kinds["rezi"]["tools"].startswith("Read,")
+    assert kinds["scout"]["chrome"] is True and not {"needs", "packages", "agents"} & set(kinds["scout"])
+    # No personal path among the committed kinds: a real folder of yours goes in config/local.toml.
+    assert not re.search(r"[A-Za-z]:[/\\]", str(defaults["agents"]))

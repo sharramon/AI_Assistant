@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 11 of 20 done** (items 1 to 10 and 20).
+**Count: 12 of 20 done** (items 1 to 11 and 20).
 
 **Architecture check after the add-on chunk (items 7–10):** modularity OK (a grep of `core/`, `contracts/`, `infra/` and `app_kit` for the add-ons' ids finds only comments and examples, plus `infra/show_pages.py`'s `viewer.open`, which item 15 moves behind a slot); reuse OK (every app move reused `add_app_folders` and `launch_env`; temp_ui's test helpers joined `assistant.testkit`); fit OK (each add-on's defaults, `needs` and `packages` are in its `module.toml`, read by the core with no names).
 
@@ -10,6 +10,8 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **Your local config, item 11:** the rezi helper kind's real folders left the committed defaults (now `../assistant-rezi`, reading `docs`). They were added for you to `config/local.toml` (`[modules.task_agents.agents.rezi]`: `workspace` and `read_dirs`, as before), so nothing changes. Check that section once.
+- **Note, item 11:** `.claude/state/reset-instructions.md` was missing when checked. Talker tests used to delete it on stop (fixed in item 11: tests now point `restart_note` into tmp). If a restart catch-up note was expected there, it's gone; the next restart writes a fresh one.
 - **Hand check, item 10:** after the restart, `modules.on voice_notes` turns voice_in on first.
 - **Hand check, item 9:** after the restart, click the mic in temp_ui, speak, and see the text reach the Talker; open voice_notes and record once.
 - **Hand check, item 8:** after the restart, open a page from the chat, take a snip, paste an image, drop a snip with ×, and see the Talker's `[Viewer] open:` line.
@@ -69,6 +71,11 @@ For you to review. Each picks the option closest to the approved picture.
 26. **voice_in gets no `ruff.toml`** (item 9): it has no ruff rules of its own; the tripwire's `MOVED_OUT` has a `ruff` flag for that.
 27. **The `StartListening` / `StopListening` timeouts stay in `[core.command_timeouts]`** (item 9): they're core settings. `scripts/build_docs.py` calls `add_app_folders()` before importing modules.
 28. **voice_notes' `module.toml` holds only its two old defaults** (item 10: `port`, `window`); `host` and `window_profile` keep their defaults in code, so the settings it sees are unchanged (a test checks). It keeps `requires IVoice` beside `needs = ["voice_in"]`.
+29. **Every core module has `needs = []`** (item 11): each runs alone in tests; task_agents uses the Hub only when it's on.
+30. **The rezi helper kind ships with neutral folders** (item 11: `../assistant-rezi`, reading `docs`); your real ones went to `config/local.toml`. A test checks no committed kind holds a drive path. A kind never inherits task_agents' own `needs` / `packages` (`NOT_KIND_KEYS`).
+31. **Tests never write the repo's `logs/` or `.claude/state/`** (item 11): the root `conftest.py` sends transcripts and the Talker's `restart_note` to tmp.
+32. **Central tests that stay** (item 11): those that run several modules together or test the core or a shared part with one module as an example (`test_agents`, `test_restart`, `test_multi_agent`, `test_permission_mode`, `test_mcp_door`, `test_app`, `test_directory`, `test_menu`, `test_reload`, `test_control`, `test_usage`, `test_access_cards` and the like). The tripwire flags a central test that names exactly one module and isn't on its reasoned list.
+33. **Small test moves** (item 11): `test_show_tag_arguments` was dropped (covered by `tests/test_agent_tags.py`); the `flash_window` test went to `tests/test_app_kit.py`; assistant_view has no `tests/` (covered by `test_swap_every_module`); the test kit gained `clip_event`, `dropped_event`, `ui_port`, `read_events`, `sample_card`, and `pre_grant_kinds` merges a module's `module.toml`.
 
 ## The safeguards (from the audit, section 4)
 
@@ -182,7 +189,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** as item 7.
 - **Done when:** `module.toml` exists with `needs = ["voice_in"]`; no `[modules.voice_notes]` defaults in `config/default.toml`; its tests pass from the module.
 
-### 11. The core modules: defaults and tests in each module
+### 11. The core modules: defaults and tests in each module: **done** (2026-11-13)
+
+**Checked:** all 14 module folders have a `module.toml` (a listing finds none without); `config/default.toml`'s sections are only `[modules]` (`enabled`), `[core]`, `[core.permissions]`, `[core.command_timeouts]` and `[logging]`; `test_core_agent_modules_have_their_module_toml_and_tests` and the every-module tripwire pass; module-only tests moved (agent_hub, talker, main_assistant, task_agents, console_io, usage, temp_ui); full suite 888 passed, 2 deselected; ruff clean. Takes effect at the next start.
 
 - **What:** agent_hub, talker, main_assistant, console_io, temp_ui, task_agents (its kinds as defaults), usage, assistant_view and echo_orchestrator each get a `module.toml` with their defaults and `needs`, and their tests in their own `tests/`.
 - **Why:** the picture's core box: "own docs · tests", "kinds as defaults", and the rule that the core modules that own tests have the same shape.

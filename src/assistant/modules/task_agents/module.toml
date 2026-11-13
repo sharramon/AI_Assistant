@@ -1,0 +1,43 @@
+# task_agents' own defaults, its kinds of helper included. `[modules.task_agents]` in the app's config
+# only overrides them, merged key by key: a kind's section there changes only the keys it names, and a
+# new `[modules.task_agents.agents.<kind>]` adds a kind.
+
+# The modules task_agents can't run without, by id (Manifest.needs): none. Its helpers are ITaskAgents
+# the Agent Hub starts; it claims their names from the Hub (IAgentNames) when the Hub is on.
+needs = []
+
+# The pip packages task_agents needs beyond the app's own (Manifest.packages): none.
+packages = []
+
+# Kinds of helper agent, one [agents.<kind>] section each; off at launch
+# (turn on with modules.on). A helper is launched by name for one task (agents.launch, only with
+# your yes on a card) and works in <kind workspace>/<name>. Keys here are defaults for every kind;
+# a kind takes the same keys as main_assistant, plus `description`, `prompt` (its role,
+# one or two sentences), and `autostart = true` to start one at launch (`instances` = N starts
+# <kind>, <kind>_2, ..., each writing its own sub-folder of the workspace).
+# The Hub's folder-clash check: two active agents never write the same folder, or one inside the
+# other, except a module's own folder (src/assistant/modules/<id>) under a wider grant such as the
+# Main Assistant's whole repo. A helper isn't a module's own agent (it gets no module folder), and
+# a helper folder elsewhere in this repo would clash with the Main Assistant, so it lives outside.
+permission_mode = "acceptEdits"
+permission_timeout = 600.0
+chrome = true             # every kind gets the Claude in Chrome tools (on its access card); a kind may set false
+
+[agents.helper]
+description = "A small helper: reads and writes notes in its own folder"
+prompt = "You do small, self-contained jobs in your own folder and report what you made."
+workspace = "../assistant-helper"
+tools = "Read,Write,Edit,Glob,Grep"
+transcript = "helper.jsonl"
+
+[agents.rezi]
+# The Rezi helper (docs/next-steps/rezi-module.md): tailors resumes in Rezi for postings the job
+# agent hands it. Its folder is outside this repo (a helper folder inside would clash with the Main
+# Assistant). Point `workspace` at your own folder, and add your job documents' folder to
+# `read_dirs`, in [modules.task_agents.agents.rezi] in config/local.toml.
+description = "Rezi helper: tailors a resume in Rezi for one job posting, through the rezi module's menu"
+prompt = "You tailor resumes in Rezi, one job posting per task. You reach Rezi only through the rezi.* items on the module door's rezi menu, never any other way; until that module exists, read docs/next-steps/rezi-module.md and research. Never change the base resume: each job gets a new resume. Report the new resume's name."
+workspace = "../assistant-rezi"
+read_dirs = ["docs"]
+tools = "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,PowerShell"
+transcript = "rezi.jsonl"

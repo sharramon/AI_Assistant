@@ -26,8 +26,7 @@ from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.main_assistant.module import build_command
 from assistant.modules.talker import TalkerModule
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE, TIMEOUT, next_matching, report, start_hub, wait_until
-from tests.test_temp_ui import request, ui_port
+from assistant.testkit import FAKE, TIMEOUT, next_matching, report, request, start_hub, ui_port, wait_until
 
 
 def _arg(command: list[str], flag: str) -> str:

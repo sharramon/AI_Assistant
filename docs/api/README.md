@@ -16,7 +16,7 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent` (with `set_context`), `default_context`, `PermissionGate`, `HandoffKeeper`, `LastLineTags`, `UsageMeter`, `AgentKit` (with `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`), `AgentProfile`, `manual_claude_mode`, `access_items`, `granted_config`, `request_access`, `MilestoneFeed`, `session_usage`, `ContextWatch`, `agent_tags`, `show_page`, `mcp_door`, `check_agent_id`, `free_agent_id`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window` (with `window_profile`), `load_layered`, `local_path`, `merge`, `module_docs`, `CompanionApp`, `CompanionHandover`, `launch_env`, `local_guard`
-- **For tests only** ([`assistant.testkit`](testkit.md)): `make_config`, `wait_until`, `pre_grant`, `pre_grant_kinds`, `module_config`, `stand_in`, `free_port`, `Speaker`, `Calculator`, the fake `claude` (`FAKE`), `FAKE_JOB_UI`, `start_hub`, `next_matching`, `report`, `StubSession`, `StubContext`, `FakeAgent`, `agent_module`, `status`, `request`, `post`, `next_item`, `FakeVoiceIn`
+- **For tests only** ([`assistant.testkit`](testkit.md)): `make_config`, `wait_until`, `pre_grant`, `pre_grant_kinds`, `module_config`, `stand_in`, `free_port`, `sample_card`, `ui_port`, `read_events`, `Speaker`, `Calculator`, the fake `claude` (`FAKE`), `FAKE_JOB_UI`, `start_hub`, `next_matching`, `report`, `StubSession`, `StubContext`, `FakeAgent`, `agent_module`, `status`, `request`, `post`, `next_item`, `FakeVoiceIn`, `clip_event`, `dropped_event`
 - **Core host** (`assistant.core`, internal): `add_app_folders` (every module's `app/` folder on the import path)
 
 ## Groups
@@ -175,8 +175,8 @@ The fakes and helpers every test may use, central or a module's own; for tests o
 
 | Item | Kind | Summary |
 |------|------|---------|
-| [Helpers](testkit.md#helpers) | functions, fakes | ♻ `make_config`, `wait_until`, `pre_grant` / `pre_grant_kinds` (a saved grant, no card), `module_config` (a module's `module.toml` under its section), `stand_in` (a module another `needs`), `free_port`, `Speaker`, `Calculator` |
-| [Pages and a voice_in stand-in](testkit.md#pages-and-a-voice_in-stand-in) | functions, fake | ♻ `request`, `post`, `next_item` (a module's local page over raw HTTP), `FakeVoiceIn` (stands in for voice_in) |
+| [Helpers](testkit.md#helpers) | functions, fakes | ♻ `make_config`, `wait_until`, `pre_grant` / `pre_grant_kinds` (a saved grant, no card), `module_config` (a module's `module.toml` under its section), `stand_in` (a module another `needs`), `free_port`, `sample_card` (an access card), `Speaker`, `Calculator`; a page's `ui_port` and `read_events` |
+| [Pages and a voice_in stand-in](testkit.md#pages-and-a-voice_in-stand-in) | functions, fake | ♻ `request`, `post`, `next_item` (a module's local page over raw HTTP), `FakeVoiceIn` (stands in for voice_in), `clip_event` / `dropped_event` (the snip events) |
 | [The fake `claude` and agent fakes](testkit.md#the-fake-claude-and-agent-fakes) | fakes | ♻ `FAKE` (the fake `claude -p`, run by path), `FAKE_JOB_UI`, `start_hub`, `next_matching`, `report`, `StubSession`, `StubContext`, `FakeAgent`, `agent_module`, `status` |
 
 ### [Core host](core.md) (internal)

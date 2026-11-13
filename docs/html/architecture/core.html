@@ -379,7 +379,7 @@
 </tr>
 </tbody>
 </table>
-<p>Config comes from <code>config/default.toml</code>, with <code>config/local.toml</code> deep-merged over it. <code>ASSISTANT_CONFIG_DIR</code> points elsewhere (e.g. on a server).</p>
+<p>Config comes from <code>config/default.toml</code>, with <code>config/local.toml</code> deep-merged over it. A module's own defaults are in its <code>module.toml</code>, under its <code>[modules.&lt;id&gt;]</code> section from that config, merged key by key (<code>App._config_of</code>); Every module folder has a <code>module.toml</code> (module folders item 11), so <code>config/default.toml</code> keeps only the core settings (<code>[modules] enabled</code>, <code>[core]</code>, <code>[core.permissions]</code>, <code>[core.command_timeouts]</code>, <code>[logging]</code>) and no module's defaults; a tripwire (<code>tests/test_module_folders.py</code>) keeps it so. <code>ASSISTANT_CONFIG_DIR</code> points elsewhere (e.g. on a server).</p>
 <h2 id="logging">Logging</h2>
 <p><strong>One owner for where logs go:</strong> the log handler, <a href="../api/infra.html#logsession"><code>LogSession</code></a> in <code>src/assistant/infra/log.py</code>. It's shared infrastructure, not a module, because it must exist before any module starts. Modules decide <em>what</em> they write, through <code>ctx.log</code> or their own transcript; none picks its own path.</p>
 <ul>

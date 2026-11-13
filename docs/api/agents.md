@@ -375,7 +375,7 @@ The `agent_hub` module's [`Menu`](modules.md#menu), id prefix `hub.`. Every item
 | `hub.answer(task_id, allow)` | the Talker only | [`AnswerPermission`](#answerpermission), after you said yes or no to a task's permission card |
 | `hub.mode(agent_id, mode)` | the Talker only | [`SetPermissionMode`](#setpermissionmode) to Manual; `auto` is refused (`not_available`): only you switch to Auto, with the button |
 
-Refused callers get `not_available`. The UI's own buttons still send `AnswerPermission` and `SetPermissionMode` as commands. Code: `AgentHubModule` (`module.py`) wires a `TaskBoard` (`tasks.py`), a `Focus` (`focus.py`), `AgentNames` (`names.py`), a `Delivery` (`delivery.py`) and a `MessageGate` (`gate.py`); tests in `tests/test_agent_hub_parts.py` and `agent_hub/tests/`.
+Refused callers get `not_available`. The UI's own buttons still send `AnswerPermission` and `SetPermissionMode` as commands. Code: `AgentHubModule` (`module.py`) wires a `TaskBoard` (`tasks.py`), a `Focus` (`focus.py`), `AgentNames` (`names.py`), a `Delivery` (`delivery.py`) and a `MessageGate` (`gate.py`); tests in `agent_hub/tests/` (`test_agent_hub_parts.py` for the parts).
 
 ## `AgentStateChanged`
 

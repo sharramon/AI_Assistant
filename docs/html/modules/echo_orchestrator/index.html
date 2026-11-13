@@ -43,14 +43,22 @@
 <td>permissions</td>
 <td>none</td>
 </tr>
+<tr>
+<td>needs</td>
+<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>)</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none</td>
+</tr>
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p>None (no <code>module.toml</code>).</p>
+<p>None: its <code>module.toml</code> holds only <code>needs = []</code> and <code>packages = []</code>.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <p>Everything is in this module's folder, <code>src/assistant/modules/echo_orchestrator/</code>:</p>
 <ul>
-<li><code>module.py</code></li>
+<li><code>module.py</code>, <code>module.toml</code></li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab)</li>
 <li><code>tests/test_echo.py</code>: the echo, <code>/tools</code>, the <code>echo.say</code> item. Its use as a stand-in orchestrator in the core's tests stays in <code>tests/test_app.py</code> and <code>tests/test_mcp_door.py</code>.</li>
 </ul>

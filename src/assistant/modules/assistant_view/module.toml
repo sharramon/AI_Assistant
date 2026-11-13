@@ -1,0 +1,9 @@
+# assistant_view's own defaults: none besides the two lists below. A `[modules.assistant_view]` section
+# in the app's config would only override them (merged key by key).
+
+# The modules assistant_view can't run without, by id (Manifest.needs): none. It shows the agents'
+# activity events (AgentActivity, AgentStateChanged, TaskUpdated), whoever publishes them.
+needs = []
+
+# The pip packages assistant_view needs beyond the app's own (Manifest.packages): none.
+packages = []

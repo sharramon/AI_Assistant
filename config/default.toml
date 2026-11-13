@@ -9,103 +9,13 @@
 # html_viewer also turns itself on when a page is opened (start_on_use in its section).
 enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "voice_in", "usage"]
 
-# Per-module settings go in [modules.<module id>]. A module that ships its own defaults
-# (module.toml in its folder: cv, job_search, html_viewer, voice_in, voice_notes) needs a section here only to override them.
-[modules.console_io]
-prompt = "> "
-
-[modules.talker]
-model = "sonnet"
-turn_timeout = 120.0      # seconds before a Talker turn is interrupted
-context_exchanges = 6     # recent exchanges passed to the Main Assistant with a task
-context_warning = 150000  # tokens: it tells you once when its own or the worker's context passes this
-transcript = "talker.jsonl"  # every line to and from its claude, in the session's log folder
-restart_note = ".claude/state/reset-instructions.md"  # reset instructions kept across a restart, used once
-restart_timeout = 120.0   # seconds to wait for the worker's reset instructions before restarting anyway
-# cwd = "..."             # the Talker's working directory (it has no tools)
-
-[modules.main_assistant]
-# For now it has the same access as Claude Code in this repo: the repo is its working
-# folder (it loads CLAUDE.md and reads the docs), every built-in tool, every file.
-workspace = "."           # its working folder: reads and writes allowed
-tools = "default"         # every built-in tool, shell included
-permission_mode = "acceptEdits"
-# Standing permissions besides the workspace (paths relative to where the app runs).
-read_dirs = ["."]
-write_dirs = [".", ".claude/skills", ".claude/agents"]  # .claude/ is sensitive to claude: name these two explicitly
-# Shell commands it may run without asking, with any arguments (run from the project folder).
-# Read-only only: no git commit/push/reset/checkout, no deleting, no network, no installs.
-allowed_commands = [
-    '.\.venv\Scripts\python -m pytest',
-    '.\.venv\Scripts\ruff check',
-    '.\.venv\Scripts\python scripts\build_docs.py',
-    'git status',
-    'git diff',
-    'git log',
-    'git show',
-    'Get-ChildItem',
-    'Get-Content',
-    'Select-String',
-]
-# Anything else (other shell commands, the rest of .claude/) is asked of you in the app:
-# Allow / Deny in the temp UI, or by telling the Talker.
-fresh_sessions = true     # each task starts in a new claude session, so its context holds only that task
-max_handoffs = 3          # fresh sessions a task may hand off to (HANDOFF: <note>) before it asks you
-context_reminder = 150000  # tokens: once past this, the worker is reminded to find a reset point and hand off (0 = off)
-edit_note = true          # the edit hook's once-per-file batching note for the worker (false = off; the prompt line stays)
-permission_prompts = true
-permission_timeout = 600.0  # seconds; an unanswered request is denied
-transcript = "main_assistant.jsonl"  # in the session's log folder
-# model = "opus"          # default: your claude default
-
-[modules.agent_hub]
-coordinator = "main_assistant"  # the agent that hears the others' STATUS milestones, and holds the focus by default
-max_extra_agents = 3      # big agents besides the coordinator that may work at once (the coordinator isn't counted)
-# A free-agent pick (hub.start with no agent_id) skips an agent whose own config says
-# `named_only = true` (in its [agent] section); it's started only when named.
-# named_only = []         # optional fallback: more agent ids a free pick skips (e.g. in config/local.toml)
-# start_only_by = { agent_id = ["caller", ...] }  # optional: only these callers may hub.start that agent
-# door = true             # the agents' MCP door to the module menus (door_host, door_port = 0: any free port)
-
-[modules.task_agents]
-# Kinds of helper agent, one [modules.task_agents.agents.<kind>] section each; off at launch
-# (turn on with modules.on). A helper is launched by name for one task (agents.launch, only with
-# your yes on a card) and works in <kind workspace>/<name>. Keys here are defaults for every kind;
-# a kind takes the same keys as [modules.main_assistant], plus `description`, `prompt` (its role,
-# one or two sentences), and `autostart = true` to start one at launch (`instances` = N starts
-# <kind>, <kind>_2, ..., each writing its own sub-folder of the workspace).
-# The Hub's folder-clash check: two active agents never write the same folder, or one inside the
-# other, except a module's own folder (src/assistant/modules/<id>) under a wider grant such as the
-# Main Assistant's whole repo. A helper isn't a module's own agent (it gets no module folder), and
-# a helper folder elsewhere in this repo would clash with the Main Assistant, so it lives outside.
-permission_mode = "acceptEdits"
-permission_timeout = 600.0
-chrome = true             # every kind gets the Claude in Chrome tools (on its access card); a kind may set false
-
-[modules.task_agents.agents.helper]
-description = "A small helper: reads and writes notes in its own folder"
-prompt = "You do small, self-contained jobs in your own folder and report what you made."
-workspace = "../assistant-helper"
-tools = "Read,Write,Edit,Glob,Grep"
-transcript = "helper.jsonl"
-
-[modules.task_agents.agents.rezi]
-# The Rezi helper (docs/next-steps/rezi-module.md): tailors resumes in Rezi for postings the job
-# agent hands it. Works outside C:/Chang/Jobs/CV (the job agent writes all of it, so a folder
-# inside would clash with it); reads the job project and this repo's docs.
-description = "Rezi helper: tailors a resume in Rezi for one job posting, through the rezi module's menu"
-prompt = "You tailor resumes in Rezi, one job posting per task. You reach Rezi only through the rezi.* items on the module door's rezi menu, never any other way; until that module exists, read docs/next-steps/rezi-module.md and research. Never change the base resume: each job gets a new resume. Report the new resume's name."
-workspace = "C:/Chang/Jobs/rezi"
-read_dirs = ["C:/Chang/Jobs/CV", "C:/Chang/Git_projects/AI_Assistant/docs"]
-tools = "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,PowerShell"
-transcript = "rezi.jsonl"
-
-[modules.temp_ui]
-# TEMPORARY two-pane UI (Main Assistant | Talker) at http://127.0.0.1:8765/,
-# until the UI handler and its configurations are designed.
-port = 8765
-window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"
-
+# Per-module settings go in [modules.<module id>]. Every module ships its own defaults in the
+# module.toml in its folder (src/assistant/modules/<id>/module.toml), with its `needs` and
+# `packages`; a [modules.<id>] section here or in config/local.toml only overrides them, key by key.
+# So this file holds no module's defaults, only the core's settings below.
+# The Talker's, main_assistant's, agent_hub's and task_agents' defaults (task_agents' kinds of helper
+# included) are in each module's module.toml; so are console_io's (prompt) and temp_ui's (port 8765,
+# window). usage, assistant_view and echo_orchestrator have none.
 # html_viewer's defaults (port 8766, window, generated folders, start_on_use) are in its module.toml.
 # voice_in's defaults (port 8767, timeouts, cleanup, terms) are in its module.toml; the voice
 # service's own settings in voice_in's app/voice_service/voice_service.toml.

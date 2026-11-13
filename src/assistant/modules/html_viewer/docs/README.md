@@ -34,5 +34,5 @@ There is no `html-viewer` script any more: the app lives in its module's folder,
 
 - Module: `src/assistant/modules/html_viewer/module.py`, defaults in `module.toml`
 - App: `src/assistant/modules/html_viewer/app/html_viewer/`
-- Tests: `tests/test_html_viewer.py` in this module's folder (the app and the module, on the [test kit](../../../../../docs/api/testkit.md)); centrally, `tests/test_viewer_listeners.py` (the Talker and the temp UI hearing its events) and `tests/test_start_on_use.py`
+- Tests: `tests/test_html_viewer.py` in this module's folder (the app and the module, on the [test kit](../../../../../docs/api/testkit.md)); the Talker hearing its events in `talker/tests/test_talker_snips.py`, the temp UI hearing them in `temp_ui/tests/test_temp_ui_snips.py` (each with the names it declares); centrally, `tests/test_start_on_use.py`
 - `docs/`: this overview, [Architecture](architecture.md), [Tools](tools.md) (generated from its menu), [the viewer app](viewer-app.md), and `docs.toml` (its docs tab and group)

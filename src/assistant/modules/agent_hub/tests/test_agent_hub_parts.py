@@ -167,3 +167,20 @@ async def test_the_talkers_answer_and_mode_items_check_their_caller() -> None:
     assert auto.status is Status.NOT_AVAILABLE and helper.modes == []
     assert (await menu.call(hub, "hub.mode", {"agent_id": "helper", "mode": "manual"}, caller="talker")).is_ok
     assert helper.modes == [PermissionMode.MANUAL]
+
+
+# --- its defaults in its module.toml ---
+
+
+def test_its_defaults_are_in_its_module_toml_under_the_apps_section() -> None:
+    from assistant.core import App
+    from assistant.testkit import module_config
+
+    defaults = module_config("agent_hub")
+    assert defaults["needs"] == [] and defaults["packages"] == []
+    # the same as the old [modules.agent_hub] in config/default.toml (the rest were comments)
+    assert {k: v for k, v in defaults.items() if k not in ("needs", "packages")} == {
+        "coordinator": "main_assistant", "max_extra_agents": 3}
+    assert AgentHubModule.manifest.needs == ()
+    app = App([AgentHubModule], {"modules": {"enabled": [], "agent_hub": {"max_extra_agents": 1}}, "core": {}})
+    assert app._config_of("agent_hub") == {**defaults, "max_extra_agents": 1}  # yours wins, the rest unchanged

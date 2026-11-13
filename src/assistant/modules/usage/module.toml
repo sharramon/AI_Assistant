@@ -1,0 +1,9 @@
+# usage's own defaults: none besides the two lists below. A `[modules.usage]` section in the app's
+# config would only override them (merged key by key).
+
+# The modules usage can't run without, by id (Manifest.needs): none. It tallies the SessionUsage events
+# any agent publishes, and asks the Agent Hub for the agents (ListAgents) when it's there.
+needs = []
+
+# The pip packages usage needs beyond the app's own (Manifest.packages): none.
+packages = []

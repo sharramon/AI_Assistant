@@ -1,5 +1,6 @@
-"""Usage tallies across parts: sub-agent tokens in ClaudeSession, the UsageLedger, closed agents, the temp UI's
-total, the Talker's line, and the usage module's menu. Tokens only: no money figure anywhere."""
+"""Usage tallies across parts: sub-agent tokens in ClaudeSession, the UsageLedger, closed agents (with the Hub),
+the temp UI's total, and the Talker's line. Tokens only: no money figure anywhere. The usage module's own menu
+is tested in its folder (`modules/usage/tests`)."""
 
 import asyncio
 import json
@@ -146,31 +147,6 @@ def usage_app(*more) -> App:
     enabled = ["usage", *(m.manifest.id for m in more)]
     config = {"modules": {"enabled": enabled, "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
     return App([UsageModule, *more], config)
-
-
-async def test_usage_menu_answers_total_agents_and_the_callers_own():
-    app = usage_app()
-    await app.start()
-    try:
-        app.bus.publish(usage("main_assistant", 1000))
-        app.bus.publish(usage(SUB_ID, 300, parent="main_assistant", kind="subagent"))
-        app.bus.publish(usage("talker", 200))
-
-        async def call(name: str, caller: str = "", **args):
-            return await app.router.send(InvokeTool(name=name, args=args, caller=caller))
-
-        await wait_until(lambda: len(app._lifecycle._active["usage"][0]._ledger.by_agent()) == 2)
-        total = await call("usage.total")
-        assert total.value["used_tokens"] == 1500
-        agents = (await call("usage.agents")).value
-        assert [a["agent_id"] for a in agents] == ["main_assistant", "talker"]
-        assert agents[0]["children"][0]["agent_id"] == SUB_ID
-        mine = await call("usage.mine", caller="main_assistant")  # no arguments: the door's caller
-        assert mine.value["total"]["used_tokens"] == 1300
-        other = await call("usage.mine", caller="talker", agent_id="main_assistant")
-        assert other.value["agent_id"] == "main_assistant"
-    finally:
-        await app.stop()
 
 
 async def test_a_closed_agents_rows_say_closed_and_stay_in_the_total(tmp_path):

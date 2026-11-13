@@ -14,7 +14,7 @@ import pytest
 
 import app_kit
 from app_kit import CompanionApp, load_layered
-from app_kit.window import devtools_port, open_app_window
+from app_kit.window import devtools_port, flash_window, open_app_window
 
 
 def test_app_kit_never_imports_assistant():
@@ -227,3 +227,8 @@ def test_window_profile_is_under_local_app_data(monkeypatch, tmp_path):
 
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     assert window_profile("temp_ui") == tmp_path / "AI_Assistant" / "temp_ui_window"
+
+
+def test_flash_window_finds_nothing_for_an_unknown_window():
+    # Off Windows it never flashes; on Windows no window has this title and no Edge has pid 0.
+    assert flash_window(0, "no such window title 7f3a") is False
