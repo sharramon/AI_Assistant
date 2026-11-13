@@ -28,7 +28,7 @@ Writing a module: lifecycle, manifest, and its context. `from assistant.contract
 |------|------|---------|
 | [`ModuleProtocol`](modules.md#moduleprotocol) | protocol | ♻ The one interface every module implements: `manifest`, `menu`, `init`, `start`, `stop`, `busy`, `export_state` |
 | [`Menu`](modules.md#menu) | part | ♻ A module's actions: `@menu.item(...)` on its methods; checked arguments; the core offers it through `InvokeTool` |
-| [`Manifest`](modules.md#manifest) | data | ♻ Module id, one-line description, its contracts (`uses`: looked up at each call, no start order), the modules it `needs` (by id, from its `module.toml`), the commands it handles and sends, the events it publishes and listens to, its permissions |
+| [`Manifest`](modules.md#manifest) | data | ♻ Module id, one-line description, its contracts (`uses`: looked up at each call, no start order), the modules it `needs` (by id) and its pip `packages` (both from its `module.toml`), the commands it handles and sends, the events it publishes and listens to, its permissions |
 | [`ModuleContext`](modules.md#modulecontext) | interface | ♻ A module's only access to the app: events, commands, contracts (`provide`, `withdraw` one back), config, logging |
 | [`ctx.logs`](modules.md#modulecontextlogs) | interface | ♻ This launch's log `folder()` and files (`sink(name)`), owned by the core (`ModuleLogs`) |
 | [`ctx.permissions`](modules.md#modulecontextpermissions) | interface | ♻ `has` / `request` a permission, `request_set` a whole access list, `granted` / `ask` one item for an agent (`ModulePermissions`); forwards to the core's permissions handler |

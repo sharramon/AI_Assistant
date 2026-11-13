@@ -1,6 +1,6 @@
 """The CV Tool app itself (`cv/app/cv_tool`, the cv module's UI half): its engine (`cvlib`) on a temp data
 folder, the 10 pt floor (a warning, never a refused Submit), and the server's guard, JSON-only posts, the
-Submit's event and quit. Needs `pymupdf` (the `cv` extra);
+Submit's event and quit. Needs `pymupdf` (in cv's module.toml `packages`);
 the real print needs Chrome. Nothing outside tmp_path is written."""
 
 import http.client

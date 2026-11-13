@@ -84,21 +84,30 @@ def module_defaults(cls: type) -> dict[str, Any]:
         return {}
 
 
-def apply_needs(cls: type[ModuleProtocol]) -> type[ModuleProtocol]:
-    """Put `needs = [...]` from the module's `module.toml` on its manifest (`Manifest.needs`), so the
-    module declares the modules it needs in one place. No `needs` key: the manifest is left as it is.
-    Returns `cls`; LoadError if the value isn't a list of module ids."""
+#: The `module.toml` keys the core puts on the manifest, each a list of strings, with what they hold.
+MANIFEST_KEYS = {"needs": "module ids", "packages": "pip requirements"}
+
+
+def apply_module_toml(cls: type[ModuleProtocol]) -> type[ModuleProtocol]:
+    """Put the manifest keys (`MANIFEST_KEYS`) from the module's `module.toml` on its manifest:
+    `needs = [...]` (`Manifest.needs`) and `packages = [...]` (`Manifest.packages`), so the module
+    declares them in one place. A key the file doesn't have leaves that field as it is.
+    Returns `cls`; LoadError if a value isn't a list of strings, or the manifest refuses it."""
     defaults = module_defaults(cls)
-    if "needs" not in defaults:
-        return cls
-    needs = defaults["needs"]
-    if not isinstance(needs, list) or not all(isinstance(n, str) for n in needs):
-        raise LoadError(f"{cls.manifest.id!r}: needs in its {MODULE_DEFAULTS} must be a list of module ids, "
-                        f"not {needs!r}")  # fmt: skip
-    try:
-        cls.manifest = dataclasses.replace(cls.manifest, needs=tuple(needs))
-    except ValueError as exc:
-        raise LoadError(str(exc)) from exc
+    found = {}
+    for key, what in MANIFEST_KEYS.items():
+        if key not in defaults:
+            continue
+        value = defaults[key]
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise LoadError(f"{cls.manifest.id!r}: {key} in its {MODULE_DEFAULTS} must be a list of {what}, "
+                            f"not {value!r}")  # fmt: skip
+        found[key] = tuple(value)
+    if found:
+        try:
+            cls.manifest = dataclasses.replace(cls.manifest, **found)
+        except ValueError as exc:
+            raise LoadError(str(exc)) from exc
     return cls
 
 
@@ -183,7 +192,7 @@ def find_module_class(package: ModuleType, module_id: str | None = None) -> type
     if len(found) != 1:
         what = f"module {module_id!r}" if module_id else "a module"
         raise LoadError(f"{prefix!r} must export exactly one class for {what}; found {len(found)}")
-    return apply_needs(found.pop())
+    return apply_module_toml(found.pop())
 
 
 def check_folder(cls: type[ModuleProtocol], package: str, root: str = MODULES_PACKAGE) -> None:

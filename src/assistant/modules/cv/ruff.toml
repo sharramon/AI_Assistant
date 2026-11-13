@@ -1,0 +1,9 @@
+# cv's own ruff rules. Ruff uses the closest config file for each file, so this one covers the cv
+# folder; `extend` keeps every root setting (pyproject.toml), and only what is written here is added.
+extend = "../../../../pyproject.toml"
+# One cache at the repo root, as for every other file (not a second one in this folder).
+cache-dir = "../../../../.ruff_cache"
+
+[lint.per-file-ignores]
+# The CV Tool's engine, moved in as it was (2026-11-09): its short names and lambdas are kept.
+"app/cv_tool/cvlib.py" = ["E741", "E731", "B905"]

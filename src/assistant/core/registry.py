@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 from assistant.contracts import Contract, ModuleProtocol
 from assistant.core.container import allows_another, is_shared_contract
-from assistant.core.loader import LoadError, apply_needs
+from assistant.core.loader import LoadError, apply_module_toml
 
 
 class StartupError(Exception):
@@ -25,7 +25,7 @@ def resolve_modules(available: Sequence[type[ModuleProtocol]], enabled: Sequence
     by_id: dict[str, type[ModuleProtocol]] = {}
     for cls in available:
         try:
-            apply_needs(cls)
+            apply_module_toml(cls)
         except LoadError as exc:
             raise StartupError(str(exc)) from exc
         if cls.manifest.id in by_id:

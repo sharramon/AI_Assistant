@@ -79,11 +79,12 @@ Functions for finding the modules by folder and loading a module's code fresh. G
 | `package_of(cls) -> str` | The package a module class lives in |
 | `module_folder(cls) -> Path \| None` | The folder of that package, where the module keeps its own config defaults and docs; `None` if it can't be found |
 | `module_defaults(cls) -> dict` | The module's own config defaults, `module.toml` in its folder, read fresh each time (a reload picks up new defaults). `{}` if none; an unreadable file is logged and counts as none. `App` merges the `[modules.<id>]` section over it for `ctx.config` |
+| `apply_module_toml(cls) -> type` | Puts the manifest keys of the module's `module.toml` (`MANIFEST_KEYS`: `needs`, `packages`, each a list of strings) on its manifest; a key the file doesn't have leaves that field as it is. `LoadError` for a value that isn't a list of strings, or one the manifest refuses. Used by `find_module_class` and `resolve_modules` (built 2026-11-13; it replaced `apply_needs`, which read `needs` only) |
 | `check_reloadable(package)` | Raises `LoadError` for shared code (`assistant.core`, `.contracts`, `.infra`, `.testkit`, `app_kit`), `assistant` / `assistant.modules` themselves, or a top-level name |
 | `drop(package) -> dict` | Remove the package and its submodules from `sys.modules` (and their `__pycache__`); returns them |
 | `restore(package, removed)` | Put back what `drop` removed |
 | `import_fresh(package)` | Import from source (a new module's `app/` folder on the path first); a missing contract becomes `LoadError` ("needs a restart") |
-| `find_module_class(package, module_id=None)` | The one `ModuleProtocol` subclass the package exports |
+| `find_module_class(package, module_id=None)` | The one `ModuleProtocol` subclass the package exports, with its `module.toml` keys applied (`apply_module_toml`) |
 
 **Defined in:** `src/assistant/core/loader.py`
 

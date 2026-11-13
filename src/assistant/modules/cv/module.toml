@@ -4,6 +4,10 @@
 # refuses to turn one off while cv is on). None: cv talks to the others only through contracts.
 needs = []
 
+# The pip packages cv needs beyond the app's own (Manifest.packages): the CV Tool app's PDF text,
+# sizes and page images. Nothing installs them: install them by hand with pip from this list.
+packages = ["pymupdf>=1.24"]
+
 # The usual order of the one page.
 section_order = ["contact", "summary", "skills", "experience", "projects", "education", "awards", "publications"]
 # Used only when the job requires or prefers a master's: Education right under Skills.

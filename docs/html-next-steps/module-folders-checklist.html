@@ -12,10 +12,11 @@
 <nav data-root="" data-page="module-folders-checklist.html"></nav>
 <main>
 <h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
-<p><strong>Count: 6 of 20 done</strong> (items 1 to 5 and 20).</p>
+<p><strong>Count: 7 of 20 done</strong> (items 1 to 6 and 20).</p>
+<p><strong>Architecture check after the cv chunk (items 2–6):</strong> modularity OK (no cv-specific code in the core, contracts, infra or <code>app_kit</code>, only examples in comments; every module's <code>app/</code> is checked never to import <code>assistant</code>); reuse OK (<code>add_app_folders</code>, <code>launch_env</code>, <code>apply_module_toml</code> and <code>assistant.testkit</code> are in the reusable index with Used by lines); fit OK (the core reads <code>needs</code> and <code>packages</code> from any <code>module.toml</code>, no names).</p>
 <h2 id="morning-list-kept-as-the-run-goes">Morning list, kept as the run goes</h2>
 <ul>
-<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub); item 4 (<code>add_app_folders</code> in the core's loader, <code>launch_env</code> in <code>CompanionApp</code>: <strong>until the restart, the running app can't launch the CV Tool</strong>, since <code>src/cv_tool</code> is gone).</li>
+<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub); item 4 (<code>add_app_folders</code> in the core's loader, <code>launch_env</code> in <code>CompanionApp</code>: <strong>until the restart, the running app can't launch the CV Tool</strong>, since <code>src/cv_tool</code> is gone); item 6 (<code>Manifest.packages</code>, <code>apply_module_toml</code>).</li>
 <li><strong>Hand check, item 4:</strong> after the restart, <code>cv.open_tool</code> opens the CV Tool from <code>modules/cv/app/cv_tool/</code>.</li>
 <li><strong>Hand checks:</strong> at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).</li>
 <li><strong>Old folders left for you to delete:</strong> none yet.</li>
@@ -56,6 +57,7 @@
 <li><strong>Finding app folders lives in the core, launching them in <code>app_kit</code></strong> (item 4): <code>add_app_folders()</code> (core loader: at startup, reload, add, and in <code>conftest.py</code>) puts every <code>modules/*/app</code> on the import path; <code>CompanionApp</code> launches <code>python -m &lt;app&gt;</code> with <code>launch_env</code> (its folder first on <code>PYTHONPATH</code>). Items 8 and 9 reuse both.</li>
 <li><strong>The CV Tool's defaults are its module's workspace</strong> (item 4): <code>cvlib.WORKSPACE</code> = <code>modules/cv/workspace</code> (with a made-up <code>cvs</code> folder for running it by hand); the cv module still passes its real folders on the command line.</li>
 <li><strong>The test kit is <code>assistant.testkit</code></strong> (item 5), moved from <code>tests/</code> (<code>support.py</code>, <code>fake_claude.py</code>, <code>fake_job_ui.py</code>, and the agent fakes from <code>test_agents.py</code> / <code>test_multi_agent.py</code>), with no pytest code; the <code>hub</code> fixture stays in <code>tests/test_agents.py</code>. The loader counts it as shared code (not reloadable). No cv-only test was left in <code>tests/</code>, so none moved.</li>
+<li><strong>cv lists only pymupdf</strong> (item 6): it also uses <code>pypdf</code> and <code>mcp</code>, which were never in <code>pyproject.toml</code>; adding them to cv's <code>packages</code> is left for you. <code>cv_tool</code> left ruff's <code>known-first-party</code> (the <code>src</code> glob over <code>modules/*/app</code> covers every app). cv's <code>ruff.toml</code> extends the root config and keeps the cache at the root.</li>
 </ol>
 <h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
 <table>
@@ -165,7 +167,8 @@
 <li><strong>How:</strong> create <code>src/assistant/testkit/</code> (the fakes and helpers modules need: the fake <code>claude</code>, the app builders now in <code>tests/test_agents.py</code> and <code>tests/test_multi_agent.py</code>); point <code>cv/tests/test_worker.py</code> and the agent_hub tests at it; move any cv test still in <code>tests/</code> into the module. Add it to the reusable index.</li>
 <li><strong>Done when:</strong> <code>git grep -n "from tests\.|import tests\." src/assistant/modules</code> finds nothing; <code>git ls-files tests | grep -i cv</code> finds nothing cv-only; the tripwire test passes.</li>
 </ul>
-<h3 id="6-cv-packages-and-the-ruff-rule-move-out-of-pyprojecttoml">6. cv: packages and the ruff rule move out of <code>pyproject.toml</code></h3>
+<h3 id="6-cv-packages-and-the-ruff-rule-move-out-of-pyprojecttoml-done-2026-11-13">6. cv: packages and the ruff rule move out of <code>pyproject.toml</code>: <strong>done</strong> (2026-11-13)</h3>
+<p><strong>Checked:</strong> <code>pyproject.toml</code> has no line matching <code>cv</code> or <code>pymupdf</code>; <code>cv/module.toml</code> has <code>packages = ["pymupdf&gt;=1.24"]</code>; <code>modules/cv/ruff.toml</code> exists; <code>test_no_module_package_in_pyproject</code> and <code>test_packages_come_from_module_toml</code> pass; full suite 859 passed, 2 deselected; ruff clean. <strong>Needs an app restart</strong> (<code>Manifest.packages</code>, the loader).</p>
 <ul>
 <li><strong>What:</strong> pymupdf is listed in <code>cv/module.toml</code> (<code>packages</code>), and the cvlib ruff exceptions are in <code>modules/cv/ruff.toml</code>.</li>
 <li><strong>Why:</strong> the picture: "packages: pymupdf · ruff rule ← pyproject".</li>

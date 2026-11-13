@@ -1,10 +1,12 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 6 of 20 done** (items 1 to 5 and 20).
+**Count: 7 of 20 done** (items 1 to 6 and 20).
+
+**Architecture check after the cv chunk (items 2–6):** modularity OK (no cv-specific code in the core, contracts, infra or `app_kit`, only examples in comments; every module's `app/` is checked never to import `assistant`); reuse OK (`add_app_folders`, `launch_env`, `apply_module_toml` and `assistant.testkit` are in the reusable index with Used by lines); fit OK (the core reads `needs` and `packages` from any `module.toml`, no names).
 
 ## Morning list, kept as the run goes
 
-- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone).
+- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`).
 - **Hand check, item 4:** after the restart, `cv.open_tool` opens the CV Tool from `modules/cv/app/cv_tool/`.
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
 - **Old folders left for you to delete:** none yet.
@@ -49,6 +51,7 @@ For you to review. Each picks the option closest to the approved picture.
 15. **Finding app folders lives in the core, launching them in `app_kit`** (item 4): `add_app_folders()` (core loader: at startup, reload, add, and in `conftest.py`) puts every `modules/*/app` on the import path; `CompanionApp` launches `python -m <app>` with `launch_env` (its folder first on `PYTHONPATH`). Items 8 and 9 reuse both.
 16. **The CV Tool's defaults are its module's workspace** (item 4): `cvlib.WORKSPACE` = `modules/cv/workspace` (with a made-up `cvs` folder for running it by hand); the cv module still passes its real folders on the command line.
 17. **The test kit is `assistant.testkit`** (item 5), moved from `tests/` (`support.py`, `fake_claude.py`, `fake_job_ui.py`, and the agent fakes from `test_agents.py` / `test_multi_agent.py`), with no pytest code; the `hub` fixture stays in `tests/test_agents.py`. The loader counts it as shared code (not reloadable). No cv-only test was left in `tests/`, so none moved.
+18. **cv lists only pymupdf** (item 6): it also uses `pypdf` and `mcp`, which were never in `pyproject.toml`; adding them to cv's `packages` is left for you. `cv_tool` left ruff's `known-first-party` (the `src` glob over `modules/*/app` covers every app). cv's `ruff.toml` extends the root config and keeps the cache at the root.
 
 ## The safeguards (from the audit, section 4)
 
@@ -117,7 +120,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** create `src/assistant/testkit/` (the fakes and helpers modules need: the fake `claude`, the app builders now in `tests/test_agents.py` and `tests/test_multi_agent.py`); point `cv/tests/test_worker.py` and the agent_hub tests at it; move any cv test still in `tests/` into the module. Add it to the reusable index.
 - **Done when:** `git grep -n "from tests\.\|import tests\." src/assistant/modules` finds nothing; `git ls-files tests | grep -i cv` finds nothing cv-only; the tripwire test passes.
 
-### 6. cv: packages and the ruff rule move out of `pyproject.toml`
+### 6. cv: packages and the ruff rule move out of `pyproject.toml`: **done** (2026-11-13)
+
+**Checked:** `pyproject.toml` has no line matching `cv` or `pymupdf`; `cv/module.toml` has `packages = ["pymupdf>=1.24"]`; `modules/cv/ruff.toml` exists; `test_no_module_package_in_pyproject` and `test_packages_come_from_module_toml` pass; full suite 859 passed, 2 deselected; ruff clean. **Needs an app restart** (`Manifest.packages`, the loader).
 
 - **What:** pymupdf is listed in `cv/module.toml` (`packages`), and the cvlib ruff exceptions are in `modules/cv/ruff.toml`.
 - **Why:** the picture: "packages: pymupdf · ruff rule ← pyproject".

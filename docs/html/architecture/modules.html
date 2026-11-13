@@ -188,6 +188,8 @@
 <ul>
 <li><strong>A manifest requires contracts, never module ids</strong> (<a href="principles.html">principle 2</a>). The core starts the provider first: in dependency order at startup, and at runtime <code>ActivateModule</code> activates the sole provider first. It refuses to turn a provider off while an active module requires it (<a href="core.html#runtime-module-control">runtime module control</a>).</li>
 <li><strong><code>needs</code> lists module ids</strong> (built 2026-11-13, module folders item 2): the modules this one can't run without, written in its <code>module.toml</code> as <code>needs = []</code> (cv) or <code>needs = ["cv"]</code> (job_search, next). The core reads the key into <code>Manifest.needs</code> when it loads the module. Turning a module on turns on what it needs first (at startup too, even if <code>modules.enabled</code> doesn't list it); turning off a needed module is refused while a module that needs it is on, and the error names that module (<code>with_dependents</code> turns them off first); a needed id that doesn't exist is refused by name. The code still talks to the other module only through contracts, its menu and named events; <code>requires</code> is unchanged.</li>
+<li><strong><code>packages</code> lists its pip packages</strong> (built 2026-11-13): written in its <code>module.toml</code> as <code>packages = ["pymupdf&gt;=1.24"]</code> (cv), read into <code>Manifest.packages</code> by the same reader as <code>needs</code> (<code>loader.apply_module_toml</code>). Nothing installs them yet: install them by hand with pip from that list. <code>pyproject.toml</code> holds the app's own packages and the <code>dev</code> extra; the <code>voice</code> extra is the one module extra left there for now.</li>
+<li><strong>Its ruff rules are in its folder:</strong> a module's lint exceptions go in its own <code>ruff.toml</code> (cv: the CV Tool engine's per-file ignore), which starts with <code>extend = "&lt;path to the root pyproject.toml&gt;"</code>. Ruff uses the closest config file for each file, so the root settings (<code>src</code>, the rule selection, isort's first-party names) still apply inside the module folder, and only what the module's file adds is new.</li>
 <li><strong><code>optional</code></strong> contracts are used if some module provides them, and the module copes without them.</li>
 <li><strong>No module starts another itself.</strong> Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.</li>
 <li><strong>Voice:</strong> <code>voice_in</code> provides the voice contract <a href="../api/messaging.html#ivoice"><code>IVoice</code></a>, and voice notes requires it: turning voice notes on turns <code>voice_in</code> on first, and <code>voice_in</code> can't be turned off while voice notes is on. Any other module that provides <code>IVoice</code> can replace <code>voice_in</code>.</li>
@@ -230,6 +232,10 @@
 </tr>
 <tr>
 <td><code>needs</code> by module id, from <code>module.toml</code>: turned on first, refused off while needed</td>
+<td>Built (2026-11-13)</td>
+</tr>
+<tr>
+<td><code>packages</code> in <code>module.toml</code> (listed, not installed) and a module's own <code>ruff.toml</code></td>
 <td>Built (2026-11-13)</td>
 </tr>
 <tr>

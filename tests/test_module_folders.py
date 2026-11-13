@@ -16,12 +16,16 @@ finds every module's `app/` folder by folder and puts it on the import path, a l
 (`PYTHONPATH`), the app never imports `assistant`, and its defaults are in cv's workspace.
 
 Item 5: cv's tests are in its module, on the public test kit. No module file imports `tests`; the
-shared fakes and helpers are in `assistant.testkit`, which only tests import; no cv test is central."""
+shared fakes and helpers are in `assistant.testkit`, which only tests import; no cv test is central.
+
+Item 6: cv's packages and ruff rule are in its folder. pyproject.toml names no module package, extra or
+per-file ignore; cv's module.toml lists `packages` (on its manifest), and cv/ruff.toml extends the root."""
 
 from __future__ import annotations
 
 import ast
 import asyncio
+import importlib
 import os
 import re
 import subprocess
@@ -146,17 +150,17 @@ def _states(app: App) -> dict[str, ModuleState]:
 def test_cv_declares_needs(monkeypatch) -> None:
     toml = tomllib.loads((CV / "module.toml").read_text(encoding="utf-8"))
     assert toml["needs"] == []
-    assert loader.apply_needs(CvModule).manifest.needs == ()
+    assert loader.apply_module_toml(CvModule).manifest.needs == ()
     # A module.toml's needs reach the manifest; a wrong value or the module's own id is refused.
     class FromToml(Base):
         manifest = Manifest(id="from_toml")
 
     monkeypatch.setattr(loader, "module_defaults", lambda cls: {"needs": ["base_part"]})
-    assert loader.apply_needs(FromToml).manifest.needs == ("base_part",)
+    assert loader.apply_module_toml(FromToml).manifest.needs == ("base_part",)
     for bad in ("base_part", ["from_toml"], [1]):
         monkeypatch.setattr(loader, "module_defaults", lambda cls, bad=bad: {"needs": bad})
         with pytest.raises(loader.LoadError):
-            loader.apply_needs(FromToml)
+            loader.apply_module_toml(FromToml)
 
 
 async def test_turning_on_a_module_turns_on_what_it_needs() -> None:
@@ -325,3 +329,52 @@ def test_only_tests_import_the_testkit() -> None:
     assert Path(FAKE[1]).parent == TESTKIT and Path(FAKE[1]).is_file() and Path(FAKE_JOB_UI).is_file()
     assert not list((REPO / "tests").glob("fake_*.py")) and not (REPO / "tests" / "support.py").exists()
     assert not any(n.split(".")[0] == "pytest" for f in _python_files(TESTKIT) for n in _imports(f))
+
+
+# Item 6: cv's packages and ruff rule in its folder.
+
+# Modules whose packages, extra and ruff rules have left pyproject.toml: the extra's name, a package
+# name for each of its packages, and its app's name if pyproject.toml must not name it at all (or None).
+# Item 9 adds voice_in's ("voice").
+MOVED_OUT = {
+    "cv": SimpleNamespace(extra="cv", packages=["pymupdf"], app="cv_tool"),
+}
+
+
+def test_no_module_package_in_pyproject() -> None:
+    root = REPO / "pyproject.toml"
+    text = root.read_text(encoding="utf-8").lower()
+    pyproject = tomllib.loads(text)
+    extras = pyproject["project"].get("optional-dependencies", {})
+    ignores = pyproject["tool"]["ruff"]["lint"].get("per-file-ignores", {})
+    for module_id, moved in MOVED_OUT.items():
+        assert moved.extra not in extras, f"the {moved.extra!r} extra is still in pyproject.toml"
+        assert not any(package in text for package in moved.packages), moved.packages
+        assert not any(f"/{module_id}/" in path for path in ignores), f"a {module_id} per-file ignore is left"
+        assert not (moved.app and moved.app in text), f"{moved.app} is still named in pyproject.toml"
+        # The module lists its packages in its module.toml, and they reach its manifest.
+        folder = MODULES_FOLDER / module_id
+        listed = tomllib.loads((folder / "module.toml").read_text(encoding="utf-8"))["packages"]
+        cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
+        assert cls.manifest.packages == tuple(listed)
+        assert all(any(r.lower().startswith(p) for r in listed) for p in moved.packages)
+        # Its ruff rules extend the root config, so every root setting still applies in its folder.
+        ruff = tomllib.loads((folder / "ruff.toml").read_text(encoding="utf-8"))
+        assert (folder / ruff["extend"]).resolve() == root.resolve()
+    assert "cvlib.py" in str(tomllib.loads((CV / "ruff.toml").read_text(encoding="utf-8"))["lint"]["per-file-ignores"])
+
+
+def test_packages_come_from_module_toml(monkeypatch) -> None:
+    class Packaged(Base):
+        manifest = Manifest(id="packaged", needs=("base_part",))
+
+    # One reader for both keys: packages arrive, and needs are left as they were when absent.
+    monkeypatch.setattr(loader, "module_defaults", lambda cls: {"packages": ["somepkg>=1"]})
+    manifest = loader.apply_module_toml(Packaged).manifest
+    assert manifest.packages == ("somepkg>=1",) and manifest.needs == ("base_part",)
+    for bad in ("somepkg", [""], ["  "], [1]):
+        monkeypatch.setattr(loader, "module_defaults", lambda cls, bad=bad: {"packages": bad})
+        with pytest.raises(loader.LoadError, match="packages"):
+            loader.apply_module_toml(Packaged)
+    with pytest.raises(ValueError, match="packages"):
+        Manifest(id="x", packages=("",))

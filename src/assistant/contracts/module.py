@@ -77,6 +77,10 @@ class Manifest:
     #: refused off while this one is on. Read from `needs = [...]` in the module's `module.toml`
     #: when it has the key (the core puts it here), so a module declares it in one place.
     needs: tuple[str, ...] = ()
+    #: The pip packages this module's code (and its app) needs, as requirement strings
+    #: (`"pymupdf>=1.24"`), read from `packages = [...]` in its `module.toml` the same way.
+    #: Informational: nothing installs them; install them by hand from this list.
+    packages: tuple[str, ...] = ()
     #: Permission names the module can't run without (checked once a permissions handler exists).
     permissions: tuple[str, ...] = ()
     #: Permissions asked for in the moment; without them a feature is off.
@@ -110,6 +114,9 @@ class Manifest:
         for needed in self.needs:
             if not (isinstance(needed, str) and needed.isidentifier()) or needed == self.id:
                 raise ValueError(f"{self.id}: manifest.needs takes other modules' ids, got {needed!r}")
+        for package in self.packages:
+            if not (isinstance(package, str) and package.strip()):
+                raise ValueError(f"{self.id}: manifest.packages takes pip requirements, got {package!r}")
         for name in self.publishes_named:
             if not (event_name_ok(name) and name.startswith(f"{self.id}.")):
                 raise ValueError(f"{self.id}: manifest.publishes_named takes '{self.id}.<what>' names, got {name!r}")
