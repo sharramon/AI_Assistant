@@ -28,7 +28,7 @@
    - The Hub's `_to_parent` (`agent_hub/tasks.py`).
    - `agent_hub/module.py`'s `hub.start` text about the end coming back as a message (about `:195-215`).
    - The `job_start.json` `replied` record.
-   - The job project: `C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md:29-37` and `C:\Chang\Jobs\CV\CLAUDE.md` (grep `cv.task`, `cv.read_result`, `CV_RESULT`, `job_start.json`, "wait", "poll").
+   - The job project: `C:\Jobs\CV\.claude\skills\apply-session\SKILL.md:29-37` and `C:\Jobs\CV\CLAUDE.md` (grep `cv.task`, `cv.read_result`, `CV_RESULT`, `job_start.json`, "wait", "poll").
    - cv's worker prompt (`cv/worker.py`), for anything that tells cv_agent to message the asker.
 
    Report the list to the user before the restart question, and record what was cut in [job-cv-finish-event](job-cv-finish-event.md).
@@ -66,5 +66,5 @@
 
 ## Other facts from this task
 
-- The cancelled SMOKE TEST 3 left nothing behind. There's no NonexistentTestCo folder anywhere under `C:\Chang\Jobs`, so nothing was deleted.
+- The cancelled SMOKE TEST 3 left nothing behind. There's no NonexistentTestCo folder anywhere under `C:\Jobs`, so nothing was deleted.
 - The history question, answered for the user: `cv.job_finished` was built on `publish_named` / `subscribe_named` (never committed). job_search turned it into an `AgentNotice` (wakes nobody), not the approved `DeliverMessage`. It was removed after the user approved the assistant's recommendation (`logs/2026-11-12_05-20-12_running-tests-after-restart/talker.jsonl`, lines 172, 179, 181).

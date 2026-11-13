@@ -12,7 +12,7 @@
 <nav data-root="" data-page="handoff-20c1d08e.html"></nav>
 <main>
 <h1 id="handoff-20c1d08e-cv-module-pdf-in-and-pdf-out-build">Handoff 20c1d08e: cv module, PDF in and PDF out (build)</h1>
-<p>Task: build the plan in <code>docs/next-steps/cv-pdf-only.md</code>. The user said "build it". <strong>User change (2026-11-09): keep cv_agent's read access to <code>C:\Chang\Jobs\CV</code>. Don't touch <code>[agent] read_dirs</code>, and leave that part of the plan out.</strong> Ask before any reload or restart. Ask before editing the job agent's files (<code>save_jd.py</code>, the apply-session skill, the ExampleCorp record). Don't touch the uncommitted <code>infra/session_agent.py</code> and <code>handoff_keeper.py</code> (another agent's). <code>job_search/module.py</code>, <code>tests/test_agents.py</code> and <code>tests/test_worker_parts.py</code> are also modified, not by this task: leave them alone.</p>
+<p>Task: build the plan in <code>docs/next-steps/cv-pdf-only.md</code>. The user said "build it". <strong>User change (2026-11-09): keep cv_agent's read access to <code>C:\Jobs\CV</code>. Don't touch <code>[agent] read_dirs</code>, and leave that part of the plan out.</strong> Ask before any reload or restart. Ask before editing the job agent's files (<code>save_jd.py</code>, the apply-session skill, the ExampleCorp record). Don't touch the uncommitted <code>infra/session_agent.py</code> and <code>handoff_keeper.py</code> (another agent's). <code>job_search/module.py</code>, <code>tests/test_agents.py</code> and <code>tests/test_worker_parts.py</code> are also modified, not by this task: leave them alone.</p>
 <h2 id="state-right-now-session-3-2026-11-09-built-and-tested-waiting-on-you">State right now (session 3, 2026-11-09): built and tested, waiting on you</h2>
 <ul>
 <li><strong>Tests:</strong> all updated to PDF fixtures, plus the new <code>tests/test_pdf_read.py</code>. 130 cv tests pass, three of them with real LibreOffice; with <code>test_module_layout.py</code> and <code>test_module_docs.py</code>, 156 pass. Ruff check is clean.</li>
@@ -27,7 +27,7 @@
 <li><strong>No for now</strong> to the <code>cv</code> reload and to editing the job agent's three files. Wait for the user. Only read-only work, plus the context note below.</li>
 </ul>
 <h2 id="in-progress-the-rezi-context-note-read-only-plus-one-file-to-write">In progress: the Rezi context note (read only, plus one file to write)</h2>
-<p><strong>Task:</strong> read <code>C:\Chang\Jobs\rezi\cv_tool</code>, <code>C:\Chang\Jobs\rezi\rezi</code> and <code>C:\Chang\Jobs\rezi\rezi_agent</code> read-only, and run nothing. Then write <strong>only</strong> <code>C:\Chang\Jobs\rezi\cv_agent\work\rezi_context_note.md</code> covering:</p>
+<p><strong>Task:</strong> read <code>C:\Jobs\rezi\cv_tool</code>, <code>C:\Jobs\rezi\rezi</code> and <code>C:\Jobs\rezi\rezi_agent</code> read-only, and run nothing. Then write <strong>only</strong> <code>C:\Jobs\rezi\cv_agent\work\rezi_context_note.md</code> covering:</p>
 <ul>
 <li>how the Rezi flow and its UI really work;</li>
 <li>what each folder holds;</li>
@@ -35,7 +35,7 @@
 <li>what the old flow did that the cv module doesn't;</li>
 <li>anything that changes the PDF plan.</li>
 </ul>
-<p>Then tell the user the key points briefly. <strong>Written (session 4, 2026-11-09).</strong> Tests re-run: 156 pass. Also found: <code>CV_Test_SWE.odt</code> was emptied 2026-11-08 02:00:50 (during Hooli); <code>CV_Test_SWE.pdf</code> (2026-10-22) exists. Hooli never reached Submit. Still waiting: reload, the job agent's 3 files. (Earlier status below.) All three folders have been read except: Hooli's <code>job.json</code> (end state; submitted or not) and the names of the driving scripts in <code>C:\Chang\Jobs\rezi\cv_agent\scripts</code> (both still to check, read only).</p>
+<p>Then tell the user the key points briefly. <strong>Written (session 4, 2026-11-09).</strong> Tests re-run: 156 pass. Also found: <code>CV_Test_SWE.odt</code> was emptied 2026-11-08 02:00:50 (during Hooli); <code>CV_Test_SWE.pdf</code> (2026-10-22) exists. Hooli never reached Submit. Still waiting: reload, the job agent's 3 files. (Earlier status below.) All three folders have been read except: Hooli's <code>job.json</code> (end state; submitted or not) and the names of the driving scripts in <code>C:\Jobs\rezi\cv_agent\scripts</code> (both still to check, read only).</p>
 <p><strong>Findings so far:</strong></p>
 <ul>
 <li><strong><code>rezi\</code> (2026-11-06/07): the cv module's planning folder, not a tool.</strong></li>
@@ -56,7 +56,7 @@
 <li><strong><code>cv_tool\</code>: the standalone CV Tool app the user actually used for Hooli</strong> (README read in full).</li>
 <li><strong>Start:</strong> <code>cv_tool.cmd</code> runs <code>pythonw -I server.py</code>, a server on 127.0.0.1 in its own Edge window (<code>.edge_profile</code>).</li>
 <li><strong><code>cvlib.py</code>:</strong><ul>
-<li>reads base CVs as <code>.odt</code>/<code>.docx</code> only, from <code>C:\Chang\Jobs\CV</code>;</li>
+<li>reads base CVs as <code>.odt</code>/<code>.docx</code> only, from <code>C:\Jobs\CV</code>;</li>
 <li>renders its own HTML template (Source Sans 3, Letter, <code>render()</code>);</li>
 <li>exports the PDF with <strong>headless Chrome print-to-pdf</strong> (<code>.chrome_print</code> profile), not LibreOffice;</li>
 <li>pymupdf for page count, parse checks and highlights;</li>
@@ -101,7 +101,7 @@
 </li>
 <li><strong>The one-time check against the .odt reader: 33/36 match exactly.</strong> The other 3 aren't reader bugs: the Apple and Walden PDFs are older than their .odt files, and SWE.odt is 0 bytes.<ul>
 <li>Unplaced is 0 on every CV except <code>CV_Test_Rezi.pdf</code> (78; Rezi's own layout, so the worker would stop and ask).</li>
-<li>Scripts and copies: <code>C:\Chang\Jobs\rezi\cv_agent\work\pdf-reader-check</code> (<code>check_all.py</code>, <code>lines.py</code>). Run them with <code>PYTHONPATH=&lt;repo&gt;\src</code>.</li>
+<li>Scripts and copies: <code>C:\Jobs\rezi\cv_agent\work\pdf-reader-check</code> (<code>check_all.py</code>, <code>lines.py</code>). Run them with <code>PYTHONPATH=&lt;repo&gt;\src</code>.</li>
 </ul>
 </li>
 <li><strong><code>content.py</code>:</strong> <code>CvContent.from_pdf</code> raises ValueError naming the unplaced text. <code>from_odt</code> is removed; <code>odt.read_odt</code> is kept for the writer's round-trip tests.</li>

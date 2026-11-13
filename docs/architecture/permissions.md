@@ -18,7 +18,7 @@ One **permissions handler** knows three things:
 
 1. **What the app has:** real capabilities it can check, such as Windows location being on, a microphone being present, or a Google account being connected. Each comes from a permission source (planned).
 2. **What each module needs:** declared in its manifest, as required or optional. A task-agent module declares `agent.access` and lists its access in its config.
-3. **What you've granted each module:** saved across restarts in `config/permissions.toml` (yours, gitignored), for example "job_search → job_search_agent: read `C:\Chang\Jobs`, use Chrome".
+3. **What you've granted each module:** saved across restarts in `config/permissions.toml` (yours, gitignored), for example "job_search → job_search_agent: read `C:\Jobs`, use Chrome".
 
 A module may use a permission only when the app has it **and** you've granted it to that module.
 
@@ -49,7 +49,7 @@ A module never finds the handler or passes its own id. The core gives each modul
 
 ## Access lists (built)
 
-A task agent asks for its whole access list in one request when its module is turned on. The list comes from its config section: `workspace` (its working folder, read and write), `read_dirs`, `write_dirs`, `python`, `allowed_commands` and `chrome` ([`access_items`](../api/infra.md#agent_access)). Each item has a key (`kind:target`, for example `read:C:\Chang\Jobs`).
+A task agent asks for its whole access list in one request when its module is turned on. The list comes from its config section: `workspace` (its working folder, read and write), `read_dirs`, `write_dirs`, `python`, `allowed_commands` and `chrome` ([`access_items`](../api/infra.md#agent_access)). Each item has a key (`kind:target`, for example `read:C:\Jobs`).
 
 **Every module can edit itself** (built 2026-11-13). A module's own agent (`cv_agent`, `job_search_agent`) gets one more item by default: a write on its own module folder, `src/assistant/modules/<id>` (`access_items(config, module_id)`, from `request_access`, which passes the asking module's id). Never a parent folder, and never another module's folder. It's on the card like any item, so you can untick it. `task_agents` asks without it (`own_folder=False`): its helpers are generic, several run at once, and none is that module's own agent. The Agent Hub lets a module's agent work in its own folder beside the Main Assistant's whole-repo grant, but still refuses two agents inside one module folder ([the folder check](../../src/assistant/modules/agent_hub/docs/architecture.md#owns-and-launches)). Adding the item changes the list's fingerprint, so each module agent's card shows once more at the next start.
 

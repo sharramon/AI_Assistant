@@ -49,7 +49,7 @@ Related: [self-contained modules](module-self-contained.md) (layout, umbrellas),
 | **Follows the pattern** | Yes: manifest (provides `ITaskAgent`, `permissions=("agent.access",)`), menu `job.search` (a stub), imports only `contracts` and `infra`. Not moved yet: page in `docs/modules/`, config in `default.toml:97-111`, test in `tests/` | Yes, and moved: `module.toml`, the three docs pages, own `tests/`. Imports `contracts`, `infra` and its own files (absolutely, as `assistant.modules.cv.*`, which ties it to that place in the tree) |
 | **Inside the app's process** | The module, its menu, the `job.search` stub task | The module and its whole menu: `rezi.*` (an MCP **client** to `https://api.rezi.ai/mcp`, a browser sign-in with a callback server on `127.0.0.1:33418`, a 30-day token in `%LOCALAPPDATA%\assistant\cv\`), `cv.read` / `cv.build` / `cv.compare` / `cv.report` (reads your CVs, writes the output folder), the ODT writer |
 | **Separate processes** | The `job_search_agent` `claude` session (with Claude in Chrome), stopped in `stop()` | The `cv_agent` `claude` session (Chrome, "only app.rezi.ai" by prompt, not enforced); LibreOffice `soffice` through a blocking `subprocess.run` (120 s timeout) that `stop()` doesn't track; the system browser for the sign-in |
-| **Reaches outside its folder** | `C:\Chang\Jobs\CV` (workspace), `C:\Chang\Jobs`, `C:\Chang\Git_projects\Resume`, JobRadar's Python, Chrome, the job project's `CLAUDE.md` and skills. All on its access card | On the worker's card: workspace `C:\Chang\Jobs\rezi\cv_agent`, read folders, Chrome. **Not declared or asked anywhere:** the module's own network calls to Rezi and the callback port, the token file, reading the CV folder, writing `C:\Chang\Jobs\rezi\rezi\out`, running `soffice.exe`, a LibreOffice profile in `%TEMP%\assistant-cv-soffice`, writing resumes into your Rezi account |
+| **Reaches outside its folder** | `C:\Jobs\CV` (workspace), `C:\Jobs`, `C:\Projects\Resume`, JobRadar's Python, Chrome, the job project's `CLAUDE.md` and skills. All on its access card | On the worker's card: workspace `C:\Jobs\rezi\cv_agent`, read folders, Chrome. **Not declared or asked anywhere:** the module's own network calls to Rezi and the callback port, the token file, reading the CV folder, writing `C:\Jobs\rezi\rezi\out`, running `soffice.exe`, a LibreOffice profile in `%TEMP%\assistant-cv-soffice`, writing resumes into your Rezi account |
 | **Names from the core / other modules** | The Hub through `ProfileAgent` (`IAgentNames`, `IModuleDoor`); `AgentNotice` to its caller. Named by `talker/prompt.py:145` and `temp_ui/agent_tabs.py:8` | `hub.start` and `cv_agent` in `cv.task`'s answer; `viewer.open` in the worker's prompt; `REPO = parents[4]` (`module.py:69`) assumes it sits in the repo; `tests/test_worker.py:22` imports `assistant.modules.agent_hub` |
 | **Left behind on unload** | Grant `job_search → job_search_agent`; the handler's `_agents` entry; the transcript in `logs/`; `.claude/state/<id>-task.txt`; the job project's files | The same, plus the Rezi token, the LibreOffice profile, output CVs and reports, and the Rezi resumes it made (tracked only until a restart) |
 
@@ -127,8 +127,8 @@ requires = []
 python = "requirements.txt"
 
 [needs]
-read = ["C:/Chang/Jobs/CV"]
-write = ["C:/Chang/Jobs/rezi/rezi/out"]
+read = ["C:/Jobs/CV"]
+write = ["C:/Jobs/rezi/rezi/out"]
 network = ["api.rezi.ai"]
 listen = ["127.0.0.1:33418"]
 accounts = ["rezi"]

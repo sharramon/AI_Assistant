@@ -272,7 +272,7 @@
 </ul>
 <h2 id="what-could-not-be-verified">What could not be verified</h2>
 <ul>
-<li><strong>Step 11, the tracker update:</strong> it's the job agent's own action. No code does it; job_search's message only asks for it (<code>modules/job_search/module.py</code>, <code>cv_finished_text</code> and <code>cv_submitted_text</code>). The job project's skills (<code>C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md</code>) have no step for a cv result, so no line can be named there.</li>
+<li><strong>Step 11, the tracker update:</strong> it's the job agent's own action. No code does it; job_search's message only asks for it (<code>modules/job_search/module.py</code>, <code>cv_finished_text</code> and <code>cv_submitted_text</code>). The job project's skills (<code>C:\Jobs\CV\.claude\skills\apply-session\SKILL.md</code>) have no step for a cv result, so no line can be named there.</li>
 <li><strong>The Rezi step in Chrome:</strong> cv_agent reads the Score with Claude in Chrome. Only the setting and the prompt can be named; the browser calls aren't in this repo's code.</li>
 <li><strong>The module door's process side:</strong> steps 1, 3 and 5 go from the agent's <code>claude</code> session through the stdio relay (<code>python -m assistant.infra.mcp_door</code>) to the app. The lines named are the app side of the door.</li>
 </ul>

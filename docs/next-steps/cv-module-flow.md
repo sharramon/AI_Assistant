@@ -232,10 +232,10 @@ flowchart TD
 | Inputs (cv.task) | Built, live | `cv.task` takes the JD as text and a `CV_Test_*.pdf`; `cv` is on |
 | Job-start gate | Built, live | `job_start.py` makes the work folder, copies the PDF, loads `job_skills` |
 | rules/ folder | Not built | No `cv/rules/` yet. `job_skills` loads two files from cv_agent's folder and memory |
-| confirmed_facts.json | Not built (the link) | The file exists in `C:\Chang\Jobs\rezi\cv_tool\data\`, but nothing in the module loads it |
+| confirmed_facts.json | Not built (the link) | The file exists in `C:\Jobs\rezi\cv_tool\data\`, but nothing in the module loads it |
 | cv_agent | Built, live, old flow | Its prompt (`worker.py`) still runs the old 8 steps straight in Rezi, with no CV Tool |
 | Rezi | Built, live | The `rezi.*` items |
-| CV Tool, four tabs, the pick, First Draft, ATS Loop, Submit | Built, not live | They work in the old standalone app (`C:\Chang\Jobs\rezi\cv_tool`), opened by hand. The module doesn't launch it or feed it. The copy in `src/cv_tool/` has its main code and pages, but no server yet |
+| CV Tool, four tabs, the pick, First Draft, ATS Loop, Submit | Built, not live | They work in the old standalone app (`C:\Jobs\rezi\cv_tool`), opened by hand. The module doesn't launch it or feed it. The copy in `src/cv_tool/` has its main code and pages, but no server yet |
 | Links: open the job, `cv.tool_*` items | Not built | No `CompanionApp` and no `cv.open_tool` / `cv.tool_*` items in `module.py` |
 | 9 pt check | Not built in the module | Only the new copy of the app can measure sizes (`font_sizes`); nothing calls it |
 | Outputs: final PDF, result.json, report | Not built (the link) | Submit writes them in the old app, but nothing returns them to the module. Today's path is the old one: `cv.build` (LibreOffice) and `cv.report` |

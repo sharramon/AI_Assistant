@@ -12,7 +12,7 @@
 
 1. **Who may start cv_agent** (cv-path-hardening): `cv.task` doesn't start cv_agent. It hands the text to the coordinator (`[hand_off] coordinator = "main_assistant"`), and `start_only_by = { cv_agent = ["main_assistant"] }` in `[modules.agent_hub]` refuses `hub.start` for cv_agent from anyone else, the job agent included.
 2. **The queue that never runs:** the hand-off to the Main Assistant is a `StartTask`. The Main Assistant had an open task waiting on a `NEED:` (4df48918), so it counted as **busy** and refused. `cv.task` fell back to an `AgentNotice`, which only joins the agent's next turn and never wakes it. That turn didn't come, so the job agent sent `cv.task` three times into the same hole.
-3. **The folder check counts the requester's own task:** when the Main Assistant did run it, `hub.start` refused: "cv_agent would write C:\Chang\Git_projects\AI_Assistant, which main_assistant's open task writes". `_folder_clash` (`agent_hub/tasks.py`) counts every open task, including the one calling `hub.start`. The clash is real on paper: **cv_agent's saved grant holds three write folders inside the repo** (`src\cv_tool`, `src\assistant\modules\cv\docs`, `tests`, added in `data/permissions.toml` when cv_agent built the CV Tool), and the Main Assistant writes the whole repo. So any open Main Assistant task blocks cv_agent, and the reverse.
+3. **The folder check counts the requester's own task:** when the Main Assistant did run it, `hub.start` refused: "cv_agent would write C:\Projects\AI_Assistant, which main_assistant's open task writes". `_folder_clash` (`agent_hub/tasks.py`) counts every open task, including the one calling `hub.start`. The clash is real on paper: **cv_agent's saved grant holds three write folders inside the repo** (`src\cv_tool`, `src\assistant\modules\cv\docs`, `tests`, added in `data/permissions.toml` when cv_agent built the CV Tool), and the Main Assistant writes the whole repo. So any open Main Assistant task blocks cv_agent, and the reverse.
 
 **Cv agent → job agent** (the finished CV):
 
@@ -58,7 +58,7 @@
 
 ### The Hub's folder check
 
-- **Keep the check, don't skip the requester.** The cancelled note's idea (skip the parent task) is not needed: in step 1 the Main Assistant is out of the loop, and the job agent's folders (`C:\Chang\Jobs\CV`) don't overlap cv_agent's (`C:\Chang\Jobs\CV_Module`).
+- **Keep the check, don't skip the requester.** The cancelled note's idea (skip the parent task) is not needed: in step 1 the Main Assistant is out of the loop, and the job agent's folders (`C:\Jobs\CV`) don't overlap cv_agent's (`C:\Jobs\CV_Module`).
 - **Revoke cv_agent's three repo write folders** (with your yes; they were for building the CV Tool, and CV jobs never write the repo). cv_agent can ask for them again with `permissions.request` when it builds again; live grants reach it without a restart.
 - **With step 3,** an agent waiting on a question has no open task, so it holds no folder. Only agents really in a turn can clash.
 

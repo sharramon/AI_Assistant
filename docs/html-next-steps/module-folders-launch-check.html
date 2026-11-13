@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module folders: where each module and agent lives, before and after the restart</title>
+<!-- Generated from docs/next-steps/module-folders-launch-check.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-folders-launch-check.html"></nav>
+<main>
+<h1 id="module-folders-where-each-module-and-agent-lives-before-and-after-the-restart">Module folders: where each module and agent lives, before and after the restart</h1>
+<p>A read-only check, made 2026-11-13 at about noon, after the overnight run (commit <code>a0338ea</code>). Nothing was changed, launched, turned on or off, or restarted. Every point below comes from a file or a config line, named next to it.</p>
+<h2 id="a-the-modules-and-their-folders">A. The modules and their folders</h2>
+<p>All 14 modules are in <code>src/assistant/modules/&lt;id&gt;/</code>. Their group comes from each module's <code>docs/docs.toml</code> (<code>group = ...</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Group</th>
+<th>module.py</th>
+<th>module.toml</th>
+<th>app/</th>
+<th>tests/</th>
+<th>docs/</th>
+<th>workspace/</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>agent_hub</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>assistant_view</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td><strong>none</strong></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>console_io</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>main_assistant</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>talker</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>task_agents</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>temp_ui</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>usage</td>
+<td>core</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>voice_in</td>
+<td><strong>core</strong></td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ voice_service</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>cv</td>
+<td>add-on</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ cv_tool</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ (gitignored)</td>
+</tr>
+<tr>
+<td>echo_orchestrator</td>
+<td>add-on</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>html_viewer</td>
+<td>add-on</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ html_viewer</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>job_search</td>
+<td>add-on</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ (gitignored)</td>
+</tr>
+<tr>
+<td>voice_notes</td>
+<td>add-on</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><code>src/</code> holds only <code>app_kit</code>, <code>assistant</code> (and <code>assistant.egg-info</code>). <code>config/</code> holds only <code>default.toml</code>, <code>local.toml</code> and <code>modules.toml</code>: no <code>config/&lt;id&gt;.toml</code> exists yet (they're optional), and <code>config/permissions.toml</code> doesn't exist yet either (see B).</p>
+<p><strong>voice_in is a core module in the code:</strong> <code>src/assistant/modules/voice_in/docs/docs.toml</code> says <code>group = "core"</code>, and it's on at launch (<code>config/modules.toml</code>: <code>enabled = [..., "voice_in", "usage"]</code>). The approved picture draws it in the core too (voice_notes is the add-on that needs it), so the code and the picture agree: voice_in stays core (settled with you, 2026-11-13). Item 19's tripwire (<code>tests/test_module_folders.py:885</code>) covers only the add-ons (from the same <code>group</code> keys), so voice_in has no "nothing outside its folder" check.</p>
+<p><strong>The rezi helper is not a module.</strong> It's a kind of helper in <code>task_agents</code> (<code>[agents.rezi]</code> in <code>src/assistant/modules/task_agents/module.toml</code>), and its folders are in <code>config/local.toml</code> (<code>[modules.task_agents.agents.rezi]</code>: <code>workspace = "C:/Jobs/rezi"</code>). The Rezi connection itself is part of cv (<code>rezi_url</code>, <code>token_file</code> in cv's <code>module.toml</code>). Its design note is <code>docs/next-steps/rezi-module.md</code>.</p>
+<p><strong>Still outside a module folder:</strong></p>
+<ul>
+<li><code>data/permissions.toml</code>: the saved grants, still the live file. It's copied to <code>config/permissions.toml</code> once, at the next start (<code>config/default.toml</code>, <code>[core.permissions]</code> comment).</li>
+<li>The repo-level <code>tests/</code> folder: 47 files. Most are core tests, but some import core modules directly (<code>test_swap_every_module.py</code>, <code>test_usage.py</code>, <code>test_talker_agents.py</code> import agent_hub, talker, temp_ui, usage).</li>
+<li><code>scripts/voice_two_pass_check.py</code>: a voice check that sits in the repo's <code>scripts/</code>, not in voice_in's folder.</li>
+<li>The repo-root <code>workspace/</code> folder (gitignored): <code>nonsense_test.txt</code>, <code>poems.txt</code>, <code>voice_check.py</code>, left over from earlier tests.</li>
+<li><code>logs/cv_agent.jsonl</code> and other <code>.jsonl</code> files at the root of <code>logs/</code> (last written 06:44), outside any launch folder.</li>
+<li>Outside the repo (only copied, never removed): <code>C:\Jobs\CV_Module</code>, <code>C:\Jobs\CV\.claude</code>, <code>C:\Jobs\rezi\cv_agent</code>, <code>C:\Jobs\rezi\cv_tool</code>, <code>C:\Jobs\rezi\rezi</code>.</li>
+</ul>
+<h2 id="b-each-agents-working-folder-and-access-list">B. Each agent's working folder and access list</h2>
+<p><code>claude</code> is started with <code>cwd</code> = the agent's workspace (<code>src/assistant/infra/profile_agent.py:75</code>). Its command line has no <code>--setting-sources</code> (<code>src/assistant/infra/claude_session.py:54-78</code>), so <code>claude</code>'s default settings sources load: your user settings (<code>C:\Users\you\.claude\settings.json</code> exists; there's no user CLAUDE.md), the project's, and a local one. CLAUDE.md files load from the working folder and every folder above it (Claude Code's normal behavior). So <strong>any agent whose workspace is inside the repo loads the repo's <code>CLAUDE.md</code>.</strong> I didn't verify whether <code>claude</code> started in a sub-folder also uses the repo root's <code>.claude/settings.json</code> (the edit-tracker hook). The two workspaces have no <code>settings.json</code> of their own, only <code>.claude/skills/</code>.</p>
+<p>A relative <code>workspace</code> resolves against the app's current folder (the repo) in <code>access_items</code> (<code>agent_access.py:62</code>, <code>Path.resolve()</code>). cv and job_search resolve theirs from their own module folder first (<code>in_module_folder</code>, used at <code>cv/module.py:878</code> and <code>job_search/module.py:75</code>).</p>
+<h3 id="after-the-restart-the-config-and-code-as-they-are-now">After the restart (the config and code as they are now)</h3>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Working folder</th>
+<th>In the repo?</th>
+<th>Access list asked (<code>access_items</code>)</th>
+<th>Card?</th>
+<th>Loads the repo's CLAUDE.md</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>cv_agent</strong></td>
+<td><code>src/assistant/modules/cv/workspace</code> (cv <code>module.toml</code> <code>[agent] workspace = "workspace"</code>)</td>
+<td>yes</td>
+<td>workspace; read <code>C:/Jobs/CV</code>; write <code>src/assistant/modules/cv</code> (its own folder); Chrome. The output folder <code>&lt;workspace&gt;/out</code> is inside the workspace, so it isn't added (<code>worker.py:120</code>)</td>
+<td>yes, new: the saved grant names <code>workspace:C:\Jobs\CV_Module</code></td>
+<td>yes. The workspace has no CLAUDE.md of its own; its skills are <code>.claude/skills/cv-writing</code></td>
+</tr>
+<tr>
+<td><strong>job_search_agent</strong></td>
+<td><code>src/assistant/modules/job_search/workspace</code> (job_search <code>module.toml</code> <code>workspace = "workspace"</code>)</td>
+<td>yes</td>
+<td>workspace; read <code>C:/Jobs</code>, <code>C:/Projects/Resume</code>; write <code>C:/Jobs/CV</code> (<code>documents</code> in <code>config/local.toml</code>); write <code>src/assistant/modules/job_search</code>; python <code>C:/Projects/Resume/.venv/Scripts/python.exe</code>; Chrome</td>
+<td>yes, new: the saved grant names <code>workspace:C:\Jobs\CV</code></td>
+<td>yes, <strong>plus</strong> its own <code>workspace/CLAUDE.md</code> (the job project's, copied)</td>
+</tr>
+<tr>
+<td><strong>rezi</strong> (task_agents helper)</td>
+<td><code>C:/Jobs/rezi</code>, and a launched one in <code>C:/Jobs/rezi/&lt;name&gt;</code> (<code>task_agents/module.py:327</code>)</td>
+<td>no</td>
+<td>workspace; read <code>C:/Jobs/CV</code>, <code>C:/Projects/AI_Assistant/docs</code>; Chrome (no own-folder write: <code>own_folder=False</code>)</td>
+<td><strong>probably none</strong>: the list matches the saved grant, and the saved grant also holds 20+ items it added later: a write on <code>src/assistant/modules/cv</code>, <code>pip install mcp pypdf</code>, pytest, ruff, <code>build_docs.py</code>, writes on docs pages</td>
+<td>no (not under the repo)</td>
+</tr>
+<tr>
+<td><strong>helper</strong> (task_agents)</td>
+<td><code>C:\Projects\assistant-helper</code> (<code>workspace = "../assistant-helper"</code>, from the repo), launched ones in <code>.../&lt;name&gt;</code></td>
+<td>no</td>
+<td>workspace only</td>
+<td>none: matches the saved grant</td>
+<td>no</td>
+</tr>
+<tr>
+<td><strong>Main Assistant</strong></td>
+<td>the repo (<code>workspace = "."</code>)</td>
+<td>yes</td>
+<td>read <code>.</code>; write <code>.</code>, <code>.claude/skills</code>, <code>.claude/agents</code>; the 10 <code>allowed_commands</code> (main_assistant <code>module.toml</code>). It isn't asked on a card; it's its standing config</td>
+<td>none</td>
+<td>yes, by design</td>
+</tr>
+<tr>
+<td><strong>Talker</strong> (and each tab's Talker)</td>
+<td>no <code>cwd</code> set (talker <code>module.toml</code> has <code># cwd = "..."</code>; <code>talker/session.py:139</code>), so the app's current folder: the repo</td>
+<td>yes</td>
+<td>none: it has no tools</td>
+<td>none</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Would anything still start an agent in an old folder after the restart?</strong> Not cv_agent or job_search_agent: no config line names <code>C:\Jobs\CV_Module</code> as a workspace, and job_search's workspace is no longer <code>C:\Jobs\CV</code>. But the old folders are still <strong>reached</strong>:</p>
+<ul>
+<li>job_search_agent may <strong>write</strong> <code>C:\Jobs\CV</code> (<code>documents</code>) and <strong>read</strong> all of <code>C:\Jobs</code> (which includes <code>CV_Module</code> and <code>rezi</code>) and <code>C:\Projects\Resume</code>, whose Python it runs.</li>
+<li><code>job_search/workspace/job_paths.json</code> has <code>"cv_output": "C:/Jobs/rezi/rezi/out"</code>: the old cv output folder (the "job UI looks in the old folder" issue). cv now writes to <code>src/assistant/modules/cv/workspace/out</code>. <strong>Fixed 2026-11-13:</strong> <code>cv_output</code> is <code>../../cv/workspace/out</code> (relative to the workspace), overridable in a gitignored <code>job_paths.local.json</code>; the old folder's files were copied there.</li>
+<li>rezi works in <code>C:\Jobs\rezi</code>, which still holds the old <code>cv_agent</code>, <code>cv_tool</code> and <code>rezi</code> folders.</li>
+</ul>
+<h3 id="now-in-the-running-app-launched-0219-not-restarted">Now, in the running app (launched 02:19, not restarted)</h3>
+<p>The running app's log is <code>logs/2026-11-13_02-19-03_wtf/assistant.log</code>, still being written. It shows no reload or module on/off after 02:51 (cv and job_search were turned on and off between 02:45 and 02:51). So the <strong>code</strong> is what was imported at 02:19. Its closest commit is <code>2e283b2</code> (04:19); the overnight work started after it. Its <strong>config sections</strong> were read at 02:19 from the old <code>config/default.toml</code> and <code>local.toml</code>.</p>
+<p>One thing matters here: turning a module on reads that module's <code>module.toml</code> fresh from disk (<code>2e283b2:src/assistant/core/app.py:198-206</code>, <code>_config_of</code> → <code>loader.module_defaults</code>, "read fresh each time"), but doesn't re-import its code. So turning a module on now mixes <strong>old code + launch-time sections + new <code>module.toml</code> files</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>What it would do if turned on now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>job_search_agent</td>
+<td>Starts in the <strong>old folder <code>C:\Jobs\CV</code></strong>. The launch-time <code>[modules.job_search] workspace = "C:/Jobs/CV"</code> (<code>2e283b2:config/default.toml</code>) wins over the new <code>module.toml</code>. Its saved grant matches, so no card.</td>
+</tr>
+<tr>
+<td>cv_agent</td>
+<td><strong>Probably fails to turn on.</strong> The launch-time config had no <code>[agent] workspace</code> for cv (it came from the old <code>module.toml</code>: <code>workspace = "C:/Jobs/CV_Module"</code>). The new <code>module.toml</code> says <code>"workspace"</code>, and the old code doesn't resolve it from cv's folder, so it becomes <code>&lt;repo&gt;/workspace</code>, with <code>work_dir</code> = <code>&lt;repo&gt;/workspace/work</code>. The old code refuses that: <code>if work.is_relative_to(REPO): raise ValueError("cv: work_dir must be outside the repo ...")</code> (<code>2e283b2:src/assistant/modules/cv/module.py</code>, <code>job_folders</code>). This follows from the code; I didn't try it.</td>
+</tr>
+<tr>
+<td>rezi, helper</td>
+<td>The same folders as after the restart (launch-time <code>default.toml</code> already had <code>C:/Jobs/rezi</code> and <code>../assistant-helper</code>).</td>
+</tr>
+<tr>
+<td>Main Assistant, Talker</td>
+<td>Unchanged: the repo.</td>
+</tr>
+</tbody>
+</table>
+<p>So until the restart, don't turn cv or job_search on: job_search would work in the old folder, and cv would most likely fail.</p>
+<h2 id="open-points-this-check-adds">Open points this check adds</h2>
+<ol>
+<li>The repo's <code>CLAUDE.md</code> loads into cv_agent's and job_search_agent's sessions after the restart (already on the morning list). The job agent also gets its own copied <code>CLAUDE.md</code>, so it gets two.</li>
+<li>The rezi helper's saved grant keeps more than its access list (writes in the repo's cv module, <code>pip install</code>), and a matching list means no new card shows it.</li>
+<li>~~<code>job_paths.json</code>'s <code>cv_output</code> still points at <code>C:/Jobs/rezi/rezi/out</code>.~~ Fixed 2026-11-13: it points at cv's <code>workspace/out</code>.</li>
+<li>~~voice_in is <code>core</code> in its <code>docs.toml</code>, but the picture shows it as an add-on.~~ Settled 2026-11-13: the picture draws it in the core as well; it stays core.</li>
+<li><code>assistant_view</code> has no <code>tests/</code> folder. The repo root still has <code>workspace/</code>, root-level <code>.jsonl</code> logs, <code>scripts/voice_two_pass_check.py</code> and <code>data/permissions.toml</code>.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/module-folders-launch-check.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

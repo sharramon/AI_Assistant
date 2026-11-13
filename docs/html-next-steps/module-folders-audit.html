@@ -109,13 +109,13 @@
 <tr>
 <td>14</td>
 <td>The rule: "nothing of cv lives outside modules/cv/, except your own choices"</td>
-<td>cv's app, packages and ruff rule live outside; its agent works in <code>C:\Chang\Jobs\CV_Module</code></td>
+<td>cv's app, packages and ruff rule live outside; its agent works in <code>C:\Jobs\CV_Module</code></td>
 <td><strong>not done</strong></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Not in the page's pictures:</strong> the agents' working folders and tools outside the repo (<code>C:\Chang\Jobs\CV</code> and <code>C:\Chang\Jobs</code>, the Resume project <code>C:\Chang\Git_projects\Resume</code> with its <code>.venv</code>, <code>C:\Chang\Jobs\CV_Module</code>, and the old <code>C:\Chang\Jobs\rezi</code>). The plan's rule ("nothing of cv lives outside modules/cv/") implies them but no box names them. The user expects them to be part of "moved into the module folder" (said on 2026-11-13, see section 3), so they're checked too.</p>
-<p><strong>Does another note cover them?</strong> Only the two reports the agents saved today, outside the repo (section 3d). In <code>docs/next-steps/</code>, no note plans moving a workspace into a module folder. The one note about an agent's folders, <a href="cv-agent-folders.html">cv-agent-folders.md</a> (2026-11-09, still marked "proposed"), says the opposite: one project folder <strong>outside</strong> the repo per agent, "the app's code stays in this repo". That is how <code>C:\Chang\Jobs\CV_Module</code> came about. The 2026-11-11 plan never revisited that decision, and that note's status was never updated though its move happened.</p>
+<p><strong>Not in the page's pictures:</strong> the agents' working folders and tools outside the repo (<code>C:\Jobs\CV</code> and <code>C:\Jobs</code>, the Resume project <code>C:\Projects\Resume</code> with its <code>.venv</code>, <code>C:\Jobs\CV_Module</code>, and the old <code>C:\Jobs\rezi</code>). The plan's rule ("nothing of cv lives outside modules/cv/") implies them but no box names them. The user expects them to be part of "moved into the module folder" (said on 2026-11-13, see section 3), so they're checked too.</p>
+<p><strong>Does another note cover them?</strong> Only the two reports the agents saved today, outside the repo (section 3d). In <code>docs/next-steps/</code>, no note plans moving a workspace into a module folder. The one note about an agent's folders, <a href="cv-agent-folders.html">cv-agent-folders.md</a> (2026-11-09, still marked "proposed"), says the opposite: one project folder <strong>outside</strong> the repo per agent, "the app's code stays in this repo". That is how <code>C:\Jobs\CV_Module</code> came about. The 2026-11-11 plan never revisited that decision, and that note's status was never updated though its move happened.</p>
 <p><strong>The overview's parts table</strong> lists the CV tool at <code>src/cv_tool/</code>, the voice service at <code>src/voice_service/</code> and the HTML viewer at <code>src/html_viewer/</code>. That isn't stale: the folders really are still there (row 1). The table is right about today and wrong only against the plan.</p>
 <table>
 <thead>
@@ -130,25 +130,25 @@
 <tr>
 <td>15</td>
 <td>job_search_agent works from its module folder</td>
-<td>Saved grant (2026-11-05): workspace <code>C:\Chang\Jobs\CV</code>, read <code>C:\Chang\Jobs</code> and <code>C:\Chang\Git_projects\Resume</code>, Resume's <code>.venv</code> Python, Chrome. Nothing on <code>src/assistant/modules/job_search</code></td>
+<td>Saved grant (2026-11-05): workspace <code>C:\Jobs\CV</code>, read <code>C:\Jobs</code> and <code>C:\Projects\Resume</code>, Resume's <code>.venv</code> Python, Chrome. Nothing on <code>src/assistant/modules/job_search</code></td>
 <td><strong>not done</strong></td>
 </tr>
 <tr>
 <td>16</td>
 <td>The old job tools cloned into the module folder</td>
-<td><code>job_search/</code> holds <code>module.py</code>, <code>ui.py</code>, 5 docs, 2 test files. Every skill, script and piece of job state is still in <code>C:\Chang\Jobs\CV</code>. The job agent's own read-only comparison says the same: "the tools were never cloned" (<code>C:\Chang\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code>)</td>
+<td><code>job_search/</code> holds <code>module.py</code>, <code>ui.py</code>, 5 docs, 2 test files. Every skill, script and piece of job state is still in <code>C:\Jobs\CV</code>. The job agent's own read-only comparison says the same: "the tools were never cloned" (<code>C:\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code>)</td>
 <td><strong>not done</strong></td>
 </tr>
 <tr>
 <td>17</td>
 <td>cv_agent works from its module folder</td>
-<td>Saved grant (2026-11-13): workspace <code>C:\Chang\Jobs\CV_Module</code>, read the repo. Its <code>added</code> list names writes on <code>src/cv_tool</code>, <code>cv/docs</code> and <code>tests</code>, but they aren't in its <code>granted</code> list, so I can't tell whether they're live</td>
+<td>Saved grant (2026-11-13): workspace <code>C:\Jobs\CV_Module</code>, read the repo. Its <code>added</code> list names writes on <code>src/cv_tool</code>, <code>cv/docs</code> and <code>tests</code>, but they aren't in its <code>granted</code> list, so I can't tell whether they're live</td>
 <td><strong>not done</strong></td>
 </tr>
 <tr>
 <td>18</td>
 <td>The old cv tools cloned</td>
-<td>Yes, in two halves: <code>rezi\cv_tool</code> → <code>src\cv_tool</code> (and the cv module around it), <code>rezi\cv_agent</code> → <code>C:\Chang\Jobs\CV_Module</code> (cv_agent's report, <code>C:\Chang\Jobs\CV_Module\cv-tools-move-plan.md</code>). The copy went to a folder outside the repo, not into <code>modules/cv/</code></td>
+<td>Yes, in two halves: <code>rezi\cv_tool</code> → <code>src\cv_tool</code> (and the cv module around it), <code>rezi\cv_agent</code> → <code>C:\Jobs\CV_Module</code> (cv_agent's report, <code>C:\Jobs\CV_Module\cv-tools-move-plan.md</code>). The copy went to a folder outside the repo, not into <code>modules/cv/</code></td>
 <td><strong>done, but not into the module folder</strong></td>
 </tr>
 </tbody>
@@ -247,8 +247,8 @@
 <h3 id="3d-the-two-agents-own-reports-2026-11-13">3d. The two agents' own reports (2026-11-13)</h3>
 <p>Each agent was asked in its own tab whether its tools were cloned into its module folder. They checked their own module, not where "done" was reported.</p>
 <ul>
-<li><strong>Job agent:</strong> <code>C:\Chang\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code> (its read-only tools comparison; log <code>2026-11-13_02-19-03_wtf/talker-job_search_agent.jsonl</code> L502–L514). Finding: "<strong>the tools were never cloned</strong>". <code>job_search/</code> holds the wrapper only (3 code files, 5 docs, 2 tests). The CLAUDE.md, 6 skills, about 30 scripts, the UI pages and all job state are in <code>C:\Chang\Jobs\CV</code>, running on the Resume <code>.venv</code>.</li>
-<li><strong>cv agent:</strong> <code>C:\Chang\Jobs\CV_Module\cv-tools-move-plan.md</code> (log <code>talker-cv_agent.jsonl</code> L40–L75). Finding: "<strong>the clone happened, in two halves</strong>". <code>C:\Chang\Jobs\rezi\cv_tool</code> → <code>src\cv_tool</code> (plus the cv module), and <code>rezi\cv_agent</code> → <code>C:\Chang\Jobs\CV_Module</code>. Unchanged files match by MD5. Nothing needed lives only in the old setup, but <strong>the workspace has not moved into the module folder</strong>.</li>
+<li><strong>Job agent:</strong> <code>C:\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code> (its read-only tools comparison; log <code>2026-11-13_02-19-03_wtf/talker-job_search_agent.jsonl</code> L502–L514). Finding: "<strong>the tools were never cloned</strong>". <code>job_search/</code> holds the wrapper only (3 code files, 5 docs, 2 tests). The CLAUDE.md, 6 skills, about 30 scripts, the UI pages and all job state are in <code>C:\Jobs\CV</code>, running on the Resume <code>.venv</code>.</li>
+<li><strong>cv agent:</strong> <code>C:\Jobs\CV_Module\cv-tools-move-plan.md</code> (log <code>talker-cv_agent.jsonl</code> L40–L75). Finding: "<strong>the clone happened, in two halves</strong>". <code>C:\Jobs\rezi\cv_tool</code> → <code>src\cv_tool</code> (plus the cv module), and <code>rezi\cv_agent</code> → <code>C:\Jobs\CV_Module</code>. Unchanged files match by MD5. Nothing needed lives only in the old setup, but <strong>the workspace has not moved into the module folder</strong>.</li>
 </ul>
 <p><strong>Where they agree:</strong></p>
 <ul>
@@ -260,7 +260,7 @@
 <p><strong>Where they differ:</strong></p>
 <ul>
 <li><strong>The clone:</strong> done for cv (outside the repo), not done for job_search. That's a real difference between the modules, not a disagreement.</li>
-<li><strong>The target:</strong> cv proposes everything in <code>modules/cv/workspace/</code> (already gitignored as <code>workspace/</code>). job_search proposes tools in the module but data kept in <code>C:\Chang\Jobs\CV</code>, which goes against the plan's rule.</li>
+<li><strong>The target:</strong> cv proposes everything in <code>modules/cv/workspace/</code> (already gitignored as <code>workspace/</code>). job_search proposes tools in the module but data kept in <code>C:\Jobs\CV</code>, which goes against the plan's rule.</li>
 <li><strong>Python:</strong> cv already runs on the app's <code>.venv</code>. job_search needs the Resume <code>.venv</code> (jobspy, requests) and advises against adding them to the app's.</li>
 <li><strong><code>.gitignore</code>:</strong> cv says the existing rules cover its data. job_search lists gaps for its files (<code>StartUp/</code>, <code>UnderRadar/</code>, a personal <code>CLAUDE.md</code>, <code>*.png</code>, <code>*.tsv</code>).</li>
 <li><strong>cv's app:</strong> cv's plan still keeps <code>src\cv_tool</code> outside the module ("or <code>src\cv_tool</code> moves under the module"), so on its own it would leave row 1 open.</li>

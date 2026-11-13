@@ -38,6 +38,12 @@ snips/
 **/snips/
 **/Jobs/
 **/Recruiters/
+# An agent module's workspace and outputs: your CVs, job state, applications, its paths file. The
+# `workspace/` line above already covers them; these say so by name.
+src/assistant/modules/*/workspace/
+src/assistant/modules/*/out/
+job_paths*.json
+**/applied/
 # Scratch and temp notes stay on this machine.
 docs/scratch/
 docs/temp/

@@ -5,7 +5,7 @@ entry line; the first Contact line is the name), and the headings map to the eig
 same way (`odt.heading_section`). How the page is read back:
 - **Runs:** each piece of text with its start and end on the line, its baseline and its size
   (pypdf's layout reader, `_runs`). A run in capitals at about 0.8 of the size of the run beside it
-  is small caps: lower case on the page's source, so it's lower-cased (`C`+`HANG` → `Chang`).
+  is small caps: lower case on the page's source, so it's lower-cased (`J`+`ANE` → `Jane`).
 - **Lines:** runs on the same baseline (the dates sit a little off it), joined left to right: a
   wide gap is the entry's ` | `, a small one a space.
 - **Paragraphs:** a line goes on the one above when it starts where that one's text starts and

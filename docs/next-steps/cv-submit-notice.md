@@ -24,7 +24,7 @@ Reuse the notice mechanism that's already there. Nothing new is built: `AgentNot
 - `cv_tool/cvlib.py`: `MIN_PT = 9.0` (what `font_sizes`, `small_text`, `min_pt` and the on-screen warning use). The page itself still prints its small lines (contact, titles, degrees, awards) at `BODY`, 10 pt, as it did, so the CV looks the same; only the warning moved.
 - `cv/tool.py`: `MIN_PT = 9` (`MIN_PT_ADVICE` follows). `cv/reply.py` defaults to it.
 - The menu texts (`cv.tool_round`, `cv.check_fonts`, `cv.tool_result`), the worker's prompt, the cv module's docs pages, the Parts row in the architecture overview, and the tests.
-- **Conflict left for you:** the CV Module rule file `C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\rules\cv-min-font-9pt-measured.md` says "at least 10 pt … (User rule, 2026-11-09, raised from 9 pt …) measure 10 yourself". cv_agent reads that folder, so it will see 10 there and 9 in its prompt. The Main Assistant can't write there, and you said not to rename the file; its text needs your word (or cv_agent's edit).
+- **Conflict left for you:** the CV Module rule file `C:\Jobs\CV_Module\.claude\skills\cv-writing\rules\cv-min-font-9pt-measured.md` says "at least 10 pt … (User rule, 2026-11-09, raised from 9 pt …) measure 10 yourself". cv_agent reads that folder, so it will see 10 there and 9 in its prompt. The Main Assistant can't write there, and you said not to rename the file; its text needs your word (or cv_agent's edit).
 
 ## Follow-ups from the hand check
 

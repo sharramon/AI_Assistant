@@ -112,19 +112,19 @@ def test_cv_content_knows_only_the_standard_sections():
 
 def request(**change) -> dict:
     return {"company": "Acme", "role": "Engineer", "jd_text": "Build robots.",
-            "base_cv": r"C:\Chang\Jobs\CV\CV_Test_Acme.pdf"} | change
+            "base_cv": r"C:\Jobs\CV\CV_Test_Acme.pdf"} | change
 
 
 def test_a_request_needs_the_job_and_a_pdf_base_cv():
     req = CvRequest(**request(target_score=95))
     assert req.degree_first is None and CvRequest.model_validate_json(req.model_dump_json()) == req
-    assert CvRequest(**request(base_cv=r"C:\Chang\Jobs\CV\CV_Test_Acme.PDF")).base_cv.endswith(".PDF")
+    assert CvRequest(**request(base_cv=r"C:\Jobs\CV\CV_Test_Acme.PDF")).base_cv.endswith(".PDF")
     for any_pdf in ("cv.pdf", r"D:\elsewhere\My Resume.pdf", "/tmp/resume.PDF"):  # any name, any folder, as given
         assert CvRequest(**request(base_cv=any_pdf)).base_cv == any_pdf
     for bad in (request(company=""), request(target_score=101), request(extra=1)):
         with pytest.raises(ValidationError):
             CvRequest(**bad)
-    for not_pdf in (r"C:\Chang\Jobs\CV\CV_Test_Acme.odt", "resume.docx", "resume", "resume.pdf.txt"):
+    for not_pdf in (r"C:\Jobs\CV\CV_Test_Acme.odt", "resume.docx", "resume", "resume.pdf.txt"):
         with pytest.raises(ValidationError, match=r"base_cv must be a \.pdf file"):
             CvRequest(**request(base_cv=not_pdf))
 

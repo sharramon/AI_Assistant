@@ -45,7 +45,7 @@
 <p><strong>Today</strong> (<code>agent_hub/tasks.py:50</code>, <code>:431-441</code>): <code>"Your child task {id} on {agent} ended {state}: {result}"</code>, the result cut at 4000 characters. If the job agent's own task has already ended, this message starts a <strong>new task</strong> (<code>delivery.py:138</code>) in a fresh session. That session has no brief, no job, and no "what next". The cut can also drop the <code>CV_RESULT</code> line, which is the result's last line.</p>
 <p><strong>After:</strong></p>
 <pre><code>Your child task 3f2a91c0 on cv_agent ended done.
-It was for: the CV for Smoke Test Engineer at NonexistentTestCo, job folder C:\Chang\Jobs\CV_Module\work\2026-11-12_NonexistentTestCo_SmokeTestEngineer.
+It was for: the CV for Smoke Test Engineer at NonexistentTestCo, job folder C:\Jobs\CV_Module\work\2026-11-12_NonexistentTestCo_SmokeTestEngineer.
 Your task 632c9ff5 started it, with: &quot;Fake job smoke test: call cv.task for … then write the report SMOKE TEST 2 DONE …&quot; (first 600 characters)
 Next: read the result with cv.read_result task_id=3f2a91c0.
 Result (start): …
@@ -161,7 +161,7 @@ Result (start): …
 <li><strong>One message reaches the job agent</strong>, as a new task. It names the job (company, role, folder), quotes the start of its original brief, and says to use <code>cv.read_result task_id=…</code>. The log has no <code>cv.job_finished</code> and no <code>[cv.job_finished]</code> note.</li>
 <li><strong>The job agent acts on it with no help:</strong> it calls <code>cv.read_result task_id=…</code> and writes the <code>SMOKE TEST 3 DONE</code> report. This is what failed in fake job 2.</li>
 <li><strong>Busy-parent variant (optional):</strong> you send the job agent a message to keep it in a turn while cv_agent ends. The child-result message waits as pending and arrives right after that turn.</li>
-<li><strong>Cleanup:</strong> delete the new work folder under <code>C:\Chang\Jobs\CV_Module\work\</code> and its CV Tool job, as in session 4 of handoff-5eff4e83.</li>
+<li><strong>Cleanup:</strong> delete the new work folder under <code>C:\Jobs\CV_Module\work\</code> and its CV Tool job, as in session 4 of handoff-5eff4e83.</li>
 </ol>
 <footer>Generated from <code>docs/next-steps/job-cv-result-via-tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

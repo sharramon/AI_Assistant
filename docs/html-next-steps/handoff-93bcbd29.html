@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: job UI output folder, privacy paths, cv packages, voice_in note, CLAUDE.md options</title>
+<!-- Generated from docs/next-steps/handoff-93bcbd29.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-93bcbd29.html"></nav>
+<main>
+<h1 id="handoff-job-ui-output-folder-privacy-paths-cv-packages-voice_in-note-claudemd-options">Handoff: job UI output folder, privacy paths, cv packages, voice_in note, CLAUDE.md options</h1>
+<p><strong>Status: done (2026-11-13), committed.</strong> Nothing left to carry on.</p>
+<ul>
+<li><strong>Output folder:</strong> cv writes new PDFs to <code>src/assistant/modules/cv/workspace/out</code> (<code>output_dir</code> unset). The job project's <code>job_paths.json</code> (gitignored) has <code>"cv_output": "../../cv/workspace/out"</code>; <code>job_paths.py</code> resolves a relative path from the workspace and reads an optional <code>job_paths.local.json</code> beside it that overrides any key. The old output folder's files were copied there (the old folder left in place). Docs: <code>job_search/docs/job-project.md</code>.</li>
+<li><strong>Privacy:</strong> real paths in tracked files replaced with placeholders (<code>C:/Jobs</code>, <code>C:/Projects</code>, <code>Users/you</code>); the real values are in the gitignored <code>config/local.toml</code>. <code>.gitignore</code> names the module workspaces, <code>out/</code>, <code>job_paths*.json</code> and <code>applied/</code>. <strong>Left on purpose:</strong> <code>.claude/settings.json</code> (hook paths; a settings file, needs your yes). Git history still has the old paths (no rewrite).</li>
+<li><strong>cv packages:</strong> pypdf and mcp were installed by hand and never declared. cv's <code>packages</code> now lists pymupdf, pypdf, mcp and httpx2; <code>cv/tests/test_packages.py</code> checks every import.</li>
+<li><strong>voice_in:</strong> stays core; the launch-check note and the checklist corrected.</li>
+<li><strong>CLAUDE.md options:</strong> <a href="agent-claude-md-options.html">agent-claude-md-options.md</a> (nothing changed).</li>
+<li><strong>Needs an app restart</strong> for cv's <code>module.toml</code> and <code>config/local.toml</code> to take effect.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/handoff-93bcbd29.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

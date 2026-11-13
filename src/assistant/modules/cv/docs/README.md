@@ -6,7 +6,7 @@ Takes a CV as a PDF (any `.pdf`) and a job description (JD) as text. Rezi edits 
 
 **Status (2026-11-07):** built and tested, chunks 1 to 8. That covers the menu (`rezi.*`, `cv.*`), the Rezi connection with its resume guard, the one-page build and checks, the worker `cv_agent`, and the in-and-out contract below. Everything is tested against a fake Rezi and a fake `claude`. Chunk 9, the real run, is under way: the real Rezi sign-in, live tool list and reads work, and the module now reads and writes Rezi's real resume format. Off by default; turning it on asks for the worker's access on one card.
 
-**PDF in, PDF out (2026-11-09, built, waiting on a `cv` reload):** the base CV comes in as a `.pdf` and an `.odt` is refused everywhere; the JD stays text; `cv.build` exports the final PDF into the job's folder, and no `.odt` comes out (`odt_path` is gone from the result). The plan: `docs/next-steps/cv-pdf-only.md`. Left out at your request: cutting the worker's read access to `C:\Chang\Jobs\CV`.
+**PDF in, PDF out (2026-11-09, built, waiting on a `cv` reload):** the base CV comes in as a `.pdf` and an `.odt` is refused everywhere; the JD stays text; `cv.build` exports the final PDF into the job's folder, and no `.odt` comes out (`odt_path` is gone from the result). The plan: `docs/next-steps/cv-pdf-only.md`. Left out at your request: cutting the worker's read access to `C:\Jobs\CV`.
 
 **The CV Tool build (2026-11-09, building):** the module side is built and tested, but not live yet: `cv.open_tool`, `cv.tool_status`, `cv.tool_round`, `cv.check_fonts` and `cv.tool_result`, the CV Tool launched through `CompanionHandover` (`tool.py`), the rules folder loaded at every job, `CvRequest.tool`, and the 5-step prompt. They go live with a `cv` reload. The app itself (`cv/app/cv_tool/`) runs and is tested; `pymupdf` 1.28.2 is in the repo's `.venv` (installed 2026-11-09 with your yes). The plan: `docs/next-steps/cv-uses-cv-tool.md`.
 
@@ -275,7 +275,7 @@ The code behind it is drawn on the [Architecture](architecture.md#the-cv-tool-co
 | id | `cv` |
 | provides | `ITaskAgent`: its worker `cv_agent`, so the Hub lists it and starts its tasks |
 | requires / optional | nothing; its worker claims its agent id `cv_agent` from the Hub, the way `job_search`'s agent does (`ProfileAgent`) |
-| permissions | `agent.access`: the worker's access list on one card when cv turns on (its workspace, read `C:\Chang\Jobs\CV` and the output folder, Chrome only for app.rezi.ai). cv turns on when you allow. A later grant reaches the worker live |
+| permissions | `agent.access`: the worker's access list on one card when cv turns on (its workspace, read `C:\Jobs\CV` and the output folder, Chrome only for app.rezi.ai). cv turns on when you allow. A later grant reaches the worker live |
 
 ## Config
 
@@ -290,7 +290,7 @@ Defaults in `module.toml` in this module's folder; `[modules.cv]` in the app's c
 | `max_rounds` | 5 | ATS Loop rounds before it stops and reports |
 | `paper` | `letter` | US Letter; `a4` later |
 | `output_dir` | unset: `<workspace>\out` | Where `cv.build` puts a PDF made without a job folder; a relative path is from the module's folder |
-| `cv_dir` | `C:\Chang\Jobs\CV` | Your CVs, read only. The CV Tool lists the `<cv_prefix>*` CVs here, and the worker never runs a command on a file here. Not a rule for `cv.task`'s `base_cv` or `cv.read`: both take any existing `.pdf` (since 2026-11-13); an `.odt` is refused |
+| `cv_dir` | `C:\Jobs\CV` | Your CVs, read only. The CV Tool lists the `<cv_prefix>*` CVs here, and the worker never runs a command on a file here. Not a rule for `cv.task`'s `base_cv` or `cv.read`: both take any existing `.pdf` (since 2026-11-13); an `.odt` is refused |
 | `cv_prefix` | `CV_Test_` | The start of the PDFs the module makes (`<cv_prefix><Company>.pdf`) and of the CVs the CV Tool lists. It is not a rule for `cv.task`'s `base_cv`, which takes any `.pdf`. Letters, digits, `_`, `-`. Your real prefix goes in the gitignored `config/cv.toml` (or `[modules.cv]` in `config/local.toml`) and `cv/app/cv_tool/cv_tool.local.toml`; the module passes it to the CV Tool (`--cv-prefix`). This page's examples use `CV_Test_` |
 | `work_dir` | `""`: `<agent.workspace>\work` | Where each job's folder is made, `<date>_<Company>_<Role>` (folder-safe), with its copy of the base CV (`base_<its name>.pdf`, so it's never taken for a tailored CV), `jd.txt` and `job_start.json`. Must be in the workspace, never in `cv_dir` or the repo |
 | `rules_dir` | `.claude/skills/cv-writing` (in the workspace) | The cv module's general rules: `SKILL.md`, then every `rules/*.md`, read in full into every job's task. Listed at each job, so a new rule file needs no reload. No `SKILL.md` refuses the job; `""` loads none |
@@ -308,7 +308,7 @@ The worker's table, `[agent]`, takes the same keys as `job_search`'s agent. They
 | `enabled` | `true` | `false`: the menu only, with no worker and no card |
 | `agent_id` | `cv_agent` | Its id in the Hub |
 | `workspace` | `workspace` (the module's own `modules\cv\workspace\`, gitignored; a relative path is from the module's folder) | Its working folder and home (the only one it writes): `work\`, `applied\`, `data\`, `cv_tool\`, `.claude\skills\cv-writing\`. A change here asks you again on the access card |
-| `read_dirs` | `C:\Chang\Jobs\CV` | Folders it reads; the output folder is added |
+| `read_dirs` | `C:\Jobs\CV` | Folders it reads; the output folder is added |
 | `tools`, `chrome` | `default`, `true` | Its tools; Claude in Chrome, only for app.rezi.ai |
 | `permission_mode` | `acceptEdits` | Sessions start in Manual |
 | `transcript` | `cv_agent.jsonl` | Its session's log |
@@ -322,7 +322,7 @@ Everything is in this module's folder, `src/assistant/modules/cv/`:
 - `ruff.toml`: cv's own lint rules (the per-file ignore for `app/cv_tool/cvlib.py`: its short names, lambdas and `zip`s kept as they were), extending the root `pyproject.toml`, so every root setting still applies here
 - Planned: the real run end to end (chunk 9, with your yes); after it passes, as a separate step, retiring the separate Rezi helper. Other modules (the job agent) connect through `cv.task` later; cv doesn't change them
 - Needs: LibreOffice (`soffice`) for `cv.build`, the `pypdf` package for the page check and for reading the base CV, the `mcp` package for Rezi, and for the CV Tool app the `pymupdf` package (listed in the module's `module.toml` as `packages`; nothing installs it, so install it by hand with pip from that list; in `.venv`) and Chrome for printing
-- `docs/`: this page, [Architecture](architecture.md), [Tools](tools.md) and `docs.toml`. These are the module's docs; the old plan page `cv_module_workflow.html` in `C:\Chang\Jobs\CV\Recruiters\docs` is left as it was
+- `docs/`: this page, [Architecture](architecture.md), [Tools](tools.md) and `docs.toml`. These are the module's docs; the old plan page `cv_module_workflow.html` in `C:\Jobs\CV\Recruiters\docs` is left as it was
 - `tests/`: its own tests, run with `pytest src/assistant/modules/cv/tests`; every cv test lives here, and shared helpers come only from the [test kit](../../../../../docs/api/testkit.md) (`assistant.testkit`), never from `tests.*`. `fake_rezi.py` is a fake Rezi: the `mcp` package's own server with an in-memory OAuth sign-in and Rezi's tools in its real format, reached without the network. `test_cv.py` covers the config, order and data; `test_build.py` the one page (one test uses real LibreOffice); `test_compare_report.py` the compare and the report; `test_rezi_mcp.py` the connection; `test_rezi_items.py` the `rezi.*` items and the guard; `test_worker.py` the worker and `cv.read`; `test_pdf_read.py` the PDF reader (lines, joins, small caps, the read check, real PDFs; one test uses LibreOffice); `pdf_fixture.py` writes a test CV as a real text PDF; `test_handoff.py` the contract, end to end through the Hub with a fake `claude`; `test_job_start.py` the job start: names, copy, refusals, the gate, end to end through the Hub; `test_tool.py` the CV Tool's side: the content in the app's shape, the rules folder, the pick, and the five items against a fake CV Tool; `test_cv_tool.py` the CV Tool app itself: a job from the module, a round, Submit's final PDF, every style at 9 pt or more, the 9 pt measure, and the server's guard, JSON-only posts and quit
 
 ## Build state

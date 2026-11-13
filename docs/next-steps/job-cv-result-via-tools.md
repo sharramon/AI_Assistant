@@ -39,7 +39,7 @@
 
 ```
 Your child task 3f2a91c0 on cv_agent ended done.
-It was for: the CV for Smoke Test Engineer at NonexistentTestCo, job folder C:\Chang\Jobs\CV_Module\work\2026-11-12_NonexistentTestCo_SmokeTestEngineer.
+It was for: the CV for Smoke Test Engineer at NonexistentTestCo, job folder C:\Jobs\CV_Module\work\2026-11-12_NonexistentTestCo_SmokeTestEngineer.
 Your task 632c9ff5 started it, with: "Fake job smoke test: call cv.task for … then write the report SMOKE TEST 2 DONE …" (first 600 characters)
 Next: read the result with cv.read_result task_id=3f2a91c0.
 Result (start): …
@@ -117,4 +117,4 @@ The fake job again: no real application, no Submit, no Rezi, no Chrome.
 4. **One message reaches the job agent**, as a new task. It names the job (company, role, folder), quotes the start of its original brief, and says to use `cv.read_result task_id=…`. The log has no `cv.job_finished` and no `[cv.job_finished]` note.
 5. **The job agent acts on it with no help:** it calls `cv.read_result task_id=…` and writes the `SMOKE TEST 3 DONE` report. This is what failed in fake job 2.
 6. **Busy-parent variant (optional):** you send the job agent a message to keep it in a turn while cv_agent ends. The child-result message waits as pending and arrives right after that turn.
-7. **Cleanup:** delete the new work folder under `C:\Chang\Jobs\CV_Module\work\` and its CV Tool job, as in session 4 of handoff-5eff4e83.
+7. **Cleanup:** delete the new work folder under `C:\Jobs\CV_Module\work\` and its CV Tool job, as in session 4 of handoff-5eff4e83.

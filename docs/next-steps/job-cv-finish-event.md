@@ -36,7 +36,7 @@ Every other route between cv and the job agent, checked 2026-11-12:
 | `job_start.json` `replied` record | `cv/reply.py` | kept, to pass each Submit on once; `how` is now `published cv.job_submitted` |
 | cv_agent's `AgentNotice` about a Submit | `cv/module.py` | kept: it goes to cv's own worker, not the job agent |
 | The Rezi click message | `cv/module.py` `_tell_worker_rezi` | kept: it goes to cv_agent, not the job agent |
-| The job project (`C:\Chang\Jobs\CV` CLAUDE.md, skills) | | nothing to cut: it only calls `cv.task`. It has no step for the result either; the message tells the agent to update the tracker row |
+| The job project (`C:\Jobs\CV` CLAUDE.md, skills) | | nothing to cut: it only calls `cv.task`. It has no step for the result either; the message tells the agent to update the tracker row |
 | cv's worker prompt (`cv/worker.py`) | | nothing: it never tells cv_agent to message the asker |
 
 ## Known gap (not built, your call)
@@ -59,7 +59,7 @@ A job agent woken in a fresh session gets the job, the folder, the summary and w
 1. **One app restart:** the contract changed. It loads agent_hub, cv and job_search with it; no reloads needed. (Done 2026-11-13 02:19, launch `logs/2026-11-13_02-19-03_wtf`.)
 2. **The fake job, in this order (updated 2026-11-13 on your request):**
    1. **Start: cv off.** The Main Assistant checks with `modules.list` that cv is off (`modules.off cv` if not) and that no earlier fake-job task is open. Then it turns on **job_search only** (`modules.on job_search`). The job_search module subscribes to `cv.job_finished` and `cv.job_submitted` when it starts.
-   2. **The job agent turns on cv itself.** The Main Assistant makes one `hub.start` on `job_search_agent` with the fake-job brief (NonexistentTestCo / Smoke Test Engineer, a `CV_Test_*.pdf` base CV; notes for cv_agent: no Chrome, no Rezi, end at once with `CV_RESULT` status "stopped"). The brief tells the job agent that cv is off and that it turns cv on with `modules.on cv` before its `cv.task` call. Give `base_cv` as the full path (`C:/Chang/Jobs/CV/<name>.pdf`): the bare file name was refused on 2026-11-13. **The Main Assistant then ends its own task at once** (its turn ends right after the `hub.start`): cv refuses `cv.task` while any open task writes the repo, which cv_agent also writes, and the Main Assistant's task counts. The log check (step 4) is a separate, later task.
+   2. **The job agent turns on cv itself.** The Main Assistant makes one `hub.start` on `job_search_agent` with the fake-job brief (NonexistentTestCo / Smoke Test Engineer, a `CV_Test_*.pdf` base CV; notes for cv_agent: no Chrome, no Rezi, end at once with `CV_RESULT` status "stopped"). The brief tells the job agent that cv is off and that it turns cv on with `modules.on cv` before its `cv.task` call. Give `base_cv` as the full path (`C:/Jobs/CV/<name>.pdf`): the bare file name was refused on 2026-11-13. **The Main Assistant then ends its own task at once** (its turn ends right after the `hub.start`): cv refuses `cv.task` while any open task writes the repo, which cv_agent also writes, and the Main Assistant's task counts. The log check (step 4) is a separate, later task.
    3. **cv fires its event:** cv_agent ends the job and cv publishes `cv.job_finished`.
    4. **The check:** the logs show that job_search received the event and the job agent was woken by it.
 
@@ -95,13 +95,13 @@ Five launches ran this test, and each ended the same way: the job agent waited o
 
 ## Smoke test 4: results (2026-11-13)
 
-Launch `logs/2026-11-13_02-19-03_wtf`, the new order. Main Assistant task 92bd651e; job agent task 7b19925b. The earlier task 8580d066 was confirmed `cancelled` first, and cv and job_search were both off. There's still no `CV_Test_*.pdf` in `C:\Chang\Jobs`, so the brief named the real `<cv_prefix>SWE.pdf` (copy only).
+Launch `logs/2026-11-13_02-19-03_wtf`, the new order. Main Assistant task 92bd651e; job agent task 7b19925b. The earlier task 8580d066 was confirmed `cancelled` first, and cv and job_search were both off. There's still no `CV_Test_*.pdf` in `C:\Jobs`, so the brief named the real `<cv_prefix>SWE.pdf` (copy only).
 
 | Step | Result | Evidence (`assistant.log`, the Hub's task record) |
 |------|--------|-----------------------------------------------------|
 | (a) Main Assistant turns on job_search only | **pass** | 02:49:32 "Activated job_search"; no `Activated cv` before it |
 | (b) the job agent turns cv on | **pass** | task started 02:49:42; its `modules.on cv` card was allowed in its tab; 02:49:59 "Activated cv" |
-| (b) the job agent's `cv.task` | **fail** | 1st call, `base_cv: "<cv_prefix>SWE.pdf"`: refused, "base_cv must be one of your CVs in C:/Chang/Jobs/CV" (the file is there). 2nd call with the full path: 02:50:36 "cv.task from job_search_agent refused: cv_agent would write C:\Chang\Git_projects\AI_Assistant, which main_assistant's open task 92bd651e writes" |
+| (b) the job agent's `cv.task` | **fail** | 1st call, `base_cv: "<cv_prefix>SWE.pdf"`: refused, "base_cv must be one of your CVs in C:/Jobs/CV" (the file is there). 2nd call with the full path: 02:50:36 "cv.task from job_search_agent refused: cv_agent would write C:\Projects\AI_Assistant, which main_assistant's open task 92bd651e writes" |
 | (c) cv fires `cv.job_finished` | **not reached** | cv_agent never started |
 | (d) job_search receives it | **not reached** | |
 | Job agent's end | done, as told | 02:50:43 "Task 7b19925b done", last line "SMOKE TEST 4 DONE: … status none (cv.task refused …), read_result not called (no task_id), cv turned on by job_search_agent yes" |
@@ -114,7 +114,7 @@ After the run, cv and job_search were turned off again (`modules.off`), so the n
 
 Launch `logs/2026-11-12_17-30-04_yes`. The app was restarted on your go. Main Assistant task 9b894240 turned on cv and job_search and made one `hub.start` on job_search_agent (task e3bdad67). cv_agent's task was cf403d73, and the job agent's wake-up task was 71c0616e. **Evidence:** `assistant.log` only. `cv_agent.jsonl`, `job_search_agent.jsonl` and their Talkers' logs are 0 bytes in this launch, so the agents' own turns are known only from the Hub's task records.
 
-There was no `CV_Test_*.pdf` anywhere, so the base CV was the real `C:\Chang\Jobs\CV\<cv_prefix>SWE.pdf`. It was only copied, never changed.
+There was no `CV_Test_*.pdf` anywhere, so the base CV was the real `C:\Jobs\CV\<cv_prefix>SWE.pdf`. It was only copied, never changed.
 
 | Check | Result | Evidence (`assistant.log`) |
 |-------|--------|----------------------------|

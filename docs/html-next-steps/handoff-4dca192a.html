@@ -41,7 +41,7 @@
    - The Hub's <code>_to_parent</code> (<code>agent_hub/tasks.py</code>).
    - <code>agent_hub/module.py</code>'s <code>hub.start</code> text about the end coming back as a message (about <code>:195-215</code>).
    - The <code>job_start.json</code> <code>replied</code> record.
-   - The job project: <code>C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md:29-37</code> and <code>C:\Chang\Jobs\CV\CLAUDE.md</code> (grep <code>cv.task</code>, <code>cv.read_result</code>, <code>CV_RESULT</code>, <code>job_start.json</code>, "wait", "poll").
+   - The job project: <code>C:\Jobs\CV\.claude\skills\apply-session\SKILL.md:29-37</code> and <code>C:\Jobs\CV\CLAUDE.md</code> (grep <code>cv.task</code>, <code>cv.read_result</code>, <code>CV_RESULT</code>, <code>job_start.json</code>, "wait", "poll").
    - cv's worker prompt (<code>cv/worker.py</code>), for anything that tells cv_agent to message the asker.</li>
 </ol>
 <p>Report the list to the user before the restart question, and record what was cut in <a href="job-cv-finish-event.html">job-cv-finish-event</a>.
@@ -78,7 +78,7 @@
 7. <strong>Architecture check</strong> (the skill), then a NEED: the audit list, then the restart question (contracts changed: <code>StartTask</code>), with the recommendation. No smoke test until the user says so.</p>
 <h2 id="other-facts-from-this-task">Other facts from this task</h2>
 <ul>
-<li>The cancelled SMOKE TEST 3 left nothing behind. There's no NonexistentTestCo folder anywhere under <code>C:\Chang\Jobs</code>, so nothing was deleted.</li>
+<li>The cancelled SMOKE TEST 3 left nothing behind. There's no NonexistentTestCo folder anywhere under <code>C:\Jobs</code>, so nothing was deleted.</li>
 <li>The history question, answered for the user: <code>cv.job_finished</code> was built on <code>publish_named</code> / <code>subscribe_named</code> (never committed). job_search turned it into an <code>AgentNotice</code> (wakes nobody), not the approved <code>DeliverMessage</code>. It was removed after the user approved the assistant's recommendation (<code>logs/2026-11-12_05-20-12_running-tests-after-restart/talker.jsonl</code>, lines 172, 179, 181).</li>
 </ul>
 <footer>Generated from <code>docs/next-steps/handoff-4dca192a.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

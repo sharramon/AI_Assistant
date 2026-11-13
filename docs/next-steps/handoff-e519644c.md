@@ -2,10 +2,10 @@
 
 ## Done (tests pass: `pytest src/assistant/modules/cv/tests` → 157 passed)
 - **Skills rule** (user): core keywords only, at most 5 one-line Skills lines, at most 6 entries each, about 25 in all.
-  Saved in `C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\SKILL.md` ("Skills section"),
+  Saved in `C:\Jobs\CV_Module\.claude\skills\cv-writing\SKILL.md` ("Skills section"),
   `rules\cv-style-skills-core-keywords.md`, and memory.
 - **Line spacing 1.1 → 1.15** (user-approved). SKILL.md "Layout" and memory say 1.15.
-- **Layout settings file:** `C:\Chang\Jobs\CV_Module\cv_tool\page_settings.json` (the CV Tool's data_dir). It's read on every
+- **Layout settings file:** `C:\Jobs\CV_Module\cv_tool\page_settings.json` (the CV Tool's data_dir). It's read on every
   call of `cvlib.layout()`, with no cache: every render, preview and PDF, every `fill()`/`lint()`/`fills()`, every `font_sizes()`
   default and the Submit's `min_pt`. Its keys and defaults are `LAYOUT_DEFAULTS` in `src/cv_tool/cvlib.py`: line_height 1.15,
   body_pt 10, name_pt 15, heading_pt 10.8, min_pt 10, margin_top_pt 36, margin_side_pt 36, entry_gap_pt 4. A value that is
@@ -34,7 +34,7 @@ covering both changes.
    So check the old 8771 process is gone (or stop it with `POST /api/quit`), then let a cv.* call (for example
    `cv.tool_status` on job 2026-11-10_Acme_Bio) start it again. Note: cv_agent is this module's worker, so the
    reload may end this session. If it does, the next session picks up from here.
-2. Check the settings file on the next print: change one value in `C:\Chang\Jobs\CV_Module\cv_tool\page_settings.json`
+2. Check the settings file on the next print: change one value in `C:\Jobs\CV_Module\cv_tool\page_settings.json`
    (e.g. line_height 1.2), POST `/api/check` on 8771 with a job's content (or print a test job), confirm `line-height: 1.2`,
    then put 1.15 back. Use a test job (HandCheckCo / SubmitCheckCo), never a real job's PDF.
 3. Check that the click reaches cv_agent: on a test job (2026-11-10_HandCheckCo), POST `/api/draft/rezi` on 8771 and look for
@@ -61,5 +61,5 @@ values as defaults:
 - Then: extend the test, run `pytest src/assistant/modules/cv/tests`, and test on a copy (work\2026-11-10_line_spacing_check\setting,
   test_setting.py with its own data_dir): change a value between two prints in one process, and check that AcmeBio v17 with Skills
   trimmed is still 1 page at 10.0 pt. Rewrite page_settings.json with every key. Update memory `cv-line-spacing-proposal.md`.
-- Then tell the user that the config file is `C:\Chang\Jobs\CV_Module\cv_tool\page_settings.json`, and ask again about the
+- Then tell the user that the config file is `C:\Jobs\CV_Module\cv_tool\page_settings.json`, and ask again about the
   one restart of the CV Tool. Don't restart without their yes. A cv module reload would also be needed for the module-side 10 pt texts.

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents and the repo&#x27;s CLAUDE.md: options</title>
+<!-- Generated from docs/next-steps/agent-claude-md-options.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="agent-claude-md-options.html"></nav>
+<main>
+<h1 id="agents-and-the-repos-claudemd-options">Agents and the repo's CLAUDE.md: options</h1>
+<p><strong>Status:</strong> proposal, nothing changed (2026-11-13). For your decision.</p>
+<h2 id="the-problem">The problem</h2>
+<p>Claude Code reads every <code>CLAUDE.md</code> in the folder it starts in and in each folder above it. cv_agent (<code>modules/cv/workspace</code>) and job_search_agent (<code>modules/job_search/workspace</code>) now start inside the repo, so each of their sessions gets the repo's <code>CLAUDE.md</code> with its imported architecture overview and API index: developer rules they don't need, thousands of tokens on every turn, and rules that can steer them (read the docs first, use the architecture skills). The job agent also loads its own copied <code>CLAUDE.md</code>, so it gets two.</p>
+<h2 id="the-exact-option">The exact option</h2>
+<ul>
+<li><strong><code>claudeMdExcludes</code></strong>: a Claude Code setting, an array of globs or absolute paths of <code>CLAUDE.md</code> files not to load. It applies to user, project and local memory files. Checked in the installed <code>claude</code> 2.1.323's settings schema; not tried in a live session.</li>
+<li><strong>Per session:</strong> <code>claude --settings '{"claudeMdExcludes":["&lt;repo&gt;/CLAUDE.md"]}'</code>. <code>claude_command</code> (<code>infra/claude_session.py</code>) has no <code>--settings</code> today, so it would be one more argument there, set from <code>AgentProfile</code>.</li>
+<li><strong>Not usable:</strong></li>
+<li><code>--bare</code> skips CLAUDE.md but also hooks, auto-memory and the OAuth sign-in, so it needs <code>ANTHROPIC_API_KEY</code>.</li>
+<li><code>--safe-mode</code> also drops skills, and cv and the job agent need theirs.</li>
+<li><code>--setting-sources user</code> skips the repo's <code>.claude/settings.json</code>, not CLAUDE.md.</li>
+</ul>
+<h2 id="three-ways">Three ways</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Tokens</th>
+<th>Deep code edits</th>
+<th>Safety of your data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. As now:</strong> workspaces in the repo</td>
+<td>High: the repo rules and both indexes every turn</td>
+<td>Good: the agent has the repo rules</td>
+<td>Weakest: your CVs and job state sit in the repo tree, kept out only by <code>.gitignore</code></td>
+</tr>
+<tr>
+<td><strong>B. <code>claudeMdExcludes</code>:</strong> workspaces stay in the repo</td>
+<td>Low</td>
+<td>Worse: an agent editing cv's code no longer sees the repo rules</td>
+<td>Same as A</td>
+</tr>
+<tr>
+<td><strong>C. Data outside the repo:</strong> the working folder (your data) outside, a saved write grant on the module's own folder for code edits, and a pointer to the module's README in the agent's prompt</td>
+<td>Low: no repo CLAUDE.md loads</td>
+<td>Good enough: the agent reads its module's docs when it edits code</td>
+<td>Best: nothing personal sits in the repo tree</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommended: C.</strong> It saves the tokens like B, keeps your data out of the repo for good, and the README pointer gives the agent the module's own rules when it edits code. Deep edits across modules stay with the Main Assistant, which keeps the whole project.</p>
+<h2 id="code-in-the-module-folder-your-data-outside">Code in the module folder, your data outside</h2>
+<p>The rule "nothing of a module outside its folder except your choices in config" fits C if your data counts as one of your choices: the config names where your data lives.</p>
+<ul>
+<li><strong>In the module folder (committed):</strong> code, tools, scripts, skills, defaults, tests, docs.</li>
+<li><strong>In a data folder that config points at (outside the repo by default, never committed):</strong> CVs, job state, applications, outputs.</li>
+</ul>
+<p>What's in the two workspaces today (files, counted 2026-11-13):</p>
+<table>
+<thead>
+<tr>
+<th>Workspace</th>
+<th>Code (moves to the module folder)</th>
+<th>Your data (goes to the data folder)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cv/workspace</code></td>
+<td><code>.claude/skills</code> (14), <code>scripts/</code> (46, with fonts and the kept Katalyst scripts)</td>
+<td><code>work/</code> (1,100+, mostly run folders and checks), <code>cv_tool/</code> (340: jobs, outbox, Rezi requests), <code>out/</code> (3), <code>applied/</code> (1), <code>data/</code> (2, with <code>confirmed_facts.json</code>); <code>docs/</code> (20) to sort: next-steps notes and writing preferences</td>
+</tr>
+<tr>
+<td><code>job_search/workspace</code></td>
+<td><code>.claude/skills</code> (24), <code>Recruiters/scripts</code> (22), <code>job_paths.py</code></td>
+<td><code>Recruiters/docs</code> (546: job state, applications), <code>CLAUDE.md</code> (it holds your profile), <code>job_paths.json</code></td>
+</tr>
+</tbody>
+</table>
+<p>How the rest would work:</p>
+<ul>
+<li><strong>Paths file:</strong> one data-folder key in the module's config (<code>config/&lt;id&gt;.toml</code>, yours). The job project's <code>job_paths.json</code> then lives in that data folder or is made from the key, so no script names a real path.</li>
+<li><strong>Grants:</strong> the agent's workspace is the data folder; a write on its own module folder is a separate line of the same card.</li>
+<li><strong><code>modules.remove</code>:</strong> purge still deletes only the module's config files. The data folder is never deleted, or asked about on its own line.</li>
+</ul>
+<p>Moving to C means a migration per agent (copy the data out, point the config, a new access card), much like items 17 and 18. Not started.</p>
+<footer>Generated from <code>docs/next-steps/agent-claude-md-options.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

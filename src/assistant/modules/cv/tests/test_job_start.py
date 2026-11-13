@@ -142,7 +142,7 @@ def test_the_work_folder_and_the_rules_come_from_the_config(tmp_path):
     assert Path(checked["rules_dir"]) == home / ".claude" / "skills" / "cv-writing"
     assert checked["tool"] | {"rules_dir": ""} == {"host": "127.0.0.1", "port": 8771, "data_dir": str(home / "cv_tool"),
                                                   "facts": str(home / "data" / "confirmed_facts.json"),
-                                                  "cv_dir": "C:/Chang/Jobs/CV", "rules_dir": "",
+                                                  "cv_dir": "C:/Jobs/CV", "rules_dir": "",
                                                   "cv_prefix": "CV_Test_"}  # fmt: skip
     assert checked["cv_prefix"] == "CV_Test_"  # the repo default; the real one is in the local config
     with pytest.raises(ValueError, match="cv_prefix"):

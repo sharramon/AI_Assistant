@@ -15,7 +15,7 @@ The design is [multi-agent.md](multi-agent.md); the earlier handoff is [handoff-
 - **Chunk 7, the job agent:**
   - **New module `modules/job_search/`** (`JobSearchModule`, off at launch). It bundles a `ProfileAgent` with id `job` (`agent_id` in config) and its menu item `job.search(days)`, a **stub**: it answers at once and publishes `AgentNotice(agent_id=caller, source="job.search")`, saying the runner isn't built yet. `JOB_PROMPT` says: one job per session, `HANDOFF:` instead of `handoff.ps1`, never submit or send, confirm before any search.
   - **Shared infra:** a `chrome` option in `claude_command` (`--chrome`) and `AgentProfile` (config key `chrome`).
-  - **Config:** `[modules.job_search]` in `config/default.toml`, with workspace `C:/Chang/Jobs/CV`, read `C:/Chang/Jobs` and JobRadar, `tools = "default"`, `chrome = true`, Manual.
+  - **Config:** `[modules.job_search]` in `config/default.toml`, with workspace `C:/Jobs/CV`, read `C:/Jobs` and JobRadar, `tools = "default"`, `chrome = true`, Manual.
   - Test: `tests/test_job_search.py` (2 tests).
 - **Suite:** 444 passed, ruff clean. The only 4 failures are in `test_module_docs.py`, which needs the job_search docs below.
 

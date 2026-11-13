@@ -25,7 +25,7 @@ APPROVED = CvResult(status="approved", pdf_path="out/CV.pdf", approved_by_user=T
                     rezi_resume=ResumeRef(name="Acme – Senior Engineer", id="r9"))  # fmt: skip
 
 
-def request(base_cv: str = "C:/Chang/Jobs/CV/CV_Test_Umbrella.pdf") -> CvRequest:
+def request(base_cv: str = "C:/Jobs/CV/CV_Test_Umbrella.pdf") -> CvRequest:
     return CvRequest(company="Acme", role="Senior Engineer", jd_text=JD, base_cv=base_cv, target_score=95)
 
 

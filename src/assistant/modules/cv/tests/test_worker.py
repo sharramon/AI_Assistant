@@ -44,7 +44,7 @@ def test_the_default_worker_is_cv_agent_with_chrome_and_reads_the_output_folder(
     assert config["chrome"] is True and config["permission_mode"] == "acceptEdits"
     assert "enabled" not in config and "agent_id" not in config
     # the default output folder is <workspace>/out, already the worker's: no read item for it
-    assert config["read_dirs"] == ["C:/Chang/Jobs/CV"]
+    assert config["read_dirs"] == ["C:/Jobs/CV"]
     out = "C:/elsewhere/out"
     assert worker_config({}, out)["config"]["read_dirs"] == [out]
     # the output folder isn't added twice, and no [agent] table means the menu only
@@ -56,7 +56,7 @@ def test_the_default_worker_is_cv_agent_with_chrome_and_reads_the_output_folder(
 
 
 @pytest.mark.parametrize("bad", [
-    {"enabled": "yes"}, {"agent_id": "CV Agent"}, {"agent_id": ""}, {"read_dirs": "C:/Chang/Jobs/CV"},
+    {"enabled": "yes"}, {"agent_id": "CV Agent"}, {"agent_id": ""}, {"read_dirs": "C:/Jobs/CV"},
 ])  # fmt: skip
 def test_a_bad_agent_table_stops_the_config_check(bad):
     with pytest.raises(ValueError, match="agent"):
@@ -67,7 +67,7 @@ def test_a_bad_agent_table_stops_the_config_check(bad):
 
 def test_the_prompt_holds_the_steps_the_truth_gate_and_the_config():
     checked = settings(merge(DEFAULTS, {"target_score": 95, "max_rounds": 3}))
-    prompt = worker_prompt("cv_agent", checked, "C:/Chang/Jobs/CV")
+    prompt = worker_prompt("cv_agent", checked, "C:/Jobs/CV")
     assert "{" not in prompt and "}" not in prompt  # every placeholder filled
     for needed in ("You are cv_agent", "95 or more", "at most 3 rounds", "app.rezi.ai", "WITHOUT resume_id",
                    "The 5 steps", "Job & CV", "cv.open_tool", "cv.tool_status", "cv.tool_round",
@@ -76,8 +76,8 @@ def test_the_prompt_holds_the_steps_the_truth_gate_and_the_config():
                    "never download Rezi's PDF", "copy the same change into the content", "never shrink the font",
                    "CV_Test_<Company>_final.pdf", "keywords_left_out", "Never add a skill", "NEED:",
                    "end your task", 'status "ready"', "[cv] line", 'end as "approved"',
-                   "C:/Chang/Jobs/CV", "CV_JOB:", "base_cv_copy",
-                   "Work only in work_dir", "never run a script or command on a file in C:/Chang/Jobs/CV",
+                   "C:/Jobs/CV", "CV_JOB:", "base_cv_copy",
+                   "Work only in work_dir", "never run a script or command on a file in C:/Jobs/CV",
                    "CV_Test_*.pdf", "the job description (JD) as text", "PDFs only", "confirmed facts"):  # fmt: skip
         assert needed in prompt, needed
     assert "odt_path" not in prompt and "CV_Test_*.odt" not in prompt

@@ -4,9 +4,12 @@
 # refuses to turn one off while cv is on). None: cv talks to the others only through contracts.
 needs = []
 
-# The pip packages cv needs beyond the app's own (Manifest.packages): the CV Tool app's PDF text,
-# sizes and page images. Nothing installs them: install them by hand with pip from this list.
-packages = ["pymupdf>=1.24"]
+# The pip packages cv needs beyond the app's own (Manifest.packages): pymupdf for the CV Tool app's
+# PDF text, sizes and page images; pypdf for reading a CV PDF (pdf.py, pdf_read.py); mcp for the Rezi
+# connection (mcp.py) and its test server; httpx2 (comes with mcp) because mcp.py and the Rezi tests
+# import it directly. Nothing installs them: install them by hand with pip from this list.
+# tests/test_packages.py checks every package cv's code imports is listed here.
+packages = ["pymupdf>=1.24", "pypdf>=7", "mcp>=2.3", "httpx2>=2.10"]
 
 # The usual order of the one page.
 section_order = ["contact", "summary", "skills", "experience", "projects", "education", "awards", "publications"]
@@ -20,7 +23,7 @@ max_rounds = 5      # ATS Loop rounds before it stops and reports
 paper = "letter"    # US Letter; "a4" later
 
 # output_dir = ""  # unset: <agent.workspace>/out (cv.build's PDFs); a relative path is from this module's folder
-cv_dir = "C:/Chang/Jobs/CV"   # the user's CVs, read only (the CV Tool lists the <cv_prefix>* ones); not a rule for base_cv or cv.read
+cv_dir = "C:/Jobs/CV"   # an example; yours goes in the gitignored config/local.toml. The user's CVs, read only (the CV Tool lists the <cv_prefix>* ones); not a rule for base_cv or cv.read
 # The start of your CV file names: the PDFs made are named with it and the CV Tool lists your CVs by it.
 # Your real prefix goes in the gitignored config/local.toml ([modules.cv] cv_prefix = "...").
 cv_prefix = "CV_Test_"
@@ -64,7 +67,7 @@ port = 8771            # fixed, so CompanionApp finds it (8765-8767 and 8770 are
 enabled = true
 agent_id = "cv_agent"
 workspace = "workspace"       # its own folder, modules/cv/workspace (gitignored); a relative path is from this module's folder
-read_dirs = ["C:/Chang/Jobs/CV"]
+read_dirs = ["C:/Jobs/CV"]
 tools = "default"
 chrome = true                 # Claude in Chrome, only for app.rezi.ai (its prompt says so)
 permission_mode = "acceptEdits"

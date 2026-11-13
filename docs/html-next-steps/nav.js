@@ -790,6 +790,8 @@
       "home": [
         "index.html",
         "module-folders-checklist.html",
+        "module-folders-launch-check.html",
+        "agent-claude-md-options.html",
         "module-folders-audit.html",
         "auto-skips-cards.html",
         "job-cv-finish-event.html",
@@ -859,6 +861,7 @@
         "handoff-5eff4e83.html",
         "handoff-73fc479c.html",
         "handoff-8c52a851.html",
+        "handoff-93bcbd29.html",
         "handoff-99c9ff7c.html",
         "handoff-9bc35422.html",
         "handoff-cv-tool-build.html",
@@ -911,6 +914,14 @@
             {
               "name": "Module folders: every module in its own folder, checked item by item",
               "href": "module-folders-checklist.html"
+            },
+            {
+              "name": "Module folders: where each module and agent lives, before and after the restart",
+              "href": "module-folders-launch-check.html"
+            },
+            {
+              "name": "Agents and the repo's CLAUDE.md: options",
+              "href": "agent-claude-md-options.html"
             },
             {
               "name": "Module folders: what was promised, what was done, and why it was called done",
@@ -1187,6 +1198,10 @@
             {
               "name": "Handoff: prepare the helpers for the batched restart (task 9, after the code-review cleanup)",
               "href": "handoff-8c52a851.html"
+            },
+            {
+              "name": "Handoff: job UI output folder, privacy paths, cv packages, voice_in note, CLAUDE.md options",
+              "href": "handoff-93bcbd29.html"
             },
             {
               "name": "Handoff: multi-agent build, chunks 6–7 (task 99c9ff7c)",

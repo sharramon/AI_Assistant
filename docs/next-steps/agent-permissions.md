@@ -45,7 +45,7 @@ Each time the module is turned on, it builds its list from config: paths resolve
 ## What the card shows
 
 - **Who:** the module and agent (`job_search` → `job_search_agent`, renamed by [agent-names](agent-names.md)) and its one-line description.
-- **The list**, one line per item, each with a tick box: read `C:\Chang\Jobs`, write `C:\Chang\Jobs\CV`, run `<JobRadar's python.exe>`, use Chrome.
+- **The list**, one line per item, each with a tick box: read `C:\Jobs`, write `C:\Jobs\CV`, run `<JobRadar's python.exe>`, use Chrome.
 - **Warnings**, each next to the items it's about. The rule warnings come first, then the Main Assistant's notes, marked as its own, or "not reviewed" if it was busy.
 - **The fixed rules**, in one line: never submit or send anything; protected paths are never granted; sessions start in Manual.
 - **Buttons:** Allow (the ticked items), Deny. A denied or unanswered card leaves the module off, with the reason shown.

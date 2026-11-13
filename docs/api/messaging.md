@@ -177,7 +177,7 @@ One line of an access list. `target`: the resolved folder, the Python's path or 
 | `key` | `kind:target` (or `chrome`): names the item in answers and saved grants |
 | `from_key(key)` | The item a key names. `ValueError` for an unknown kind |
 | `trimmable` | Whether the card gives it a tick box (not the workspace) |
-| `label` | The line on the card: "read C:\Chang\Jobs", "run … (any arguments)", "use Chrome" |
+| `label` | The line on the card: "read C:\Jobs", "run … (any arguments)", "use Chrome" |
 
 ### `AccessNote`
 

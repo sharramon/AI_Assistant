@@ -177,7 +177,7 @@ class HtmlViewerModule(ModuleProtocol):
 <td><code>packages</code></td>
 <td><code>tuple[str, ...]</code></td>
 <td>no</td>
-<td>The pip packages its code and its app need, as requirement strings (cv: <code>("pymupdf&gt;=1.24",)</code>). Set in the module's <code>module.toml</code> (<code>packages = [...]</code>), read the same way as <code>needs</code>; each a non-empty string. Informational: nothing installs them, so install them by hand with pip from this list. No module's packages are in <code>pyproject.toml</code> (built 2026-11-13)</td>
+<td>The pip packages its code and its app need, as requirement strings (cv: <code>("pymupdf&gt;=1.24", "pypdf&gt;=7", "mcp&gt;=2.3", "httpx2&gt;=2.10")</code>). Set in the module's <code>module.toml</code> (<code>packages = [...]</code>), read the same way as <code>needs</code>; each a non-empty string. Informational: nothing installs them, so install them by hand with pip from this list. No module's packages are in <code>pyproject.toml</code> (built 2026-11-13)</td>
 </tr>
 <tr>
 <td><code>permissions</code></td>

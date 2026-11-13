@@ -13,7 +13,7 @@
 <main>
 <h1 id="cv-module-pdf-in-pdf-out">cv module: PDF in, PDF out</h1>
 <blockquote>
-<p><strong>Status: live (2026-11-09).</strong> <code>cv</code> reloaded with your yes; the live menu takes <code>CV_Test_*.pdf</code>. The job agent's three files below now name <code>.pdf</code> (the skill's form-filling <code>.odt</code> lines are left, as planned). The cv module takes the base CV as a PDF, refuses an <code>.odt</code> in every item, and exports the final PDF into the job's folder; <code>odt_path</code> is gone from the result. The cv tests pass: 130, three of them with real LibreOffice, plus the layout and docs checks (156 in all). <strong>Left out at your request:</strong> the access cut. cv_agent keeps its read access to <code>C:\Chang\Jobs\CV</code>. <strong>Waiting on you:</strong> (1) a <code>cv</code> reload; (2) your yes to change the job agent's three files below to <code>.pdf</code>. Until then its <code>cv.task</code> calls with an <code>.odt</code> are refused.</p>
+<p><strong>Status: live (2026-11-09).</strong> <code>cv</code> reloaded with your yes; the live menu takes <code>CV_Test_*.pdf</code>. The job agent's three files below now name <code>.pdf</code> (the skill's form-filling <code>.odt</code> lines are left, as planned). The cv module takes the base CV as a PDF, refuses an <code>.odt</code> in every item, and exports the final PDF into the job's folder; <code>odt_path</code> is gone from the result. The cv tests pass: 130, three of them with real LibreOffice, plus the layout and docs checks (156 in all). <strong>Left out at your request:</strong> the access cut. cv_agent keeps its read access to <code>C:\Jobs\CV</code>. <strong>Waiting on you:</strong> (1) a <code>cv</code> reload; (2) your yes to change the job agent's three files below to <code>.pdf</code>. Until then its <code>cv.task</code> calls with an <code>.odt</code> are refused.</p>
 </blockquote>
 <p><strong>Asked:</strong> the <code>cv</code> module's interface is fixed to three things: it takes a job description as text and a base CV as a PDF, and it gives back a CV as a PDF. Other modules and the job agent need to know only that. How the module reads and edits the PDF inside is its own business. The cv agent has no access to your <code>.odt</code> files.</p>
 <h2 id="the-interface">The interface</h2>
@@ -44,7 +44,7 @@
 </tr>
 <tr>
 <td><code>base_cv</code></td>
-<td><strong>a <code>CV_Test_*.pdf</code> in <code>C:\Chang\Jobs\CV</code></strong> (read only, never changed)</td>
+<td><strong>a <code>CV_Test_*.pdf</code> in <code>C:\Jobs\CV</code></strong> (read only, never changed)</td>
 <td>was a <code>.odt</code>; an <code>.odt</code> is now refused: "base_cv must be a CV_Test_*.pdf"</td>
 </tr>
 <tr>
@@ -91,12 +91,12 @@
 <p><strong>Not done, at your request (2026-11-09):</strong> the access list stays as it is. The code refusals below are built.</p>
 </blockquote>
 <ul>
-<li>The cv agent's access list (<code>[agent] read_dirs</code> in <code>cv/module.toml</code>) drops <code>C:\Chang\Jobs\CV</code>. It reaches a base CV only through the module's own <code>cv.read</code>, which opens PDFs only.</li>
+<li>The cv agent's access list (<code>[agent] read_dirs</code> in <code>cv/module.toml</code>) drops <code>C:\Jobs\CV</code>. It reaches a base CV only through the module's own <code>cv.read</code>, which opens PDFs only.</li>
 <li>Every <code>cv.*</code> item refuses an <code>.odt</code>. Any file the module makes on the way to the PDF stays outside the agent's folders, and only the PDF and the report reach the output folder.</li>
 <li>The access list changes, so its card comes up once when <code>cv</code> reloads.</li>
 </ul>
 <h2 id="what-the-job-agent-must-change-to-match">What the job agent must change to match</h2>
-<p><code>job_search</code>'s app code and prompt don't name the CV's file type, so nothing changes in the app. Its <code>cv.task</code> call is built from files in its own project, <code>C:\Chang\Jobs\CV</code>:</p>
+<p><code>job_search</code>'s app code and prompt don't name the CV's file type, so nothing changes in the app. Its <code>cv.task</code> call is built from files in its own project, <code>C:\Jobs\CV</code>:</p>
 <ul>
 <li><code>Recruiters/scripts/save_jd.py</code>: the base CV map and its check name <code>CV_Test_*.pdf</code> (it now names <code>.odt</code> files, and refuses anything else).</li>
 <li>The <code>apply-session</code> skill: <code>--base &lt;file&gt;.pdf</code>, and it looks for per-company <code>.pdf</code> files instead of <code>.odt</code>.</li>
@@ -110,7 +110,7 @@
 <li><strong>The old <code>.odt</code> reader</strong> is kept only so the builder can check, once, that the new reader matches your real CVs. The agent never uses it.</li>
 <li><strong>No second reading by Rezi</strong> at the start: the read check and your step-3 read cover it.</li>
 </ul>
-<p><strong>Touches:</strong> <code>src/assistant/modules/cv/</code> (code, prompt, <code>module.toml</code>, tests, its <code>docs/</code> pages) and the three job agent files above in <code>C:\Chang\Jobs\CV</code>. Nothing in <code>core</code>, <code>infra</code> or <code>contracts</code>.</p>
+<p><strong>Touches:</strong> <code>src/assistant/modules/cv/</code> (code, prompt, <code>module.toml</code>, tests, its <code>docs/</code> pages) and the three job agent files above in <code>C:\Jobs\CV</code>. Nothing in <code>core</code>, <code>infra</code> or <code>contracts</code>.</p>
 <p><strong>After building:</strong> reload <code>cv</code> once you say so; the access card follows.</p>
 <footer>Generated from <code>docs/next-steps/cv-pdf-only.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

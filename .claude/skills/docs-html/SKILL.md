@@ -32,7 +32,7 @@ After **any** change to a Markdown file under `docs/`, in the same piece of work
    .\.venv\Scripts\python scripts\build_docs.py
    ```
 3. Confirm the output says `Wrote N pages to docs/html/` with the expected count. If the build fails, fix it before moving on.
-4. Tell the user the HTML was rebuilt, and say which pages changed. Write each page's **full absolute path** (like `C:\Chang\Git_projects\AI_Assistant\docs\html\api\tools.html`), never a bare file name: the chat turns the path into an Open in viewer button, and a bare name fails with "No such file".
+4. Tell the user the HTML was rebuilt, and say which pages changed. Write each page's **full absolute path** (like `C:\Projects\AI_Assistant\docs\html\api\tools.html`), never a bare file name: the chat turns the path into an Open in viewer button, and a bare name fails with "No such file".
 
 ## Batching
 

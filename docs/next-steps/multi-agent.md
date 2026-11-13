@@ -154,7 +154,7 @@ All in `assistant.contracts`; each needs the app restart.
 
 ## What the job app helper needs from this
 
-A job agent, now `job_search_agent` (folder `C:\Chang\Jobs\CV`, its access list, Chrome tools, Manual mode), which you can focus and talk to directly while the Main Assistant keeps working. It also needs its own tab with its **!**, its held questions and cards, and its milestones reaching the Main Assistant through the feed. `instances` allows one agent per job later. The [job-agent note](job-agent.md) then shrinks to the profile and its menu.
+A job agent, now `job_search_agent` (folder `C:\Jobs\CV`, its access list, Chrome tools, Manual mode), which you can focus and talk to directly while the Main Assistant keeps working. It also needs its own tab with its **!**, its held questions and cards, and its milestones reaching the Main Assistant through the feed. `instances` allows one agent per job later. The [job-agent note](job-agent.md) then shrinks to the profile and its menu.
 
 ## Risks
 

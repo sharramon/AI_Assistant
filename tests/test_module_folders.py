@@ -842,8 +842,8 @@ def test_job_search_agent_works_from_its_module_workspace() -> None:
     """Item 18's done-when: no committed job_search code or config names the old job project
     folder; the workspace (and the job UI's default script) is the module's own, gitignored and
     skipped by pytest; the grant asks for it first, with the module's own folder written."""
-    found = subprocess.run(["git", "grep", "-n", "-E", r"Chang[\\/]+Jobs[\\/]+CV", "--", "src/assistant/modules/job_search",
-                            ":!src/assistant/modules/job_search/docs"], cwd=REPO, capture_output=True, text=True).stdout  # fmt: skip
+    found = subprocess.run(["git", "grep", "-n", "-E", r"[A-Za-z]:[\\/]+(\w+[\\/]+)?Jobs[\\/]+CV", "--", "src/assistant/modules/job_search",
+                            ":!src/assistant/modules/job_search/docs", ":!src/assistant/modules/job_search/tests"], cwd=REPO, capture_output=True, text=True).stdout  # fmt: skip
     assert not found, found
     from assistant.modules.job_search.module import job_config
     from assistant.modules.job_search.ui import ui_settings

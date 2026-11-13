@@ -1,6 +1,6 @@
 # Job agent: run the job project from the assistant
 
-> **Status: built (waiting on you), 2026-11-05.** Built with the [multi-agent](multi-agent.md) build as the `job_search` module ([page](../../src/assistant/modules/job_search/docs/README.md)): the job agent `job_search_agent` (renamed by [agent-names](agent-names.md); a `ProfileAgent` in `C:\Chang\Jobs\CV`, Chrome tools, Manual) and its `job.search` menu item, a **stub** that answers through `AgentNotice`. Question 1 is settled by [agent-permissions](agent-permissions.md) (built 2026-11-05): the access list is config keys, asked for on one card. Still open: the real search runner (`sweep.py` with JobRadar's Python). Needs an app restart. How the job project works today is on the [Job project](../../src/assistant/modules/job_search/docs/job-project.md) page.
+> **Status: built (waiting on you), 2026-11-05.** Built with the [multi-agent](multi-agent.md) build as the `job_search` module ([page](../../src/assistant/modules/job_search/docs/README.md)): the job agent `job_search_agent` (renamed by [agent-names](agent-names.md); a `ProfileAgent` in `C:\Jobs\CV`, Chrome tools, Manual) and its `job.search` menu item, a **stub** that answers through `AgentNotice`. Question 1 is settled by [agent-permissions](agent-permissions.md) (built 2026-11-05): the access list is config keys, asked for on one card. Still open: the real search runner (`sweep.py` with JobRadar's Python). Needs an app restart. How the job project works today is on the [Job project](../../src/assistant/modules/job_search/docs/job-project.md) page.
 >
 > **Tested by hand (2026-11-05, after the restart):** `modules.on job_search` showed the access card ("not reviewed": `main_assistant` was busy). You allowed all 5 items, and `job_search` turned on. `job_search_agent` is in the Hub (Manual, free) and took the focus. Its tab opened in the temp UI: the log shows tab clicks moving the focus between it and `main_assistant`. The grant is saved in `data/permissions.toml`, and `permissions.grants` lists it with `matches: true`. `job.search` (the stub) answered "Search started". Not yet tried: giving the agent a real task, and the revoke from the Grants screen.
 
@@ -14,7 +14,7 @@
 | Part | What it is | There today? |
 |---|---|---|
 | Module | `src/assistant/modules/job_agent/`, a wrapper like every module: `Manifest(id="job_agent")` providing `ITaskAgent`, with its permissions, and a menu of tools (apply to the next job, run a search) in the [module shape](module-shape-refactor.md) | No. The menus and the directory are planned in that change |
-| The agent | An `ITaskAgent` backed by [`SessionTaskAgent`](../api/infra.md#sessiontaskagent) and `ClaudeSession`, working in `C:\Chang\Jobs\CV`. Claude picks up that folder's `CLAUDE.md` and skills by itself | Yes, both reused as they are |
+| The agent | An `ITaskAgent` backed by [`SessionTaskAgent`](../api/infra.md#sessiontaskagent) and `ClaudeSession`, working in `C:\Jobs\CV`. Claude picks up that folder's `CLAUDE.md` and skills by itself | Yes, both reused as they are |
 | One session per job | A fresh session per task, as the Main Assistant does; this replaces `handoff.ps1` | Yes |
 | Reports | `ReportTask` (progress, need, done, failed) to the Hub, which publishes `TaskUpdated` for the Talker. The Hub finds the agent through `get_all(ITaskAgent)` | Yes, no Hub change |
 
@@ -41,9 +41,9 @@ The job agent works outside this repo, so it gets its own access list (built wit
 
 ## Later: cloud agents
 
-A cloud agent can't see `C:\Chang\Jobs\CV` (not a git repo), the `.odt` CVs, JobRadar's Python or your logged-in Chrome. Its status would come from checking a remote API over and over, through its own `ITaskAgent` adapter, and it means sending job data off the machine. A later step, for the web-only half of a search at most.
+A cloud agent can't see `C:\Jobs\CV` (not a git repo), the `.odt` CVs, JobRadar's Python or your logged-in Chrome. Its status would come from checking a remote API over and over, through its own `ITaskAgent` adapter, and it means sending job data off the machine. A later step, for the web-only half of a search at most.
 
 ## Open questions for you
 
-1. **The job agent's permissions.** Proposed: read and write `C:\Chang\Jobs\CV`; read `C:\Chang\Jobs` and JobRadar (`C:\Chang\Git_projects\Resume`); run JobRadar's Python; use Chrome; Manual mode; never submit or send anything. **Settled (built 2026-11-05):** the list is in config, with the `python` key added, and is asked for on one card when the module is turned on ([note](agent-permissions.md)).
+1. **The job agent's permissions.** Proposed: read and write `C:\Jobs\CV`; read `C:\Jobs` and JobRadar (`C:\Projects\Resume`); run JobRadar's Python; use Chrome; Manual mode; never submit or send anything. **Settled (built 2026-11-05):** the list is in config, with the `python` key added, and is asked for on one card when the module is turned on ([note](agent-permissions.md)).
 2. **May the Main Assistant start or question the job agent itself**, or only you through the Talker for now? Recommended: only you, for now.

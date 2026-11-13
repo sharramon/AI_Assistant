@@ -1,6 +1,6 @@
 # Handoff 20c1d08e: cv module, PDF in and PDF out (build)
 
-Task: build the plan in `docs/next-steps/cv-pdf-only.md`. The user said "build it". **User change (2026-11-09): keep cv_agent's read access to `C:\Chang\Jobs\CV`. Don't touch `[agent] read_dirs`, and leave that part of the plan out.** Ask before any reload or restart. Ask before editing the job agent's files (`save_jd.py`, the apply-session skill, the ExampleCorp record). Don't touch the uncommitted `infra/session_agent.py` and `handoff_keeper.py` (another agent's). `job_search/module.py`, `tests/test_agents.py` and `tests/test_worker_parts.py` are also modified, not by this task: leave them alone.
+Task: build the plan in `docs/next-steps/cv-pdf-only.md`. The user said "build it". **User change (2026-11-09): keep cv_agent's read access to `C:\Jobs\CV`. Don't touch `[agent] read_dirs`, and leave that part of the plan out.** Ask before any reload or restart. Ask before editing the job agent's files (`save_jd.py`, the apply-session skill, the ExampleCorp record). Don't touch the uncommitted `infra/session_agent.py` and `handoff_keeper.py` (another agent's). `job_search/module.py`, `tests/test_agents.py` and `tests/test_worker_parts.py` are also modified, not by this task: leave them alone.
 
 ## State right now (session 3, 2026-11-09): built and tested, waiting on you
 
@@ -17,14 +17,14 @@ Task: build the plan in `docs/next-steps/cv-pdf-only.md`. The user said "build i
 
 ## In progress: the Rezi context note (read only, plus one file to write)
 
-**Task:** read `C:\Chang\Jobs\rezi\cv_tool`, `C:\Chang\Jobs\rezi\rezi` and `C:\Chang\Jobs\rezi\rezi_agent` read-only, and run nothing. Then write **only** `C:\Chang\Jobs\rezi\cv_agent\work\rezi_context_note.md` covering:
+**Task:** read `C:\Jobs\rezi\cv_tool`, `C:\Jobs\rezi\rezi` and `C:\Jobs\rezi\rezi_agent` read-only, and run nothing. Then write **only** `C:\Jobs\rezi\cv_agent\work\rezi_context_note.md` covering:
 - how the Rezi flow and its UI really work;
 - what each folder holds;
 - which tools and scripts belong to which;
 - what the old flow did that the cv module doesn't;
 - anything that changes the PDF plan.
 
-Then tell the user the key points briefly. **Written (session 4, 2026-11-09).** Tests re-run: 156 pass. Also found: `CV_Test_SWE.odt` was emptied 2026-11-08 02:00:50 (during Hooli); `CV_Test_SWE.pdf` (2026-10-22) exists. Hooli never reached Submit. Still waiting: reload, the job agent's 3 files. (Earlier status below.) All three folders have been read except: Hooli's `job.json` (end state; submitted or not) and the names of the driving scripts in `C:\Chang\Jobs\rezi\cv_agent\scripts` (both still to check, read only).
+Then tell the user the key points briefly. **Written (session 4, 2026-11-09).** Tests re-run: 156 pass. Also found: `CV_Test_SWE.odt` was emptied 2026-11-08 02:00:50 (during Hooli); `CV_Test_SWE.pdf` (2026-10-22) exists. Hooli never reached Submit. Still waiting: reload, the job agent's 3 files. (Earlier status below.) All three folders have been read except: Hooli's `job.json` (end state; submitted or not) and the names of the driving scripts in `C:\Jobs\rezi\cv_agent\scripts` (both still to check, read only).
 
 **Findings so far:**
 
@@ -44,7 +44,7 @@ Then tell the user the key points briefly. **Written (session 4, 2026-11-09).** 
 - **`cv_tool\`: the standalone CV Tool app the user actually used for Hooli** (README read in full).
   - **Start:** `cv_tool.cmd` runs `pythonw -I server.py`, a server on 127.0.0.1 in its own Edge window (`.edge_profile`).
   - **`cvlib.py`:**
-    - reads base CVs as `.odt`/`.docx` only, from `C:\Chang\Jobs\CV`;
+    - reads base CVs as `.odt`/`.docx` only, from `C:\Jobs\CV`;
     - renders its own HTML template (Source Sans 3, Letter, `render()`);
     - exports the PDF with **headless Chrome print-to-pdf** (`.chrome_print` profile), not LibreOffice;
     - pymupdf for page count, parse checks and highlights;
@@ -81,7 +81,7 @@ Then tell the user the key points briefly. **Written (session 4, 2026-11-09).** 
     - (c) **Label lines:** a line starting `Label:` (`_LABEL`, e.g. "Skills:", "AI Development:") never joins the line above.
   - **The one-time check against the .odt reader: 33/36 match exactly.** The other 3 aren't reader bugs: the Apple and Walden PDFs are older than their .odt files, and SWE.odt is 0 bytes.
     - Unplaced is 0 on every CV except `CV_Test_Rezi.pdf` (78; Rezi's own layout, so the worker would stop and ask).
-    - Scripts and copies: `C:\Chang\Jobs\rezi\cv_agent\work\pdf-reader-check` (`check_all.py`, `lines.py`). Run them with `PYTHONPATH=<repo>\src`.
+    - Scripts and copies: `C:\Jobs\rezi\cv_agent\work\pdf-reader-check` (`check_all.py`, `lines.py`). Run them with `PYTHONPATH=<repo>\src`.
 - **`content.py`:** `CvContent.from_pdf` raises ValueError naming the unplaced text. `from_odt` is removed; `odt.read_odt` is kept for the writer's round-trip tests.
 - **`data.py`:** `BASE_CV_NAME` regex. `CvRequest.base_cv` must match `CV_Test_*.pdf`, else "base_cv must be a CV_Test_*.pdf, not <name>". `CvResult.odt_path` is removed, so extra=forbid refuses it.
 - **`build.py`:** `build_cv(content, order, pdf_path, export, ...)`. The .odt and the export go in a `TemporaryDirectory`; only the last checked PDF is copied to `pdf_path`. `Built` has no odt_path, and a non-.pdf target raises ValueError.

@@ -19,8 +19,8 @@
 <ul>
 <li>The change note <a href="cv-uses-cv-tool.html">cv-uses-cv-tool.md</a> is written, listed in Pending changes, and the HTML is rebuilt. It covers why the CV Tool ended up separate (from <code>talker-cv_agent.jsonl</code>, 2026-11-07 21:21 to 2026-11-08 01:02), the CV Tool flow cv_agent should follow, <code>CompanionApp</code> control, what moves to <code>src/cv_tool/</code> and what stays, and the order after the PDF-only reload.</li>
 <li>The CV skill and notes were found and reported to the user:</li>
-<li><strong>The only CV skill:</strong> <code>C:\Chang\Jobs\rezi\cv_agent\docs\cv-writing-preferences\SKILL.md</code>. Its step 4 is out of date ("once the service's export is downloaded").</li>
-<li><strong>The rest are memory notes</strong> in <code>C:\Users\sharr\.claude\projects\C--Chang-Jobs-rezi-cv-agent\memory\</code>. Only <code>never-script-cv-folder-copy-first.md</code> loads in full through <code>job_skills</code>. The others reach cv_agent only as their index line.</li>
+<li><strong>The only CV skill:</strong> <code>C:\Jobs\rezi\cv_agent\docs\cv-writing-preferences\SKILL.md</code>. Its step 4 is out of date ("once the service's export is downloaded").</li>
+<li><strong>The rest are memory notes</strong> in <code>C:\Users\you\.claude\projects\C--Jobs-rezi-cv-agent\memory\</code>. Only <code>never-script-cv-folder-copy-first.md</code> loads in full through <code>job_skills</code>. The others reach cv_agent only as their index line.</li>
 <li><code>cv_tool\data\confirmed_facts.json</code> isn't loaded at all.</li>
 <li>No separate skill for the CV Tool UI exists.</li>
 <li><strong>The user's answers:</strong> a PDF base CV; remove <code>user-wants-rezi-export-not-local-build.md</code>; Internal or Rezi is the pick step; yes to checking 9 pt and adding it to the note; the style, layout and fact rules matter in the CV Tool and as general rules.</li>
@@ -29,7 +29,7 @@
 <ul>
 <li><strong>The cv module (AI_Assistant):</strong> no font-size check anywhere. <code>pdf_read.py</code> already reads each text run's <code>font_size</code> (around line 208, <code>Run(...)</code>), so a check can reuse it.</li>
 <li><strong>The CV Tool (<code>cvlib.py</code>):</strong> the job title, degree and awards lines are styled at <strong>8.5 pt</strong> (lines 401, 406, 408), which is under 9 pt. The only check, at line 586, warns when <code>BODY &lt; 8.5</code> and checks nothing else.</li>
-<li><strong>cv_agent's scripts:</strong> <code>C:\Chang\Jobs\rezi\cv_agent\scripts\font_sizes.py</code> measures sizes by hand. It isn't wired into any code path.</li>
+<li><strong>cv_agent's scripts:</strong> <code>C:\Jobs\rezi\cv_agent\scripts\font_sizes.py</code> measures sizes by hand. It isn't wired into any code path.</li>
 </ul>
 <h2 id="next-one-edit-pass-on-cv-uses-cv-toolmd-then-rebuild">Next (one edit pass on cv-uses-cv-tool.md, then rebuild)</h2>
 <ol>
@@ -41,7 +41,7 @@
    - <code>cv-style-no-parentheses-semicolons.md</code>, <code>cv-style-action-to-result.md</code>, <code>cv-min-font-9pt-measured.md</code> and <code>cv-section-order-default.md</code>
    - <code>rezi-pdf-download-auto.md</code> and <code>rezi-write-sections-scrambles-experience.md</code>
    - <code>user-fact-system-design.md</code>, <code>user-facts-soylent-no-aws.md</code> and <code>user-facts-hooli-v5-confirmed.md</code>
-   - <code>C:\Chang\Jobs\rezi\cv_tool\data\confirmed_facts.json</code>
+   - <code>C:\Jobs\rezi\cv_tool\data\confirmed_facts.json</code>
    - Check that <code>job_start.py</code> accepts a <code>.json</code> and a path outside the workspace. Otherwise propose that small change.
    - <strong>Recommendation:</strong> gather the style, layout and Rezi rules into <code>cv-writing-preferences\SKILL.md</code>, so they live as skill rules and as general rules. Keep the facts as data: the memory fact notes plus <code>confirmed_facts.json</code>, best merged into the one JSON file. Fix the skill's step 4 and remove the out-of-date export note.</li>
 <li>Keep the two open points with their recommendations: wait for the user's pick unless the request names a tool, and keep the name <code>CV_Test_&lt;Co&gt;_final.pdf</code>.</li>

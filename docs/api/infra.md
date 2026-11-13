@@ -156,7 +156,7 @@ The command line for a stream-json `claude -p` session. `chrome` adds `--chrome`
 
 `path_rule(tool: str, folder: str | Path) -> str`
 
-A permission rule for everything under `folder`: `path_rule("Edit", "docs")` → `Edit(//c/Chang/.../docs/**)`. `claude` matches absolute paths in POSIX form with a leading `//`, so Windows `C:\x` becomes `//c/x`. `Read` rules cover Read, Glob, and Grep; `Edit` rules cover Edit and Write. Checked against a real session: reads and writes inside the rule's folder work without a prompt; writes elsewhere are refused.
+A permission rule for everything under `folder`: `path_rule("Edit", "docs")` → `Edit(//c/Projects/AI_Assistant/docs/**)`. `claude` matches absolute paths in POSIX form with a leading `//`, so Windows `C:\x` becomes `//c/x`. `Read` rules cover Read, Glob, and Grep; `Edit` rules cover Edit and Write. Checked against a real session: reads and writes inside the rule's folder work without a prompt; writes elsewhere are refused.
 
 **Defined in:** `src/assistant/infra/claude_session.py` (`from assistant.infra.claude_session import path_rule`)
 

@@ -246,7 +246,7 @@ await session.send("Hello")
 <h2 id="path_rule"><code>path_rule</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>main_assistant</code> (one user so far; any agent that gets folder rules)</p>
 <p><code>path_rule(tool: str, folder: str | Path) -&gt; str</code></p>
-<p>A permission rule for everything under <code>folder</code>: <code>path_rule("Edit", "docs")</code> → <code>Edit(//c/Chang/.../docs/**)</code>. <code>claude</code> matches absolute paths in POSIX form with a leading <code>//</code>, so Windows <code>C:\x</code> becomes <code>//c/x</code>. <code>Read</code> rules cover Read, Glob, and Grep; <code>Edit</code> rules cover Edit and Write. Checked against a real session: reads and writes inside the rule's folder work without a prompt; writes elsewhere are refused.</p>
+<p>A permission rule for everything under <code>folder</code>: <code>path_rule("Edit", "docs")</code> → <code>Edit(//c/Projects/AI_Assistant/docs/**)</code>. <code>claude</code> matches absolute paths in POSIX form with a leading <code>//</code>, so Windows <code>C:\x</code> becomes <code>//c/x</code>. <code>Read</code> rules cover Read, Glob, and Grep; <code>Edit</code> rules cover Edit and Write. Checked against a real session: reads and writes inside the rule's folder work without a prompt; writes elsewhere are refused.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/claude_session.py</code> (<code>from assistant.infra.claude_session import path_rule</code>)</p>
 <h2 id="sessiontaskagent"><code>SessionTaskAgent</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code> (through <a href="#profileagent"><code>ProfileAgent</code></a>)</p>

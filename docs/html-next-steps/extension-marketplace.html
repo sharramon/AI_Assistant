@@ -132,8 +132,8 @@
 </tr>
 <tr>
 <td><strong>Reaches outside its folder</strong></td>
-<td><code>C:\Chang\Jobs\CV</code> (workspace), <code>C:\Chang\Jobs</code>, <code>C:\Chang\Git_projects\Resume</code>, JobRadar's Python, Chrome, the job project's <code>CLAUDE.md</code> and skills. All on its access card</td>
-<td>On the worker's card: workspace <code>C:\Chang\Jobs\rezi\cv_agent</code>, read folders, Chrome. <strong>Not declared or asked anywhere:</strong> the module's own network calls to Rezi and the callback port, the token file, reading the CV folder, writing <code>C:\Chang\Jobs\rezi\rezi\out</code>, running <code>soffice.exe</code>, a LibreOffice profile in <code>%TEMP%\assistant-cv-soffice</code>, writing resumes into your Rezi account</td>
+<td><code>C:\Jobs\CV</code> (workspace), <code>C:\Jobs</code>, <code>C:\Projects\Resume</code>, JobRadar's Python, Chrome, the job project's <code>CLAUDE.md</code> and skills. All on its access card</td>
+<td>On the worker's card: workspace <code>C:\Jobs\rezi\cv_agent</code>, read folders, Chrome. <strong>Not declared or asked anywhere:</strong> the module's own network calls to Rezi and the callback port, the token file, reading the CV folder, writing <code>C:\Jobs\rezi\rezi\out</code>, running <code>soffice.exe</code>, a LibreOffice profile in <code>%TEMP%\assistant-cv-soffice</code>, writing resumes into your Rezi account</td>
 </tr>
 <tr>
 <td><strong>Names from the core / other modules</strong></td>
@@ -238,8 +238,8 @@ requires = []
 python = &quot;requirements.txt&quot;
 
 [needs]
-read = [&quot;C:/Chang/Jobs/CV&quot;]
-write = [&quot;C:/Chang/Jobs/rezi/rezi/out&quot;]
+read = [&quot;C:/Jobs/CV&quot;]
+write = [&quot;C:/Jobs/rezi/rezi/out&quot;]
 network = [&quot;api.rezi.ai&quot;]
 listen = [&quot;127.0.0.1:33418&quot;]
 accounts = [&quot;rezi&quot;]

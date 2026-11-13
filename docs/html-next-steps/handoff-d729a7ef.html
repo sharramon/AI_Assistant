@@ -26,7 +26,7 @@
 <li><strong>Chunk 7, the job agent:</strong></li>
 <li><strong>New module <code>modules/job_search/</code></strong> (<code>JobSearchModule</code>, off at launch). It bundles a <code>ProfileAgent</code> with id <code>job</code> (<code>agent_id</code> in config) and its menu item <code>job.search(days)</code>, a <strong>stub</strong>: it answers at once and publishes <code>AgentNotice(agent_id=caller, source="job.search")</code>, saying the runner isn't built yet. <code>JOB_PROMPT</code> says: one job per session, <code>HANDOFF:</code> instead of <code>handoff.ps1</code>, never submit or send, confirm before any search.</li>
 <li><strong>Shared infra:</strong> a <code>chrome</code> option in <code>claude_command</code> (<code>--chrome</code>) and <code>AgentProfile</code> (config key <code>chrome</code>).</li>
-<li><strong>Config:</strong> <code>[modules.job_search]</code> in <code>config/default.toml</code>, with workspace <code>C:/Chang/Jobs/CV</code>, read <code>C:/Chang/Jobs</code> and JobRadar, <code>tools = "default"</code>, <code>chrome = true</code>, Manual.</li>
+<li><strong>Config:</strong> <code>[modules.job_search]</code> in <code>config/default.toml</code>, with workspace <code>C:/Jobs/CV</code>, read <code>C:/Jobs</code> and JobRadar, <code>tools = "default"</code>, <code>chrome = true</code>, Manual.</li>
 <li>Test: <code>tests/test_job_search.py</code> (2 tests).</li>
 <li><strong>Suite:</strong> 444 passed, ruff clean. The only 4 failures are in <code>test_module_docs.py</code>, which needs the job_search docs below.</li>
 </ul>

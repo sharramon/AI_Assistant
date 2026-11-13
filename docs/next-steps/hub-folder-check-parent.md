@@ -4,7 +4,7 @@
 
 **Asked:** "Change `_folder_clash` in `agent_hub/tasks.py` so the requesting (parent) task doesn't count" (option (a), after job_search_agent's Globex Robotics CV request could not be started on cv_agent).
 
-**Why:** `hub.start` refuses an agent when another open task's agent writes one of its folders. The Main Assistant's own task, the one calling `hub.start`, counts as such a task. The Main Assistant and cv_agent both write `C:\Chang\Git_projects\AI_Assistant`, so the Main Assistant can never start cv_agent from a task: the refusal was "cv_agent would write …, which main_assistant's open task 4df48918 writes".
+**Why:** `hub.start` refuses an agent when another open task's agent writes one of its folders. The Main Assistant's own task, the one calling `hub.start`, counts as such a task. The Main Assistant and cv_agent both write `C:\Projects\AI_Assistant`, so the Main Assistant can never start cv_agent from a task: the refusal was "cv_agent would write …, which main_assistant's open task 4df48918 writes".
 
 **Touches:** `src/assistant/modules/agent_hub/tasks.py` (`_folder_clash` and its call in `start`), a test in `src/assistant/modules/agent_hub/tests/`, `docs/architecture/agents.md` / `docs/modules/agent_hub.md` where the folder rule is described. Needs a reload of `agent_hub` (asked first), no app restart.
 

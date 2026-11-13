@@ -47,14 +47,14 @@ The user approved a new plan that replaces the three pieces below. The rest of t
 - **No fixed base Rezi resume**: the base is always the `CV_Test_*.odt` and the JD the job agent passes in. The guard refuses writes to any Rezi resume not created in the run.
 - **US Letter by default** (`paper` in `module.toml`), A4 later.
 - **The PDF viewer** (piece 3): try `viewer.open` on the PDF first; a separate `pdf_viewer` module only if that fails.
-- **The CV workflow page** (`cv_module_workflow.html`) is folded into the three pages (the 8 steps and who does what in the overview, the loops in the architecture page) and removed from `cv/docs/`; the original stays in `C:\Chang\Jobs\CV\Recruiters\docs\`.
+- **The CV workflow page** (`cv_module_workflow.html`) is folded into the three pages (the 8 steps and who does what in the overview, the loops in the architecture page) and removed from `cv/docs/`; the original stays in `C:\Jobs\CV\Recruiters\docs\`.
 - **The separate Rezi helper agent** (the `rezi` kind in `task_agents`) is retired once the worker runs.
 
 **Build order** (tests, ruff and the architecture check after each): 0 the docs pages; 1 skeleton, `module.toml`, CV content and section order; 2 `.odt`, PDF export, page check → `cv.build`; 3 `cv.compare`, `cv.report`; 4 the MCP client and token store against a fake server; 5 the `rezi.*` items and guard, live tool list after the user's Rezi sign-in; 6 the worker with Chrome; 7 the job agent's hand-off, one real job end to end; 8 the modules-page note on the MCP exception, final docs check; 9 the end-to-end test: a random job-radar job plus one `CV_Test_*.odt` go through the whole workflow, and a CV is output.
 
 ### Progress (2026-11-06, task fb5181fb, session reset)
 
-- **Done:** chunk 0 (the docs pages in `cv/docs/`). Chunk 1 is started, but only the reading is done; **no chunk 1 files are written yet**. Read so far: rezi's handoff note (`C:\Chang\Jobs\rezi\rezi\handoff-d21df25f.md`), the plan page (`C:\Chang\Jobs\rezi\rezi\cv_module_plan.html`), the three cv pages, `docs/api/reusable.md`, the `usage` module (`module.py`, `__init__.py`, `tests/test_usage.py`), and the architecture-first and architecture-check skills.
+- **Done:** chunk 0 (the docs pages in `cv/docs/`). Chunk 1 is started, but only the reading is done; **no chunk 1 files are written yet**. Read so far: rezi's handoff note (`C:\Jobs\rezi\rezi\handoff-d21df25f.md`), the plan page (`C:\Jobs\rezi\rezi\cv_module_plan.html`), the three cv pages, `docs/api/reusable.md`, the `usage` module (`module.py`, `__init__.py`, `tests/test_usage.py`), and the architecture-first and architecture-check skills.
 - **Pattern found:** `__init__.py` re-exports the module class. `module.py` has a module-level `menu = Menu()` and a class with `manifest = Manifest(id=..., description=...)` and `menu = menu`, plus async `init(ctx)` / `start()` and an optional `export_state()` for the reload handover. Tests build `App([CvModule], {"modules": {"enabled": [...]}, "core": {}})` and use `tests.support.wait_until`. The only module with a `module.toml` so far is `console_io`, so copy its shape. `App` merges a module's `module.toml` under its config section.
 - **Next (chunk 1, write only inside `src/assistant/modules/cv/`):**
   1. Read `console_io/module.toml`, `principles.md`, and the swap and reload tests (`tests/test_swap_every_module.py`, `tests/test_reload.py`, `tests/test_module_layout.py`) to see how load, on/off and swap in place are tested.
@@ -148,10 +148,10 @@ This changes `contracts`, so **the app needs a restart once**. Server tools appe
 You asked for a helper agent of its own for Rezi, like the job agent, so the Main Assistant doesn't drive Rezi itself. It's **created now** and opened with your yes on the cards.
 
 - **What it is:** a helper *kind* `rezi` in `config/default.toml` (`[modules.task_agents.agents.rezi]`), launched by name through `task_agents` as **`rezi_agent`**. A launched helper ends with the app, so after a restart it's opened again with `agents.launch` or the temp UI's **+**. It has no code of its own. If it later needs a menu or workers, it moves into its own module, as the job agent did.
-- **Working folder:** `C:/Chang/Jobs/rezi`, and the helper's own folder is `C:/Chang/Jobs/rezi/rezi_agent`. It's not inside `C:/Chang/Jobs/CV`, because the job agent writes all of that folder and the Hub won't run two agents whose write folders overlap. That would block the hand-off while the job agent has a task.
+- **Working folder:** `C:/Jobs/rezi`, and the helper's own folder is `C:/Jobs/rezi/rezi_agent`. It's not inside `C:/Jobs/CV`, because the job agent writes all of that folder and the Hub won't run two agents whose write folders overlap. That would block the hand-off while the job agent has a task.
 - **Access list (one card, saved for the `rezi` kind):**
   - Write: its own folder.
-  - Read: `C:/Chang/Jobs/CV` (postings, the job folders) and this repo's `docs/`.
+  - Read: `C:/Jobs/CV` (postings, the job folders) and this repo's `docs/`.
   - Tools: `Read, Write, Edit, Glob, Grep, WebSearch, WebFetch`. No Chrome, Python or shell.
 - **Instructions:** tailor one posting per task. Reach Rezi **only** through the `rezi.*` items on the module door, never any other way. Until the `rezi` module exists, read this note and research. Never change the base resume: each job gets a new one, and it reports the new resume's name.
 - **How it relates to the `rezi` module:** the module stays the thin MCP client wrapper (piece 1). The helper is one caller of its menu, through the door → core → `rezi`, with the same single permission check. The job agent and the Main Assistant could call the same menu, but by design only the helper writes resumes.
@@ -160,7 +160,7 @@ You asked for a helper agent of its own for Rezi, like the job agent, so the Mai
 
 **Proposed: the job agent hands the posting to the Rezi helper through the Agent Hub. The helper calls the `rezi` module through the door. No new contract.**
 
-- **The hand-off:** when you pick a job, the job agent saves the posting in that job's folder under `C:/Chang/Jobs/CV` (which the helper can read). It then calls `hub.start(text, agent_id="rezi_agent")`, where the text has the posting's path, the company and role, and anything it wants stressed. That becomes the job agent's child task. It can follow it with `hub.status`, `hub.send` or `hub.cancel`, and gets the outcome (the new resume's name) when the child task ends. If `rezi_agent` isn't open, the job agent asks you through `NEED:` to open it. It doesn't launch helpers itself.
+- **The hand-off:** when you pick a job, the job agent saves the posting in that job's folder under `C:/Jobs/CV` (which the helper can read). It then calls `hub.start(text, agent_id="rezi_agent")`, where the text has the posting's path, the company and role, and anything it wants stressed. That becomes the job agent's child task. It can follow it with `hub.status`, `hub.send` or `hub.cancel`, and gets the outcome (the new resume's name) when the child task ends. If `rezi_agent` isn't open, the job agent asks you through `NEED:` to open it. It doesn't launch helpers itself.
 - **The helper's steps:** `rezi.get_resume_format`, then `rezi.read_resume(base)`, then `rezi.write_resume` **with no id** (a new resume named "Company – Role"). It reports the name. The job agent no longer edits resume files itself. The cover letter stays in the job project for now.
 - **Linking:** `rezi` has `start_on_use = true`, so the helper's first `rezi.*` call turns it on. That's the same as the HTML viewer and needs no `requires`.
 - **Where each part sits:** `job_search` (the module) owns the job agent (a `ProfileAgent`). `task_agents` owns `rezi_agent`. The two talk only through the Hub. The helper calls `rezi` through the door → core → `rezi`. Neither module imports or requires `rezi`.
@@ -201,7 +201,7 @@ Piece 3 doesn't depend on Rezi, so it could be built first while you wait on Rez
 ## Open questions
 
 1. **MCP on Lifetime:** waiting on Rezi's answer (above).
-2. **PDF out:** A (you download) for v1, B later? And where the PDFs go: the job's folder under `C:/Chang/Jobs/CV`?
+2. **PDF out:** A (you download) for v1, B later? And where the PDFs go: the job's folder under `C:/Jobs/CV`?
 3. **The `mcp` package:** OK to add it as an optional extra? The other way is our own client, which is more code.
 4. **Token file location:** the app's user data folder (proposed) or Windows Credential Manager (needs `keyring`, another package)?
 5. **PDF viewer:** an Edge app window (proposed), the system viewer, or a tab in the HTML viewer?

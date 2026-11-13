@@ -136,6 +136,6 @@ Paths are under `src/assistant/` unless they start with `src/`.
 
 ## What could not be verified
 
-- **Step 11, the tracker update:** it's the job agent's own action. No code does it; job_search's message only asks for it (`modules/job_search/module.py`, `cv_finished_text` and `cv_submitted_text`). The job project's skills (`C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md`) have no step for a cv result, so no line can be named there.
+- **Step 11, the tracker update:** it's the job agent's own action. No code does it; job_search's message only asks for it (`modules/job_search/module.py`, `cv_finished_text` and `cv_submitted_text`). The job project's skills (`C:\Jobs\CV\.claude\skills\apply-session\SKILL.md`) have no step for a cv result, so no line can be named there.
 - **The Rezi step in Chrome:** cv_agent reads the Score with Claude in Chrome. Only the setting and the prompt can be named; the browser calls aren't in this repo's code.
 - **The module door's process side:** steps 1, 3 and 5 go from the agent's `claude` session through the stdio relay (`python -m assistant.infra.mcp_door`) to the app. The lines named are the app side of the door.

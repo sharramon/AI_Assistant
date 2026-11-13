@@ -4,7 +4,7 @@
 
 **The user approved (2026-11-09)**, with the recommended answers in [cv-uses-cv-tool.md](cv-uses-cv-tool.md):
 1. The pick: the request names `tool` (Internal or Rezi), else the CV Tool waits for the user.
-2. The style, layout, Rezi and 9 pt rules go into the cv module's `rules/` folder, and the fact notes merge into `confirmed_facts.json`. **COPY them: leave the original memory notes in `C:\Users\sharr\.claude\projects\C--Chang-Jobs-rezi-cv-agent\memory\` in place until the user says they can go.** (So also don't remove `user-wants-rezi-export-not-local-build.md` yet.)
+2. The style, layout, Rezi and 9 pt rules go into the cv module's `rules/` folder, and the fact notes merge into `confirmed_facts.json`. **COPY them: leave the original memory notes in `C:\Users\you\.claude\projects\C--Jobs-rezi-cv-agent\memory\` in place until the user says they can go.** (So also don't remove `user-wants-rezi-export-not-local-build.md` yet.)
 3. The final PDF is `CV_Test_<Company>_final.pdf`.
 
 **Standing permissions from the user:** cv reloads are approved for this work, so there's no need to ask. **Ask before any app restart** and before anything very risky. Don't answer cv_agent's questions or approvals; pass them to the user. Don't touch the uncommitted `infra/session_agent.py`, `handoff_keeper.py`, `job_search/module.py`, `tests/test_agents.py` or `tests/test_worker_parts.py` (other agents' edits).
@@ -12,8 +12,8 @@
 ## Part 1: done (this session)
 - **PDF in, PDF out is live.** `cv` was reloaded ("now", cutting in on cv_agent's idle task 20c1d08e, the finished PDF build that held only an answered question). The live menu: `cv.task` takes `base_cv` as a `CV_Test_*.pdf`, `cv.read(pdf)`, `cv.build(job_dir)`, `cv.compare(edited_pdf)`, no `odt_path`. 156 cv tests pass. cv_agent is free and in **Manual** mode after the reload.
 - **The job agent's three files now name `.pdf`:**
-  - `C:\Chang\Jobs\CV\Recruiters\scripts\save_jd.py`: `BASE_PDF`, `company_cvs` lists `.pdf`, `--base` must be an existing `CV_Test_*.pdf` in the CV folder. It compiles.
-  - `C:\Chang\Jobs\CV\.claude\skills\apply-session\SKILL.md`, lines 30–36. Lines 43 and 85 (form filling with `.odt`) are left as the plan says.
+  - `C:\Jobs\CV\Recruiters\scripts\save_jd.py`: `BASE_PDF`, `company_cvs` lists `.pdf`, `--base` must be an existing `CV_Test_*.pdf` in the CV folder. It compiles.
+  - `C:\Jobs\CV\.claude\skills\apply-session\SKILL.md`, lines 30–36. Lines 43 and 85 (form filling with `.odt`) are left as the plan says.
   - `...\Recruiters\docs\applications\jd\examplecorp-staffengineerwidgetdesign.json`: `base_cv` and `company_cvs_on_disk` are now `CV_Test_ExampleCorp.pdf` (it exists, 2026-11-03).
 - `cv-pdf-only.md` status: live. `cv-uses-cv-tool.md` status: approved, building.
 - **Not blocking:** `CV_Test_SWE.pdf` (2026-10-22) is older than the emptied `.odt`; ExampleCorp doesn't use it.
@@ -30,7 +30,7 @@
 
 ### Chunk 1 (moving the app): half done
 Done:
-- `src/cv_tool/` made, with `cvlib.py`, `static\` and `assets\` COPIED from `C:\Chang\Jobs\rezi\cv_tool` (originals untouched).
+- `src/cv_tool/` made, with `cvlib.py`, `static\` and `assets\` COPIED from `C:\Jobs\rezi\cv_tool` (originals untouched).
 - `src/cv_tool/cvlib.py` edited (not yet compiled or tested):
   - `APP` (code dir) vs data; `configure(data_dir, cv_dir, rules_dir, agent_work)` sets `ROOT, CV_DIR, JOBS, DATA, INBOX, REZI_REQ, REZI_RES, OUTBOX, AGENT_WORK, RULES_DIR` (the old top-level ones were removed); `configure()` is called at the end of the file.
   - `rules()`: the module's rule files (name + first rule line).
@@ -42,7 +42,7 @@ Done:
 
 Next, chunk 1:
 1. `py_compile src/cv_tool/cvlib.py`; grep it for any `ROOT`/`INBOX`/`OUTBOX` used before `configure()`.
-2. Write `src/cv_tool/server.py` from the old one (`C:\Chang\Jobs\rezi\cv_tool\server.py`, 278 lines):
+2. Write `src/cv_tool/server.py` from the old one (`C:\Jobs\rezi\cv_tool\server.py`, 278 lines):
    - config `src/cv_tool/cv_tool.toml` with `load_layered` + `merge` defaults: host 127.0.0.1, **port 8771** (8765–8767 and 8770 are taken), `data_dir`, `cv_dir`, `rules_dir`, `profile` (default `<data_dir>\.edge_profile`).
    - `require_loopback` on bind and `local_request(Host, Origin)` on every request (403 otherwise).
    - `POST /api/quit` (JSON content type only): shut down and `close_app_windows(profile)`.
@@ -67,18 +67,18 @@ Files already read and understood: old `server.py`, `html_viewer/module.py` + `v
 **cv module:** `CompanionHandover(ctx.handover, "cv_tool", host, 8771, args=[--port, --data-dir, --cv-dir, --rules-dir, --profile window_profile("cv_tool"), --agent-work work_dir], ping="/api/ping")`; `export_state` must return both the guard and the companion's export (a dict). **No `opener` in `JobStartAgent`. The gate never opens the app** (decided 2026-11-09: cv_agent launches the UI when the user tells it to; a headless mode may come later, so the items use only the app's API). Instead, `cv.open_tool(job_dir)` starts the app through `CompanionApp`, imports the job, and returns the app's job id to cv_agent. `CvRequest.tool: Literal["Internal","Rezi"] | None`. Items: `cv.open_tool(job_id?)`, `cv.tool_status(job_id)`, `cv.tool_round(...)` (args as `agent_round`), `cv.tool_result(job_id)` (refuses a ready result whose PDF has text under 9 pt). `cv.check_fonts(pdf)`: **measure with pymupdf span sizes** (the app's `font_sizes` way; pypdf's layout `font_size` may not be the printed size). Check pymupdf is in the repo venv first; if not, the module asks the app (`small_text` in the answers) rather than installing.
 - Prompt step 3 (First Draft) always ends with a NEED: for the user's review in the CV Tool; the pick, if `tool` is unset, is a NEED: too ("pick Internal or Rezi in the CV Tool's tab 2").
 
-**Rules:** copy into `src/assistant/modules/cv/rules/`: `docs\cv-writing-preferences\SKILL.md` (from `C:\Chang\Jobs\rezi\cv_agent\docs\`, step 4 fixed to the CV Tool's Submit) and from the memory folder `cv-style-no-parentheses-semicolons`, `cv-style-action-to-result`, `cv-min-font-9pt-measured`, `cv-section-order-default`, `rezi-pdf-download-auto`, `rezi-write-sections-scrambles-experience`, `cv-tool-scope`, `cv-tool-rezi-request`, `never-script-cv-folder-copy-first` (all small, ~1–2 KB; read them first, drop anything conflicting with "never download Rezi's PDF"). Facts stay data: `job_skills` lists the three `user-fact*` memory notes (absolute paths, originals stay) and `C:\Chang\Jobs\rezi\cv_tool\data\confirmed_facts.json` (2.6 KB); don't write into that file. `rules_dir` setting (default the module's `rules/`, every `.md` loaded) in `job_folders`/`JobStart`.
+**Rules:** copy into `src/assistant/modules/cv/rules/`: `docs\cv-writing-preferences\SKILL.md` (from `C:\Jobs\rezi\cv_agent\docs\`, step 4 fixed to the CV Tool's Submit) and from the memory folder `cv-style-no-parentheses-semicolons`, `cv-style-action-to-result`, `cv-min-font-9pt-measured`, `cv-section-order-default`, `rezi-pdf-download-auto`, `rezi-write-sections-scrambles-experience`, `cv-tool-scope`, `cv-tool-rezi-request`, `never-script-cv-folder-copy-first` (all small, ~1–2 KB; read them first, drop anything conflicting with "never download Rezi's PDF"). Facts stay data: `job_skills` lists the three `user-fact*` memory notes (absolute paths, originals stay) and `C:\Jobs\rezi\cv_tool\data\confirmed_facts.json` (2.6 KB); don't write into that file. `rules_dir` setting (default the module's `rules/`, every `.md` loaded) in `job_folders`/`JobStart`.
 
 Then chunks 2–5 below as planned (`cv_tool.cmd` repoint is outside the repo: the user's yes is implied by "build the full move", but leave the old `server.py` in place).
 
 ## Part 2 plan (from session 1). Build cv-uses-cv-tool (read the note in full first)
 Use `architecture-first`, `batching`, and `architecture-check` per chunk. Check `docs/api/reusable.md` (`CompanionApp`, `local_guard`, `window`, `load_layered`) and the [companion app checklist](../architecture/reusable-parts.md#companion-app-checklist); follow `html_viewer` as the model.
-1. **Move the app:** `C:\Chang\Jobs\rezi\cv_tool\{server.py, cvlib.py, static\, assets\}` → `src/cv_tool/` (`__main__.py`). Copy the code; leave the originals and all data in place. Changes:
+1. **Move the app:** `C:\Jobs\rezi\cv_tool\{server.py, cvlib.py, static\, assets\}` → `src/cv_tool/` (`__main__.py`). Copy the code; leave the originals and all data in place. Changes:
    - a fixed port from config;
    - `POST /api/quit`;
    - `local_guard` on every request;
    - `app_kit.window.open_app_window` instead of the hard-coded `msedge` path;
-   - `data_dir` = `C:\Chang\Jobs\rezi\cv_tool`;
+   - `data_dir` = `C:\Jobs\rezi\cv_tool`;
    - base CV read with the cv module's `pdf_read.py`;
    - the 8.5 pt styles (cvlib lines 401, 406, 408) set to 9 pt;
    - the PDF named `CV_Test_<Company>_final.pdf`;
@@ -100,7 +100,7 @@ Use `architecture-first`, `batching`, and `architecture-check` per chunk. Check 
 ## Part 3: after part 2 is live
 - The job agent's task **73aebe5d** is paused, waiting to resend ExampleCorp #1 "when asked again". Send it with `hub.send` if it's still open; it isn't the Main Assistant's child, so `hub.start` it fresh if `hub.send` is refused. The job, from the hand-off record above: the JD as **text**, the base `CV_Test_ExampleCorp.pdf`, the URL, `tool` unset (the user picks in the CV Tool) unless the user says otherwise.
 - **Notes for cv_agent:**
-  - The job wants one simulation platform, and Chang has Isaac Sim only.
+  - The job wants one simulation platform, and the user has Isaac Sim only.
   - Don't claim Isaac Lab, MuJoCo, RL policy training, reward functions or domain randomization.
   - The real sim-to-real link: the G1 teleop validated in Isaac Sim before the physical robot, and the GR00T locomotion policy integration.
   - Lead Skills with Python. No raw graphics APIs.

@@ -47,7 +47,7 @@ Ask the user whether to relaunch the app with the changes. Only if they say yes,
 $app = Get-CimInstance Win32_Process | Where-Object { ($_.Name -match "python" -and $_.CommandLine -match "-m assistant") -or ($_.Name -eq "powershell.exe" -and $_.CommandLine -match "Assistant: talk here") }
 $claude = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "claude.exe" -and $app.ProcessId -contains $_.ParentProcessId }
 ($app + $claude) | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-Start-Process powershell -WorkingDirectory "C:\Chang\Git_projects\AI_Assistant" -ArgumentList '-NoExit', '-Command', '$host.UI.RawUI.WindowTitle = ''Assistant: talk here''; .\.venv\Scripts\python -m assistant'
+Start-Process powershell -WorkingDirectory (git rev-parse --show-toplevel) -ArgumentList '-NoExit', '-Command', '$host.UI.RawUI.WindowTitle = ''Assistant: talk here''; .\.venv\Scripts\python -m assistant'
 ```
 
 The new app closes the old temp UI window and opens one fresh one. The app's own agents can't relaunch the app they run in; they ask the user to (or to ask a Claude Code session).

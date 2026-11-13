@@ -4,27 +4,27 @@ The job project is a Claude Code project: a `CLAUDE.md`, six skills in its `.cla
 
 ## Where it lives (since 2026-11-13)
 
-The job agent works in the module's own folder, `src/assistant/modules/job_search/workspace/` (gitignored, never committed; pytest skips it). It was **copied** there from `C:\Chang\Jobs\CV` (module folders item 18), and the old folder was left as it was:
+The job agent works in the module's own folder, `src/assistant/modules/job_search/workspace/` (gitignored, never committed; pytest skips it). It was **copied** there from `C:\Jobs\CV` (module folders item 18), and the old folder was left as it was:
 
-| In the workspace | Left in your documents folder (`C:\Chang\Jobs\CV`) |
+| In the workspace | Left in your documents folder (`C:\Jobs\CV`) |
 |---|---|
 | `CLAUDE.md`, `.claude/skills/` (the six skills and their scripts), `Recruiters/scripts/` (the live scripts and their tests), `Recruiters/docs/` (all job state: the queue, applications, keywords, the company registry, the job UI's pages and state), `recruiters_tracker.csv`, `outreach_messages.md` | Your CVs (`.pdf`, `.odt`), `2025/`, `2026/`, `CoverLetter/`, `StartUp/`, `UnderRadar/`, `_upload/`, the old history (`Recruiters/docs/archive`, `backups`, `cv_drafts`), the one-off `tmp_*` scripts and `backups`, `handoff.ps1`, `next_job.ps1`, the launchers |
 
-- **One paths file.** Every copied script reads the folders outside the workspace from `workspace/job_paths.json` through a small helper beside it, `job_paths.py` (`documents`: your CV folder; `jobs`; `jobradar` and `jobradar_python`: JobRadar and its Python; `cv_output`: the tailored CV PDFs the job UI shows). Paths inside the workspace (`Recruiters/docs`, the scripts) come from the helper's own place. Change a path there, never in a script.
+- **One paths file.** Every copied script reads the folders outside the workspace from `workspace/job_paths.json` through a small helper beside it, `job_paths.py` (`documents`: your CV folder; `jobs`; `jobradar` and `jobradar_python`: JobRadar and its Python; `cv_output`: the tailored CV PDFs the job UI shows, by default `../../cv/workspace/out`, the cv module's own output folder, where cv writes new CV PDFs when its `output_dir` is unset). A relative path is from the workspace. Any key may point anywhere, outside the repo too: put it in `job_paths.local.json` beside the file (gitignored), which overrides it. Paths inside the workspace (`Recruiters/docs`, the scripts) come from the helper's own place. Change a path there, never in a script.
 - **Your documents** stay outside the repo (decision 5): job_search's `documents` key names the folder, read and write, set in the gitignored `config/local.toml`.
 - **JobRadar's Python** still runs the scripts (decision 6); nothing new is installed.
 - **The job UI:** `job.open_ui` runs the workspace's `Recruiters/scripts/job_ui.py` (`ui.py`'s default).
 - **`cv.task`:** the job descriptions saved by `save_jd.py` now sit in the workspace, which cv doesn't read, so the apply-session skill sends `jd_text` rather than `jd_file`.
-- **Memory:** the job agent's memory notes were copied to the workspace's own key (`~/.claude/projects/C--Chang-Git-projects-AI-Assistant-src-assistant-modules-job-search-workspace/memory`).
+- **Memory:** the job agent's memory notes were copied to the workspace's own key (`~/.claude/projects/C--Projects-AI-Assistant-src-assistant-modules-job-search-workspace/memory`).
 
-The sections below describe the project as it ran from `C:\Chang\Jobs\CV`, before the module ran it; inside the app, the job prompt replaces `handoff.ps1` with a final report (or a `HANDOFF:` line).
+The sections below describe the project as it ran from `C:\Jobs\CV`, before the module ran it; inside the app, the job prompt replaces `handoff.ps1` with a final report (or a `HANDOFF:` line).
 
 ## The project in one picture
 
 ```mermaid
 flowchart TD
     You(["<b>You</b><br/>double-click start_job.cmd<br/>or type in a Claude window"])
-    Start["<b>next_job.ps1</b><br/>goes to C:\Chang\Jobs\CV · reads next_prompt.txt"]
+    Start["<b>next_job.ps1</b><br/>goes to C:\Jobs\CV · reads next_prompt.txt"]
     Session["<b>One fresh claude session per job</b><br/>first prompt = next_prompt.txt<br/>reads CLAUDE.md and the six skills"]
 
     subgraph Skills["Skills: .claude/skills"]
@@ -73,7 +73,7 @@ flowchart TD
 
 ## What starts a job
 
-`start_job.cmd` runs `Recruiters\scripts\next_job.ps1`. That script goes to `C:\Chang\Jobs\CV`, reads `Recruiters\docs\applications\next_prompt.txt` (if it's missing, a fixed "Next job…" prompt) and starts an interactive `claude.exe` with that text as the first prompt. There is no loop: each job is one session, and the session itself starts the next one.
+`start_job.cmd` runs `Recruiters\scripts\next_job.ps1`. That script goes to `C:\Jobs\CV`, reads `Recruiters\docs\applications\next_prompt.txt` (if it's missing, a fixed "Next job…" prompt) and starts an interactive `claude.exe` with that text as the first prompt. There is no loop: each job is one session, and the session itself starts the next one.
 
 ## One fresh session per job, and the handoff
 
@@ -113,7 +113,7 @@ The `.claude` folder holds only `skills/`: no settings, agents, commands or MCP 
 | `StartUp/` | Startup companies to search, with their funding rounds (`docs/`) |
 | `UnderRadar/` | A map of established companies to search (`docs/`) |
 
-The parent folder, `C:\Chang\Jobs`, holds the rest of the job material (cover letters, interviews, transcripts, info, pictures, prize proof); the job project reads it as needed.
+The parent folder, `C:\Jobs`, holds the rest of the job material (cover letters, interviews, transcripts, info, pictures, prize proof); the job project reads it as needed.
 
 ## How a search runs
 
@@ -128,4 +128,4 @@ A search run is long, mostly HTTP and web searches, and needs Chrome only for so
 
 ## JobRadar
 
-JobRadar (`C:\Chang\Git_projects\Resume`) is a separate code project: a Streamlit app for finding jobs and scoring how well they fit, with its own `CLAUDE.md` and docs. The job project only borrows its Python environment (`.venv`, which has jobspy) to run the sweep scripts, and reads its `data\jobs.db` as leads. It never changes either. JobRadar is a data source, not part of the per-job flow.
+JobRadar (`C:\Projects\Resume`) is a separate code project: a Streamlit app for finding jobs and scoring how well they fit, with its own `CLAUDE.md` and docs. The job project only borrows its Python environment (`.venv`, which has jobspy) to run the sweep scripts, and reads its `data\jobs.db` as leads. It never changes either. JobRadar is a data source, not part of the per-job flow.

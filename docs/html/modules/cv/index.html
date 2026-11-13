@@ -15,7 +15,7 @@
 <h2 id="purpose">Purpose</h2>
 <p>Takes a CV as a PDF (any <code>.pdf</code>) and a job description (JD) as text. Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the one-page PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through <code>cv.task</code>.</p>
 <p><strong>Status (2026-11-07):</strong> built and tested, chunks 1 to 8. That covers the menu (<code>rezi.*</code>, <code>cv.*</code>), the Rezi connection with its resume guard, the one-page build and checks, the worker <code>cv_agent</code>, and the in-and-out contract below. Everything is tested against a fake Rezi and a fake <code>claude</code>. Chunk 9, the real run, is under way: the real Rezi sign-in, live tool list and reads work, and the module now reads and writes Rezi's real resume format. Off by default; turning it on asks for the worker's access on one card.</p>
-<p><strong>PDF in, PDF out (2026-11-09, built, waiting on a <code>cv</code> reload):</strong> the base CV comes in as a <code>.pdf</code> and an <code>.odt</code> is refused everywhere; the JD stays text; <code>cv.build</code> exports the final PDF into the job's folder, and no <code>.odt</code> comes out (<code>odt_path</code> is gone from the result). The plan: <code>docs/next-steps/cv-pdf-only.md</code>. Left out at your request: cutting the worker's read access to <code>C:\Chang\Jobs\CV</code>.</p>
+<p><strong>PDF in, PDF out (2026-11-09, built, waiting on a <code>cv</code> reload):</strong> the base CV comes in as a <code>.pdf</code> and an <code>.odt</code> is refused everywhere; the JD stays text; <code>cv.build</code> exports the final PDF into the job's folder, and no <code>.odt</code> comes out (<code>odt_path</code> is gone from the result). The plan: <code>docs/next-steps/cv-pdf-only.md</code>. Left out at your request: cutting the worker's read access to <code>C:\Jobs\CV</code>.</p>
 <p><strong>The CV Tool build (2026-11-09, building):</strong> the module side is built and tested, but not live yet: <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.check_fonts</code> and <code>cv.tool_result</code>, the CV Tool launched through <code>CompanionHandover</code> (<code>tool.py</code>), the rules folder loaded at every job, <code>CvRequest.tool</code>, and the 5-step prompt. They go live with a <code>cv</code> reload. The app itself (<code>cv/app/cv_tool/</code>) runs and is tested; <code>pymupdf</code> 1.28.2 is in the repo's <code>.venv</code> (installed 2026-11-09 with your yes). The plan: <code>docs/next-steps/cv-uses-cv-tool.md</code>.</p>
 <p>How it works inside: <a href="architecture.html">Architecture</a>. Its menu, and what a job sends in and gets back: <a href="tools.html">Tools</a>.</p>
 <h2 id="in-and-out">In and out</h2>
@@ -293,7 +293,7 @@
 </tr>
 <tr>
 <td>permissions</td>
-<td><code>agent.access</code>: the worker's access list on one card when cv turns on (its workspace, read <code>C:\Chang\Jobs\CV</code> and the output folder, Chrome only for app.rezi.ai). cv turns on when you allow. A later grant reaches the worker live</td>
+<td><code>agent.access</code>: the worker's access list on one card when cv turns on (its workspace, read <code>C:\Jobs\CV</code> and the output folder, Chrome only for app.rezi.ai). cv turns on when you allow. A later grant reaches the worker live</td>
 </tr>
 </tbody>
 </table>
@@ -345,7 +345,7 @@
 </tr>
 <tr>
 <td><code>cv_dir</code></td>
-<td><code>C:\Chang\Jobs\CV</code></td>
+<td><code>C:\Jobs\CV</code></td>
 <td>Your CVs, read only. The CV Tool lists the <code>&lt;cv_prefix&gt;*</code> CVs here, and the worker never runs a command on a file here. Not a rule for <code>cv.task</code>'s <code>base_cv</code> or <code>cv.read</code>: both take any existing <code>.pdf</code> (since 2026-11-13); an <code>.odt</code> is refused</td>
 </tr>
 <tr>
@@ -422,7 +422,7 @@
 </tr>
 <tr>
 <td><code>read_dirs</code></td>
-<td><code>C:\Chang\Jobs\CV</code></td>
+<td><code>C:\Jobs\CV</code></td>
 <td>Folders it reads; the output folder is added</td>
 </tr>
 <tr>
@@ -450,7 +450,7 @@
 <li><code>ruff.toml</code>: cv's own lint rules (the per-file ignore for <code>app/cv_tool/cvlib.py</code>: its short names, lambdas and <code>zip</code>s kept as they were), extending the root <code>pyproject.toml</code>, so every root setting still applies here</li>
 <li>Planned: the real run end to end (chunk 9, with your yes); after it passes, as a separate step, retiring the separate Rezi helper. Other modules (the job agent) connect through <code>cv.task</code> later; cv doesn't change them</li>
 <li>Needs: LibreOffice (<code>soffice</code>) for <code>cv.build</code>, the <code>pypdf</code> package for the page check and for reading the base CV, the <code>mcp</code> package for Rezi, and for the CV Tool app the <code>pymupdf</code> package (listed in the module's <code>module.toml</code> as <code>packages</code>; nothing installs it, so install it by hand with pip from that list; in <code>.venv</code>) and Chrome for printing</li>
-<li><code>docs/</code>: this page, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> and <code>docs.toml</code>. These are the module's docs; the old plan page <code>cv_module_workflow.html</code> in <code>C:\Chang\Jobs\CV\Recruiters\docs</code> is left as it was</li>
+<li><code>docs/</code>: this page, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> and <code>docs.toml</code>. These are the module's docs; the old plan page <code>cv_module_workflow.html</code> in <code>C:\Jobs\CV\Recruiters\docs</code> is left as it was</li>
 <li><code>tests/</code>: its own tests, run with <code>pytest src/assistant/modules/cv/tests</code>; every cv test lives here, and shared helpers come only from the <a href="../../api/testkit.html">test kit</a> (<code>assistant.testkit</code>), never from <code>tests.*</code>. <code>fake_rezi.py</code> is a fake Rezi: the <code>mcp</code> package's own server with an in-memory OAuth sign-in and Rezi's tools in its real format, reached without the network. <code>test_cv.py</code> covers the config, order and data; <code>test_build.py</code> the one page (one test uses real LibreOffice); <code>test_compare_report.py</code> the compare and the report; <code>test_rezi_mcp.py</code> the connection; <code>test_rezi_items.py</code> the <code>rezi.*</code> items and the guard; <code>test_worker.py</code> the worker and <code>cv.read</code>; <code>test_pdf_read.py</code> the PDF reader (lines, joins, small caps, the read check, real PDFs; one test uses LibreOffice); <code>pdf_fixture.py</code> writes a test CV as a real text PDF; <code>test_handoff.py</code> the contract, end to end through the Hub with a fake <code>claude</code>; <code>test_job_start.py</code> the job start: names, copy, refusals, the gate, end to end through the Hub; <code>test_tool.py</code> the CV Tool's side: the content in the app's shape, the rules folder, the pick, and the five items against a fake CV Tool; <code>test_cv_tool.py</code> the CV Tool app itself: a job from the module, a round, Submit's final PDF, every style at 9 pt or more, the 9 pt measure, and the server's guard, JSON-only posts and quit</li>
 </ul>
 <h2 id="build-state">Build state</h2>

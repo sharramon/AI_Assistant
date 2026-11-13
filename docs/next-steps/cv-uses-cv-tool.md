@@ -1,8 +1,8 @@
 # cv module: the CV Tool is its UI
 
-> **Status: built and tested, going live with the `cv` reload (2026-11-09).** Built: the CV Tool app in `src/cv_tool/` (pymupdf installed in `.venv` with your yes), `cv/tool.py` and the `cv.open_tool` / `cv.tool_*` / `cv.check_fonts` items, the rules folder and the facts loaded at every job, `CvRequest.tool`, the 5-step prompt. **Where the rules went (changed by [cv-agent-folders.md](cv-agent-folders.md), Option B):** not `src/assistant/modules/cv/rules/` but the module's workspace, `C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\` (`rules_dir`), and the facts in `CV_Module\data\confirmed_facts.json`; the CV Tool's data is in `CV_Module\cv_tool`. Details: the cv module's docs and [handoff-2389decf.md](handoff-2389decf.md). Earlier status: approved, building (2026-11-09). Comes after the [PDF in, PDF out](cv-pdf-only.md) change (now live). **Your answers:** the pick is option 1 (the request names `tool`, else the CV Tool waits for you); the rules and facts are **copied** into `rules/` and `confirmed_facts.json`, and the memory notes stay until you say they can go; the final PDF is `CV_Test_<Company>_final.pdf`. Build state: [handoff-cv-tool-build.md](handoff-cv-tool-build.md). **Paused 2026-11-09** for a folder layout proposal, [cv-agent-folders.md](cv-agent-folders.md), which would move the rules, the facts and the CV Tool's data into cv_agent's workspace. **The CV Tool is the cv module's own UI half;** its code stays in `src/cv_tool/`, because `CompanionApp` runs `python -m <package>` and inside `cv/` that would import the module's code into the app.
+> **Status: built and tested, going live with the `cv` reload (2026-11-09).** Built: the CV Tool app in `src/cv_tool/` (pymupdf installed in `.venv` with your yes), `cv/tool.py` and the `cv.open_tool` / `cv.tool_*` / `cv.check_fonts` items, the rules folder and the facts loaded at every job, `CvRequest.tool`, the 5-step prompt. **Where the rules went (changed by [cv-agent-folders.md](cv-agent-folders.md), Option B):** not `src/assistant/modules/cv/rules/` but the module's workspace, `C:\Jobs\CV_Module\.claude\skills\cv-writing\` (`rules_dir`), and the facts in `CV_Module\data\confirmed_facts.json`; the CV Tool's data is in `CV_Module\cv_tool`. Details: the cv module's docs and [handoff-2389decf.md](handoff-2389decf.md). Earlier status: approved, building (2026-11-09). Comes after the [PDF in, PDF out](cv-pdf-only.md) change (now live). **Your answers:** the pick is option 1 (the request names `tool`, else the CV Tool waits for you); the rules and facts are **copied** into `rules/` and `confirmed_facts.json`, and the memory notes stay until you say they can go; the final PDF is `CV_Test_<Company>_final.pdf`. Build state: [handoff-cv-tool-build.md](handoff-cv-tool-build.md). **Paused 2026-11-09** for a folder layout proposal, [cv-agent-folders.md](cv-agent-folders.md), which would move the rules, the facts and the CV Tool's data into cv_agent's workspace. **The CV Tool is the cv module's own UI half;** its code stays in `src/cv_tool/`, because `CompanionApp` runs `python -m <package>` and inside `cv/` that would import the module's code into the app.
 
-**Asked (2026-11-09):** the CV Tool (`C:\Chang\Jobs\rezi\cv_tool`) is the UI side of the `cv` module, and the module controls it. Today `cv_agent` doesn't know the app exists: its prompt runs its own 8 steps straight in Rezi, with a LibreOffice PDF and no Submit. The ExampleCorp job (2026-11-08) never showed up in the app.
+**Asked (2026-11-09):** the CV Tool (`C:\Jobs\rezi\cv_tool`) is the UI side of the `cv` module, and the module controls it. Today `cv_agent` doesn't know the app exists: its prompt runs its own 8 steps straight in Rezi, with a LibreOffice PDF and no Submit. The ExampleCorp job (2026-11-08) never showed up in the app.
 
 ## Why it ended up separate
 
@@ -50,7 +50,7 @@ This is the same pattern as `html_viewer`: `CompanionApp` from `app_kit` ([compa
 | Port | **Changes:** a fixed port from config instead of a random one, so `CompanionApp` can find it |
 | Quit and guard | **Added:** `POST /api/quit` (JSON only), and `local_guard` on every request, as the checklist asks |
 | Base CV reader | **Changes:** reads the base CV PDF with the cv module's `pdf_read.py`, not `.odt` / `.docx` |
-| Data: `jobs\`, `inbox\`, `outbox\`, `rezi_requests\`, `data\confirmed_facts.json`, `cache\`, `.edge_profile\` | **Stays** in `C:\Chang\Jobs\rezi\cv_tool`, set as `data_dir` in `module.toml`. Nothing is copied or deleted |
+| Data: `jobs\`, `inbox\`, `outbox\`, `rezi_requests\`, `data\confirmed_facts.json`, `cache\`, `.edge_profile\` | **Stays** in `C:\Jobs\rezi\cv_tool`, set as `data_dir` in `module.toml`. Nothing is copied or deleted |
 | `cv_tool.cmd` | **Stays**, pointed at the new package, so you can still open it by hand |
 | `cv_agent`'s memory note `user-wants-rezi-export-not-local-build.md` | **Removed**, with its line in that memory's `MEMORY.md`. It conflicts with "never download Rezi's PDF" |
 
@@ -75,7 +75,7 @@ Today `job_skills` loads only `cv-writing-preferences\SKILL.md` and `never-scrip
 - Style and layout: `cv-style-no-parentheses-semicolons.md`, `cv-style-action-to-result.md`, `cv-min-font-9pt-measured.md`, `cv-section-order-default.md`
 - Rezi: `rezi-pdf-download-auto.md`, `rezi-write-sections-scrambles-experience.md`
 - CV Tool: `cv-tool-scope.md`, `cv-tool-rezi-request.md`
-- Facts: `user-fact-system-design.md`, `user-facts-soylent-no-aws.md`, `user-facts-hooli-v5-confirmed.md`, and `C:\Chang\Jobs\rezi\cv_tool\data\confirmed_facts.json`
+- Facts: `user-fact-system-design.md`, `user-facts-soylent-no-aws.md`, `user-facts-hooli-v5-confirmed.md`, and `C:\Jobs\rezi\cv_tool\data\confirmed_facts.json`
 
 `job_start.py` already takes these: it reads any path as text, a `.json` too, and pastes it into the task, so cv_agent needs no read access to them. No code change, only `module.toml`.
 
@@ -94,9 +94,9 @@ Today `job_skills` loads only `cv-writing-preferences\SKILL.md` and `never-scrip
 |---|---|---|
 | `src/assistant/modules/cv/` | Code, the prompt (`worker.py`), and a new **`rules/`** folder: `cv-writing-preferences.md` (today's `SKILL.md`) plus the style, layout, Rezi and 9 pt rules moved out of the memory notes | Every file in `rules/` read in full by the job-start gate on every job |
 | `src/cv_tool/` | The CV Tool's code (moved, see above) | Launched and stopped by the `cv` module through `CompanionApp` |
-| `C:\Chang\Jobs\rezi\cv_tool` | **Data only:** `jobs\`, `data\confirmed_facts.json`, `inbox\`, `outbox\`, `rezi_requests\`, `cache\` | `confirmed_facts.json` read in full by the gate; the rest through the app's API |
-| `C:\Chang\Jobs\rezi\cv_agent\work\<date>_<Co>_<Role>\` | One job: the copied base PDF, `jd.txt`, `job_start.json`, the drafts, the final PDF | Made by the gate; cv_agent works only here |
-| `C:\Chang\Jobs\CV` | Your CVs, read only | The gate copies the base PDF out; nothing runs on it |
+| `C:\Jobs\rezi\cv_tool` | **Data only:** `jobs\`, `data\confirmed_facts.json`, `inbox\`, `outbox\`, `rezi_requests\`, `cache\` | `confirmed_facts.json` read in full by the gate; the rest through the app's API |
+| `C:\Jobs\rezi\cv_agent\work\<date>_<Co>_<Role>\` | One job: the copied base PDF, `jd.txt`, `job_start.json`, the drafts, the final PDF | Made by the gate; cv_agent works only here |
+| `C:\Jobs\CV` | Your CVs, read only | The gate copies the base PDF out; nothing runs on it |
 
 The memory notes that move into `rules/` are removed from cv_agent's memory, so each rule has one home. The fact notes are merged into `confirmed_facts.json`.
 
@@ -125,10 +125,10 @@ The gate is code, so the folder, the PDF copy, the rules and the facts are in th
 ### Checked against the code
 
 - **Absolute paths:** `job_folders` in `module.py` takes any absolute path in `job_skills`, and `JobStart.load_skills` reads any file as text, a `.json` too. So the `rules/` files and `confirmed_facts.json` load today with full paths in `module.toml`.
-- **Relative paths** are taken from cv_agent's workspace (`C:\Chang\Jobs\rezi\cv_agent`), not the module's folder. **Small code change proposed:** a `rules_dir` setting, default the module's own `rules/`, every file in it loaded. No list to keep, and a new rule file loads without a config edit.
-- **cv_agent's access:** none needed for the rules or the facts, because the gate pastes their text into the task. The CV Tool's `jobs\` is reached only through the `cv.tool_*` items, so no access to `C:\Chang\Jobs\rezi\cv_tool` either.
+- **Relative paths** are taken from cv_agent's workspace (`C:\Jobs\rezi\cv_agent`), not the module's folder. **Small code change proposed:** a `rules_dir` setting, default the module's own `rules/`, every file in it loaded. No list to keep, and a new rule file loads without a config edit.
+- **cv_agent's access:** none needed for the rules or the facts, because the gate pastes their text into the task. The CV Tool's `jobs\` is reached only through the `cv.tool_*` items, so no access to `C:\Jobs\rezi\cv_tool` either.
 - **Needs a settings change:** none if the above holds. Only `module.toml` (the module's own defaults) changes: `rules_dir`, `confirmed_facts.json` in `job_skills`, and the CV Tool's port and `data_dir`. If cv_agent ever has to read or write `cv_tool\jobs\` itself, that's a new `read_dirs` / write line, which asks you on the access card when `cv` turns on.
-- **Outside the repo, needs your yes:** moving the notes out of `C:\Users\sharr\.claude\projects\C--Chang-Jobs-rezi-cv-agent\memory\` and editing that `MEMORY.md`.
+- **Outside the repo, needs your yes:** moving the notes out of `C:\Users\you\.claude\projects\C--Jobs-rezi-cv-agent\memory\` and editing that `MEMORY.md`.
 
 ## Order
 

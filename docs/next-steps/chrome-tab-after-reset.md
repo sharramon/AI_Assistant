@@ -13,7 +13,7 @@
 From `logs/2026-11-10_17-30-53_open-job-agent/` (`job_search_agent.jsonl`, `assistant.log`):
 
 1. Before the reset the agent worked the Microsoft apply form in Chrome tab **2086284216**, in the tab group of its `claude` session (5a166bfd…). Nothing in the app tracks the tab. Only that session knew its id.
-2. At 18:49:45 its context passed 150k. It wrote `C:\Chang\Jobs\CV\docs\next-steps\handoff-b7c1a092.md` and ended with `HANDOFF:`. The note carried the form's **URL** and "Chrome tab (MCP group) is open on the apply form", but no tab id. A tab id wouldn't have helped anyway (see 4).
+2. At 18:49:45 its context passed 150k. It wrote `C:\Jobs\CV\docs\next-steps\handoff-b7c1a092.md` and ended with `HANDOFF:`. The note carried the form's **URL** and "Chrome tab (MCP group) is open on the apply form", but no tab id. A tab id wouldn't have helped anyway (see 4).
 3. `SessionTaskAgent._continue_fresh` → `_fresh_session` (`src/assistant/infra/session_agent.py`) closed that `claude` process and started a new one (18:50:09, session 741217b8…). That is by design: every task and every handoff gets a new process.
 4. The new session's `tabs_context_mcp` answered: *"This session has no tab group of its own. Any tabs opened earlier … may still be open in Chrome, in a group this session cannot see or control."*
 5. So the agent did `navigate` to the URL from the note, which made a new group and tab (**2086284219**). The old tab stayed open, unreachable. The form had autosaved on Microsoft's side, so nothing was lost this time.
