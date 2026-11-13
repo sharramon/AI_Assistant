@@ -12,10 +12,11 @@
 <nav data-root="" data-page="module-folders-checklist.html"></nav>
 <main>
 <h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
-<p><strong>Count: 4 of 20 done</strong> (items 1, 2, 3 and 20).</p>
+<p><strong>Count: 5 of 20 done</strong> (items 1 to 4 and 20).</p>
 <h2 id="morning-list-kept-as-the-run-goes">Morning list, kept as the run goes</h2>
 <ul>
-<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub).</li>
+<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub); item 4 (<code>add_app_folders</code> in the core's loader, <code>launch_env</code> in <code>CompanionApp</code>: <strong>until the restart, the running app can't launch the CV Tool</strong>, since <code>src/cv_tool</code> is gone).</li>
+<li><strong>Hand check, item 4:</strong> after the restart, <code>cv.open_tool</code> opens the CV Tool from <code>modules/cv/app/cv_tool/</code>.</li>
 <li><strong>Hand checks:</strong> at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).</li>
 <li><strong>Old folders left for you to delete:</strong> none yet.</li>
 </ul>
@@ -52,6 +53,8 @@
 <li><strong>Startup adds what's needed</strong> (item 2): a module in <code>modules.enabled</code> whose <code>needs</code> aren't listed still gets them started (decision 4: on means its needs on too). A missing contract provider still fails startup.</li>
 <li><strong>A needed module that fails at startup skips its dependents</strong> (item 2), with no <code>StartupError</code>: cv waiting on its access card counts as failed at startup, and job_search needing it would otherwise stop the whole app. <code>module.toml</code>'s <code>needs</code> replaces any written in code.</li>
 <li><strong>The Hub keeps <code>[modules.agent_hub] named_only</code> as an empty fallback</strong> (item 3): an agent's own <code>named_only = true</code> (read by <code>ProfileAgent</code>, carried on <code>AgentInfo</code>) is the source; the Hub's list stays readable for an agent not built from a profile, empty by default.</li>
+<li><strong>Finding app folders lives in the core, launching them in <code>app_kit</code></strong> (item 4): <code>add_app_folders()</code> (core loader: at startup, reload, add, and in <code>conftest.py</code>) puts every <code>modules/*/app</code> on the import path; <code>CompanionApp</code> launches <code>python -m &lt;app&gt;</code> with <code>launch_env</code> (its folder first on <code>PYTHONPATH</code>). Items 8 and 9 reuse both.</li>
+<li><strong>The CV Tool's defaults are its module's workspace</strong> (item 4): <code>cvlib.WORKSPACE</code> = <code>modules/cv/workspace</code> (with a made-up <code>cvs</code> folder for running it by hand); the cv module still passes its real folders on the command line.</li>
 </ol>
 <h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
 <table>
@@ -145,7 +148,8 @@
 <li><strong>How:</strong> add <code>named_only = true</code> to <code>[agent]</code> in <code>cv/module.toml</code>; agent_hub learns the named-only agents from the agents themselves (the module or the profile reports it) instead of its own list; remove <code>named_only = ["cv_agent"]</code> from <code>[modules.agent_hub]</code>. Tests; docs for agent_hub and cv.</li>
 <li><strong>Done when:</strong> <code>git grep -n "cv_agent" config/default.toml</code> finds nothing; a test shows cv_agent is still named-only (<code>hub.start</code> without its name never picks it).</li>
 </ul>
-<h3 id="4-cv-the-cv-tool-app-moves-into-modulescvapp">4. cv: the CV Tool app moves into <code>modules/cv/app/</code></h3>
+<h3 id="4-cv-the-cv-tool-app-moves-into-modulescvapp-done-2026-11-13">4. cv: the CV Tool app moves into <code>modules/cv/app/</code>: <strong>done</strong> (2026-11-13)</h3>
+<p><strong>Checked:</strong> <code>src/cv_tool</code> doesn't exist; <code>modules/cv/app/cv_tool/__main__.py</code> exists; <code>test_no_app_outside_its_module</code>, <code>test_every_module_app_never_imports_assistant</code> and cv's <code>test_cv_tool.py</code> pass; <code>cv_tool.local.toml</code> stays gitignored (<code>*.local.*</code>); full suite 854 passed, 2 deselected; ruff clean. <strong>Needs an app restart.</strong></p>
 <ul>
 <li><strong>What:</strong> <code>src/cv_tool/</code> moves to <code>src/assistant/modules/cv/app/cv_tool/</code>, with <code>cv_tool.toml</code> next to it.</li>
 <li><strong>Why:</strong> the picture: "app/ ← src/cv_tool".</li>

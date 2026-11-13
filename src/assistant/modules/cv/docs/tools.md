@@ -318,7 +318,7 @@ The module stands alone: a caller in `hand_off.callers` (the job agent, the Main
 
 ### The CV Tool: `cv.open_tool`, `cv.tool_status`, `cv.tool_round`, `cv.check_fonts`, `cv.tool_result`
 
-The module's link to its UI half, the CV Tool app (`src/cv_tool`, `python -m cv_tool` on `127.0.0.1:8771`). Each item starts the app if it isn't running (`CompanionApp.ensure_running`, no window) and uses only its JSON API. Built and tested, live with the `cv` reload.
+The module's link to its UI half, the CV Tool app (`cv/app/cv_tool`, `python -m cv_tool` on `127.0.0.1:8771`). Each item starts the app if it isn't running (`CompanionApp.ensure_running`, no window) and uses only its JSON API. Built and tested, live with the `cv` reload.
 
 | Item | Calls | Returns |
 |---|---|---|

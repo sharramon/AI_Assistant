@@ -1,4 +1,4 @@
-"""The CV Tool app itself (`src/cv_tool`, the cv module's UI half): its engine (`cvlib`) on a temp data
+"""The CV Tool app itself (`cv/app/cv_tool`, the cv module's UI half): its engine (`cvlib`) on a temp data
 folder, the 10 pt floor (a warning, never a refused Submit), and the server's guard, JSON-only posts, the
 Submit's event and quit. Needs `pymupdf` (the `cv` extra);
 the real print needs Chrome. Nothing outside tmp_path is written."""
@@ -31,7 +31,7 @@ def app_data(tmp_path):
     cvlib.configure(str(tmp_path / "cv_tool"), str(tmp_path / "CV"), str(rules), str(tmp_path / "work"),
                     str(tmp_path / "facts.json"))  # fmt: skip
     yield tmp_path
-    cvlib.configure()  # back to the defaults (nothing is written there by configure but the jobs folder)
+    cvlib.configure(make=False)  # back to the defaults, writing nothing there
 
 
 def new_job(tmp_path: Path, **extra) -> dict:

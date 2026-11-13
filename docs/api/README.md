@@ -15,7 +15,8 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 - **Contracts** (`assistant.contracts`): `ModuleProtocol`, `Menu`, `ModuleContext`, `ctx.logs`, `ctx.permissions` (with `request_set`), `Manifest`, the Event Bus, `AccessItem` and the access cards (`PermissionRequested`, `AnswerPermissionRequest`, `PermissionChanged`), `InputReceived`, `ResponseReady`, `IToolProvider`, `ITaskAgent` (with `request_approval`), `AgentState`, `DeliverMessage`, `IAgentNames`, `ModuleContext.withdraw`, `AgentActivity`, `SessionUsage`, `PermissionMode`, `SetPermissionMode`, `PermissionModeChanged`, `SetFocus`, `FocusChanged`, `FocusSuggested`, `AgentNotice`, `QuestionKind` (with `RISKY_PREFIX`), `MAX_SNIPS`, `PASTED_FILE`, the Hub's menu, `IVoice`, `StartListening`, `StopListening`, `ListeningState`, `VoiceState`, `VoiceTranscript`
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent` (with `set_context`), `default_context`, `PermissionGate`, `HandoffKeeper`, `LastLineTags`, `UsageMeter`, `AgentKit` (with `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`), `AgentProfile`, `manual_claude_mode`, `access_items`, `granted_config`, `request_access`, `MilestoneFeed`, `session_usage`, `ContextWatch`, `agent_tags`, `show_page`, `mcp_door`, `check_agent_id`, `free_agent_id`
-- **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window` (with `window_profile`), `load_layered`, `local_path`, `merge`, `module_docs`, `CompanionApp`, `CompanionHandover`, `local_guard`
+- **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window` (with `window_profile`), `load_layered`, `local_path`, `merge`, `module_docs`, `CompanionApp`, `CompanionHandover`, `launch_env`, `local_guard`
+- **Core host** (`assistant.core`, internal): `add_app_folders` (every module's `app/` folder on the import path)
 
 ## Groups
 
@@ -179,7 +180,7 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`StartupError`](core.md#startuperror) | exception | The configured modules can't start together |
 | [`resolve_modules`](core.md#resolve_modules) | function | Select enabled modules, validate dependencies, return start order |
 | [`LifecycleManager`](core.md#lifecyclemanager) | class | Init, start, and stop modules in dependency order; activate, deactivate, reload, and add at runtime |
-| [`loader`](core.md#loader) | functions | Find the modules by folder (`find_modules`); fresh import of a module's package; what may be reloaded |
+| [`loader`](core.md#loader) | functions | Find the modules by folder (`find_modules`); every module's `app/` folder on the import path (`add_app_folders`); fresh import of a module's package; what may be reloaded |
 | [`ScopedContext`](core.md#scopedcontext) | class | The `ModuleContext` implementation; undoes registrations on close |
 | [`SessionLogs`](core.md#sessionlogs) | class | The `ctx.logs` port, backed by the launch's `LogSession` |
 | [`PermissionsHandler`](core.md#permissionshandler) | class | The permissions handler, part of the core and always on: access lists, saved grants, cards, the review, grant calls |

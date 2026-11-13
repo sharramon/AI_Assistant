@@ -72,7 +72,9 @@ Functions for finding the modules by folder and loading a module's code fresh. G
 
 | Function | Description |
 |----------|-------------|
-| `find_modules(root="assistant.modules") -> list[type[ModuleProtocol]]` | Every module under `root`, sorted by folder: one per sub-package whose one `ModuleProtocol` class has the folder's name as its id. A bad folder is skipped with a warning; `_` folders are ignored. Also exported as `assistant.core.find_modules` |
+| `find_modules(root="assistant.modules") -> list[type[ModuleProtocol]]` | Every module under `root`, sorted by folder: one per sub-package whose one `ModuleProtocol` class has the folder's name as its id. A bad folder is skipped with a warning; `_` folders are ignored. Puts the modules' `app/` folders on the import path first (`add_app_folders`). Also exported as `assistant.core.find_modules` |
+| `app_folders(root="assistant.modules") -> list[Path]` | Every module's `app/` folder (`APP_FOLDER`), found by folder with no names, resolved and sorted: where the modules' companion apps' packages live (`cv/app/cv_tool`) |
+| `add_app_folders(root="assistant.modules") -> list[Path]` | ♻ **Reusable** · Used by: `find_modules` (startup), `import_fresh` (a reload or `AddModule`), the root `conftest.py` (the test setup); built 2026-11-13. Appends each `app/` folder to `sys.path` once, so an app's package imports by its own name; returns the folders added now. Also exported as `assistant.core.add_app_folders`. A launch passes the folder on with [`launch_env`](app_kit.md#companionapp) |
 | `check_folder(cls, package, root="assistant.modules")` | Raises `LoadError` if a package directly under `root` holds a module with another id. `AddModule` uses it too |
 | `package_of(cls) -> str` | The package a module class lives in |
 | `module_folder(cls) -> Path \| None` | The folder of that package, where the module keeps its own config defaults and docs; `None` if it can't be found |
@@ -80,7 +82,7 @@ Functions for finding the modules by folder and loading a module's code fresh. G
 | `check_reloadable(package)` | Raises `LoadError` for shared code (`assistant.core`, `.contracts`, `.infra`, `app_kit`), `assistant` / `assistant.modules` themselves, or a top-level name |
 | `drop(package) -> dict` | Remove the package and its submodules from `sys.modules` (and their `__pycache__`); returns them |
 | `restore(package, removed)` | Put back what `drop` removed |
-| `import_fresh(package)` | Import from source; a missing contract becomes `LoadError` ("needs a restart") |
+| `import_fresh(package)` | Import from source (a new module's `app/` folder on the path first); a missing contract becomes `LoadError` ("needs a restart") |
 | `find_module_class(package, module_id=None)` | The one `ModuleProtocol` subclass the package exports |
 
 **Defined in:** `src/assistant/core/loader.py`

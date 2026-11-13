@@ -141,6 +141,7 @@ Modules only ever see the `ModuleContext` interface (defined in `assistant.contr
 
 ```mermaid
 flowchart TD
+    P["add_app_folders()<br/>every module's app/ folder on the import path"] --> S
     S["find_modules()<br/>one module per folder in src/assistant/modules/"] --> A["App(modules, config)"]
     A --> B["resolve_modules<br/>select modules.enabled, validate graph"]
     B -- invalid --> X[StartupError, nothing runs]
@@ -153,6 +154,8 @@ flowchart TD
     H --> I[Unregister InvokeTool, close bus]
     I -- "ShutdownRequested(restart=True)" --> R["exit code 75: the launcher<br/>starts a new app process"]
 ```
+
+**Companion apps on the path.** A module's companion app lives in its folder as `app/<its package>/` (`cv/app/cv_tool/`); `app/` is no package, so the app keeps its own import name and never imports the module. Before importing any module, `find_modules` puts every module's `app/` folder on `sys.path` ([`add_app_folders`](../api/core.md#loader), found by folder, no names), and so do a reload and `AddModule` (`import_fresh`) and the test setup (the root `conftest.py`). `CompanionApp` launches the app with that folder first on `PYTHONPATH` ([`launch_env`](../api/app_kit.md#companionapp)). A new `app/` folder is found without a restart; an app already running keeps the path it started with.
 
 **Restart.** `python -m assistant` is a small launcher. It runs the app as a child process in the same console and starts it again whenever the app exits with `core.restart_exit_code` (75). The app exits with 75 after a `ShutdownRequested(restart=True)` (`App.restart_requested`). A new process loads all new code, the core's included. The Talker triggers a restart when you ask for one, with reset instructions for the next launch ([Restart](../agents/runtime.md#the-talker-on-its-own)).
 

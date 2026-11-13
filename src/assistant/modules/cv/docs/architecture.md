@@ -6,7 +6,7 @@ How the `cv` module works inside. What it is, the CV Tool flow and the 5 steps: 
 
 - **One module, id `cv`**, holds everything it needs: the Rezi connection, the CV output side, and its worker.
 - **Its worker, `cv_agent`**, is a `ProfileAgent` (a Claude session with its own access card), the way `job_search` bundles its agent. It runs the CV Tool's 5 steps (the old 8 until the `cv` reload) and is the truth gate.
-- **Its UI half, the CV Tool**, is its own app in `src/cv_tool/`, launched and called by the module through `CompanionHandover` (`tool.py`), the way `html_viewer` runs its viewer.
+- **Its UI half, the CV Tool**, is its own app in the module's folder, `cv/app/cv_tool/`, launched and called by the module through `CompanionHandover` (`tool.py`), the way `html_viewer` runs its viewer.
 - **Chrome only in the worker:** only this worker's session uses Chrome, only on app.rezi.ai, with your Rezi login. Keyword Targeting, the Rezi Score and the PDF import happen there, not as menu items.
 - **Jobs sent through the Hub:** the job agent calls `cv.task`, and cv starts `cv_agent` on the job itself (`StartTask`, the caller's open task as parent; no coordinator in between, changed 2026-11-10). If `cv_agent` is busy on another job, `cv.task` says which job and who it's for; nothing is queued. At your Submit the result goes back to the caller as a message (`DeliverMessage`). The task's own result is read with `cv.read_result`. There is no `rezi.tailor_cv` item.
 - **Who may call what** (`[hand_off]` in `module.toml`, checked by `CallerMenu` on every call; the core sets the caller, so it can't be faked): `cv.task` and `cv.read_result` only for `hand_off.callers` (the job agent and the Main Assistant); `rezi.status` for anyone; every other item (`cv.open_tool`, `cv.tool_*`, `cv.build`, `cv.read`, `rezi.*`) only for the worker. `named_only = true` in cv's own `[agent]` section keeps free picks (`hub.start` with no agent) off `cv_agent` (the Hub reads it from [`AgentInfo.named_only`](../../../../../docs/api/agents.md#agentinfo)); anyone may still name it.
@@ -411,13 +411,13 @@ classDiagram
         <<existing, now public: rezi_json.py>>
     }
     class cv_tool_server {
-        <<new app: src/cv_tool/server.py>>
+        <<new app: cv/app/cv_tool/server.py>>
         /api/ping · /api/quit · /api/window
         /api/job/import · /api/job/status
         /api/round · /api/job/result · /api/rules
     }
     class cvlib {
-        <<moved app engine: src/cv_tool/cvlib.py>>
+        <<moved app engine: cv/app/cv_tool/cvlib.py>>
         +import_request · agent_round
         +job_status · job_result · submit
         +font_sizes (9 pt) · rules()
@@ -437,7 +437,7 @@ classDiagram
 sequenceDiagram
     participant A as cv_agent
     participant M as cv module (CvTool)
-    participant T as CV Tool (src/cv_tool)
+    participant T as CV Tool (cv/app/cv_tool)
     participant Y as You
     Note over A: the gate already made the job's folder and loaded the rules + facts
     A->>Y: NEED: open the CV Tool and start?
@@ -480,9 +480,9 @@ sequenceDiagram
 - **Errors:** the app's error → `failed` ("the CV Tool says"); it can't start or answer → `not_available`; a bad job folder or `job_start.json` → `invalid_arguments`.
 - **Tested** (`tests/test_tool.py`): the content in the app's shape, the settings, the pick, the rules folder (order, a new file without a reload, a missing `SKILL.md`), the five items against a fake CV Tool on a free port, a CV Tool that doesn't start, and the Submit watch (a live Submit delivered with no agent, and cv_agent's one notice about it; on the first start old Submits only marked seen; one missed while down reminded once and not sent; `cv.tool_result` then sends it).
 
-## The CV Tool app (`src/cv_tool`)
+## The CV Tool app (`cv/app/cv_tool`)
 
-The module's UI half, an independent app on the [companion app checklist](../../../../../docs/architecture/reusable-parts.md#companion-app-checklist): its own package, `python -m cv_tool`, never importing `assistant`.
+The module's UI half, an independent app on the [companion app checklist](../../../../../docs/architecture/reusable-parts.md#companion-app-checklist): its own package, `python -m cv_tool`, never importing `assistant`. It lives in the module's folder as `app/cv_tool/`; `app/` is no package. The core puts every module's `app/` folder on the import path at startup (`loader.add_app_folders`, found by folder, as the test setup does), and `CompanionApp` launches it with that folder first on `PYTHONPATH` (`launch_env`). Unset, its folders are in the module's workspace (`cv/workspace/`: `cv_tool`, `cvs`, `.claude/skills/cv-writing`; `cvlib.WORKSPACE`); your own go in the gitignored `cv_tool.local.toml`, and the module passes its own on the command line.
 
 | Part | What it does |
 |---|---|
@@ -491,7 +491,7 @@ The module's UI half, an independent app on the [companion app checklist](../../
 | `cv_tool.toml` (+ `.local.toml`) | Defaults under the CLI flags, read with `load_layered` + `merge`: `host`, `port`, `window` (`app` or `none`), `data_dir`, `cv_dir`, `rules_dir`, `agent_work`, `facts`, `profile` |
 | `static/`, `assets/` | The four tabs' page (`index.html`, `app.js`, `app.css`) and Source Sans 3 |
 
-**Routes:** `GET /api/ping` → `{"app": "cv_tool"}`; `POST /api/quit`; the module's: `POST /api/job/import`, `GET /api/job/status?id=`, `POST /api/round`, `GET /api/job/result?id=`, `GET /api/rules`, `POST /api/window`, `GET /api/events` (Server-Sent Events: `submitted {job_id}`), `GET /api/submitted` (every submitted job, for the catch-up look); the page's own (`/api/jobs`, `/api/job/save`, `/api/draft/*`, `/api/loop*`, `/api/submit`, …). **Run by hand:** `python -m cv_tool` opens its window at once; the module starts it with `--window none` and the folders from `[tool]`. **Data:** `<data_dir>\jobs\<id>\` per job, plus `inbox\`, `outbox\`, `rezi_requests\`. **Needs:** `pymupdf` (the `cv` extra) and Chrome. **Tested** in `tests/test_cv_tool.py`.
+**Routes:** `GET /api/ping` → `{"app": "cv_tool"}`; `POST /api/quit`; the module's: `POST /api/job/import`, `GET /api/job/status?id=`, `POST /api/round`, `GET /api/job/result?id=`, `GET /api/rules`, `POST /api/window`, `GET /api/events` (Server-Sent Events: `submitted {job_id}`), `GET /api/submitted` (every submitted job, for the catch-up look); the page's own (`/api/jobs`, `/api/job/save`, `/api/draft/*`, `/api/loop*`, `/api/submit`, …). **Run by hand:** `python -m cv_tool` from `cv/app/` opens its window at once; the module starts it with `--window none` and the folders from `[tool]`. **Data:** `<data_dir>\jobs\<id>\` per job, plus `inbox\`, `outbox\`, `rezi_requests\`. **Needs:** `pymupdf` (the `cv` extra) and Chrome. **Tested** in `tests/test_cv_tool.py`; its place, the import path and the independence rule in the repo's `tests/test_module_folders.py`.
 
 ## Owns and launches
 

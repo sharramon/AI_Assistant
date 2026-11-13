@@ -9,16 +9,27 @@ Item 2: a `needs` list. cv's module.toml declares `needs`, the core puts it on t
 the lifecycle turns needed modules on first and refuses to turn one off while a module needs it.
 
 Item 3: cv's `[agent]` section is complete. cv_agent's `named_only = true` is in its own section,
-not in agent_hub's config; the Hub reads it from the agent (`AgentInfo.named_only`)."""
+not in agent_hub's config; the Hub reads it from the agent (`AgentInfo.named_only`).
+
+Item 4: the CV Tool app is in cv's folder, `cv/app/cv_tool/`. No app is left in `src/<app>`; the core
+finds every module's `app/` folder by folder and puts it on the import path, a launch passes it on
+(`PYTHONPATH`), the app never imports `assistant`, and its defaults are in cv's workspace."""
 
 from __future__ import annotations
 
+import ast
 import asyncio
+import os
+import re
+import subprocess
+import sys
 import tomllib
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from app_kit.companion import launch_env, package_root
 from assistant.contracts import (
     AccessKind,
     ActivateModule,
@@ -207,3 +218,62 @@ async def test_a_free_pick_never_lands_on_a_named_only_agent() -> None:
     assert started.is_ok and rig.board.get(started.value).agent_id == "helper"
     # Named, it still starts.
     assert (await rig.board.start(StartTask(text="for you", agent_id="cv_agent"))).is_ok
+
+
+# Item 4: the CV Tool app in cv's folder.
+
+# Where companion apps used to live, outside their module. Items 8 and 9 add src/html_viewer, src/voice_service.
+OLD_APPS = ["src/cv_tool"]
+CV_APP = CV / "app"
+
+
+def test_no_app_outside_its_module() -> None:
+    for old in OLD_APPS:
+        assert not (REPO / old).exists(), f"{old} is left outside its module"
+    assert (CV_APP / "cv_tool" / "__main__.py").is_file() and (CV_APP / "cv_tool" / "cv_tool.toml").is_file()
+    assert not (CV_APP / "__init__.py").exists()  # app/ is no package: the app keeps its own name
+    # Found by folder, on the import path (the core at startup, the test setup), imported from there.
+    assert CV_APP in loader.app_folders()
+    loader.add_app_folders()
+    assert loader.add_app_folders() == []  # once each
+    assert any(p and Path(p).resolve() == CV_APP for p in sys.path)
+    import cv_tool
+
+    assert Path(cv_tool.__file__).parent == CV_APP / "cv_tool"
+    # A launch passes the folder on, first on PYTHONPATH, keeping what was there.
+    assert package_root("cv_tool") == CV_APP and package_root("no_such_app_package") is None
+    assert launch_env("cv_tool", {"PYTHONPATH": "kept"})["PYTHONPATH"] == os.pathsep.join([str(CV_APP), "kept"])
+    assert launch_env("no_such_app_package", {"A": "1"}) == {"A": "1"}
+    base = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    child = subprocess.run([sys.executable, "-c", "import cv_tool; print(cv_tool.__file__)"], env=launch_env("cv_tool", base),
+                           capture_output=True, text=True, timeout=60, check=True)  # fmt: skip
+    assert Path(child.stdout.strip()).parent == CV_APP / "cv_tool"
+
+
+def test_every_module_app_never_imports_assistant() -> None:
+    folders = loader.app_folders()
+    assert CV_APP in folders
+    for file in (f for folder in folders for f in folder.rglob("*.py")):
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else (
+                [node.module or ""] if isinstance(node, ast.ImportFrom) and not node.level else [])  # fmt: skip
+            assert not any(n.split(".")[0] == "assistant" for n in names), file
+
+
+def test_the_cv_tool_defaults_are_in_the_module_workspace(tmp_path) -> None:
+    # No absolute folder of the user's in the app (Chrome's install folder is the one fixed path).
+    for file in ("cv_tool.toml", "cvlib.py", "server.py"):
+        text = (CV_APP / "cv_tool" / file).read_text(encoding="utf-8")
+        found = re.findall(r"\b[A-Za-z]:[\\/][^\"'\n]*", text)
+        assert all("Program Files" in path for path in found), (file, found)
+    pytest.importorskip("pymupdf")
+    from cv_tool import cvlib, server
+
+    workspace = CV / "workspace"
+    assert Path(cvlib.WORKSPACE) == workspace
+    assert Path(cvlib.DEFAULT_DATA) == workspace / "cv_tool" and Path(cvlib.DEFAULT_CV_DIR) == workspace / "cvs"
+    assert Path(cvlib.DEFAULT_RULES) == workspace / ".claude" / "skills" / "cv-writing"
+    config = tmp_path / "cv_tool.toml"  # the committed defaults alone, without this machine's .local file
+    config.write_text((CV_APP / "cv_tool" / "cv_tool.toml").read_text(encoding="utf-8"), encoding="utf-8")
+    settings = server.settings(["--config", str(config)])
+    assert Path(settings["data_dir"]) == workspace / "cv_tool" and Path(settings["cv_dir"]) == workspace / "cvs"

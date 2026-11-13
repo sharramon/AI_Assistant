@@ -99,7 +99,7 @@ Launches and talks to a local [companion app](../architecture/reusable-parts.md#
 | Member | Does |
 |--------|------|
 | `async ping() -> bool` | Whether the app answers its ping with its own name (1 s timeout); with `plain_ping`, any 200 |
-| `async ensure_running() -> bool` | Ping; if nothing answers, launch `python -m <module> <args>` (or `<command> <args>`) with no console and poll every 100 ms until `start_timeout`. Returns whether it launched it now. Raises `OSError` if the process exits early, `TimeoutError` if it never answers |
+| `async ensure_running() -> bool` | Ping; if nothing answers, launch `python -m <module> <args>` (with `launch_env`: its package's folder first on `PYTHONPATH`) (or `<command> <args>`) with no console and poll every 100 ms until `start_timeout`. Returns whether it launched it now. Raises `OSError` if the process exits early, `TimeoutError` if it never answers |
 | `async call(method, path, body=None, *, timeout=10) -> dict` | A JSON request to its HTTP API; error responses are read as JSON too |
 | `async events(path) -> AsyncIterator[dict]` | Read its event stream (server-sent events), one JSON event at a time, until it ends. Raises `OSError` if it can't connect |
 | `async stop(adopted=False)` | If this object launched it: `POST` quit, wait 5 s, then kill. With `adopted=True`, also an app it found already running: `POST` quit, then wait up to 5 s for the ping to stop answering (a reload with new code) |
@@ -109,6 +109,8 @@ Launches and talks to a local [companion app](../architecture/reusable-parts.md#
 | `process` | The process it launched, or `None` |
 
 `source_stamp(module) -> (int, int) | None` (in `app_kit.companion`): the fingerprint `code_changed` compares, the newest `.py` mtime and the file count, found without importing the package.
+
+**The app's folder on the child's path** (♻ Used by: `ensure_running` for every `python -m <module>` launch, so the CV Tool from `cv/app/`; `tests/test_module_folders.py`; built 2026-11-13). `package_root(module) -> Path | None`: the folder the package is found in on this process's import path (`src/`, or a module's `app/` folder that the core put there with [`add_app_folders`](core.md#loader)), without importing it. `launch_env(module, base=None) -> dict`: `base` (default `os.environ`) with that folder first on `PYTHONPATH`, the rest kept. Both in `app_kit.companion`. A `command` launch gets no change.
 
 **Reload with new code: `CompanionHandover`** (♻ Used by: `voice_in`, `html_viewer`; built 2026-11-08). `CompanionHandover(handover, module, host, port, *, args=(), label="", log=..., **app_kwargs)` takes the `CompanionApp` the module's last copy handed over (`ctx.handover`), or makes a new one. `app` is that `CompanionApp`; `export()` (the module's `export_state`) hands it over unless `code_changed()`, and if it changed returns nothing and marks it to quit; `stop()` (the module's `stop`) quits it unless it was handed over. It's its own class, not methods on `CompanionApp`, because the handed-over and restart flags belong to each module copy while the `CompanionApp` object moves between copies.
 

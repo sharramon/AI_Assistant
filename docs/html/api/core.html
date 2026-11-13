@@ -149,7 +149,15 @@
 <tbody>
 <tr>
 <td><code>find_modules(root="assistant.modules") -&gt; list[type[ModuleProtocol]]</code></td>
-<td>Every module under <code>root</code>, sorted by folder: one per sub-package whose one <code>ModuleProtocol</code> class has the folder's name as its id. A bad folder is skipped with a warning; <code>_</code> folders are ignored. Also exported as <code>assistant.core.find_modules</code></td>
+<td>Every module under <code>root</code>, sorted by folder: one per sub-package whose one <code>ModuleProtocol</code> class has the folder's name as its id. A bad folder is skipped with a warning; <code>_</code> folders are ignored. Puts the modules' <code>app/</code> folders on the import path first (<code>add_app_folders</code>). Also exported as <code>assistant.core.find_modules</code></td>
+</tr>
+<tr>
+<td><code>app_folders(root="assistant.modules") -&gt; list[Path]</code></td>
+<td>Every module's <code>app/</code> folder (<code>APP_FOLDER</code>), found by folder with no names, resolved and sorted: where the modules' companion apps' packages live (<code>cv/app/cv_tool</code>)</td>
+</tr>
+<tr>
+<td><code>add_app_folders(root="assistant.modules") -&gt; list[Path]</code></td>
+<td>♻ <strong>Reusable</strong> · Used by: <code>find_modules</code> (startup), <code>import_fresh</code> (a reload or <code>AddModule</code>), the root <code>conftest.py</code> (the test setup); built 2026-11-13. Appends each <code>app/</code> folder to <code>sys.path</code> once, so an app's package imports by its own name; returns the folders added now. Also exported as <code>assistant.core.add_app_folders</code>. A launch passes the folder on with <a href="app_kit.html#companionapp"><code>launch_env</code></a></td>
 </tr>
 <tr>
 <td><code>check_folder(cls, package, root="assistant.modules")</code></td>
@@ -181,7 +189,7 @@
 </tr>
 <tr>
 <td><code>import_fresh(package)</code></td>
-<td>Import from source; a missing contract becomes <code>LoadError</code> ("needs a restart")</td>
+<td>Import from source (a new module's <code>app/</code> folder on the path first); a missing contract becomes <code>LoadError</code> ("needs a restart")</td>
 </tr>
 <tr>
 <td><code>find_module_class(package, module_id=None)</code></td>

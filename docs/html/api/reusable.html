@@ -582,6 +582,27 @@
 </tr>
 </tbody>
 </table>
+<h2 id="core-host-assistantcore-internal">Core host: <code>assistant.core</code> (internal)</h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Kind</th>
+<th>Purpose</th>
+<th>Where</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="core.html#loader"><code>add_app_folders</code></a></td>
+<td>function</td>
+<td>Every module's <code>app/</code> folder (its companion app's package), found by folder, put on <code>sys.path</code> once (<code>app_folders</code> lists them)</td>
+<td><code>core/loader.py</code></td>
+<td><code>find_modules</code> (startup), <code>import_fresh</code> (reload, <code>AddModule</code>), root <code>conftest.py</code> (the test setup), <code>tests/test_module_folders.py</code></td>
+</tr>
+</tbody>
+</table>
 <h2 id="shared-with-the-independent-apps-app_kit">Shared with the independent apps: <code>app_kit</code></h2>
 <table>
 <thead>
@@ -635,6 +656,13 @@
 <td>Launch, call, stream, and quit a companion app; <code>code_changed()</code> and <code>stop(adopted=True)</code> restart it with new code on a reload; <code>last_answer</code>, the last ping's answer; for an app outside the convention, <code>command</code>, <code>plain_ping</code> and <code>quit=None</code></td>
 <td><code>app_kit/companion.py</code></td>
 <td><code>html_viewer</code> module, <code>voice_in</code> (launches <code>voice_service</code> on the first click; <code>voice_service</code> answers its <code>/health</code> ping and its JSON-only <code>POST /quit</code>; reads <code>last_answer</code> instead of a second ping), <code>cv</code> module (<code>tool.py</code>, through <code>CompanionHandover</code>: the CV Tool, launched by the first <code>cv.open_tool</code> / <code>cv.tool_*</code> call), <code>job_search</code> (<code>ui.py</code>, through <code>CompanionHandover</code>: the job project's job UI by its command line, launched by <code>job.open_ui</code>)</td>
+</tr>
+<tr>
+<td><a href="app_kit.html#companionapp"><code>launch_env</code>, <code>package_root</code></a></td>
+<td>functions</td>
+<td>The environment for <code>python -m &lt;app&gt;</code>: the folder its package is found in first on <code>PYTHONPATH</code>, the rest kept</td>
+<td><code>app_kit/companion.py</code></td>
+<td><code>CompanionApp.ensure_running</code> (every <code>python -m</code> launch: the CV Tool from <code>cv/app/</code>), <code>tests/test_module_folders.py</code></td>
 </tr>
 <tr>
 <td><a href="app_kit.html#companionapp"><code>CompanionHandover</code></a></td>

@@ -175,6 +175,7 @@
 <p>Modules only ever see the <code>ModuleContext</code> interface (defined in <code>assistant.contracts</code>), never <code>App</code> or these classes.</p>
 <h2 id="lifecycle">Lifecycle</h2>
 <pre><code class="language-mermaid">flowchart TD
+    P[&quot;add_app_folders()&lt;br/&gt;every module's app/ folder on the import path&quot;] --&gt; S
     S[&quot;find_modules()&lt;br/&gt;one module per folder in src/assistant/modules/&quot;] --&gt; A[&quot;App(modules, config)&quot;]
     A --&gt; B[&quot;resolve_modules&lt;br/&gt;select modules.enabled, validate graph&quot;]
     B -- invalid --&gt; X[StartupError, nothing runs]
@@ -187,6 +188,7 @@
     H --&gt; I[Unregister InvokeTool, close bus]
     I -- &quot;ShutdownRequested(restart=True)&quot; --&gt; R[&quot;exit code 75: the launcher&lt;br/&gt;starts a new app process&quot;]
 </code></pre>
+<p><strong>Companion apps on the path.</strong> A module's companion app lives in its folder as <code>app/&lt;its package&gt;/</code> (<code>cv/app/cv_tool/</code>); <code>app/</code> is no package, so the app keeps its own import name and never imports the module. Before importing any module, <code>find_modules</code> puts every module's <code>app/</code> folder on <code>sys.path</code> (<a href="../api/core.html#loader"><code>add_app_folders</code></a>, found by folder, no names), and so do a reload and <code>AddModule</code> (<code>import_fresh</code>) and the test setup (the root <code>conftest.py</code>). <code>CompanionApp</code> launches the app with that folder first on <code>PYTHONPATH</code> (<a href="../api/app_kit.html#companionapp"><code>launch_env</code></a>). A new <code>app/</code> folder is found without a restart; an app already running keeps the path it started with.</p>
 <p><strong>Restart.</strong> <code>python -m assistant</code> is a small launcher. It runs the app as a child process in the same console and starts it again whenever the app exits with <code>core.restart_exit_code</code> (75). The app exits with 75 after a <code>ShutdownRequested(restart=True)</code> (<code>App.restart_requested</code>). A new process loads all new code, the core's included. The Talker triggers a restart when you ask for one, with reset instructions for the next launch (<a href="../agents/runtime.html#the-talker-on-its-own">Restart</a>).</p>
 <p><strong>Validation before anything runs</strong> (<code>resolve_modules</code>). Startup fails for:</p>
 <ul>

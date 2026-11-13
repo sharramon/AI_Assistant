@@ -42,7 +42,7 @@ CONFIG_DEFAULTS: dict[str, Any] = {
     "port": 8771,
     "window": "app",  # "app" (Edge app window) or "none" (the cv module opens it with /api/window)
     "data_dir": cvlib.DEFAULT_DATA,
-    "cv_dir": r"C:\Chang\Jobs\CV",
+    "cv_dir": cvlib.DEFAULT_CV_DIR,  # the cv module's workspace; your own in cv_tool.local.toml
     "cv_prefix": "CV_Test_",  # the start of the CV file names; the real one in cv_tool.local.toml
     "rules_dir": cvlib.DEFAULT_RULES,
     "agent_work": "",
@@ -359,7 +359,7 @@ def _handler(tool: Tool) -> type[BaseHTTPRequestHandler]:
 def settings(argv: list[str] | None = None) -> dict[str, Any]:
     """The defaults, then `cv_tool.toml` and its `.local.toml`, then the command-line flags."""
     p = argparse.ArgumentParser(description="CV Tool: the cv module's UI (Job & CV, CV Tool, First Draft, ATS Loop)")
-    p.add_argument("--config", type=Path, help="a TOML config (default src/cv_tool/cv_tool.toml)")
+    p.add_argument("--config", type=Path, help="a TOML config (default cv_tool.toml beside this file)")
     p.add_argument("--host")
     p.add_argument("--port", type=int)
     p.add_argument("--window", choices=["app", "none"])

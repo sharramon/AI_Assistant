@@ -1,0 +1,15 @@
+# The CV Tool's settings. A cv_tool.local.toml next to this file overrides them (gitignored: your own
+# folders and CV prefix go there, as absolute paths); the cv module passes its own folders on the
+# command line, which win over both.
+host = "127.0.0.1"
+port = 8771                                             # fixed: 8765-8767 and 8770 are taken
+window = "app"                                          # "none" when the cv module launches it
+cv_prefix = "CV_Test_"                                  # the CV file names' start; the real one in .local
+profile = ""                                            # empty: %LOCALAPPDATA%\AI_Assistant\cv_tool_window
+# The folders. Unset, each is in the cv module's workspace (modules/cv/workspace, gitignored),
+# found from this app's own folder (cvlib.WORKSPACE):
+# data_dir = ""     # unset: <workspace>/cv_tool (jobs, inbox, outbox, rezi_requests)
+# cv_dir = ""       # unset: <workspace>/cvs; your base CVs (read only), set in .local
+# rules_dir = ""    # unset: <workspace>/.claude/skills/cv-writing (the cv module's rules: read, never copied)
+# agent_work = ""   # unset: <data_dir>/../work (cv_agent's job folders, saved Rezi ATS data)
+# facts = ""        # unset: <data_dir>/../data/confirmed_facts.json when it exists

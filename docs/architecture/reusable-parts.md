@@ -32,7 +32,7 @@ Behavior that two parts need is built once and shared ([principle 13](principles
 
 Every independent app the main app launches (the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md), the [voice service](../../src/assistant/modules/voice_in/docs/voice-service.md)) keeps the same shape, so [`CompanionApp`](../api/app_kit.md#companionapp) can launch and call any of them:
 
-1. Its own package under `src/`, run with `python -m <app>`; never imports `assistant`.
+1. Its own package, run with `python -m <app>`; never imports `assistant`. It lives in its module's folder as `app/<its package>/` (`app/` is no package; the CV Tool is `cv/app/cv_tool/`): the core puts every module's `app/` folder on the import path at startup ([`loader.add_app_folders`](../api/core.md#loader)), and `CompanionApp` passes the folder on to the app's process ([`launch_env`](../api/app_kit.md#companionapp)). The HTML viewer and the voice service still sit in `src/` and move the same way.
 2. Listens on `127.0.0.1` only, refuses another host, and refuses browser requests from another origin (WebSocket `Origin`, JSON-only POSTs). One shared check does it: [`app_kit.local_guard`](../api/app_kit.md#local_guard).
 3. A ping endpoint answering `{"app": "<name>", ...}`.
 4. A JSON `POST` quit endpoint.

@@ -839,7 +839,7 @@
 <li><strong>Refused</strong> (<code>invalid_arguments</code>): a result that isn't a valid <code>CvResult</code> (one with the old <code>odt_path</code> too), a folder outside <code>output_dir</code> and <code>work_dir</code>, scores that aren't the rounds' scores, or <code>match_ok</code> with a compare that found issues.</li>
 </ul>
 <h3 id="the-cv-tool-cvopen_tool-cvtool_status-cvtool_round-cvcheck_fonts-cvtool_result">The CV Tool: <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.check_fonts</code>, <code>cv.tool_result</code></h3>
-<p>The module's link to its UI half, the CV Tool app (<code>src/cv_tool</code>, <code>python -m cv_tool</code> on <code>127.0.0.1:8771</code>). Each item starts the app if it isn't running (<code>CompanionApp.ensure_running</code>, no window) and uses only its JSON API. Built and tested, live with the <code>cv</code> reload.</p>
+<p>The module's link to its UI half, the CV Tool app (<code>cv/app/cv_tool</code>, <code>python -m cv_tool</code> on <code>127.0.0.1:8771</code>). Each item starts the app if it isn't running (<code>CompanionApp.ensure_running</code>, no window) and uses only its JSON API. Built and tested, live with the <code>cv</code> reload.</p>
 <table>
 <thead>
 <tr>

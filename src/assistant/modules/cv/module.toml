@@ -43,7 +43,7 @@ callback_port = 33418  # the sign-in's redirect comes back to http://127.0.0.1:<
 [hand_off]
 callers = ["job_search_agent", "main_assistant"]  # cv.task starts the worker itself, as the caller's child task
 
-# The CV Tool (tool.py, the app in src/cv_tool): launched by cv.open_tool through CompanionApp.
+# The CV Tool (tool.py, the app in app/cv_tool): launched by cv.open_tool through CompanionApp.
 [tool]
 host = "127.0.0.1"
 port = 8771            # fixed, so CompanionApp finds it (8765-8767 and 8770 are taken)

@@ -31,6 +31,10 @@ MODULES_PACKAGE = "assistant.modules"
 # is merged over them.
 MODULE_DEFAULTS = "module.toml"
 
+# A module's companion app lives in its folder as `app/<the app's package>/` (`app/` is no package),
+# so the app keeps its own import name and never imports the module (`add_app_folders`).
+APP_FOLDER = "app"
+
 # Packages whose classes are shared by every module. Reloading them (or anything inside them)
 # would break isinstance checks and contract identity, so they still need a restart.
 SHARED = ("assistant.core", "assistant.contracts", "assistant.infra", "app_kit")
@@ -98,6 +102,27 @@ def apply_needs(cls: type[ModuleProtocol]) -> type[ModuleProtocol]:
     return cls
 
 
+def app_folders(root: str = MODULES_PACKAGE) -> list[Path]:
+    """Every module's `app/` folder under `root`, found by folder (no names), sorted: the folders
+    that hold the modules' companion apps' packages."""
+    found = []
+    for base in importlib.import_module(root).__path__:
+        found += [p for p in Path(base).glob(f"*/{APP_FOLDER}") if p.is_dir() and not p.parent.name.startswith("_")]
+    return sorted(p.resolve() for p in found)
+
+
+def add_app_folders(root: str = MODULES_PACKAGE) -> list[Path]:
+    """Put every module's `app/` folder on `sys.path` (appended, once each), so a companion app's
+    package imports by its own name (`cv_tool`). Called at startup by `find_modules`, before a
+    reload or add (`import_fresh`), and by the test setup. Returns the folders added now."""
+    present = {str(Path(p).resolve()).lower() for p in sys.path if p}
+    added = [p for p in app_folders(root) if str(p).lower() not in present]
+    sys.path.extend(str(p) for p in added)
+    if added:
+        importlib.invalidate_caches()
+    return added
+
+
 def check_reloadable(package: str) -> None:
     """Raise LoadError unless `package` is a module's own package (at least `a.b`, not shared code)."""
     if "." not in package or package in PARENTS:
@@ -129,7 +154,9 @@ def restore(package: str, removed: dict[str, ModuleType]) -> None:
 
 
 def import_fresh(package: str) -> ModuleType:
-    """Import `package` from source. Translates a missing contract into a 'needs a restart' error."""
+    """Import `package` from source. Translates a missing contract into a 'needs a restart' error.
+    A new module's `app/` folder goes on the import path first (`add_app_folders`)."""
+    add_app_folders()
     importlib.invalidate_caches()
     try:
         return importlib.import_module(package)
@@ -173,8 +200,10 @@ def find_modules(root: str = MODULES_PACKAGE) -> list[type[ModuleProtocol]]:
     that exports exactly one `ModuleProtocol` class whose id is the folder's name.
 
     A folder that fails to import, has no module class (or two), or a different id is skipped
-    and logged; the rest still load. Folders starting with `_` are ignored.
+    and logged; the rest still load. Folders starting with `_` are ignored. Every module's `app/`
+    folder goes on the import path first (`add_app_folders`).
     """
+    add_app_folders(root)
     found = []
     for info in sorted(pkgutil.iter_modules(importlib.import_module(root).__path__), key=lambda i: i.name):
         if not info.ispkg or info.name.startswith("_"):

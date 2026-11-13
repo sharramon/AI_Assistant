@@ -1,6 +1,7 @@
 """The CV Tool, the cv module's UI half: its settings, the CV's content in the app's shape, and
-`CvTool`, which launches and calls the app (`src/cv_tool`, its own process) the way `html_viewer`
-does its viewer: `CompanionHandover` from `app_kit`, a fixed port, `/api/ping` and `/api/quit`.
+`CvTool`, which launches and calls the app (`cv/app/cv_tool`, its own process) the way `html_viewer`
+does its viewer: `CompanionHandover` from `app_kit`, a fixed port, `/api/ping` and `/api/quit`. The core
+puts `cv/app/` on the import path (`loader.add_app_folders`) and `CompanionApp` passes it on to the app.
 
 The app never imports the main app's code, so the module reads the base CV's PDF (`pdf_read`) and
 sends the content in the app's shape (`tool_content`). The items use only the app's JSON API, so

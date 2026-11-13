@@ -10,6 +10,7 @@ import asyncio
 import importlib.util
 import json
 import logging
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -34,6 +35,34 @@ def source_stamp(module: str) -> tuple[int, int] | None:
     if not files:
         return None
     return max(f.stat().st_mtime_ns for f in files), len(files)
+
+
+def package_root(module: str) -> Path | None:
+    """The folder `module`'s top-level package is found in (on this process's import path), found
+    without importing it: `src/` for an app there, a module's `app/` folder for an app inside its
+    module. None if it can't be found."""
+    try:
+        spec = importlib.util.find_spec(module.partition(".")[0])
+    except (ImportError, ValueError):
+        return None
+    if spec is None:
+        return None
+    if spec.submodule_search_locations:
+        folders = list(spec.submodule_search_locations)
+        return Path(folders[0]).parent if folders else None
+    return Path(spec.origin).parent if spec.origin else None
+
+
+def launch_env(module: str, base: dict[str, str] | None = None) -> dict[str, str]:
+    """The environment to run `python -m module` with: `base` (default this process's) with the
+    folder its package is found in (`package_root`) put first on `PYTHONPATH`, the rest kept, so
+    the child imports the same package from the same place."""
+    env = dict(os.environ if base is None else base)
+    root = package_root(module)
+    if root is not None:
+        rest = [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p and Path(p) != root]
+        env["PYTHONPATH"] = os.pathsep.join([str(root), *rest])
+    return env
 
 
 class CompanionApp:
@@ -137,6 +166,8 @@ class CompanionApp:
 
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             program = self.command or [sys.executable, "-m", self.module]
+            if not self.command:  # the folder its package is found in, first on PYTHONPATH
+                kwargs["env"] = launch_env(self.module)
             self._proc = await asyncio.create_subprocess_exec(
                 *program, *self.args,
                 stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,

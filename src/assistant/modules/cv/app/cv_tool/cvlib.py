@@ -1,8 +1,9 @@
 """CV Tool core: read base CVs, parse them, render the page, check it, export the PDF, read Rezi text.
 
-The code lives in the repo (`src/cv_tool`); the data (jobs, inbox, outbox, rezi_requests, data\\confirmed_facts.json)
-stays in `data_dir`, set by `configure()` from the app's config. The rules are the cv module's (`rules_dir`): the app
-reads them, it keeps no copy.
+The code lives in the cv module's folder (`modules/cv/app/cv_tool`); the data (jobs, inbox, outbox, rezi_requests,
+data\\confirmed_facts.json) stays in `data_dir`, set by `configure()` from the app's config. The rules are the cv
+module's (`rules_dir`): the app reads them, it keeps no copy. Unset, every folder is in the cv module's workspace
+(`modules/cv/workspace`, gitignored); your own folders go in the gitignored `cv_tool.local.toml`.
 """
 import base64
 import datetime
@@ -20,18 +21,22 @@ APP = os.path.dirname(os.path.abspath(__file__))  # code, static\ and assets\
 FONT = os.path.join(APP, "assets", "SourceSans3-VF.ttf")
 CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-DEFAULT_DATA = r"C:\Chang\Jobs\CV_Module\cv_tool"
-DEFAULT_RULES = r"C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing"
+# The defaults: the cv module's workspace, two folders up from here (modules/cv/app/cv_tool -> modules/cv/workspace).
+WORKSPACE = os.path.normpath(os.path.join(APP, os.pardir, os.pardir, "workspace"))
+DEFAULT_DATA = os.path.join(WORKSPACE, "cv_tool")
+DEFAULT_RULES = os.path.join(WORKSPACE, ".claude", "skills", "cv-writing")
+DEFAULT_CV_DIR = os.path.join(WORKSPACE, "cvs")  # your real CV folder goes in cv_tool.local.toml (cv_dir)
 
 
 CV_PREFIX = "CV_Test_"  # the start of the user's CV file names (`cv_prefix`; the real one in the local config)
 
 
-def configure(data_dir=DEFAULT_DATA, cv_dir=r"C:\Chang\Jobs\CV", rules_dir=DEFAULT_RULES, agent_work="", facts="",
-              cv_prefix="CV_Test_"):  # fmt: skip
+def configure(data_dir=DEFAULT_DATA, cv_dir=DEFAULT_CV_DIR, rules_dir=DEFAULT_RULES, agent_work="", facts="",
+              cv_prefix="CV_Test_", make=True):  # fmt: skip
     """Point the app at its data folder, the base CVs (named `<cv_prefix>*`), the cv module's rules and
     the confirmed facts. Called at start. `facts` defaults to <data_dir>\\..\\data\\confirmed_facts.json
-    when that exists (the cv module's workspace), else <data_dir>\\data\\confirmed_facts.json."""
+    when that exists (the cv module's workspace), else <data_dir>\\data\\confirmed_facts.json.
+    `make=False` creates no jobs folder (the import-time defaults write nothing)."""
     global ROOT, CV_DIR, JOBS, DATA, FACTS, INBOX, REZI_REQ, REZI_RES, OUTBOX, AGENT_WORK, RULES_DIR, CV_PREFIX, _corpus
     _corpus = None  # the CV folder may have changed: read it again
     CV_PREFIX = cv_prefix
@@ -47,7 +52,8 @@ def configure(data_dir=DEFAULT_DATA, cv_dir=r"C:\Chang\Jobs\CV", rules_dir=DEFAU
     REZI_RES = os.path.join(REZI_REQ, "results")
     OUTBOX = os.path.join(ROOT, "outbox")
     AGENT_WORK = os.path.abspath(agent_work) if agent_work else os.path.join(os.path.dirname(ROOT), "work")
-    os.makedirs(JOBS, exist_ok=True)
+    if make:
+        os.makedirs(JOBS, exist_ok=True)
 
 
 def rule_files():
@@ -1637,4 +1643,4 @@ def job_result(jid):
             "small_text": font_sizes(pdf) if pdf and os.path.isfile(pdf) else []}
 
 
-configure()  # the defaults; server.main() calls it again with the config's folders
+configure(make=False)  # the defaults, nothing written; server.main() calls it again with the config's folders
