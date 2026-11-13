@@ -29,13 +29,13 @@ A module's tests import shared helpers from `assistant.testkit` only, never from
 - **HTTP servers:** the temp UI (raw asyncio), the viewer (stdlib), and voice (FastAPI) each serve differently. The temp UI is throwaway and the viewer works. **New companion apps use FastAPI**; nothing gets migrated.
 - **Agent prompts:** the SHOW instructions appear in both agent prompts. Modules can't share text without importing each other; this goes away once agents call tools directly. Turning a SHOW tag into the viewer's tool call is shared ([`show_page`](../api/infra.md#show_page)).
 - **SSE writing and the in-app page server** (viewer app, temp UI, voice notes): `voice_notes` copies the temp UI's page server. Left until the UI handler is designed, since the temp UI is a stand-in; the long-lived user is the viewer app.
-- **Viewer events** stay in `contracts/messages.py`.
+- **Viewer events** left `contracts/messages.py` (2026-11-13): they are html_viewer's named events (`html_viewer.tabs_changed`, `html_viewer.clip`), heard by name; only the shared snip limits (`MAX_SNIPS`, `PASTED_FILE`) stay in the contracts.
 
 ## Companion app checklist
 
 Every independent app the main app launches (the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md), the [voice service](../../src/assistant/modules/voice_in/docs/voice-service.md)) keeps the same shape, so [`CompanionApp`](../api/app_kit.md#companionapp) can launch and call any of them:
 
-1. Its own package, run with `python -m <app>`; never imports `assistant`. It lives in its module's folder as `app/<its package>/` (`app/` is no package; the CV Tool is `cv/app/cv_tool/`): the core puts every module's `app/` folder on the import path at startup ([`loader.add_app_folders`](../api/core.md#loader)), and `CompanionApp` passes the folder on to the app's process ([`launch_env`](../api/app_kit.md#companionapp)). The HTML viewer and the voice service still sit in `src/` and move the same way.
+1. Its own package, run with `python -m <app>`; never imports `assistant`. It lives in its module's folder as `app/<its package>/` (`app/` is no package; the CV Tool is `cv/app/cv_tool/`, the HTML viewer `html_viewer/app/html_viewer/`): the core puts every module's `app/` folder on the import path at startup ([`loader.add_app_folders`](../api/core.md#loader)), and `CompanionApp` passes the folder on to the app's process ([`launch_env`](../api/app_kit.md#companionapp)). The voice service still sits in `src/` and moves the same way.
 2. Listens on `127.0.0.1` only, refuses another host, and refuses browser requests from another origin (WebSocket `Origin`, JSON-only POSTs). One shared check does it: [`app_kit.local_guard`](../api/app_kit.md#local_guard).
 3. A ping endpoint answering `{"app": "<name>", ...}`.
 4. A JSON `POST` quit endpoint.

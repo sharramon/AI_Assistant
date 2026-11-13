@@ -60,7 +60,8 @@ from html_viewer.markdown_source import MarkdownSource, find_source, plain
 
 PAGE = Path(__file__).with_name("page.html")
 DEFAULT_PROFILE = window_profile("html_viewer")
-DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "html_viewer.toml"
+# Optional, beside the app (with its gitignored .local.toml); none is committed: the defaults below hold.
+DEFAULT_CONFIG = Path(__file__).with_name("html_viewer.toml")
 CONFIG_DEFAULTS: dict[str, Any] = {"host": "127.0.0.1", "port": 8766, "window": "app", "profile": "", "generated": []}
 WINDOWS = ("app", "browser", "none")
 GENERATED_WARNING = (
@@ -557,7 +558,7 @@ def _handler(viewer: ViewerServer) -> type[BaseHTTPRequestHandler]:
 
 
 def load_viewer_config(path: str | Path | None = None) -> dict[str, Any]:
-    """The defaults, then `path` (default `config/html_viewer.toml`) and its `.local.toml`.
+    """The defaults, then `path` (default `html_viewer.toml` beside the app) and its `.local.toml`.
 
     A missing default file means the defaults alone; a missing `path` raises `FileNotFoundError`.
     """
@@ -570,7 +571,7 @@ def load_viewer_config(path: str | Path | None = None) -> dict[str, Any]:
 def viewer_settings(argv: list[str] | None = None) -> tuple[dict[str, Any], list[Path]]:
     """The viewer's settings (the config, then the command-line flags over it) and the files to open."""
     parser = argparse.ArgumentParser(description="The HTML viewer: view, edit, highlight, and snip HTML files")
-    parser.add_argument("--config", type=Path, help="a TOML config (default config/html_viewer.toml, if present)")
+    parser.add_argument("--config", type=Path, help="a TOML config (default html_viewer.toml beside the app, if present)")
     parser.add_argument("--host")
     parser.add_argument("--port", type=int)
     parser.add_argument("--window", choices=WINDOWS)

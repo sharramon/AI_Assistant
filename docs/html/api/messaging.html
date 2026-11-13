@@ -206,7 +206,7 @@
 <p>A few words about what this app session is about, from your first question. The Talker publishes it once; <code>__main__</code> passes it to <a href="infra.html#logsession"><code>LogSession.set_theme</code></a>, which creates the session's log folder with it in the name. Until then nothing is written to disk. If the first turn fails, the Talker still publishes it, with the message itself.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="moduleevent"><code>ModuleEvent</code></h2>
-<p><strong>Reusable</strong> · Used by: cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens to both) · built 2026-11-12</p>
+<p><strong>Reusable</strong> · Used by: cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens to both), html_viewer (publishes <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), temp_ui (publishes <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code>; listens to the clips), talker (listens to all four) · built 2026-11-12</p>
 <p><code>ModuleEvent(name: str, source: str, data: dict[str, Any] = {})</code> (event)</p>
 <p>A <strong>module-owned</strong> event, matched by its name rather than its class, so a new one needs no restart and either side reloads on its own. Never built by hand: published with <a href="modules.html#modulecontextpublish_named"><code>ctx.publish_named</code></a> (the core sets <code>source</code> and copies <code>data</code> through JSON) and heard with <a href="modules.html#modulecontextsubscribe_named"><code>ctx.subscribe_named</code></a>. Declared in the manifest's <code>publishes_named</code> / <code>listens_named</code>.</p>
 <table>
@@ -258,21 +258,40 @@
 <td><code>reply_to</code>, <code>job_id</code>, <code>job_dir</code>, <code>company</code>, <code>role</code>, <code>submitted_at</code>, <code>pdf_path</code>, <code>final_score</code>, <code>target_score</code>, <code>result</code> (result.json), <code>summary</code></td>
 <td>job_search: wakes its agent if <code>reply_to</code> is it</td>
 </tr>
+<tr>
+<td><code>html_viewer.tabs_changed</code></td>
+<td>html_viewer</td>
+<td>the viewer's open tabs or highlights changed</td>
+<td><code>tabs</code>, <code>active</code>, <code>highlights</code> (<code>[path, text]</code> pairs)</td>
+<td>talker: a <code>[Viewer] open: ...</code> line with your next message</td>
+</tr>
+<tr>
+<td><code>html_viewer.clip</code></td>
+<td>html_viewer</td>
+<td>you snipped part of a page</td>
+<td><code>id</code>, <code>image_path</code>, <code>file</code>, <code>heading</code></td>
+<td>talker (images with your next message), temp_ui (thumbnails)</td>
+</tr>
+<tr>
+<td><code>temp_ui.clip</code></td>
+<td>temp_ui</td>
+<td>you pasted an image into the chat box</td>
+<td>as <code>html_viewer.clip</code>, <code>file</code> = <code>PASTED_FILE</code>, <code>heading</code> null</td>
+<td>talker (<code>[Pasted] image</code>), temp_ui</td>
+</tr>
+<tr>
+<td><code>temp_ui.clip_dropped</code></td>
+<td>temp_ui</td>
+<td>the × on a snip's thumbnail</td>
+<td><code>id</code></td>
+<td>talker: forgets it</td>
+</tr>
 </tbody>
 </table>
+<p>The HTML viewer's two are documented on its module page (<a href="../modules/html_viewer/architecture.html#events">html_viewer's events</a>); until 2026-11-13 they and the dropped snip were the typed <code>ViewerTabsChanged</code>, <code>ViewerClip</code> and <code>ViewerClipDropped</code> in the contracts.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
-<h2 id="viewertabschanged"><code>ViewerTabsChanged</code></h2>
-<p><code>ViewerTabsChanged(tabs: tuple[str, ...] = (), active: str | None = None, highlights: tuple[tuple[str, str], ...] = ())</code> (event)</p>
-<p>The <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>'s open tabs or highlights changed: a tab opened, closed, or was switched to, or a highlight was added, cleared, or dropped. <code>tabs</code> are the open files' full paths in tab order; <code>active</code> is the one showing; <code>highlights</code> are <code>(path, quoted text)</code> pairs. The <code>html_viewer</code> module publishes it; the Talker keeps the latest and hears it, as a <code>[Viewer] open: ...; highlighted: ...</code> line, with your next message.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
-<h2 id="viewerclip"><code>ViewerClip</code></h2>
-<p><code>ViewerClip(id: str, image_path: str, file: str, heading: str | None = None)</code> (event)</p>
-<p><strong>Shared limits</strong> (in <code>assistant.contracts</code>, one owner, principle 19): <code>MAX_SNIPS = 3</code>, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); <code>PASTED_FILE = "(pasted)"</code>, a pasted image's <code>file</code>. Used by <code>talker</code>, <code>temp_ui</code>.</p>
-<p>You snipped part of a page in the <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>. <code>image_path</code> is the PNG, kept in the launch's log folder (<code>snips/</code>); <code>file</code> is the page; <code>heading</code> the nearest heading above the box. The <code>html_viewer</code> module publishes it; so does <code>temp_ui</code> for an image pasted into its chat box (<code>file=PASTED_FILE</code>, <code>"(pasted)"</code>, no heading; the Talker labels it <code>[Pasted] image</code>). The type's docstring still says "from the HTML viewer": widen it at the next restart. The Talker keeps up to <code>MAX_SNIPS</code> (3) and sends them as images with your next message; the temp UI shows them as thumbnails until then.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
-<h2 id="viewerclipdropped"><code>ViewerClipDropped</code></h2>
-<p><code>ViewerClipDropped(id: str)</code> (event)</p>
-<p>You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by <code>temp_ui</code>.</p>
+<h2 id="snip-constants">Snip constants</h2>
+<p><strong>Shared limits</strong> (in <code>assistant.contracts</code>, one owner, principle 19): <code>MAX_SNIPS = 3</code>, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); <code>PASTED_FILE = "(pasted)"</code>, a pasted image's <code>file</code> in a snip's data (<code>temp_ui.clip</code>; the Talker labels it <code>[Pasted] image</code>). Used by <code>talker</code>, <code>temp_ui</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="access-and-permissions">Access and permissions</h2>
 <p>Access lists and the messages of the core's <a href="../architecture/permissions.html#access-lists-built">permissions handler</a> (its first piece). A task-agent module asks for its whole list with <a href="modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a>; the handler answers from a saved grant, or asks you on one card: <code>PermissionRequested</code> → <code>AnswerPermissionRequest</code> → <code>PermissionChanged</code>. Built 2026-11-05.</p>

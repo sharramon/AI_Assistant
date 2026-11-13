@@ -1,14 +1,14 @@
 # HTML viewer
 
-> **Status: built (2026-10-27), its own app.** Tabs, double-click to edit, save, undo; write-back to Markdown, highlights, and snip. It's a standalone app (`src/html_viewer`) that the main app launches through the thin `html_viewer` module. What was built and where it differs from the plan: [As built](#as-built-v1). Highlight-to-ask is not built.
+> **Status: built (2026-10-27), its own app.** Tabs, double-click to edit, save, undo; write-back to Markdown, highlights, and snip. It's a standalone app (`app/html_viewer/` in the module's folder) that the main app launches through the thin `html_viewer` module. What was built and where it differs from the plan: [As built](#as-built-v1). Highlight-to-ask is not built.
 **Asked:** "A html viewer. Whenever you want me to view a html file for these edits, I want you to give me a link in the talker chat I can click on. The module itself is a html viewer that can take any html and I can view it." Then: any HTML, especially flowcharts and diagrams like our docs; tabs, with a running tally of what's open that the Talker knows; later, the assistant scrolls to and highlights what it wants to talk about; later (or early if easy), you snip a region as an image or highlight part of a page and hand it to the assistant.
 
 **Why:** the assistant makes and edits HTML (the docs, diagrams, change notes), but today you have to find the file and open it yourself, and the assistant doesn't know what you're looking at.
 
 **What it touches:**
-- The viewer app `src/html_viewer/` (`viewer.py`, `document.py`, `markdown_source.py`, `highlight.py`, `snip.py`, `page.html`, with its window from the shared `app_kit.window`), which doesn't import the assistant.
-- The thin module `src/assistant/modules/html_viewer/module.py`, with config `[modules.html_viewer]`.
-- Events in `src/assistant/contracts/`: `ViewerTabsChanged`, `ViewerClip`, `ViewerClipDropped`.
+- The viewer app `src/assistant/modules/html_viewer/app/html_viewer/` (`viewer.py`, `document.py`, `markdown_source.py`, `highlight.py`, `snip.py`, `page.html`, with its window from the shared `app_kit.window`), which doesn't import the assistant. It was `src/html_viewer/` until 2026-11-13.
+- The thin module `src/assistant/modules/html_viewer/module.py`, with its defaults in its `module.toml`.
+- Events: the module's named events `html_viewer.tabs_changed` and `html_viewer.clip` ([events](architecture.md#events)), and the temp UI's `temp_ui.clip_dropped`. Until 2026-11-13 they were the typed `ViewerTabsChanged`, `ViewerClip` and `ViewerClipDropped` in the core's contracts.
 - `talker` (the `<<SHOW: ...>>` tag, the open-tabs tally, snips with your next message) and `main_assistant` (its prompt).
 - `temp_ui` (the "Open in viewer" button; snip thumbnails above the input).
 - Docs: [runtime](../../../../../docs/agents/runtime.md), the [API](../../../../../docs/api/README.md), the [overview](../../../../../docs/architecture/README.md#parts), [decisions](../../../../../docs/architecture/decisions.md).
@@ -70,10 +70,10 @@ flowchart LR
 
 ## How it fits the design
 
-- **Its own app, with a thin module in the main app** (decided 2026-10-27; see [decisions](../../../../../docs/architecture/decisions.md#decided)). The viewer is a standalone app (`src/html_viewer`, `python -m html_viewer`) that doesn't import the assistant. The hooks go both ways: the main app calls its local HTTP API (open, highlight, tabs), and reads its event stream (tabs and highlights, snips). A thin `html_viewer` module in the main app starts it on the first show request, turns its events into app events, and stops it when the app shuts down. If you started the viewer yourself, the app connects to it and leaves it running.
+- **Its own app, with a thin module in the main app** (decided 2026-10-27; see [decisions](../../../../../docs/architecture/decisions.md#decided)). The viewer is a standalone app (`app/html_viewer/` in its module's folder, `python -m html_viewer`) that doesn't import the assistant. The hooks go both ways: the main app calls its local HTTP API (open, highlight, tabs), and reads its event stream (tabs and highlights, snips). A thin `html_viewer` module in the main app starts it on the first show request, turns its events into app events, and stops it when the app shuts down. If you started the viewer yourself, the app connects to it and leaves it running.
 - **An ordinary tool module, not an agent** ([agents](../../../../../docs/architecture/agents.md): "browser, file, or 3D services can stay ordinary tool modules"). It's also one of the "very different modules" [decisions](../../../../../docs/architecture/decisions.md#deliberately-deferred) waits for before adding machinery. When the [UI handler](../../../../../docs/architecture/decisions.md#open-decisions) is designed, the viewer becomes one of its UIs. Until then it stands alone, so throwing away `temp_ui` doesn't touch it.
 - **Has a [`Menu`](../../../../../docs/api/modules.md#menu), called with [`InvokeTool`](../../../../../docs/api/tools.md#invoketool),** instead of new commands. Tools: `viewer.open(path)` opens the file in a tab (starting the viewer if needed); `viewer.highlight(path, text, heading?)` opens it and highlights a quoted part; `viewer.tabs()` lists what's open and its highlights. When agents can call app tools directly, they're already there.
-- **New events only for what's new:** `ViewerTabsChanged(tabs, active, highlights)` when a tab or a highlight changes; `ViewerClip(id, image_path, file, heading)` for a snip, and `ViewerClipDropped(id)` when you drop one before sending.
+- **Its own named events, only for what's new:** `html_viewer.tabs_changed` (`tabs`, `active`, `highlights`) when a tab or a highlight changes, and `html_viewer.clip` (`id`, `image_path`, `file`, `heading`) for a snip; the temp UI's `temp_ui.clip_dropped` (`id`) when you drop one before sending. Listeners hear them by name ([events](architecture.md#events)).
 
 ```mermaid
 sequenceDiagram
@@ -90,7 +90,7 @@ sequenceDiagram
     V->>P: POST /api/open {path, front: true}
     P-->>You: the file in a tab, the window in front (opened if none is showing)
     P-->>V: event stream: tabs
-    V->>T: ViewerTabsChanged
+    V->>T: html_viewer.tabs_changed
     T->>T: "[Viewer] open: ..." added before your next message
 ```
 
@@ -139,7 +139,7 @@ No existing viewer combines tabs, an open-tabs list the app can read, and the ha
 
 ## As built (v1)
 
-Code: the app `src/html_viewer/` (`viewer.py` server and API, `document.py`, `markdown_source.py`, `highlight.py`, `snip.py`, `page.html`; its window comes from `src/app_kit/window.py`); the thin module `src/assistant/modules/html_viewer/module.py`, built on `app_kit.CompanionApp`. Config: `[modules.html_viewer]` (`host`, `port` 8766, `window`, `generated`, `start_timeout`). Run the viewer alone with `python -m html_viewer [files...]` (or `html-viewer`, after `pip install -e .`). It doesn't import the assistant; `tests/test_html_viewer.py` tests both.
+Code: the app `src/assistant/modules/html_viewer/app/html_viewer/` (`viewer.py` server and API, `document.py`, `markdown_source.py`, `highlight.py`, `snip.py`, `page.html`; its window comes from `src/app_kit/window.py`); the thin module `src/assistant/modules/html_viewer/module.py`, built on `app_kit.CompanionApp`. Config: the module's `module.toml` (`host`, `port` 8766, `window`, `generated`, `start_timeout`, `start_on_use`), overridden by `[modules.html_viewer]`. Run the viewer alone with `python -m html_viewer [files...]` and its `app/` folder on `PYTHONPATH` ([by hand](README.md#running-the-viewer-app-by-hand)); the `html-viewer` script is gone. It doesn't import the assistant; the module's own `tests/test_html_viewer.py` tests both.
 
 **Where state lives:** the document state, the undo stacks, and the highlights are in the viewer app (Python), one per tab. The page in the window is only the view: it draws the tabs and each tab's state, and sends your actions as commands. So undo and saving don't depend on the page, and they're tested without a browser.
 
@@ -152,8 +152,8 @@ classDiagram
         +highlight(path, text, heading) Result
         +tabs() Result
         starts / stops the viewer
-        relays tabs → ViewerTabsChanged
-        relays snips → ViewerClip
+        relays tabs → html_viewer.tabs_changed
+        relays snips → html_viewer.clip
     }
     class ViewerServer {
         <<viewer app>>
@@ -206,5 +206,5 @@ classDiagram
 - **The window:** opens when a file is opened and no viewer page is showing. Closing it doesn't close the tabs: they're still there, with their unsaved edits and undo, when it opens again. The Talker's tally still lists them while the window is closed.
 - **Write-back to Markdown** (`markdown_source.py`): saving a page in a `generated` folder first finds its source from the page's `<!-- Generated from docs/... -->` line. For each element edited or undone since the last save, it looks for the one Markdown block (heading, paragraph, list item, table cell; code fences skipped) whose rendered text equals the element's old text, and replaces only the changed words in it, growing the match with unchanged text until it's unique. A change at the very start or end of a block goes at the block's edge. Then it writes the Markdown, then the HTML. No match, two matches (repeated table cells are common), or a change across bold or a link: that edit isn't written to the Markdown, and Save warns first, listing it. No source found: the old overwrite warning. The viewer doesn't rebuild the docs.
 - **Highlights** (`highlight.py`, and `findQuote` in `page.html`, with the same rules): page text only (no scripts, styles, SVG, Mermaid); the quote's words in order, any whitespace between, case ignored; a heading narrows it to that heading's section and is ignored if no heading matches. The viewer app checks the quote is there (`found`, `matches`) and keeps the highlight in the tab's state; the page draws it as a blue `<mark>` with white text (`#2f5fa8`, readable on dark and light pages) over the first match and scrolls to the newest one (`focus` in the tab's state, so a window opened later still scrolls). The marks are never in the document: the edit tool removes them before an edit, and they're drawn again after. After an edit, undo, or reload, a highlight whose text is gone is dropped. Click a mark: **Clear** or **Clear all**. Double-click still edits.
-- **Snip** (`snip.py`): **Snip** on the toolbar (or Ctrl+Shift+S) dims the tab; drag a box, Esc cancels. The page hides the overlay, then the viewer app asks Edge, through the window's DevTools port, for a screenshot of exactly that box. The PNG goes to the viewer's temp folder and out as a `snip` event, with the nearest content heading above the box (sidebars and sticky bars skipped). The thin module copies it to the launch's log folder (`snips/`) and publishes `ViewerClip`. The Talker keeps up to 3 and sends them as images with your next message, each with a `[Viewer] snip from <file>, near "<heading>"` line. The temp UI shows them as thumbnails above the input, with an × (`ViewerClipDropped`). Needs `window = "app"`; otherwise snip says why.
+- **Snip** (`snip.py`): **Snip** on the toolbar (or Ctrl+Shift+S) dims the tab; drag a box, Esc cancels. The page hides the overlay, then the viewer app asks Edge, through the window's DevTools port, for a screenshot of exactly that box. The PNG goes to the viewer's temp folder and out as a `snip` event, with the nearest content heading above the box (sidebars and sticky bars skipped). The thin module copies it to the launch's log folder (`snips/`) and publishes `html_viewer.clip`. The Talker keeps up to 3 and sends them as images with your next message, each with a `[Viewer] snip from <file>, near "<heading>"` line. The temp UI shows them as thumbnails above the input, with an × (`temp_ui.clip_dropped`). Needs `window = "app"`; otherwise snip says why.
 - **Not built:** highlight-to-ask, highlights inside diagrams, redo, opening Markdown files.

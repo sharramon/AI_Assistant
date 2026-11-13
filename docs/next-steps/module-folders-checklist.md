@@ -1,12 +1,13 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 8 of 20 done** (items 1 to 7 and 20).
+**Count: 9 of 20 done** (items 1 to 8 and 20).
 
 **Architecture check after the cv chunk (items 2–6):** modularity OK (no cv-specific code in the core, contracts, infra or `app_kit`, only examples in comments; every module's `app/` is checked never to import `assistant`); reuse OK (`add_app_folders`, `launch_env`, `apply_module_toml` and `assistant.testkit` are in the reusable index with Used by lines); fit OK (the core reads `needs` and `packages` from any `module.toml`, no names).
 
 ## Morning list, kept as the run goes
 
-- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`).
+- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
+- **Hand check, item 8:** after the restart, open a page from the chat, take a snip, paste an image, drop a snip with ×, and see the Talker's `[Viewer] open:` line.
 - **Hand check, item 7:** after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.
 - **Hand check, item 4:** after the restart, `cv.open_tool` opens the CV Tool from `modules/cv/app/cv_tool/`.
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
@@ -54,6 +55,9 @@ For you to review. Each picks the option closest to the approved picture.
 17. **The test kit is `assistant.testkit`** (item 5), moved from `tests/` (`support.py`, `fake_claude.py`, `fake_job_ui.py`, and the agent fakes from `test_agents.py` / `test_multi_agent.py`), with no pytest code; the `hub` fixture stays in `tests/test_agents.py`. The loader counts it as shared code (not reloadable). No cv-only test was left in `tests/`, so none moved.
 18. **cv lists only pymupdf** (item 6): it also uses `pypdf` and `mcp`, which were never in `pyproject.toml`; adding them to cv's `packages` is left for you. `cv_tool` left ruff's `known-first-party` (the `src` glob over `modules/*/app` covers every app). cv's `ruff.toml` extends the root config and keeps the cache at the root.
 19. **job_search's tests use a stand-in cv** (item 7): `needs = ["cv"]` means job_search can't start without a cv module, so the tests start a bare `stand_in("cv")` (test kit) rather than the real cv with its access card. Its `module.toml` keeps the job paths that were already committed; item 18 replaces them.
+20. **The SHOW-to-viewer mapping (`show_page`) moves in item 15, not item 8**: it's called by the Talker and the worker (core), so it waits for the page-opener slot instead of moving into an add-on that core code would then import.
+21. **The dropped-snip event is `temp_ui.clip_dropped`** (item 8), not `html_viewer.clip_dropped`: a module may publish named events only under its own id, and the drop (and the pasted image, `temp_ui.clip`) come from temp_ui. html_viewer publishes `html_viewer.tabs_changed` and `html_viewer.clip`.
+22. **The Talker's and temp_ui's snip tests sit in `tests/test_viewer_listeners.py`** (item 8) until item 11 moves the core modules' tests. The `html-viewer` script entry left `pyproject.toml` (it can't resolve without a reinstall); html_viewer's README says how to run the app by hand.
 
 ## The safeguards (from the audit, section 4)
 
@@ -140,7 +144,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** create `module.toml`, move the defaults (your own paths go to `config/local.toml`, never committed), and move the tests onto the test kit. Docs.
 - **Done when:** `module.toml` exists with `needs = ["cv"]`; `config/default.toml` has no `[modules.job_search]` defaults; `tests/test_job_search.py` is gone and its tests pass from the module.
 
-### 8. html_viewer: its app, events, SHOW handling and tests in the module
+### 8. html_viewer: its app, events, SHOW handling and tests in the module: **done** (2026-11-13; the SHOW handling moves in item 15, decision 20)
+
+**Checked:** `src/html_viewer` doesn't exist; `git grep "ViewerClip\|ViewerTabsChanged" src/assistant/contracts` finds nothing; `tests/test_html_viewer.py` is gone and its tests pass from `modules/html_viewer/tests/`; `test_viewer_events_left_the_contracts` and `test_no_app_outside_its_module` (with `src/html_viewer`) pass, and a child process runs `python -m html_viewer --help` from the module; full suite 866 passed, 2 deselected; ruff clean. **Needs an app restart** (contracts).
 
 - **What:** `src/html_viewer/` moves to `modules/html_viewer/app/html_viewer/`, its events leave the core contracts (decision 9), the SHOW-to-viewer mapping (`infra/show_pages.py`) moves into html_viewer, and its tests move into its folder.
 - **Why:** the picture: "html_viewer/ code · viewer app · docs · tests · its events · SHOW handling".

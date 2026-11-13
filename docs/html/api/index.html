@@ -137,19 +137,9 @@
 <td>♻ A module-owned event matched by name (cv → job_search: <code>cv.job_finished</code>, <code>cv.job_submitted</code>): <code>ctx.publish_named</code> / <code>subscribe_named</code> / <code>unsubscribe</code>, no restart for a new one</td>
 </tr>
 <tr>
-<td><a href="messaging.html#viewertabschanged"><code>ViewerTabsChanged</code></a></td>
-<td>event</td>
-<td>The HTML viewer's open tabs or highlights changed</td>
-</tr>
-<tr>
-<td><a href="messaging.html#viewerclip"><code>ViewerClip</code></a></td>
-<td>event</td>
-<td>You snipped part of a page in the HTML viewer: an image for the Talker</td>
-</tr>
-<tr>
-<td><a href="messaging.html#viewerclipdropped"><code>ViewerClipDropped</code></a></td>
-<td>event</td>
-<td>You dropped a snip before sending it</td>
+<td><a href="messaging.html#snip-constants"><code>MAX_SNIPS</code>, <code>PASTED_FILE</code></a></td>
+<td>constants</td>
+<td>♻ The snips sent with one message (3); a pasted image's <code>file</code>. The viewer's tabs and snips are html_viewer's named events now (<code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), on <a href="../modules/html_viewer/architecture.html#events">its module page</a></td>
 </tr>
 <tr>
 <td><a href="messaging.html#accesskind"><code>AccessKind</code></a>, <a href="messaging.html#accessitem"><code>AccessItem</code></a>, <a href="messaging.html#accessnote"><code>AccessNote</code></a></td>

@@ -60,9 +60,6 @@ from assistant.contracts.messages import (
     SessionTheme,
     ShutdownRequested,
     Status,
-    ViewerClip,
-    ViewerClipDropped,
-    ViewerTabsChanged,
 )
 from assistant.contracts.module import (
     Contract,
@@ -173,9 +170,6 @@ __all__ = [
     "TaskUpdated",
     "IToolProvider",
     "ToolSpec",
-    "ViewerClip",
-    "ViewerClipDropped",
-    "ViewerTabsChanged",
     "VoiceState",
     "VoiceDestination",
     "VoiceTranscript",

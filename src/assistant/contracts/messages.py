@@ -127,36 +127,7 @@ class ModuleEvent(Event):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
-class ViewerTabsChanged(Event):
-    """The HTML viewer's open tabs changed: a tab opened, closed, or was switched to.
-
-    `tabs` are the open files' full paths, in tab order; `active` is the one shown.
-    `highlights` are `(path, quoted text)` for each highlight on an open page.
-    """
-
-    tabs: tuple[str, ...] = ()
-    active: str | None = None
-    highlights: tuple[tuple[str, str], ...] = ()
-
-
+# The HTML viewer's events are its own named events (`html_viewer.tabs_changed`, `html_viewer.clip`),
+# and the temp UI's pasted images and dropped snips are its own (`temp_ui.clip`, `temp_ui.clip_dropped`).
 MAX_SNIPS = 3  # snips sent with one message: the Talker keeps and the temp UI shows at most this many
-PASTED_FILE = "(pasted)"  # ViewerClip.file of an image pasted into a chat box, not snipped from a page
-
-
-class ViewerClip(Event):
-    """You snipped part of a page in the HTML viewer: an image for the assistant.
-
-    `image_path` is the PNG (in the launch's log folder); `file` the page it's from;
-    `heading` the nearest heading above the box, if any. `id` names it, e.g. to drop it.
-    """
-
-    id: str
-    image_path: str
-    file: str
-    heading: str | None = None
-
-
-class ViewerClipDropped(Event):
-    """You dropped a snip before sending it (the × on its thumbnail in the chat)."""
-
-    id: str
+PASTED_FILE = "(pasted)"  # a snip's `file` for an image pasted into a chat box, not snipped from a page

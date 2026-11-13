@@ -49,9 +49,7 @@ Commands, events, and results. `from assistant.contracts import ...`
 | [`ShutdownRequested`](messaging.md#shutdownrequested) | event | Asks the host to shut down |
 | [`SessionTheme`](messaging.md#sessiontheme) | event | A few words about the session, for its log folder name |
 | [`ModuleEvent`](messaging.md#moduleevent) | event | ♻ A module-owned event matched by name (cv → job_search: `cv.job_finished`, `cv.job_submitted`): `ctx.publish_named` / `subscribe_named` / `unsubscribe`, no restart for a new one |
-| [`ViewerTabsChanged`](messaging.md#viewertabschanged) | event | The HTML viewer's open tabs or highlights changed |
-| [`ViewerClip`](messaging.md#viewerclip) | event | You snipped part of a page in the HTML viewer: an image for the Talker |
-| [`ViewerClipDropped`](messaging.md#viewerclipdropped) | event | You dropped a snip before sending it |
+| [`MAX_SNIPS`, `PASTED_FILE`](messaging.md#snip-constants) | constants | ♻ The snips sent with one message (3); a pasted image's `file`. The viewer's tabs and snips are html_viewer's named events now (`html_viewer.tabs_changed`, `html_viewer.clip`), on [its module page](../../src/assistant/modules/html_viewer/docs/architecture.md#events) |
 | [`AccessKind`](messaging.md#accesskind), [`AccessItem`](messaging.md#accessitem), [`AccessNote`](messaging.md#accessnote) | data | ♻ One line of an access list (`workspace`, `read`, `write`, `python`, `command`, `chrome`, `message`) and a card's notes |
 | [`AccessDenied`, `AccessPending`](messaging.md#accessdenied-accesspending) | exceptions | ♻ From `request_set`: you denied the list; the list waits on a card |
 | [`PermissionRequested`](messaging.md#permissionrequested) | event | ♻ A card for you: an access list, or an agent's grant or revoke |

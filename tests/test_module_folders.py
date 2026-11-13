@@ -22,7 +22,11 @@ Item 6: cv's packages and ruff rule are in its folder. pyproject.toml names no m
 per-file ignore; cv's module.toml lists `packages` (on its manifest), and cv/ruff.toml extends the root.
 
 Item 7: job_search's defaults, needs and tests are in its folder. Its module.toml holds its defaults and
-`needs = ["cv"]`; config/default.toml has no `[modules.job_search]` defaults; its tests left `tests/`."""
+`needs = ["cv"]`; config/default.toml has no `[modules.job_search]` defaults; its tests left `tests/`.
+
+Item 8: html_viewer's app, events and tests are in its folder. The viewer app is `html_viewer/app/html_viewer/`
+(launched by folder), its defaults and `needs` are in its module.toml, its three event types left the
+contracts (its named events now, heard by name), its tests left `tests/`, and pyproject.toml names it no more."""
 
 from __future__ import annotations
 
@@ -232,8 +236,8 @@ async def test_a_free_pick_never_lands_on_a_named_only_agent() -> None:
 
 # Item 4: the CV Tool app in cv's folder.
 
-# Where companion apps used to live, outside their module. Items 8 and 9 add src/html_viewer, src/voice_service.
-OLD_APPS = ["src/cv_tool"]
+# Where companion apps used to live, outside their module. Item 9 adds src/voice_service.
+OLD_APPS = ["src/cv_tool", "src/html_viewer"]
 CV_APP = CV / "app"
 
 
@@ -400,3 +404,49 @@ def test_job_search_has_its_module_toml() -> None:
     # Its tests are in its folder, none left central.
     assert (JOB_SEARCH / "tests" / "test_job_search.py").is_file()
     assert not (REPO / "tests" / "test_job_search.py").exists()
+
+
+# Item 8: html_viewer's app, events and tests in its folder.
+
+HTML_VIEWER = MODULES_FOLDER / "html_viewer"
+VIEWER_TYPES = ("ViewerTabsChanged", "ViewerClip", "ViewerClipDropped")
+
+
+def test_viewer_events_left_the_contracts() -> None:
+    import assistant.contracts as contracts
+
+    assert not any(hasattr(contracts, name) for name in VIEWER_TYPES)
+    for file in (REPO / "src" / "assistant" / "contracts").rglob("*.py"):
+        text = file.read_text(encoding="utf-8")
+        assert "ViewerClip" not in text and "ViewerTabsChanged" not in text, file
+    # Nowhere in the app either: the publisher and its listeners use the named events.
+    for file in _python_files(REPO / "src"):
+        assert not any(name in file.read_text(encoding="utf-8-sig") for name in VIEWER_TYPES), file
+    from assistant.modules.html_viewer import HtmlViewerModule
+
+    assert HtmlViewerModule.manifest.publishes_named == ("html_viewer.tabs_changed", "html_viewer.clip")
+
+
+def test_html_viewer_app_defaults_and_tests_are_in_its_folder() -> None:
+    toml = tomllib.loads((HTML_VIEWER / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == [] and toml["packages"] == []
+    assert toml["port"] == 8766 and toml["start_on_use"] is True  # its defaults are here
+    cls = loader.find_module_class(importlib.import_module("assistant.modules.html_viewer"), "html_viewer")
+    assert cls.manifest.needs == () and cls.manifest.packages == ()
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert "html_viewer" not in default["modules"]
+    # The app in its folder, found by folder; a `python -m html_viewer` launch gets that folder on its path.
+    app = HTML_VIEWER / "app"
+    assert (app / "html_viewer" / "__main__.py").is_file() and not (app / "__init__.py").exists()
+    assert app in loader.app_folders()
+    loader.add_app_folders()
+    assert package_root("html_viewer") == app
+    base = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    child = subprocess.run([sys.executable, "-m", "html_viewer", "--help"], env=launch_env("html_viewer", base),
+                           capture_output=True, text=True, timeout=60, check=True)  # fmt: skip
+    assert "HTML viewer" in child.stdout
+    # Its tests are in its folder; pyproject.toml has no script or first-party entry for it.
+    assert (HTML_VIEWER / "tests" / "test_html_viewer.py").is_file()
+    assert not (REPO / "tests" / "test_html_viewer.py").exists()
+    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    assert "html_viewer" not in pyproject and "html-viewer" not in pyproject

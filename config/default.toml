@@ -106,17 +106,7 @@ transcript = "rezi.jsonl"
 port = 8765
 window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"
 
-[modules.html_viewer]
-# The HTML viewer: its own program and window at http://127.0.0.1:8766/, started on the
-# first file shown and stopped with the app (one you started yourself is left running).
-host = "127.0.0.1"
-port = 8766
-window = "app"            # "app" (own window, via Edge), "browser" (a tab), or "none"
-# Folders built from Markdown by scripts/build_docs.py: saving there writes text edits back to the
-# page's Markdown source too, and warns about any edit that can't be (a rebuild would overwrite it).
-generated = ["docs/html", "docs/html-next-steps"]
-start_timeout = 10.0      # seconds to wait for the viewer to answer after starting it
-start_on_use = true       # opening a page (SHOW, Open in viewer, viewer.*) turns this module on if it's off
+# html_viewer's defaults (port 8766, window, generated folders, start_on_use) are in its module.toml.
 
 [modules.voice_in]
 # Voice input (on: the temp UI's mic button sends it StartListening / StopListening): launches the voice service

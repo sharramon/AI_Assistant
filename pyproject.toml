@@ -10,7 +10,8 @@ requires-python = ">=3.12"
 dependencies = ["pydantic>=2.7", "markdown>=3.6"]
 
 [project.scripts]
-html-viewer = "html_viewer.viewer:main"  # the HTML viewer, a standalone app (src/html_viewer)
+# A companion app inside its module (modules/<id>/app/<app>) has no script entry: the module launches it,
+# or run it by hand with that app/ folder on PYTHONPATH (the HTML viewer: see its module's docs).
 voice-service = "voice_service.__main__:main"  # the voice service, a standalone app (src/voice_service)
 
 [project.optional-dependencies]
@@ -50,4 +51,4 @@ ignore = [
 # A module's own exceptions go in a ruff.toml in its folder, which extends this file.
 
 [tool.ruff.lint.isort]
-known-first-party = ["app_kit", "assistant", "html_viewer", "tests", "voice_service"]
+known-first-party = ["app_kit", "assistant", "tests", "voice_service"]

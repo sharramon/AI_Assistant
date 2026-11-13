@@ -4,6 +4,6 @@ group = "add-on"
 pages = ["viewer-app.md"]
 [related]
 "Viewer tools (API)" = "api/tools.md#tools-offered-today"
-"Viewer events (API)" = "api/messaging.md#viewertabschanged"
+"Named events (API)" = "api/messaging.md#moduleevent"
 "CompanionApp (API)" = "api/app_kit.md#companionapp"
 "The viewer in the runtime" = "agents/runtime.md#html-viewer"

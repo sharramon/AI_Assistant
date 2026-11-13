@@ -41,6 +41,7 @@ from assistant.contracts import (
     ListAgents,
     Manifest,
     ModuleContext,
+    ModuleEvent,
     ModuleProtocol,
     ModuleStateChanged,
     PermissionChanged,
@@ -56,9 +57,6 @@ from assistant.contracts import (
     ShutdownRequested,
     TaskState,
     TaskUpdated,
-    ViewerClip,
-    ViewerClipDropped,
-    ViewerTabsChanged,
 )
 from assistant.infra import ContextWatch, theme_slug
 from assistant.modules.talker.prompt import DOOR_NOTE, TALKER_PROMPT  # noqa: F401  (re-exported)
@@ -81,9 +79,20 @@ from assistant.modules.talker.session import (  # noqa: F401  (split_tags, acces
 
 FOCUS_OPENED = "[Focus] the user opened this tab."
 # MAX_SNIPS (snips waiting for your next message; the oldest dropped beyond it) and PASTED_FILE
-# (a pasted image's ViewerClip.file) come from the contracts, shared with the temp UI.
+# (a pasted image's `file`) come from the contracts, shared with the temp UI.
 # Task updates worth speaking about; progress stays with the Hub until you ask.
 SPOKEN_UPDATES = {ReportKind.DONE, ReportKind.NEED, ReportKind.REPLY, ReportKind.FAILED, ReportKind.PERMISSION}
+# Other modules' named events, heard by name (no import of theirs): the HTML viewer's open tabs and
+# snips, the temp UI's pasted images (a snip's data) and dropped snips (`id`). Nobody publishing: no notes.
+VIEWER_TABS = "html_viewer.tabs_changed"
+SNIP_EVENTS = ("html_viewer.clip", "temp_ui.clip")
+SNIP_DROPPED = "temp_ui.clip_dropped"
+
+
+def snip_of(data: dict[str, Any]) -> dict[str, Any]:
+    """A snip event's data as the Talker keeps it: `id`, `image_path`, `file`, `heading` (or None)."""
+    return {"id": str(data.get("id", "")), "image_path": str(data.get("image_path", "")),
+            "file": str(data.get("file", "")), "heading": data.get("heading") or None}  # fmt: skip
 
 
 class TalkerModule(ModuleProtocol):
@@ -94,8 +103,8 @@ class TalkerModule(ModuleProtocol):
         sends=(InvokeTool, AnswerPermissionRequest, ListAgents,),  # the Hub through its menu (hub.*), one road
         publishes=(ResponseReady, SessionUsage, SessionTheme, ResetRequested, ShutdownRequested,),
         listens=(InputReceived, TaskUpdated, FocusChanged, FocusSuggested, SessionUsage, ResetRequested,
-                 PermissionModeChanged, ViewerTabsChanged, ViewerClip, ViewerClipDropped,
-                 PermissionRequested, PermissionChanged, AgentStateChanged, ModuleStateChanged,),
+                 PermissionModeChanged, PermissionRequested, PermissionChanged, AgentStateChanged, ModuleStateChanged,),
+        listens_named=(VIEWER_TABS, *SNIP_EVENTS, SNIP_DROPPED),
     )  # fmt: skip
 
     async def init(self, ctx: ModuleContext) -> None:
@@ -114,7 +123,7 @@ class TalkerModule(ModuleProtocol):
         self._viewer_note: str | None = None  # the viewer's open tabs; each session tells the latest once
         self._viewer_seq = 0
         self._mode_notes: dict[str, str] = {}  # agent → its new permission mode, told with your next message there
-        self._snips: deque[ViewerClip] = deque(maxlen=MAX_SNIPS)  # sent with your next message
+        self._snips: deque[dict[str, Any]] = deque(maxlen=MAX_SNIPS)  # sent with your next message (snip_of)
         note = ctx.config.get("restart_note")  # unset: restarts carry no note
         self.restart = RestartFlow(self, Path(note).resolve() if note else None,
                                    ctx.config.get("restart_timeout", 120.0))  # fmt: skip
@@ -122,12 +131,15 @@ class TalkerModule(ModuleProtocol):
         for event_type, handler in (
             (InputReceived, self._on_input), (SessionUsage, self._on_usage), (ResetRequested, self._on_reset),
             (TaskUpdated, self._on_task_updated), (FocusChanged, self._on_focus), (FocusSuggested, self._on_suggestion),
-            (PermissionModeChanged, self._on_mode), (ViewerTabsChanged, self._on_viewer_tabs),
-            (ViewerClip, self._on_snip), (ViewerClipDropped, self._on_snip_dropped),
+            (PermissionModeChanged, self._on_mode),
             (PermissionRequested, self._on_access_card), (PermissionChanged, self._on_access_changed),
             (AgentStateChanged, self._on_agents_changed), (ModuleStateChanged, self._on_agents_changed),
         ):  # fmt: skip
             ctx.subscribe(event_type, handler)
+        ctx.subscribe_named(VIEWER_TABS, self._on_viewer_tabs)
+        for name in SNIP_EVENTS:
+            ctx.subscribe_named(name, self._on_snip)
+        ctx.subscribe_named(SNIP_DROPPED, self._on_snip_dropped)
 
     async def start(self) -> None:
         self._main.start()
@@ -233,14 +245,14 @@ class TalkerModule(ModuleProtocol):
             notes.append(self._viewer_note)
             session.viewer_seen = self._viewer_seq
         self.ctx.log.info("Message %s: %d snip(s) attached %s, then cleared", item.input_id, len(self._snips),
-                          [s.id for s in self._snips])  # fmt: skip
+                          [s["id"] for s in self._snips])  # fmt: skip
         for snip in self._snips:
-            near = f', near "{snip.heading}"' if snip.heading else ""
-            if snip.file == PASTED_FILE:
-                notes.append(f"[Pasted] image (image attached; file: {snip.image_path})")
+            near = f', near "{snip["heading"]}"' if snip["heading"] else ""
+            if snip["file"] == PASTED_FILE:
+                notes.append(f"[Pasted] image (image attached; file: {snip['image_path']})")
             else:
-                notes.append(f"[Viewer] snip from {snip.file}{near} (image attached; file: {snip.image_path})")
-            images.append(snip.image_path)
+                notes.append(f"[Viewer] snip from {snip['file']}{near} (image attached; file: {snip['image_path']})")
+            images.append(snip["image_path"])
         self._snips.clear()
         return notes, images
 
@@ -355,12 +367,14 @@ class TalkerModule(ModuleProtocol):
         when = " (from the next task)" if event.applies == "next_task" else ""
         self._mode_notes[event.agent_id] = f"[Mode] {event.agent_id}: {event.mode}{when}"  # the real agent, in any tab
 
-    async def _on_viewer_tabs(self, event: ViewerTabsChanged) -> None:
+    async def _on_viewer_tabs(self, event: ModuleEvent) -> None:
+        # html_viewer.tabs_changed: `tabs` (paths in tab order), `active`, `highlights` ([path, text] pairs).
         # Not worth a turn of its own: each tab's Talker hears it with your next message there.
-        names = [f"{path} (showing)" if path == event.active else path for path in event.tabs]
+        active, highlights = event.data.get("active"), event.data.get("highlights") or []
+        names = [f"{path} (showing)" if path == active else path for path in event.data.get("tabs") or []]
         note = "[Viewer] open: " + ", ".join(names) if names else "[Viewer] no files open"
-        if event.highlights:
-            note += "; highlighted: " + ", ".join(f'"{text}" in {path}' for path, text in event.highlights)
+        if highlights:
+            note += "; highlighted: " + ", ".join(f'"{text}" in {path}' for path, text in highlights)
         self._viewer_note, self._viewer_seq = note, self._viewer_seq + 1
 
     async def _on_usage(self, event: SessionUsage) -> None:
@@ -380,15 +394,18 @@ class TalkerModule(ModuleProtocol):
         if session is not None:
             session.put(Item("", reset=True))  # not mid-turn: after the turn in progress
 
-    async def _on_snip(self, event: ViewerClip) -> None:
-        # Like the tabs note: it waits for your next message, which is likely "what is this?".
+    async def _on_snip(self, event: ModuleEvent) -> None:
+        # html_viewer.clip or temp_ui.clip (a pasted image). Like the tabs note: it waits for your
+        # next message, which is likely "what is this?".
         # Every snip step is logged at info level, so a lost snip shows which step lost it.
+        snip = snip_of(event.data)
         if len(self._snips) == MAX_SNIPS:
-            self.ctx.log.info("Snip %s dropped: over the limit of %d", self._snips[0].id, MAX_SNIPS)
-        self._snips.append(event)
-        self.ctx.log.info("Snip %s received (%s); %d waiting", event.id, event.file, len(self._snips))
+            self.ctx.log.info("Snip %s dropped: over the limit of %d", self._snips[0]["id"], MAX_SNIPS)
+        self._snips.append(snip)
+        self.ctx.log.info("Snip %s received (%s); %d waiting", snip["id"], snip["file"], len(self._snips))
 
-    async def _on_snip_dropped(self, event: ViewerClipDropped) -> None:
-        held = any(s.id == event.id for s in self._snips)
-        self._snips = deque((s for s in self._snips if s.id != event.id), maxlen=MAX_SNIPS)
-        self.ctx.log.info("Snip %s dropped: the x on its thumbnail%s", event.id, "" if held else " (wasn't waiting)")
+    async def _on_snip_dropped(self, event: ModuleEvent) -> None:
+        snip_id = str(event.data.get("id", ""))
+        held = any(s["id"] == snip_id for s in self._snips)
+        self._snips = deque((s for s in self._snips if s["id"] != snip_id), maxlen=MAX_SNIPS)
+        self.ctx.log.info("Snip %s dropped: the x on its thumbnail%s", snip_id, "" if held else " (wasn't waiting)")

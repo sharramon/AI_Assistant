@@ -121,7 +121,7 @@ A few words about what this app session is about, from your first question. The 
 
 ## `ModuleEvent`
 
-**Reusable** · Used by: cv (publishes `cv.job_finished`, `cv.job_submitted`), job_search (listens to both) · built 2026-11-12
+**Reusable** · Used by: cv (publishes `cv.job_finished`, `cv.job_submitted`), job_search (listens to both), html_viewer (publishes `html_viewer.tabs_changed`, `html_viewer.clip`), temp_ui (publishes `temp_ui.clip`, `temp_ui.clip_dropped`; listens to the clips), talker (listens to all four) · built 2026-11-12
 
 `ModuleEvent(name: str, source: str, data: dict[str, Any] = {})` (event)
 
@@ -141,32 +141,18 @@ A **module-owned** event, matched by its name rather than its class, so a new on
 |------|--------------|------|------|----------|
 | `cv.job_finished` | cv | cv_agent's job task ends (`done` or `failed`) | `reply_to`, `agent_id`, `task_id`, `parent_task_id`, `state`, `job_dir`, `company`, `role`, `cv_result` (the `CV_RESULT` as JSON, or null), `summary` | job_search: wakes its agent if `reply_to` is it |
 | `cv.job_submitted` | cv | the user's Submit in the CV Tool, once per Submit | `reply_to`, `job_id`, `job_dir`, `company`, `role`, `submitted_at`, `pdf_path`, `final_score`, `target_score`, `result` (result.json), `summary` | job_search: wakes its agent if `reply_to` is it |
+| `html_viewer.tabs_changed` | html_viewer | the viewer's open tabs or highlights changed | `tabs`, `active`, `highlights` (`[path, text]` pairs) | talker: a `[Viewer] open: ...` line with your next message |
+| `html_viewer.clip` | html_viewer | you snipped part of a page | `id`, `image_path`, `file`, `heading` | talker (images with your next message), temp_ui (thumbnails) |
+| `temp_ui.clip` | temp_ui | you pasted an image into the chat box | as `html_viewer.clip`, `file` = `PASTED_FILE`, `heading` null | talker (`[Pasted] image`), temp_ui |
+| `temp_ui.clip_dropped` | temp_ui | the × on a snip's thumbnail | `id` | talker: forgets it |
+
+The HTML viewer's two are documented on its module page ([html_viewer's events](../../src/assistant/modules/html_viewer/docs/architecture.md#events)); until 2026-11-13 they and the dropped snip were the typed `ViewerTabsChanged`, `ViewerClip` and `ViewerClipDropped` in the contracts.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
-## `ViewerTabsChanged`
+## Snip constants
 
-`ViewerTabsChanged(tabs: tuple[str, ...] = (), active: str | None = None, highlights: tuple[tuple[str, str], ...] = ())` (event)
-
-The [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md)'s open tabs or highlights changed: a tab opened, closed, or was switched to, or a highlight was added, cleared, or dropped. `tabs` are the open files' full paths in tab order; `active` is the one showing; `highlights` are `(path, quoted text)` pairs. The `html_viewer` module publishes it; the Talker keeps the latest and hears it, as a `[Viewer] open: ...; highlighted: ...` line, with your next message.
-
-**Defined in:** `src/assistant/contracts/messages.py`
-
-## `ViewerClip`
-
-`ViewerClip(id: str, image_path: str, file: str, heading: str | None = None)` (event)
-
-**Shared limits** (in `assistant.contracts`, one owner, principle 19): `MAX_SNIPS = 3`, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); `PASTED_FILE = "(pasted)"`, a pasted image's `file`. Used by `talker`, `temp_ui`.
-
-You snipped part of a page in the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md). `image_path` is the PNG, kept in the launch's log folder (`snips/`); `file` is the page; `heading` the nearest heading above the box. The `html_viewer` module publishes it; so does `temp_ui` for an image pasted into its chat box (`file=PASTED_FILE`, `"(pasted)"`, no heading; the Talker labels it `[Pasted] image`). The type's docstring still says "from the HTML viewer": widen it at the next restart. The Talker keeps up to `MAX_SNIPS` (3) and sends them as images with your next message; the temp UI shows them as thumbnails until then.
-
-**Defined in:** `src/assistant/contracts/messages.py`
-
-## `ViewerClipDropped`
-
-`ViewerClipDropped(id: str)` (event)
-
-You dropped a snip before sending it (the × on its thumbnail). The Talker forgets it. Published by `temp_ui`.
+**Shared limits** (in `assistant.contracts`, one owner, principle 19): `MAX_SNIPS = 3`, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); `PASTED_FILE = "(pasted)"`, a pasted image's `file` in a snip's data (`temp_ui.clip`; the Talker labels it `[Pasted] image`). Used by `talker`, `temp_ui`.
 
 **Defined in:** `src/assistant/contracts/messages.py`
 

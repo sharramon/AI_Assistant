@@ -1,44 +1,27 @@
-"""The HTML viewer: its document model, its own HTTP API, and the html_viewer module."""
+"""The HTML viewer: its document model, its own HTTP API (the app in app/html_viewer, imported by its
+own name from the module's app/ folder), and the html_viewer module with its named events
+(`html_viewer.tabs_changed`, `html_viewer.clip`). The listeners' side (the Talker, the temp UI) is
+tested centrally in tests/test_viewer_listeners.py."""
 
 import asyncio
 import json
-import logging
 import os
 import re
-import socket
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
 
-from assistant.contracts import (
-    InputReceived,
-    InvokeTool,
-    IToolProvider,
-    Manifest,
-    ModuleContext,
-    ModuleProtocol,
-    ResponseReady,
-    Result,
-    ToolSpec,
-    ViewerClip,
-    ViewerClipDropped,
-    ViewerTabsChanged,
-)
+from assistant.contracts import InvokeTool, ModuleEvent
 from assistant.core import App
 from assistant.infra import LogSession
-from assistant.infra.agent_tags import parse_show
 from assistant.modules.html_viewer import HtmlViewerModule
-from assistant.modules.talker import TalkerModule
-from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE
+from assistant.testkit import free_port
 from html_viewer.document import EditText, HtmlDocument, add_ids
 from html_viewer.highlight import count
 from html_viewer.markdown_source import MarkdownSource, blocks
 from html_viewer.viewer import ViewerServer, fs_path, fs_url
-from tests.test_temp_ui import request, ui_port
 
 PAGE = (
     "<!doctype html>\r\n<html><head><title>T &amp; t</title>\r\n"
@@ -55,10 +38,16 @@ def element_id(doc: HtmlDocument, text: str) -> str:
     return match.group(1)
 
 
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+def named(app: App, name: str) -> asyncio.Queue:
+    """The data of every named event `name` published on `app`'s bus, as it arrives."""
+    found: asyncio.Queue = asyncio.Queue()
+
+    async def put(event: ModuleEvent) -> None:
+        if event.name == name:
+            await found.put(event.data)
+
+    app.bus.subscribe(ModuleEvent, put)
+    return found
 
 
 # --- document state and commands ---
@@ -456,17 +445,16 @@ async def test_module_starts_the_viewer_relays_tabs_and_stops_it(tmp_path):
     port = free_port()
     page = write(tmp_path / "page.html")
     app = App([HtmlViewerModule], module_config(port, window_profile=str(tmp_path / "profile")))
-    changes: asyncio.Queue[ViewerTabsChanged] = asyncio.Queue()
-    app.bus.subscribe(ViewerTabsChanged, changes.put)
+    changes = named(app, "html_viewer.tabs_changed")
     await app.start()
     try:
         assert (await app.router.send(InvokeTool(name="viewer.tabs"))).value == []  # not started yet
         result = await app.router.send(InvokeTool(name="viewer.open", args={"path": str(page)}), timeout=20)
         assert result.is_ok, result.error
         change = await asyncio.wait_for(changes.get(), 5)
-        while not change.tabs:
+        while not change["tabs"]:
             change = await asyncio.wait_for(changes.get(), 5)
-        assert change.tabs == (str(page.resolve()),) and change.active == str(page.resolve())
+        assert change == {"tabs": [str(page.resolve())], "active": str(page.resolve()), "highlights": []}
         tabs = (await app.router.send(InvokeTool(name="viewer.tabs"))).value
         assert tabs == [{"path": str(page.resolve()), "active": True, "unsaved": False, "highlights": []}]
         proc = app._lifecycle._active["html_viewer"][0]._app.process
@@ -509,19 +497,12 @@ async def test_opening_a_page_turns_the_viewer_on_when_it_is_off(tmp_path):
         server.stop()
 
 
-def test_show_tag_arguments():
-    assert parse_show(r"C:\a b\page.html") == (r"C:\a b\page.html", None, None)
-    assert parse_show('C:/p.html | "the core hosts" | Parts') == ("C:/p.html", "the core hosts", "Parts")
-    assert parse_show("'C:/p.html' | “quoted” |") == ("C:/p.html", "quoted", None)
-
-
 async def test_highlight_tool_and_show_tag(tmp_path):
     server = ViewerServer(port=0, window="none", profile=tmp_path / "profile")
     server.start()
     page = write(tmp_path / "sections.html", SECTIONS)
     app = App([HtmlViewerModule], module_config(server.port))
-    changes: asyncio.Queue[ViewerTabsChanged] = asyncio.Queue()
-    app.bus.subscribe(ViewerTabsChanged, changes.put)
+    changes = named(app, "html_viewer.tabs_changed")
     await app.start()
     try:
         result = await app.router.send(InvokeTool(name="viewer.highlight", args={
@@ -537,9 +518,9 @@ async def test_highlight_tool_and_show_tag(tmp_path):
         assert second.is_ok, second.error
         async with asyncio.timeout(5):
             change = await changes.get()
-            while len(change.highlights) < 2:
+            while len(change["highlights"]) < 2:
                 change = await changes.get()
-        assert change.highlights == ((str(page.resolve()), "core hosts modules"), (str(page.resolve()), "Agent Hub"))
+        assert change["highlights"] == [[str(page.resolve()), "core hosts modules"], [str(page.resolve()), "Agent Hub"]]
         tabs = (await app.router.send(InvokeTool(name="viewer.tabs"))).value
         assert tabs[0]["highlights"] == ["core hosts modules", "Agent Hub"]
     finally:
@@ -553,179 +534,25 @@ async def test_module_relays_snips_into_the_log_folder(tmp_path):
     page = write(tmp_path / "page.html")
     logs = tmp_path / "logs" / "session"
     app = App([HtmlViewerModule], module_config(server.port), logs=LogSession(logs))  # no theme: its root
-    clips: asyncio.Queue[ViewerClip] = asyncio.Queue()
-    app.bus.subscribe(ViewerClip, clips.put)
+    clips = named(app, "html_viewer.clip")
     await app.start()
     try:
         await app.router.send(InvokeTool(name="viewer.open", args={"path": str(page)}))
         tab = server.tabs()["tabs"][0]["id"]
         await asyncio.to_thread(server.snip, tab, {"x": 0, "y": 0, "width": 40, "height": 30}, "Title")
         clip = await asyncio.wait_for(clips.get(), 5)
-        assert Path(clip.image_path).parent == logs / "snips" and Path(clip.image_path).read_bytes() == PNG
-        assert clip.file == str(page.resolve()) and clip.heading == "Title"
+        assert set(clip) == {"id", "image_path", "file", "heading"}  # the listeners' fields, plain JSON
+        assert Path(clip["image_path"]).parent == logs / "snips" and Path(clip["image_path"]).read_bytes() == PNG
+        assert clip["file"] == str(page.resolve()) and clip["heading"] == "Title"
     finally:
         await app.stop()
         server.stop()
 
 
-async def test_talker_sends_snips_with_your_next_message(tmp_path):
-    image = write(tmp_path / "snip.png", "png")
-    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
-    app = App([TalkerModule], config)
-    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
-    app.bus.subscribe(ResponseReady, replies.put)
-    await app.start()
-    try:
-        for n in range(4):  # one more than it keeps
-            app.bus.publish(ViewerClip(id=f"s{n}", image_path=str(image), file="C:/docs/a.html", heading="Parts"))
-        app.bus.publish(ViewerClipDropped(id="s3"))
-        await asyncio.sleep(0.05)
-        app.bus.publish(InputReceived(text="what is this?", source="test"))
-        reply = (await asyncio.wait_for(replies.get(), 10)).text
-        assert reply.startswith("[2 image(s)] [Viewer] snip from C:/docs/a.html, near \"Parts\"")
-        assert reply.endswith("what is this?") and reply.count("[Viewer] snip") == 2  # s0 fell off, s3 was dropped
-        app.bus.publish(InputReceived(text="And now?", source="test"))
-        assert (await asyncio.wait_for(replies.get(), 10)).text == "And now?"  # used once
-    finally:
-        await app.stop()
-
-
-async def test_temp_ui_shows_snips_until_you_send(tmp_path):
-    image = write(tmp_path / "snip.png", "png")
-    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
-    app = App([TempUIModule], config)
-    dropped: asyncio.Queue[ViewerClipDropped] = asyncio.Queue()
-    app.bus.subscribe(ViewerClipDropped, dropped.put)
-    await app.start()
-    try:
-        ui = app._lifecycle._active["temp_ui"][0]
-        for n in range(2):
-            app.bus.publish(ViewerClip(id=f"s{n}", image_path=str(image), file="C:/a.html"))
-        await asyncio.sleep(0.05)
-        assert [s["id"] for s in ui._snips_item()["snips"]] == ["s0", "s1"]
-        reader, writer = await request(ui_port(app), b"GET /snip/s0 HTTP/1.1\r\n\r\n")
-        assert (await reader.read()).endswith(b"png")
-        writer.close()
-        body = b'{"id": "s0"}'
-        reader, writer = await request(ui_port(app), b"POST /drop-snip HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
-        await reader.read()
-        writer.close()
-        assert (await asyncio.wait_for(dropped.get(), 5)).id == "s0"
-        app.bus.publish(InputReceived(text="what is this?", source="test"))
-        await asyncio.sleep(0.05)
-        assert ui._snips_item()["snips"] == []
-        you = [i for c in ui._chats.values() for i in c if i["kind"] == "you"][-1]  # the sent bubble carries the snip
-        assert [s["id"] for s in you["snips"]] == ["s1"]
-        reader, writer = await request(ui_port(app), b"GET /snip/s1 HTTP/1.1\r\n\r\n")
-        assert (await reader.read()).endswith(b"png")  # still served for the bubble
-        writer.close()
-    finally:
-        await app.stop()
-
-
-async def say(app, text: str) -> None:
-    body = json.dumps({"text": text}).encode()
-    reader, writer = await request(ui_port(app), b"POST /say HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
-    await reader.read()
-    writer.close()
-
-
-async def test_temp_ui_sends_a_snip_alone_and_logs_each_step(tmp_path, caplog):
-    caplog.set_level(logging.INFO)
-    image = write(tmp_path / "snip.png", "png")
-    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
-    app = App([TempUIModule], config)
-    inputs: asyncio.Queue[InputReceived] = asyncio.Queue()
-    app.bus.subscribe(InputReceived, inputs.put)
-    await app.start()
-    try:
-        await say(app, "")  # nothing typed, no snip: nothing goes out
-        await asyncio.sleep(0.05)
-        assert inputs.empty()
-        app.bus.publish(ViewerClip(id="s0", image_path=str(image), file="C:/a.html"))
-        await asyncio.sleep(0.05)
-        await say(app, "  ")
-        sent = await asyncio.wait_for(inputs.get(), 5)
-        assert sent.text == "(snip)"
-        await asyncio.sleep(0.05)
-        assert "Snip s0 shown" in caplog.text and "Snips ['s0'] moved into sent message" in caplog.text
-    finally:
-        await app.stop()
-
-
-async def paste(app, data: bytes, size: int | None = None) -> dict:
-    head = b"POST /paste-image HTTP/1.1\r\nContent-Length: %d\r\n\r\n" % (len(data) if size is None else size)
-    reader, writer = await request(ui_port(app), head + data)
-    answer = json.loads((await reader.read()).split(b"\r\n\r\n", 1)[1])
-    writer.close()
-    return answer
-
-
-async def test_temp_ui_turns_a_pasted_image_into_a_snip(tmp_path, caplog):
-    caplog.set_level(logging.INFO)
-    logs = tmp_path / "logs" / "session"
-    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
-    app = App([TempUIModule], config, logs=LogSession(logs))
-    clips: asyncio.Queue[ViewerClip] = asyncio.Queue()
-    app.bus.subscribe(ViewerClip, clips.put)
-    inputs: asyncio.Queue[InputReceived] = asyncio.Queue()
-    app.bus.subscribe(InputReceived, inputs.put)
-    await app.start()
-    try:
-        ui = app._lifecycle._active["temp_ui"][0]
-        assert (await paste(app, b"GIF89a not a png"))["ok"] is False
-        assert (await paste(app, b"", size=11 * 1024 * 1024))["error"].startswith("too big")
-        assert clips.empty()
-        answer = await paste(app, PNG)
-        clip = await asyncio.wait_for(clips.get(), 5)
-        assert answer == {"ok": True, "id": clip.id} and clip.file == "(pasted)" and clip.heading is None
-        assert Path(clip.image_path) == logs / "snips" / f"{clip.id}.png" and Path(clip.image_path).read_bytes() == PNG
-        await asyncio.sleep(0.05)
-        assert [s["id"] for s in ui._snips_item()["snips"]] == [clip.id]  # a thumbnail, like a viewer snip
-        await say(app, "")
-        assert (await asyncio.wait_for(inputs.get(), 5)).text == "(snip)"
-        assert "Paste refused: not a PNG" in caplog.text and "Paste refused: 11534336 bytes" in caplog.text
-        assert f"Image pasted as snip {clip.id}" in caplog.text
-    finally:
-        await app.stop()
-
-
-async def test_talker_labels_a_pasted_image(tmp_path):
-    image = write(tmp_path / "paste.png", "png")
-    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
-    app = App([TalkerModule], config)
-    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
-    app.bus.subscribe(ResponseReady, replies.put)
-    await app.start()
-    try:
-        app.bus.publish(ViewerClip(id="paste-1", image_path=str(image), file="(pasted)"))
-        await asyncio.sleep(0.05)
-        app.bus.publish(InputReceived(text="see the bar?", source="test"))
-        reply = (await asyncio.wait_for(replies.get(), 10)).text
-        assert reply.startswith(f"[1 image(s)] [Pasted] image (image attached; file: {image})")
-    finally:
-        await app.stop()
-
-
-async def test_talker_logs_each_snip_step(tmp_path, caplog):
-    caplog.set_level(logging.INFO)
-    image = write(tmp_path / "snip.png", "png")
-    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
-    app = App([TalkerModule], config)
-    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
-    app.bus.subscribe(ResponseReady, replies.put)
-    await app.start()
-    try:
-        for n in range(2):
-            app.bus.publish(ViewerClip(id=f"s{n}", image_path=str(image), file="C:/a.html"))
-        app.bus.publish(ViewerClipDropped(id="s0"))
-        await asyncio.sleep(0.05)
-        app.bus.publish(InputReceived(text="(snip)", source="temp_ui"))
-        await asyncio.wait_for(replies.get(), 10)
-        assert "Snip s1 received" in caplog.text and "Snip s0 dropped: the x on its thumbnail" in caplog.text
-        assert "1 snip(s) attached ['s1']" in caplog.text
-    finally:
-        await app.stop()
+def test_the_module_declares_its_named_events():
+    # Published by name, no type in the core's contracts; its defaults and needs in its module.toml.
+    manifest = HtmlViewerModule.manifest
+    assert manifest.publishes_named == ("html_viewer.tabs_changed", "html_viewer.clip") and manifest.publishes == ()
 
 
 async def test_open_tool_checks_its_path(tmp_path):
@@ -735,63 +562,6 @@ async def test_open_tool_checks_its_path(tmp_path):
         missing = await app.router.send(InvokeTool(name="viewer.open", args={"path": str(tmp_path / "nope.html")}))
         assert missing.status == "invalid_arguments"
         assert (await app.router.send(InvokeTool(name="viewer.open", args={}))).status == "invalid_arguments"
-    finally:
-        await app.stop()
-
-
-# --- the chat's Open in viewer button ---
-
-class FakeViewer(ModuleProtocol, IToolProvider):
-    manifest = Manifest(id="fake_viewer", provides=(IToolProvider,))
-    opened: list[str] = []
-    front: list[bool] = []
-
-    async def init(self, ctx: ModuleContext) -> None:
-        ctx.provide(IToolProvider, self)
-
-    def tools(self) -> list[ToolSpec]:
-        return [ToolSpec(name="viewer.open", description="open")]
-
-    async def invoke(self, name: str, args: dict) -> Result:
-        self.opened.append(args["path"])
-        self.front.append(args.get("front"))
-        return Result.ok({})
-
-
-async def test_temp_ui_open_in_viewer_button():
-    config = {"modules": {"enabled": ["temp_ui", "fake_viewer"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
-    app = App([TempUIModule, FakeViewer], config)
-    await app.start()
-    try:
-        body = json.dumps({"path": "docs/html/agents/runtime.html"}).encode()
-        reader, writer = await request(
-            ui_port(app), b"POST /open-in-viewer HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body)
-        )
-        answer = await reader.read()
-        writer.close()
-        assert b'"ok": true' in answer and FakeViewer.opened == ["docs/html/agents/runtime.html"]
-        assert FakeViewer.front == [True]  # your click brings the viewer to the front
-        page = (Path(sys.modules[TempUIModule.__module__].__file__).with_name("page.html")).read_text(encoding="utf-8")
-        assert "Open in viewer" in page
-    finally:
-        await app.stop()
-
-
-async def test_talker_hears_the_open_tabs_with_your_next_message():
-    config = {"modules": {"enabled": ["talker"], "talker": {"program": FAKE}}, "core": {}}
-    app = App([TalkerModule], config)
-    replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
-    app.bus.subscribe(ResponseReady, replies.put)
-    await app.start()
-    try:
-        app.bus.publish(ViewerTabsChanged(tabs=("C:/a.html", "C:/b.html"), active="C:/b.html"))
-        await asyncio.sleep(0.05)
-        # The fake Talker repeats what it's sent: the tally comes first, once.
-        app.bus.publish(InputReceived(text="What's open?", source="test"))
-        reply = await asyncio.wait_for(replies.get(), 10)
-        assert reply.text == "[Viewer] open: C:/a.html, C:/b.html (showing)\nWhat's open?"
-        app.bus.publish(InputReceived(text="Again", source="test"))
-        assert (await asyncio.wait_for(replies.get(), 10)).text == "Again"
     finally:
         await app.stop()
 

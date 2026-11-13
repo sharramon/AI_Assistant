@@ -35,7 +35,7 @@
 </tr>
 <tr>
 <td>Publishes</td>
-<td><a href="../../api/messaging.html#viewertabschanged"><code>ViewerTabsChanged</code></a>, <a href="../../api/messaging.html#viewerclip"><code>ViewerClip</code></a> (a snip, image copied into the launch's log folder)</td>
+<td>its named events <code>html_viewer.tabs_changed</code> and <code>html_viewer.clip</code> (a snip, image copied into the launch's log folder): <a href="#events">events</a></td>
 </tr>
 <tr>
 <td>Listens to</td>
@@ -47,9 +47,36 @@
 </tr>
 </tbody>
 </table>
+<h2 id="events">Events</h2>
+<p>Both are <a href="../../api/messaging.html#moduleevent"><code>ModuleEvent</code></a>s, published with <code>ctx.publish_named</code> and declared in the manifest's <code>publishes_named</code>. A listener subscribes by name (<code>ctx.subscribe_named</code>) and reads the plain JSON <code>data</code>, so no type of the viewer's is in the core's contracts, and a listener needs no import of this module (moved out of the contracts 2026-11-13; they were <code>ViewerTabsChanged</code> and <code>ViewerClip</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>When</th>
+<th>Data</th>
+<th>Heard by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>html_viewer.tabs_changed</code></td>
+<td>the open tabs or highlights changed: a tab opened, closed or was switched to, a highlight added, cleared or dropped</td>
+<td><code>tabs</code> (the open files' full paths, in tab order), <code>active</code> (the one showing, or null), <code>highlights</code> (<code>[path, quoted text]</code> pairs)</td>
+<td><code>talker</code>: keeps the latest and tells it, as <code>[Viewer] open: ...; highlighted: ...</code>, with your next message</td>
+</tr>
+<tr>
+<td><code>html_viewer.clip</code></td>
+<td>you snipped part of a page</td>
+<td><code>id</code>, <code>image_path</code> (the PNG, in the launch's log folder, <code>snips/</code>), <code>file</code> (the page), <code>heading</code> (the nearest heading above the box, or null)</td>
+<td><code>talker</code>: up to <code>MAX_SNIPS</code> (3) sent as images with your next message; <code>temp_ui</code>: thumbnails above the input until then</td>
+</tr>
+</tbody>
+</table>
+<p>A snip dropped before it's sent (the × on its thumbnail) is the temp UI's own event, <code>temp_ui.clip_dropped</code>, and an image pasted into the chat box is <code>temp_ui.clip</code>, with the same data as <code>html_viewer.clip</code> (<a href="../temp_ui/architecture.html">temp_ui</a>).</p>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
-<li><strong>Launches the viewer app</strong> on the first show request, through <a href="../../api/app_kit.html#companionapp"><code>CompanionApp</code></a> (<code>python -m html_viewer</code>, port 8766), and quits it when the module stops. A viewer you started yourself is left running. <strong>On a reload</strong> the running viewer is handed to the new copy (its window and tabs stay), unless the viewer's own code changed: then it's quit, even one you started, and the next page shown launches the new code.</li>
+<li><strong>Launches the viewer app</strong> on the first show request, through <a href="../../api/app_kit.html#companionapp"><code>CompanionApp</code></a> (<code>python -m html_viewer</code>, port 8766), and quits it when the module stops. The app is <code>app/html_viewer/</code> in this module's folder: the core puts that <code>app/</code> folder on the import path (<a href="../../api/core.html#loader"><code>add_app_folders</code></a>), and the launch passes it on as the first <code>PYTHONPATH</code> entry (<a href="../../api/app_kit.html#companionapp"><code>launch_env</code></a>). A viewer you started yourself is left running. <strong>On a reload</strong> the running viewer is handed to the new copy (its window and tabs stay), unless the viewer's own code changed: then it's quit, even one you started, and the next page shown launches the new code.</li>
 <li><strong>The app owns</strong> the tabs, highlights, snips, editing and saving, including writing text edits back to a generated page's Markdown source (<code>generated</code> folders).</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
@@ -76,7 +103,8 @@
     Tools -- &quot;launch (CompanionApp)&lt;br/&gt;calls&quot; --&gt; Api
     Api --&gt; State --&gt; View
     State --&gt; Stream --&gt; Relay
-    Relay -- &quot;ViewerTabsChanged · ViewerClip&quot; --&gt; Talker
+    Relay -- &quot;html_viewer.tabs_changed · html_viewer.clip&quot; --&gt; Talker
+    Relay -- &quot;html_viewer.clip&quot; --&gt; UI
 </code></pre>
 <p>The app is built as state, commands and a view (<a href="viewer-app.html#architecture-state-commands-view">architecture</a>); the module only translates between the core's messages and the app's API.</p>
 <footer>Generated from <code>src/assistant/modules/html_viewer/docs/architecture.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

@@ -30,13 +30,14 @@ Serves `page.html` on http://127.0.0.1:<port>/ (standard library only):
 - `POST /open-logs`: opens the logs folder in Explorer
 - `POST /open-in-viewer`: `{"path"}` sends `InvokeTool viewer.open` with `front` (the Open in viewer button on
   an HTML path in a Talker message)
-- snips from the HTML viewer (`ViewerClip`) show as thumbnails above the input until your next
-  message (up to 3, like the Talker); `GET /snip/<id>` is the image, `POST /drop-snip` `{"id"}`
-  drops one (`ViewerClipDropped`). A snip can be sent with nothing typed (the text is "(snip)");
-  the sent snips move into your message's bubble. Each step is logged at info level.
+- snips from the HTML viewer (its named event `html_viewer.clip`, heard by name) show as thumbnails
+  above the input until your next message (up to 3, like the Talker); `GET /snip/<id>` is the image,
+  `POST /drop-snip` `{"id"}` drops one (this module's `temp_ui.clip_dropped`). A snip can be sent with
+  nothing typed (the text is "(snip)"); the sent snips move into your message's bubble. Each step is
+  logged at info level.
 - a pasted image (Ctrl+V in the chat box) becomes a snip too: `POST /paste-image` (the PNG bytes,
-  up to 10 MB) saves it as `<launch log folder>/snips/paste-<id>.png` and publishes `ViewerClip`
-  with `file="(pasted)"`; from there it is the snip path above.
+  up to 10 MB) saves it as `<launch log folder>/snips/paste-<id>.png` and publishes this module's
+  `temp_ui.clip` (a snip's data, `file="(pasted)"`); from there it is the snip path above.
 - the header follows the selected tab: its worker's and its Talker's context now (`SessionUsage`,
   kept by agent id), and the tokens that pair used since launch (their tally rows); and one total
   since launch for every agent, in tokens (`Total 3.4M`): a click opens the THROWAWAY usage
@@ -123,6 +124,7 @@ from assistant.contracts import (
     ListModules,
     Manifest,
     ModuleContext,
+    ModuleEvent,
     ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
@@ -142,8 +144,6 @@ from assistant.contracts import (
     StopListening,
     TaskState,
     TaskUpdated,
-    ViewerClip,
-    ViewerClipDropped,
     VoiceState,
     VoiceTranscript,
 )
@@ -157,6 +157,17 @@ HISTORY = 500  # the worker pane's lines, every agent's
 CHAT_HISTORY = 300  # the Talker pane's items, per agent tab, so a chatty tab can't push out another's
 SENT_SNIPS = 30  # snips already sent whose image the chat's bubbles still show
 SNIP_ONLY_TEXT = "(snip)"  # the message text when you send a snip with nothing typed
+# Snips as named events (data `id`, `image_path`, `file`, `heading`): the HTML viewer's, heard by name
+# (no import of it), and this module's own pasted images; a dropped snip is this module's (`id`).
+VIEWER_CLIP = "html_viewer.clip"
+PASTED_CLIP = "temp_ui.clip"
+CLIP_DROPPED = "temp_ui.clip_dropped"
+
+
+def snip_of(data: dict[str, Any]) -> dict[str, Any]:
+    """A snip event's data as the page shows it: `id`, `image_path`, `file`, `heading` (or None)."""
+    return {"id": str(data.get("id", "")), "image_path": str(data.get("image_path", "")),
+            "file": str(data.get("file", "")), "heading": data.get("heading") or None}  # fmt: skip
 MAX_PASTE = 10 * 1024 * 1024  # bytes: a bigger pasted image is refused
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"  # the page sends every pasted image as PNG
 # MAX_SNIPS, PASTED_FILE, RISKY_PREFIX and QuestionKind come from the contracts: a task's question
@@ -199,8 +210,10 @@ class TempUIModule(ModuleProtocol):
         description="Temporary two-pane page: worker and Talker, mic, usage, permissions",
         optional=(IAgentNames,),
         sends=(ListModules, ListAgents, SetFocus, StartListening, StopListening, AnswerPermission, AnswerPermissionRequest, SetPermissionMode, InvokeTool, GetTaskStatus, CancelTask,),
-        publishes=(InputReceived, ResetRequested, ViewerClip, ViewerClipDropped,),
-        listens=(InputReceived, ResponseReady, TaskUpdated, AgentActivity, AgentStateChanged, FocusChanged, PermissionModeChanged, SessionUsage, ViewerClip, VoiceState, VoiceTranscript, ModuleStateChanged, PermissionRequested, PermissionChanged,),
+        publishes=(InputReceived, ResetRequested,),
+        listens=(InputReceived, ResponseReady, TaskUpdated, AgentActivity, AgentStateChanged, FocusChanged, PermissionModeChanged, SessionUsage, VoiceState, VoiceTranscript, ModuleStateChanged, PermissionRequested, PermissionChanged,),
+        publishes_named=(PASTED_CLIP, CLIP_DROPPED),
+        listens_named=(VIEWER_CLIP, PASTED_CLIP),
     )
 
     async def init(self, ctx: ModuleContext) -> None:
@@ -219,8 +232,8 @@ class TempUIModule(ModuleProtocol):
         self._clients: set[asyncio.Queue[dict[str, Any]]] = set()
         self._server: asyncio.Server | None = None
         self._connections: set[asyncio.Task] = set()
-        self._snips: dict[str, ViewerClip] = {}  # waiting for your next message, oldest first
-        self._sent_snips: dict[str, ViewerClip] = {}  # shown in sent bubbles, newest SENT_SNIPS kept
+        self._snips: dict[str, dict[str, Any]] = {}  # waiting for your next message, oldest first (snip_of)
+        self._sent_snips: dict[str, dict[str, Any]] = {}  # shown in sent bubbles, newest SENT_SNIPS kept
         # The agent each pane shows, by pane; each agent's latest context (an SSE item), by agent id.
         self._agents = {"worker": ctx.config.get("worker", "main_assistant"), "talker": "talker"}
         self._usage: dict[str, dict[str, Any]] = {}
@@ -251,7 +264,8 @@ class TempUIModule(ModuleProtocol):
         ctx.subscribe(VoiceTranscript, self._on_voice_text)
         ctx.subscribe(InputReceived, self._on_input)
         ctx.subscribe(SessionUsage, self._on_usage)
-        ctx.subscribe(ViewerClip, self._on_snip)
+        ctx.subscribe_named(VIEWER_CLIP, self._on_snip)
+        ctx.subscribe_named(PASTED_CLIP, self._on_snip)
         ctx.subscribe(ResponseReady, self._on_response)
         ctx.subscribe(TaskUpdated, self._on_task)
         ctx.subscribe(AgentActivity, self._on_activity)
@@ -323,17 +337,18 @@ class TempUIModule(ModuleProtocol):
             extra["snips"] = [self._snip_info(s) for s in sent]
         self._push("talker", "you", event.text, agent=event.agent_id or self._focus, **extra)
         if sent:
-            self._ctx.log.info("Snips %s moved into sent message %s", [s.id for s in sent], event.id)
+            self._ctx.log.info("Snips %s moved into sent message %s", [s["id"] for s in sent], event.id)
             for snip in sent:  # still served by GET /snip/<id> for the bubble
-                self._sent_snips[snip.id] = snip
+                self._sent_snips[snip["id"]] = snip
             while len(self._sent_snips) > SENT_SNIPS:
                 del self._sent_snips[next(iter(self._sent_snips))]
             self._snips.clear()
             self._push_snips()
 
-    async def _on_snip(self, event: ViewerClip) -> None:
-        self._snips[event.id] = event
-        self._ctx.log.info("Snip %s shown (%s)", event.id, event.file)
+    async def _on_snip(self, event: ModuleEvent) -> None:
+        snip = snip_of(event.data)  # html_viewer.clip, or a pasted image (temp_ui.clip)
+        self._snips[snip["id"]] = snip
+        self._ctx.log.info("Snip %s shown (%s)", snip["id"], snip["file"])
         while len(self._snips) > MAX_SNIPS:
             oldest = next(iter(self._snips))
             del self._snips[oldest]
@@ -359,12 +374,13 @@ class TempUIModule(ModuleProtocol):
             self._ctx.log.warning("Paste refused: couldn't save it (%s)", exc)
             return {"ok": False, "error": f"couldn't save it: {exc}"}
         self._ctx.log.info("Image pasted as snip %s (%d bytes, %s)", snip_id, len(data), image)
-        self._ctx.publish(ViewerClip(id=snip_id, image_path=str(image), file=PASTED_FILE))
+        self._ctx.publish_named(PASTED_CLIP, {"id": snip_id, "image_path": str(image), "file": PASTED_FILE,
+                                              "heading": None})  # fmt: skip
         return {"ok": True, "id": snip_id}
 
     @staticmethod
-    def _snip_info(snip: ViewerClip) -> dict[str, Any]:
-        return {"id": snip.id, "file": snip.file, "heading": snip.heading}
+    def _snip_info(snip: dict[str, Any]) -> dict[str, Any]:
+        return {"id": snip["id"], "file": snip["file"], "heading": snip["heading"]}
 
     def _snips_item(self) -> dict[str, Any]:
         return {"kind": "snips", "snips": [self._snip_info(s) for s in self._snips.values()]}
@@ -712,7 +728,7 @@ class TempUIModule(ModuleProtocol):
             elif method == "GET" and path.startswith("/snip/"):
                 snip_id = path.removeprefix("/snip/")
                 snip = self._snips.get(snip_id) or self._sent_snips.get(snip_id)
-                image = Path(snip.image_path) if snip else None
+                image = Path(snip["image_path"]) if snip else None
                 if image and image.is_file():
                     await self._respond(writer, 200, "image/png", await asyncio.to_thread(image.read_bytes))
                 else:
@@ -729,7 +745,7 @@ class TempUIModule(ModuleProtocol):
                 body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")
                 if self._snips.pop(str(body.get("id")), None):
                     self._ctx.log.info("Snip %s dropped: the x on its thumbnail", body["id"])
-                    self._ctx.publish(ViewerClipDropped(id=str(body["id"])))
+                    self._ctx.publish_named(CLIP_DROPPED, {"id": str(body["id"])})
                     self._push_snips()
                 await self._respond(writer, 204, "text/plain", b"")
             elif method == "POST" and path == "/open-in-viewer":

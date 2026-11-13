@@ -1,14 +1,18 @@
 """The HTML viewer's handle in the app.
 
-The viewer is its own app (`src/html_viewer`, run alone with `python -m html_viewer`); it
+The viewer is its own app (`app/html_viewer` in this module's folder, which the core puts on
+the import path; run it alone with `python -m html_viewer` and that folder on `PYTHONPATH`); it
 doesn't import the assistant. The two talk over its local HTTP API (this module → viewer)
 and its event stream (viewer → this module). This module starts it on the first show
 request and stops it when the app stops; a viewer you started yourself, it connects to and
 leaves running. It:
 - has a menu: `viewer.open` (open an HTML file in a tab), `viewer.highlight` (open it and
   highlight a quoted part), and `viewer.tabs`; the core offers it through `InvokeTool`
-- relays the viewer's open tabs and highlights as `ViewerTabsChanged`, for the Talker
-- relays your snips as `ViewerClip`, with the image copied into the launch's log folder
+- publishes the viewer's open tabs and highlights as its named event `html_viewer.tabs_changed`
+  (`tabs`, `active`, `highlights` as `[path, text]` pairs), for the Talker
+- publishes your snips as `html_viewer.clip` (`id`, `image_path`, `file`, `heading`), with the
+  image copied into the launch's log folder
+Listeners subscribe by name (`ctx.subscribe_named`), so no type of the viewer's is in the core.
 """
 
 from __future__ import annotations
@@ -26,11 +30,11 @@ from assistant.contracts import (
     ModuleContext,
     ModuleProtocol,
     Result,
-    ViewerClip,
-    ViewerTabsChanged,
 )
 
 DEFAULT_PROFILE = window_profile("html_viewer")
+TABS_CHANGED = "html_viewer.tabs_changed"  # the open tabs or highlights changed
+CLIP = "html_viewer.clip"  # a snip, its image in the launch's log folder
 
 menu = Menu()
 _PATH = {"type": "string", "minLength": 1}
@@ -40,7 +44,7 @@ class HtmlViewerModule(ModuleProtocol):
     manifest = Manifest(
         id="html_viewer",
         description="View, edit, highlight and snip HTML; launches the viewer app",
-        publishes=(ViewerTabsChanged, ViewerClip,),
+        publishes_named=(TABS_CHANGED, CLIP),
     )
     menu = menu
 
@@ -147,7 +151,7 @@ class HtmlViewerModule(ModuleProtocol):
     async def _call(self, method: str, path: str, body: Any = None) -> dict[str, Any]:
         return await self._app.call(method, path, body)
 
-    # --- tabs → ViewerTabsChanged ---
+    # --- tabs → html_viewer.tabs_changed, snips → html_viewer.clip ---
 
     def _follow(self) -> None:
         if self._relay_task is None or self._relay_task.done():
@@ -164,11 +168,11 @@ class HtmlViewerModule(ModuleProtocol):
                 if item.get("kind") != "tabs":
                     continue
                 active = next((t["path"] for t in item["tabs"] if t["active"]), None)
-                marks = tuple((t["path"], h["text"]) for t in item["tabs"] for h in t.get("highlights", []))
-                tabs = (tuple(t["path"] for t in item["tabs"]), active, marks)
+                marks = [[t["path"], h["text"]] for t in item["tabs"] for h in t.get("highlights", [])]
+                tabs = {"tabs": [t["path"] for t in item["tabs"]], "active": active, "highlights": marks}
                 if tabs != last:
                     last = tabs
-                    self._ctx.publish(ViewerTabsChanged(tabs=tabs[0], active=active, highlights=marks))
+                    self._ctx.publish_named(TABS_CHANGED, tabs)
         except (OSError, ValueError):
             pass
 
@@ -186,4 +190,5 @@ class HtmlViewerModule(ModuleProtocol):
         except OSError as exc:
             self._ctx.log.warning("Couldn't keep the snip %s: %s", item["path"], exc)
             image = Path(item["path"])
-        self._ctx.publish(ViewerClip(id=item["id"], image_path=str(image), file=item["file"], heading=item.get("heading")))
+        self._ctx.publish_named(CLIP, {"id": item["id"], "image_path": str(image), "file": item["file"],
+                                       "heading": item.get("heading")})  # fmt: skip

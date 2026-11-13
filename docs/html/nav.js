@@ -637,8 +637,8 @@
               "href": "api/tools.html#tools-offered-today"
             },
             {
-              "name": "Viewer events (API)",
-              "href": "api/messaging.html#viewertabschanged"
+              "name": "Named events (API)",
+              "href": "api/messaging.html#moduleevent"
             },
             {
               "name": "CompanionApp (API)",

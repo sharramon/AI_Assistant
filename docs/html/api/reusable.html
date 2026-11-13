@@ -94,7 +94,7 @@
 <td>event, interface</td>
 <td>A module-owned event matched by name (<code>cv.job_ready</code>, <code>cv.*</code>): no new class, no restart, either side reloads alone; declared in <code>publishes_named</code> / <code>listens_named</code></td>
 <td><code>contracts/messages.py</code>, <code>contracts/module.py</code>, <code>core/context.py</code></td>
-<td>cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens)</td>
+<td>cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens), html_viewer (publishes <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), temp_ui (publishes <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code>), talker (listens to those four)</td>
 </tr>
 <tr>
 <td><a href="messaging.html#inputreceived"><code>InputReceived</code></a></td>
@@ -202,9 +202,9 @@
 <td><code>agent_hub</code> sets it → <code>talker</code>, <code>temp_ui</code> read it</td>
 </tr>
 <tr>
-<td><code>MAX_SNIPS</code>, <code>PASTED_FILE</code> (<a href="messaging.html#viewerclip">messaging</a>)</td>
+<td><code>MAX_SNIPS</code>, <code>PASTED_FILE</code> (<a href="messaging.html#snip-constants">messaging</a>)</td>
 <td>constants</td>
-<td>The snips sent with one message (3); a pasted image's <code>ViewerClip.file</code> (<code>"(pasted)"</code>)</td>
+<td>The snips sent with one message (3); a pasted image's <code>file</code> in a snip's data (<code>"(pasted)"</code>)</td>
 <td><code>contracts/messages.py</code></td>
 <td><code>talker</code>, <code>temp_ui</code></td>
 </tr>
@@ -614,7 +614,7 @@
 <td>functions</td>
 <td>The config a module sees (its <code>module.toml</code> under a section, with the core's reader); a bare module standing in for one another <code>needs</code>; a free local port</td>
 <td><code>testkit/support.py</code></td>
-<td><code>job_search</code> (<code>test_job_search.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code> (<code>module_config</code>, <code>stand_in</code>)</td>
+<td><code>job_search</code> (<code>test_job_search.py</code>), <code>html_viewer</code> (<code>test_html_viewer.py</code>, <code>free_port</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code> (<code>module_config</code>, <code>stand_in</code>)</td>
 </tr>
 <tr>
 <td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>FAKE</code>, <code>FAKE_JOB_UI</code>, <code>TIMEOUT</code></a></td>
@@ -719,7 +719,7 @@
 <td>functions</td>
 <td>The environment for <code>python -m &lt;app&gt;</code>: the folder its package is found in first on <code>PYTHONPATH</code>, the rest kept</td>
 <td><code>app_kit/companion.py</code></td>
-<td><code>CompanionApp.ensure_running</code> (every <code>python -m</code> launch: the CV Tool from <code>cv/app/</code>), <code>tests/test_module_folders.py</code></td>
+<td><code>CompanionApp.ensure_running</code> (every <code>python -m</code> launch: the CV Tool from <code>cv/app/</code>, the HTML viewer from <code>html_viewer/app/</code>), <code>tests/test_module_folders.py</code></td>
 </tr>
 <tr>
 <td><a href="app_kit.html#companionapp"><code>CompanionHandover</code></a></td>

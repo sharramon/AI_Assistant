@@ -104,7 +104,7 @@
 <td>none</td>
 <td><code>InvokeTool</code>, <code>AnswerPermissionRequest</code>, <code>ListAgents</code></td>
 <td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
-<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>ViewerTabsChanged</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
+<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code>, <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
 </tr>
 <tr>
 <td><a href="../modules/temp_ui/index.html"><code>temp_ui</code></a></td>
@@ -114,8 +114,8 @@
 <td>optional <code>IAgentNames</code></td>
 <td>none</td>
 <td><code>ListModules</code>, <code>ListAgents</code>, <code>SetFocus</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>GetTaskStatus</code>, <code>CancelTask</code></td>
-<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>ViewerClip</code>, <code>ViewerClipDropped</code></td>
-<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>FocusChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>ViewerClip</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code></td>
+<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
+<td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>FocusChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code></td>
 </tr>
 <tr>
 <td><a href="../modules/voice_in/index.html"><code>voice_in</code></a></td>
@@ -209,7 +209,7 @@
 <td>none</td>
 <td>none</td>
 <td>none</td>
-<td><code>ViewerTabsChanged</code>, <code>ViewerClip</code></td>
+<td><code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code></td>
 <td>none</td>
 </tr>
 <tr>
@@ -300,22 +300,22 @@
 <td><a href="../api/messaging.html#voicetranscript">messaging</a></td>
 </tr>
 <tr>
-<td><code>ViewerTabsChanged</code></td>
-<td>event</td>
+<td><code>html_viewer.tabs_changed</code></td>
+<td>named event</td>
 <td><code>tabs</code>, <code>active</code>, <code>highlights</code></td>
-<td><a href="../api/messaging.html#viewertabschanged">messaging</a></td>
+<td><a href="../modules/html_viewer/architecture.html#events">html_viewer</a></td>
 </tr>
 <tr>
-<td><code>ViewerClip</code></td>
-<td>event</td>
+<td><code>html_viewer.clip</code>, <code>temp_ui.clip</code></td>
+<td>named events</td>
 <td><code>id</code>, <code>image_path</code>, <code>file</code>, <code>heading</code></td>
-<td><a href="../api/messaging.html#viewerclip">messaging</a></td>
+<td><a href="../modules/html_viewer/architecture.html#events">html_viewer</a>, <a href="../api/messaging.html#moduleevent">messaging</a></td>
 </tr>
 <tr>
-<td><code>ViewerClipDropped</code></td>
-<td>event</td>
+<td><code>temp_ui.clip_dropped</code></td>
+<td>named event</td>
 <td><code>id</code></td>
-<td><a href="../api/messaging.html#viewerclipdropped">messaging</a></td>
+<td><a href="../api/messaging.html#moduleevent">messaging</a></td>
 </tr>
 <tr>
 <td><code>InvokeTool</code></td>
