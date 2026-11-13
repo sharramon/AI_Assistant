@@ -12,10 +12,10 @@
 <nav data-root="" data-page="module-folders-checklist.html"></nav>
 <main>
 <h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
-<p><strong>Count: 3 of 20 done</strong> (items 1, 2 and 20).</p>
+<p><strong>Count: 4 of 20 done</strong> (items 1, 2, 3 and 20).</p>
 <h2 id="morning-list-kept-as-the-run-goes">Morning list, kept as the run goes</h2>
 <ul>
-<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle).</li>
+<li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub).</li>
 <li><strong>Hand checks:</strong> at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).</li>
 <li><strong>Old folders left for you to delete:</strong> none yet.</li>
 </ul>
@@ -51,6 +51,7 @@
 <li><strong>Part 1's cv commit is one commit</strong> (<code>010ecb6</code>): the named events, the job-to-cv events, the cv fixes and the base_ rename share files, so they couldn't be split cleanly.</li>
 <li><strong>Startup adds what's needed</strong> (item 2): a module in <code>modules.enabled</code> whose <code>needs</code> aren't listed still gets them started (decision 4: on means its needs on too). A missing contract provider still fails startup.</li>
 <li><strong>A needed module that fails at startup skips its dependents</strong> (item 2), with no <code>StartupError</code>: cv waiting on its access card counts as failed at startup, and job_search needing it would otherwise stop the whole app. <code>module.toml</code>'s <code>needs</code> replaces any written in code.</li>
+<li><strong>The Hub keeps <code>[modules.agent_hub] named_only</code> as an empty fallback</strong> (item 3): an agent's own <code>named_only = true</code> (read by <code>ProfileAgent</code>, carried on <code>AgentInfo</code>) is the source; the Hub's list stays readable for an agent not built from a profile, empty by default.</li>
 </ol>
 <h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
 <table>
@@ -136,7 +137,8 @@
 <li><strong>How:</strong> add <code>needs: tuple[str, ...]</code> to <code>Manifest</code> (contracts), read from <code>module.toml</code>; the registry checks that every needed module exists; the lifecycle turns needed modules on first and refuses to turn off one that an active module needs. Tests in <code>tests/test_module_folders.py</code> and the core's tests. Docs: <code>docs/api/modules.md</code> (<code>Manifest</code>), <code>docs/architecture/modules.md</code>.</li>
 <li><strong>Done when:</strong> <code>cv/module.toml</code> contains <code>needs = []</code>; <code>Manifest</code> has <code>needs</code>; a test turns on a module that needs another and sees both on, and a test refuses turning off a needed module.</li>
 </ul>
-<h3 id="3-cv-the-agent-section-is-complete">3. cv: the <code>[agent]</code> section is complete</h3>
+<h3 id="3-cv-the-agent-section-is-complete-done-2026-11-13">3. cv: the <code>[agent]</code> section is complete: <strong>done</strong> (2026-11-13)</h3>
+<p><strong>Checked:</strong> <code>config/default.toml</code> has no <code>cv_agent</code>; <code>cv/module.toml</code> <code>[agent]</code> has <code>named_only = true</code>; <code>test_cv_agent_is_named_only_from_its_own_section</code> and <code>test_a_free_pick_never_lands_on_a_named_only_agent</code> pass; full suite 851 passed, 2 deselected; ruff clean. <strong>Needs an app restart.</strong></p>
 <ul>
 <li><strong>What:</strong> everything about cv_agent lives in cv's <code>[agent]</code> section, including what agent_hub held for it (<code>named_only = ["cv_agent"]</code> in <code>config/default.toml</code>).</li>
 <li><strong>Why:</strong> the picture: "[agent] cv_agent ← agent_hub's section"; the audit's row 3 is only partly done.</li>

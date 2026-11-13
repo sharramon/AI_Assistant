@@ -55,7 +55,8 @@ class AgentState(StrEnum):
 
 class AgentInfo(BaseModel):
     """Who an agent is, and its `state` (active or idle). `write_folders`: the folders it may
-    write, for the Hub's folder-clash check."""
+    write, for the Hub's folder-clash check. `named_only`: a free pick (`hub.start` with no
+    agent_id) never lands on it; it's started only when named (set from its own config)."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -65,6 +66,7 @@ class AgentInfo(BaseModel):
     state: AgentState = AgentState.IDLE
     permission_mode: PermissionMode = PermissionMode.MANUAL
     write_folders: tuple[str, ...] = ()
+    named_only: bool = False
 
     @property
     def active(self) -> bool:

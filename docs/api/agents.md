@@ -160,7 +160,7 @@ An agent is `active` while it's in a turn, or held in one by a permission card, 
 
 ## `AgentInfo`
 
-`AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), state: AgentState = AgentState.IDLE, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = ())`
+`AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), state: AgentState = AgentState.IDLE, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = (), named_only: bool = False)`
 
 Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 
@@ -172,6 +172,7 @@ Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 | `state` | [`AgentState`](#agentstate) | `active` (in a turn) or `idle`. `info.active` (property) is `state is AgentState.ACTIVE` |
 | `permission_mode` | `PermissionMode` | The mode its next session starts in; Manual at every launch |
 | `write_folders` | `tuple[str, ...]` | Every folder it may write, resolved (its workspace and `write_dirs`, from [`AgentProfile.write_folders`](infra.md#agentprofile)). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it, except a module's own folder under a wider grant (a module's agent beside the Main Assistant's whole repo; [the rule](../../src/assistant/modules/agent_hub/docs/architecture.md#owns-and-launches)) |
+| `named_only` | `bool` | A free pick ([`StartTask`](#starttask) or `hub.start` with no `agent_id`) never lands on it; it starts only when named. Set by the agent's own config, `named_only = true` in its section ([`ProfileAgent`](infra.md#profileagent) reads it; cv_agent: cv's `[agent]`). Built 2026-11-13 |
 
 ## `PermissionMode`
 
@@ -239,7 +240,7 @@ Every registered agent, whether it's active or idle, and its permission mode. Ha
 
 `StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None, tell_parent: bool = True)` (command)
 
-Give work to a free (idle) agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task, or by a module that starts an agent for a caller (`cv.task`). `context` goes to the agent doing the task. `tell_parent=False` (2026-11-12): the Hub sends the parent's agent no message when this task ends, because the module that started it reports the end itself as a named event (`cv.task`: `cv.job_finished`). The parent link stays, so the parent's agent may still `hub.send` to the task. Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an active task; past that, `not_available`. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no `agent_id`) skips the agents in `[modules.agent_hub] named_only` (and `start_only_by`).
+Give work to a free (idle) agent, or to `agent_id` only. Handled by the Agent Hub. `parent_task_id` is set by the Hub's `hub.start` item for an agent's child task, or by a module that starts an agent for a caller (`cv.task`). `context` goes to the agent doing the task. `tell_parent=False` (2026-11-12): the Hub sends the parent's agent no message when this task ends, because the module that started it reports the end itself as a named event (`cv.task`: `cv.job_finished`). The parent link stays, so the parent's agent may still `hub.send` to the task. Several agents may run at once, one task each: the coordinator plus at most `[modules.agent_hub] max_extra_agents` (3) other agents with an active task; past that, `not_available`. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no `agent_id`) skips an agent whose [`AgentInfo.named_only`](#agentinfo) is true (set in its own config section), and the agents in the Hub's fallback lists `[modules.agent_hub] named_only` and `start_only_by`.
 
 **Returns:** `Result.ok(task_id)`; `not_available` if no agent is free, the cap is reached, or the agent would write a folder another active task's agent writes ([`AgentInfo.write_folders`](#agentinfo)); `invalid_arguments` for an unknown `agent_id`.
 

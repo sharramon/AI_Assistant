@@ -118,7 +118,8 @@ class AgentHubModule(ModuleProtocol):
             focused=lambda: self._focus.focused(), feed=self._feed, coordinator=self._coordinator,
             # Big agents besides the coordinator that may have an open task at once.
             max_extra=int(ctx.config.get("max_extra_agents", 3)),
-            restricted=frozenset(self._start_only_by) | named,  # a free-agent pick never lands on these
+            # A free-agent pick never lands on these, nor on an agent whose info() says named_only.
+            restricted=frozenset(self._start_only_by) | named,
             # A finished child task's end, as a message to its parent's agent (delivery is made below).
             tell_parent=lambda agent_id, text, task_id="": self._delivery.tell(agent_id, text, task_id),
         )  # fmt: skip
@@ -354,7 +355,8 @@ class AgentHubModule(ModuleProtocol):
 
 def agent_ids(value: object, key: str) -> frozenset[str]:
     """`[modules.agent_hub] <key>`: a list of agent ids. ValueError if it isn't one.
-    `named_only`: agents a free-agent pick (`hub.start` with no agent_id) never lands on."""
+    `named_only`: a fallback list of agents a free-agent pick (`hub.start` with no agent_id) never
+    lands on; the usual place is the agent's own config (`AgentInfo.named_only`)."""
     if not (isinstance(value, list) and all(isinstance(v, str) and v for v in value)):
         raise ValueError(f"agent_hub: {key} must be a list of agent ids, not {value!r}")
     return frozenset(value)

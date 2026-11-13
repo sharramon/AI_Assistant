@@ -1,10 +1,10 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 3 of 20 done** (items 1, 2 and 20).
+**Count: 4 of 20 done** (items 1, 2, 3 and 20).
 
 ## Morning list, kept as the run goes
 
-- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle).
+- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub).
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
 - **Old folders left for you to delete:** none yet.
 
@@ -44,6 +44,7 @@ For you to review. Each picks the option closest to the approved picture.
 11. **Part 1's cv commit is one commit** (`010ecb6`): the named events, the job-to-cv events, the cv fixes and the base_ rename share files, so they couldn't be split cleanly.
 12. **Startup adds what's needed** (item 2): a module in `modules.enabled` whose `needs` aren't listed still gets them started (decision 4: on means its needs on too). A missing contract provider still fails startup.
 13. **A needed module that fails at startup skips its dependents** (item 2), with no `StartupError`: cv waiting on its access card counts as failed at startup, and job_search needing it would otherwise stop the whole app. `module.toml`'s `needs` replaces any written in code.
+14. **The Hub keeps `[modules.agent_hub] named_only` as an empty fallback** (item 3): an agent's own `named_only = true` (read by `ProfileAgent`, carried on `AgentInfo`) is the source; the Hub's list stays readable for an agent not built from a profile, empty by default.
 
 ## The safeguards (from the audit, section 4)
 
@@ -85,7 +86,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** add `needs: tuple[str, ...]` to `Manifest` (contracts), read from `module.toml`; the registry checks that every needed module exists; the lifecycle turns needed modules on first and refuses to turn off one that an active module needs. Tests in `tests/test_module_folders.py` and the core's tests. Docs: `docs/api/modules.md` (`Manifest`), `docs/architecture/modules.md`.
 - **Done when:** `cv/module.toml` contains `needs = []`; `Manifest` has `needs`; a test turns on a module that needs another and sees both on, and a test refuses turning off a needed module.
 
-### 3. cv: the `[agent]` section is complete
+### 3. cv: the `[agent]` section is complete: **done** (2026-11-13)
+
+**Checked:** `config/default.toml` has no `cv_agent`; `cv/module.toml` `[agent]` has `named_only = true`; `test_cv_agent_is_named_only_from_its_own_section` and `test_a_free_pick_never_lands_on_a_named_only_agent` pass; full suite 851 passed, 2 deselected; ruff clean. **Needs an app restart.**
 
 - **What:** everything about cv_agent lives in cv's `[agent]` section, including what agent_hub held for it (`named_only = ["cv_agent"]` in `config/default.toml`).
 - **Why:** the picture: "[agent] cv_agent ← agent_hub's section"; the audit's row 3 is only partly done.

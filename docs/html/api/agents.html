@@ -236,7 +236,7 @@
 <p><code>class AgentState(StrEnum)</code>: <code>ACTIVE</code> (<code>"active"</code>), <code>IDLE</code> (<code>"idle"</code>).</p>
 <p>An agent is <code>active</code> while it's in a turn, or held in one by a permission card, and <code>idle</code> otherwise. An idle agent takes new work, whatever questions it has open: a question never keeps it busy. It replaced the old <code>busy</code> and <code>working</code> flags.</p>
 <h2 id="agentinfo"><code>AgentInfo</code></h2>
-<p><code>AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), state: AgentState = AgentState.IDLE, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = ())</code></p>
+<p><code>AgentInfo(agent_id: str, description: str, capabilities: tuple[str, ...] = (), state: AgentState = AgentState.IDLE, permission_mode: PermissionMode = PermissionMode.MANUAL, write_folders: tuple[str, ...] = (), named_only: bool = False)</code></p>
 <p>Frozen. What <a href="#itaskagentinfo"><code>ITaskAgent.info</code></a> returns.</p>
 <table>
 <thead>
@@ -276,6 +276,11 @@
 <td><code>write_folders</code></td>
 <td><code>tuple[str, ...]</code></td>
 <td>Every folder it may write, resolved (its workspace and <code>write_dirs</code>, from <a href="infra.html#agentprofile"><code>AgentProfile.write_folders</code></a>). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it, except a module's own folder under a wider grant (a module's agent beside the Main Assistant's whole repo; <a href="../modules/agent_hub/architecture.html#owns-and-launches">the rule</a>)</td>
+</tr>
+<tr>
+<td><code>named_only</code></td>
+<td><code>bool</code></td>
+<td>A free pick (<a href="#starttask"><code>StartTask</code></a> or <code>hub.start</code> with no <code>agent_id</code>) never lands on it; it starts only when named. Set by the agent's own config, <code>named_only = true</code> in its section (<a href="infra.html#profileagent"><code>ProfileAgent</code></a> reads it; cv_agent: cv's <code>[agent]</code>). Built 2026-11-13</td>
 </tr>
 </tbody>
 </table>
@@ -397,7 +402,7 @@ active = [a.agent_id for a in result.value if a.active]
 </code></pre>
 <h2 id="starttask"><code>StartTask</code></h2>
 <p><code>StartTask(text: str, context: str = "", agent_id: str | None = None, parent_task_id: str | None = None, tell_parent: bool = True)</code> (command)</p>
-<p>Give work to a free (idle) agent, or to <code>agent_id</code> only. Handled by the Agent Hub. <code>parent_task_id</code> is set by the Hub's <code>hub.start</code> item for an agent's child task, or by a module that starts an agent for a caller (<code>cv.task</code>). <code>context</code> goes to the agent doing the task. <code>tell_parent=False</code> (2026-11-12): the Hub sends the parent's agent no message when this task ends, because the module that started it reports the end itself as a named event (<code>cv.task</code>: <code>cv.job_finished</code>). The parent link stays, so the parent's agent may still <code>hub.send</code> to the task. Several agents may run at once, one task each: the coordinator plus at most <code>[modules.agent_hub] max_extra_agents</code> (3) other agents with an active task; past that, <code>not_available</code>. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no <code>agent_id</code>) skips the agents in <code>[modules.agent_hub] named_only</code> (and <code>start_only_by</code>).</p>
+<p>Give work to a free (idle) agent, or to <code>agent_id</code> only. Handled by the Agent Hub. <code>parent_task_id</code> is set by the Hub's <code>hub.start</code> item for an agent's child task, or by a module that starts an agent for a caller (<code>cv.task</code>). <code>context</code> goes to the agent doing the task. <code>tell_parent=False</code> (2026-11-12): the Hub sends the parent's agent no message when this task ends, because the module that started it reports the end itself as a named event (<code>cv.task</code>: <code>cv.job_finished</code>). The parent link stays, so the parent's agent may still <code>hub.send</code> to the task. Several agents may run at once, one task each: the coordinator plus at most <code>[modules.agent_hub] max_extra_agents</code> (3) other agents with an active task; past that, <code>not_available</code>. Only active tasks count for the cap and the folder check: a task holding a question ties up no agent. A free pick (no <code>agent_id</code>) skips an agent whose <a href="#agentinfo"><code>AgentInfo.named_only</code></a> is true (set in its own config section), and the agents in the Hub's fallback lists <code>[modules.agent_hub] named_only</code> and <code>start_only_by</code>.</p>
 <p><strong>Returns:</strong> <code>Result.ok(task_id)</code>; <code>not_available</code> if no agent is free, the cap is reached, or the agent would write a folder another active task's agent writes (<a href="#agentinfo"><code>AgentInfo.write_folders</code></a>); <code>invalid_arguments</code> for an unknown <code>agent_id</code>.</p>
 <h2 id="delivermessage"><code>DeliverMessage</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>cv</code> sends (the result at Submit); <code>agent_hub</code> handles (<code>Delivery</code>, <code>delivery.py</code>) and its message gate delivers through it · built 2026-11-10</p>

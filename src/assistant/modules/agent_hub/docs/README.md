@@ -15,7 +15,7 @@ Holds the authoritative task state and routes work between the Talker and the ta
 
 ## Config
 
-`[modules.agent_hub]`: `coordinator` (default `main_assistant`), `max_extra_agents` (default 3: big agents besides the coordinator with an active task at once), `named_only` (agents a free-agent pick, `hub.start` with no `agent_id`, never lands on; anyone may still name them; `default.toml`: `["cv_agent"]`, whose jobs come from `cv.task`), `start_only_by` (agent id → the only callers whose `hub.start` may start it; the Talker always may, and a free-agent pick skips these agents too; empty by default), `door`, `door_host`, `door_port`.
+`[modules.agent_hub]`: `coordinator` (default `main_assistant`), `max_extra_agents` (default 3: big agents besides the coordinator with an active task at once), `named_only` (an optional fallback list of agent ids a free-agent pick, `hub.start` with no `agent_id`, never lands on; empty by default. The usual place is the agent's own config: `named_only = true` in its section, read from [`AgentInfo.named_only`](../../../../../docs/api/agents.md#agentinfo); cv_agent sets it in cv's `[agent]`, since its jobs come from `cv.task`. Anyone may still name such an agent), `start_only_by` (agent id → the only callers whose `hub.start` may start it; the Talker always may, and a free-agent pick skips these agents too; empty by default), `door`, `door_host`, `door_port`.
 
 ## Code and tests
 

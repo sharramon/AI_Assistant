@@ -239,7 +239,7 @@ What makes one `claude` task agent: everything but its own prompt comes from con
 
 `session_factory` builds its session (with `ClaudeSession`'s arguments): pass a fake to test or swap it without patching (principle 22). A module that owns ProfileAgents declares what they use from [`AGENT_USES` and the rest](#agentkit).
 
-One big agent put together from its config section, the same way for every agent: an [`AgentProfile`](#agentprofile), a [`ClaudeSession`](#claudesession) whose command is read at each session start (the mode of that moment, and the module door under the agent's own name), and a [`SessionTaskAgent`](#sessiontaskagent) with the profile's `write_folders`. The owning module provides `agent` as `ITaskAgent`. It claims its id from the Hub ([`IAgentNames`](agents.md#iagentnames)) on `start` and releases it on `stop`, so every agent built this way gets the duplicate check with no code of its own.
+One big agent put together from its config section, the same way for every agent: an [`AgentProfile`](#agentprofile), a [`ClaudeSession`](#claudesession) whose command is read at each session start (the mode of that moment, and the module door under the agent's own name), and a [`SessionTaskAgent`](#sessiontaskagent) with the profile's `write_folders` and the section's `named_only` (true: a free pick skips it, [`AgentInfo.named_only`](agents.md#agentinfo); not true or false: `ValueError`). The owning module provides `agent` as `ITaskAgent`. It claims its id from the Hub ([`IAgentNames`](agents.md#iagentnames)) on `start` and releases it on `stop`, so every agent built this way gets the duplicate check with no code of its own.
 
 | Member | Does |
 |--------|------|

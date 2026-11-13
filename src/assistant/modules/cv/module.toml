@@ -66,3 +66,6 @@ chrome = true                 # Claude in Chrome, only for app.rezi.ai (its prom
 permission_mode = "acceptEdits"
 permission_timeout = 600.0
 transcript = "cv_agent.jsonl"
+# A free pick (hub.start with no agent_id) never lands on cv_agent: its jobs come from cv.task,
+# which starts it itself. Anyone may still name it.
+named_only = true

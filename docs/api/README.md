@@ -100,7 +100,7 @@ Task agents and the Agent Hub. `from assistant.contracts import ...`
 | [`IAgentNames`](agents.md#iagentnames) | contract | ♻ The agent ids in use (`check`, `claim`, `release`, `taken`), so no two agents share one; `agent_hub` provides |
 | [`Task`](agents.md#task) | data | A unit of work: id, text, context, `question_key` (an answer to its question) |
 | [`AgentState`](agents.md#agentstate) | enum | ♻ `active` (in a turn) or `idle` (takes work, whatever questions it has open) |
-| [`AgentInfo`](agents.md#agentinfo) | data | An agent's id, description, capabilities, `state` (`AgentState`; `.active`), `permission_mode` |
+| [`AgentInfo`](agents.md#agentinfo) | data | An agent's id, description, capabilities, `state` (`AgentState`; `.active`), `permission_mode`, `write_folders`, `named_only` (a free pick skips it) |
 | [`TaskInfo`](agents.md#taskinfo) | data | A task as the Hub knows it, with its recent activity and its question's kind |
 | [`QuestionKind`](agents.md#questionkind) | enum | ♻ What a task's open question is: `permission`, `risky`, `need`, `wait` (it ended waiting) or none; set by the Hub, so nobody parses the text |
 | [`TaskState`](agents.md#taskstate) | enum | `active`, `idle` (stopped, or holding its agent's question), `done`, `failed`, `cancelled` |

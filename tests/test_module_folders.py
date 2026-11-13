@@ -6,7 +6,10 @@ own module folder only, and the Hub lets it work beside the Main Assistant's who
 while two agents on one module folder are still refused, with the folder named.
 
 Item 2: a `needs` list. cv's module.toml declares `needs`, the core puts it on the manifest, and
-the lifecycle turns needed modules on first and refuses to turn one off while a module needs it."""
+the lifecycle turns needed modules on first and refuses to turn one off while a module needs it.
+
+Item 3: cv's `[agent]` section is complete. cv_agent's `named_only = true` is in its own section,
+not in agent_hub's config; the Hub reads it from the agent (`AgentInfo.named_only`)."""
 
 from __future__ import annotations
 
@@ -19,6 +22,7 @@ import pytest
 from assistant.contracts import (
     AccessKind,
     ActivateModule,
+    AgentInfo,
     DeactivateModule,
     Manifest,
     ModuleContext,
@@ -29,6 +33,7 @@ from assistant.contracts import (
 )
 from assistant.core import App, StartupError, loader
 from assistant.infra import MODULES_FOLDER, access_items, module_folder, module_folder_of, request_access
+from assistant.infra.profile_agent import named_only
 from assistant.modules.agent_hub.tasks import folders_clash
 from assistant.modules.cv import CvModule
 from tests.support import make_config
@@ -173,3 +178,32 @@ async def test_a_missing_needed_module_is_named() -> None:
     result = await app.router.send(ActivateModule(module_id="needs_missing"))
     assert result.status is Status.NOT_AVAILABLE and "no_such_part" in result.error
     await app.stop()
+
+
+# Item 3: cv's [agent] section is complete.
+
+
+def test_cv_agent_is_named_only_from_its_own_section() -> None:
+    assert "cv_agent" not in (REPO / "config" / "default.toml").read_text(encoding="utf-8")
+    toml = tomllib.loads((CV / "module.toml").read_text(encoding="utf-8"))
+    assert toml["agent"]["agent_id"] == "cv_agent" and toml["agent"]["named_only"] is True
+    # The flag reaches the agent's info() through ProfileAgent; a wrong value is refused.
+    assert named_only("cv_agent", toml["agent"]) is True and named_only("helper", {}) is False
+    with pytest.raises(ValueError, match="named_only"):
+        named_only("helper", {"named_only": "yes"})
+
+
+class NamedOnlyAgent(FakeAgent):
+    def info(self) -> AgentInfo:
+        return super().info().model_copy(update={"named_only": True})
+
+
+async def test_a_free_pick_never_lands_on_a_named_only_agent() -> None:
+    rig = Rig(NamedOnlyAgent("cv_agent"))
+    assert (await rig.board.start(StartTask(text="anyone"))).status is Status.NOT_AVAILABLE
+    # A normal free agent beside it is picked, whatever the order.
+    rig = Rig(NamedOnlyAgent("cv_agent"), FakeAgent("helper"))
+    started = await rig.board.start(StartTask(text="anyone"))
+    assert started.is_ok and rig.board.get(started.value).agent_id == "helper"
+    # Named, it still starts.
+    assert (await rig.board.start(StartTask(text="for you", agent_id="cv_agent"))).is_ok

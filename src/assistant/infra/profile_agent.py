@@ -18,10 +18,18 @@ from assistant.infra.claude_session import ClaudeSession
 from assistant.infra.session_agent import SessionTaskAgent
 
 
+def named_only(agent_id: str, config: dict[str, Any]) -> bool:
+    """The agent's own `named_only` key (default false). ValueError if it isn't true or false."""
+    value = config.get("named_only", False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{agent_id}: named_only must be true or false, not {value!r}")
+    return value
+
+
 class ProfileAgent:
     """A `claude` task agent from `config` (an agent's section: `AgentProfile.from_config`'s keys,
     plus `description`, `capabilities`, `permission_timeout`, `fresh_sessions`, `max_handoffs`,
-    `context_reminder`, `edit_note`, `transcript`, `door`).
+    `context_reminder`, `edit_note`, `transcript`, `door`, `named_only`: a free pick never lands on it).
 
     The session's command is read at each session start, so it gets the permission mode of that
     moment, the module door's config under this agent's own name (`mcp_config(agent_id)`, or
@@ -83,6 +91,7 @@ class ProfileAgent:
             write_folders=self.profile.write_folders(),
             compact_handoffs=lambda: self.profile.chrome,  # its tabs stay across a handoff
             close_tabs=lambda: self.profile.chrome,  # and are closed at the task's end
+            named_only=named_only(agent_id, config),  # a free pick (hub.start, no agent_id) skips it
         )
 
     def _profile(self, config: dict[str, Any]) -> AgentProfile:

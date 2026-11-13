@@ -147,7 +147,7 @@ class SessionTaskAgent(ITaskAgent):
     in the mode for real.
 
     Working with other agents: `write_folders` (from its `AgentProfile`) goes into `info()`
-    for the Hub's folder-clash check. Each `STATUS: <line>` in its text is reported as a
+    for the Hub's folder-clash check, and `named_only` for its free picks (skipped when True). Each `STATUS: <line>` in its text is reported as a
     `milestone`. `note(line)` (the Hub's feed: other agents' milestones, focus moves,
     callbacks) waits in a `MilestoneFeed` and is added, as one block, to the end of the next
     message it writes to its session: a new task, a message, or its own `Continue`.
@@ -178,7 +178,9 @@ class SessionTaskAgent(ITaskAgent):
         write_folders: tuple[str, ...] = (),
         compact_handoffs: Callable[[], bool] = lambda: False,
         close_tabs: Callable[[], bool] = lambda: False,
+        named_only: bool = False,
     ):
+        self._named_only = named_only  # `info().named_only`: a free pick skips it
         self._session = session
         self._close_tabs = close_tabs  # True for an agent with Chrome (chrome-tabs-close.md)
         self._chrome_used = False  # the task used a Chrome tool since its tabs were last checked
@@ -285,6 +287,7 @@ class SessionTaskAgent(ITaskAgent):
             state=self.state,
             permission_mode=self._permission_mode,
             write_folders=self._write_folders,
+            named_only=self._named_only,
         )
 
     def note(self, text: str) -> None:

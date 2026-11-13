@@ -108,7 +108,7 @@ def app_with(tmp_path: Path, grant: bool = True, extra: tuple = (), **agent) -> 
     """The Hub and cv, all in tmp_path; `extra`: more module classes, enabled too."""
     own = section(tmp_path, **agent)
     enabled = ["agent_hub", "cv", *(m.manifest.id for m in extra)]
-    config = {"modules": {"enabled": enabled, "agent_hub": {"door": False, "named_only": ["cv_agent"]}, "cv": own}, "core": {}}
+    config = {"modules": {"enabled": enabled, "agent_hub": {"door": False}, "cv": own}, "core": {}}
     app = App([AgentHubModule, CvModule, *extra], config)
     if grant:
         pre_grant(app, "cv", "cv_agent", settings(merge(DEFAULTS, own))["agent"]["config"])

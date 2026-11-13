@@ -232,7 +232,8 @@ class TaskBoard:
             if not agents:
                 return Result.invalid_arguments(f"No agent {command.agent_id!r}")
         else:
-            agents = [a for a in agents if a.info().agent_id not in self._restricted]
+            # A free pick skips named-only agents: by their own flag, or the Hub's fallback list.
+            agents = [a for a in agents if not a.info().named_only and a.info().agent_id not in self._restricted]
         if not agents:
             return Result.not_available("No agent is running")
         # Only active tasks count: an idle agent writes nothing, and a question waiting on you ties up no agent.
