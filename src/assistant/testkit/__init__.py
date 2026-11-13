@@ -20,7 +20,17 @@ from .agents import (
     start_hub,
     status,
 )
-from .support import Calculator, Speaker, make_config, pre_grant, pre_grant_kinds, wait_until
+from .support import (
+    Calculator,
+    Speaker,
+    free_port,
+    make_config,
+    module_config,
+    pre_grant,
+    pre_grant_kinds,
+    stand_in,
+    wait_until,
+)
 
 __all__ = [
     "FAKE",
@@ -32,11 +42,14 @@ __all__ = [
     "StubContext",
     "StubSession",
     "agent_module",
+    "free_port",
     "make_config",
+    "module_config",
     "next_matching",
     "pre_grant",
     "pre_grant_kinds",
     "report",
+    "stand_in",
     "start_hub",
     "status",
     "wait_until",

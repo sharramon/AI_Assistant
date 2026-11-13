@@ -8,7 +8,7 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 
 ## Helpers
 
-**Reusable** · Used by: almost every central test; `cv` (`test_worker.py`: `pre_grant`, `wait_until`), `agent_hub` (`test_gate.py`: `wait_until`), `echo_orchestrator` (`test_echo.py`: `make_config`)
+**Reusable** · Used by: almost every central test; `cv` (`test_worker.py`: `pre_grant`, `wait_until`), `agent_hub` (`test_gate.py`: `wait_until`), `echo_orchestrator` (`test_echo.py`: `make_config`), `job_search` (`test_job_search.py`: `pre_grant`, `module_config`, `stand_in`, `free_port`, `wait_until`); `module_config` and `stand_in` also `test_access_cards`, `test_agent_names`, `test_agent_tabs`
 
 | Item | Does |
 |------|------|
@@ -16,7 +16,10 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 | `await wait_until(predicate, timeout=1.0)` | Wait until `predicate()` is true; `TimeoutError` after `timeout` seconds |
 | `Speaker` | A single-provider contract for tests (it reports itself as living in `assistant.contracts`) |
 | `Calculator` | A module providing `IToolProvider` with one tool, `add` |
-| `pre_grant(app, module_id, subject, config, own_folder=None)` | Save a grant for `config`'s whole access list, so `module_id` turns on with no card. `own_folder`: the list has the module's own folder (default: every module but `task_agents`) |
+| `pre_grant(app, module_id, subject, config, own_folder=None)` | Save a grant for `config`'s whole access list, so `module_id` turns on with no card. `own_folder`: the list has the module's own folder (default: every module but `task_agents`). Give it the config the module sees: for a module with defaults, `module_config(module_id, section)` |
+| `module_config(module_id, section=None) -> dict` | The config a module sees, built as the core builds it: its `module.toml` defaults (read with the core's `loader.module_defaults`) with `section` merged over them |
+| `stand_in(module_id) -> type` | A bare module class with that id and nothing else, standing in for a module another one `needs` (job_search needs cv), so a test starts the one under test without the real one |
+| `free_port() -> int` | A free TCP port on 127.0.0.1, for a test server (some central tests still keep their own copy) |
 | `pre_grant_kinds(app, module_config, module_id="task_agents")` | Pre-grant every kind of a `task_agents` config |
 
 **Defined in:** `src/assistant/testkit/support.py`

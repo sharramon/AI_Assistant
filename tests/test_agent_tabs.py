@@ -21,7 +21,7 @@ from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.job_search import JobSearchModule
 from assistant.modules.task_agents import TaskAgentsModule
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE, agent_module, pre_grant, wait_until
+from assistant.testkit import FAKE, agent_module, module_config, pre_grant, stand_in, wait_until
 from tests.test_temp_ui import post, request, ui_port
 
 
@@ -35,11 +35,11 @@ async def start(tmp_path, grant_helper: bool = True, helpers_on: bool = True) ->
     enabled = ["agent_hub", "main_assistant", "job_search", "temp_ui", *(["task_agents"] if helpers_on else [])]
     config = {"modules": {"enabled": enabled, "agent_hub": {"door": False}, "task_agents": {"agents": kinds},
                           "job_search": job, "temp_ui": {"port": 0, "window": "none"}}, "core": {}}  # fmt: skip
-    app = App([AgentHubModule, main_module, TaskAgentsModule, JobSearchModule, TempUIModule], config)
+    app = App([AgentHubModule, main_module, TaskAgentsModule, stand_in("cv"), JobSearchModule, TempUIModule], config)
     pre_grant(app, "task_agents", "scout", kinds["scout"])
     if grant_helper:
         pre_grant(app, "task_agents", "helper", kinds["helper"])
-    pre_grant(app, "job_search", "job_search_agent", job)
+    pre_grant(app, "job_search", "job_search_agent", module_config("job_search", job))
     await app.start()
     return app
 

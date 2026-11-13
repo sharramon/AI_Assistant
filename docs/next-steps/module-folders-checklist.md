@@ -1,12 +1,13 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 7 of 20 done** (items 1 to 6 and 20).
+**Count: 8 of 20 done** (items 1 to 7 and 20).
 
 **Architecture check after the cv chunk (items 2–6):** modularity OK (no cv-specific code in the core, contracts, infra or `app_kit`, only examples in comments; every module's `app/` is checked never to import `assistant`); reuse OK (`add_app_folders`, `launch_env`, `apply_module_toml` and `assistant.testkit` are in the reusable index with Used by lines); fit OK (the core reads `needs` and `packages` from any `module.toml`, no names).
 
 ## Morning list, kept as the run goes
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`).
+- **Hand check, item 7:** after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.
 - **Hand check, item 4:** after the restart, `cv.open_tool` opens the CV Tool from `modules/cv/app/cv_tool/`.
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
 - **Old folders left for you to delete:** none yet.
@@ -52,6 +53,7 @@ For you to review. Each picks the option closest to the approved picture.
 16. **The CV Tool's defaults are its module's workspace** (item 4): `cvlib.WORKSPACE` = `modules/cv/workspace` (with a made-up `cvs` folder for running it by hand); the cv module still passes its real folders on the command line.
 17. **The test kit is `assistant.testkit`** (item 5), moved from `tests/` (`support.py`, `fake_claude.py`, `fake_job_ui.py`, and the agent fakes from `test_agents.py` / `test_multi_agent.py`), with no pytest code; the `hub` fixture stays in `tests/test_agents.py`. The loader counts it as shared code (not reloadable). No cv-only test was left in `tests/`, so none moved.
 18. **cv lists only pymupdf** (item 6): it also uses `pypdf` and `mcp`, which were never in `pyproject.toml`; adding them to cv's `packages` is left for you. `cv_tool` left ruff's `known-first-party` (the `src` glob over `modules/*/app` covers every app). cv's `ruff.toml` extends the root config and keeps the cache at the root.
+19. **job_search's tests use a stand-in cv** (item 7): `needs = ["cv"]` means job_search can't start without a cv module, so the tests start a bare `stand_in("cv")` (test kit) rather than the real cv with its access card. Its `module.toml` keeps the job paths that were already committed; item 18 replaces them.
 
 ## The safeguards (from the audit, section 4)
 
@@ -129,7 +131,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** add `packages = ["pymupdf>=1.24"]` to `module.toml` and the `packages` field to `Manifest`; remove the `cv` extra and the `src/cv_tool/cvlib.py` per-file ignore from `pyproject.toml`; add `modules/cv/ruff.toml` with `extend` to the root config and the per-file ignore. Nothing is installed.
 - **Done when:** `pyproject.toml` has no `cv`, `pymupdf` or `cv_tool` line; `ruff check` is clean; the tripwire test (no module package in `pyproject.toml`) passes.
 
-### 7. job_search: defaults, needs and tests in the module
+### 7. job_search: defaults, needs and tests in the module: **done** (2026-11-13)
+
+**Checked:** `job_search/module.toml` line 6 is `needs = ["cv"]`; `config/default.toml` has no `modules.job_search`; `tests/test_job_search.py` is gone and its tests pass from `modules/job_search/tests/`; `test_job_search_has_its_module_toml` passes; the merged config equals the old one (a test); full suite 862 passed, 2 deselected; ruff clean. Takes effect at the next start (with items 1–6's restart).
 
 - **What:** `modules/job_search/module.toml` holds job_search's defaults (from `[modules.job_search]` in `config/default.toml`) and `needs = ["cv"]`, and its tests (`tests/test_job_search.py`, `tests/fake_job_ui.py`) live in its `tests/`.
 - **Why:** the picture: "job_search/ code · docs · tests · needs cv".

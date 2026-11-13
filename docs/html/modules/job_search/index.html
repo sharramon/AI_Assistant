@@ -36,18 +36,27 @@
 <td>none</td>
 </tr>
 <tr>
+<td>needs</td>
+<td><code>cv</code> (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): turning job_search on turns cv on first, and cv can't be turned off while job_search is on. The code still reaches cv only through its menu (<code>cv.task</code>) and its named events</td>
+</tr>
+<tr>
+<td>packages</td>
+<td>none (its job UI and searches run with JobRadar's own Python)</td>
+</tr>
+<tr>
 <td>permissions</td>
 <td><code>agent.access</code>: it asks for its config's access list when turned on (<a href="../../architecture/permissions.html#access-lists-built">access lists</a>)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p><code>[modules.job_search]</code>: <code>ProfileAgent</code>'s keys plus <code>agent_id</code> (default <code>job_search_agent</code>: the module id plus <code>_agent</code>; transcript <code>job_search_agent.jsonl</code>). Shipped: workspace <code>C:/Chang/Jobs/CV</code>, reads <code>C:/Chang/Jobs</code> and JobRadar, <code>python</code> (JobRadar's Python, any arguments), <code>tools = "default"</code>, <code>chrome = true</code>. These keys are its access list, asked for on one card (<a href="../../api/infra.html#agent_access"><code>access_items</code></a>). <code>permission_mode</code> takes Manual modes only: every session starts in Manual.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder, with their comments; <code>[modules.job_search]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it.</p>
+<p>The keys: <code>ProfileAgent</code>'s, plus <code>agent_id</code> (default <code>job_search_agent</code>: the module id plus <code>_agent</code>; transcript <code>job_search_agent.jsonl</code>). Shipped: workspace <code>C:/Chang/Jobs/CV</code>, reads <code>C:/Chang/Jobs</code> and JobRadar, <code>python</code> (JobRadar's Python, any arguments), <code>tools = "default"</code>, <code>chrome = true</code>. These keys are its access list, asked for on one card (<a href="../../api/infra.html#agent_access"><code>access_items</code></a>). <code>permission_mode</code> takes Manual modes only: every session starts in Manual.</p>
 <p><code>[modules.job_search.ui]</code> (optional, not part of the access list): <code>script</code> (default <code>&lt;workspace&gt;/Recruiters/scripts/job_ui.py</code>), <code>python</code> (default the section's <code>python</code>, JobRadar's, as <code>job_ui.cmd</code> uses), <code>port</code> (8781), <code>page</code> (<code>/tracker</code>). With no script or Python, the agent still runs and <code>job.open_ui</code> says what's missing.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/job_search/module.py</code>, <code>ui.py</code></li>
-<li><code>tests/test_job_search.py</code>, and the stand-in job UI <code>fake_job_ui.py</code> in the <a href="../../api/testkit.html">test kit</a> (<code>FAKE_JOB_UI</code>); <code>CompanionApp</code>'s command-line mode in <code>tests/test_app_kit.py</code></li>
+<li><code>src/assistant/modules/job_search/module.py</code>, <code>ui.py</code>, <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>)</li>
+<li><code>tests/</code> in this folder, on the <a href="../../api/testkit.html">test kit</a> only: <code>test_job_search.py</code> (the agent, its menu, the job UI, its config under <code>module.toml</code>, cv turned on first; cv is a <code>stand_in</code>) and <code>test_cv_events.py</code> (cv's named events). The stand-in job UI is <code>fake_job_ui.py</code> in the test kit (<code>FAKE_JOB_UI</code>); <code>CompanionApp</code>'s command-line mode is tested in <code>tests/test_app_kit.py</code></li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), <a href="job-project.html">the job project</a>, and <code>docs.toml</code> (its docs tab and group)</li>
 </ul>
 <footer>Generated from <code>src/assistant/modules/job_search/docs/README.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>

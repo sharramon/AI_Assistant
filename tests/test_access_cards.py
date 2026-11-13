@@ -24,7 +24,7 @@ from assistant.modules.job_search import JobSearchModule
 from assistant.modules.talker.module import access_card_text
 from assistant.modules.task_agents import TaskAgentsModule
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE, agent_module, pre_grant, wait_until
+from assistant.testkit import FAKE, agent_module, module_config, pre_grant, stand_in, wait_until
 from tests.test_temp_ui import post, read_events, ui_port
 
 # --- helpers ---
@@ -35,12 +35,13 @@ def job_section(tmp_path, **extra) -> dict:
 
 
 async def job_app(tmp_path, section: dict | None = None, enabled: bool = False):
-    """The Hub and job_search; job_search is off unless `enabled`."""
+    """The Hub, a stand-in for cv (job_search needs it) and job_search; job_search is off unless
+    `enabled`. Returns the section as the module sees it (its module.toml under it), for `pre_grant`."""
     section = section or job_section(tmp_path)
     ids = ["agent_hub", *(["job_search"] if enabled else [])]
     config = {"modules": {"enabled": ids, "agent_hub": {"door": False}, "job_search": section},
               "core": {"permissions": {"you": ["temp_ui"]}}}  # as config/default.toml sets it
-    app = App([AgentHubModule, JobSearchModule], config)
+    app = App([AgentHubModule, stand_in("cv"), JobSearchModule], config)
     events: list = []
 
     async def record(event):
@@ -48,7 +49,7 @@ async def job_app(tmp_path, section: dict | None = None, enabled: bool = False):
 
     for kind in (PermissionRequested, PermissionChanged):
         app.bus.subscribe(kind, record)
-    return app, events, section
+    return app, events, module_config("job_search", section)
 
 
 async def state(app: App, module_id: str) -> ModuleState:

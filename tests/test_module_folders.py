@@ -19,7 +19,10 @@ Item 5: cv's tests are in its module, on the public test kit. No module file imp
 shared fakes and helpers are in `assistant.testkit`, which only tests import; no cv test is central.
 
 Item 6: cv's packages and ruff rule are in its folder. pyproject.toml names no module package, extra or
-per-file ignore; cv's module.toml lists `packages` (on its manifest), and cv/ruff.toml extends the root."""
+per-file ignore; cv's module.toml lists `packages` (on its manifest), and cv/ruff.toml extends the root.
+
+Item 7: job_search's defaults, needs and tests are in its folder. Its module.toml holds its defaults and
+`needs = ["cv"]`; config/default.toml has no `[modules.job_search]` defaults; its tests left `tests/`."""
 
 from __future__ import annotations
 
@@ -378,3 +381,22 @@ def test_packages_come_from_module_toml(monkeypatch) -> None:
             loader.apply_module_toml(Packaged)
     with pytest.raises(ValueError, match="packages"):
         Manifest(id="x", packages=("",))
+
+
+# Item 7: job_search's defaults, needs and tests in its folder.
+
+JOB_SEARCH = MODULES_FOLDER / "job_search"
+
+
+def test_job_search_has_its_module_toml() -> None:
+    toml = tomllib.loads((JOB_SEARCH / "module.toml").read_text(encoding="utf-8"))
+    assert toml["needs"] == ["cv"] and toml["packages"] == []
+    assert toml["workspace"] and toml["transcript"] == "job_search_agent.jsonl"  # its defaults are here
+    cls = loader.find_module_class(importlib.import_module("assistant.modules.job_search"), "job_search")
+    assert cls.manifest.needs == ("cv",)
+    # config/default.toml keeps no defaults of it (an on/off line elsewhere would be fine).
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert "job_search" not in default["modules"]
+    # Its tests are in its folder, none left central.
+    assert (JOB_SEARCH / "tests" / "test_job_search.py").is_file()
+    assert not (REPO / "tests" / "test_job_search.py").exists()

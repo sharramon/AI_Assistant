@@ -607,7 +607,14 @@
 <td>functions</td>
 <td>Save a grant for a module's whole access list (or every <code>task_agents</code> kind), so it turns on with no card</td>
 <td><code>testkit/support.py</code></td>
-<td><code>cv</code> (<code>test_worker.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code>, <code>test_job_search</code>, <code>test_task_agents</code></td>
+<td><code>cv</code> (<code>test_worker.py</code>), <code>job_search</code> (<code>test_job_search.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code>, <code>test_task_agents</code></td>
+</tr>
+<tr>
+<td><a href="testkit.html#helpers"><code>module_config</code>, <code>stand_in</code>, <code>free_port</code></a></td>
+<td>functions</td>
+<td>The config a module sees (its <code>module.toml</code> under a section, with the core's reader); a bare module standing in for one another <code>needs</code>; a free local port</td>
+<td><code>testkit/support.py</code></td>
+<td><code>job_search</code> (<code>test_job_search.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code> (<code>module_config</code>, <code>stand_in</code>)</td>
 </tr>
 <tr>
 <td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>FAKE</code>, <code>FAKE_JOB_UI</code>, <code>TIMEOUT</code></a></td>

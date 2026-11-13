@@ -1,0 +1,28 @@
+# job_search's own defaults. `[modules.job_search]` in the app's config only overrides them (merged key by key).
+
+# The modules job_search can't run without, by id (Manifest.needs; the core turns them on first and
+# refuses to turn one off while job_search is on): cv, which tailors the CV for each job (cv.task)
+# and tells the job agent when it's done (cv's named events).
+needs = ["cv"]
+
+# The pip packages job_search needs beyond the app's own (Manifest.packages): none. Its job UI and
+# searches run with JobRadar's own Python (`python` below).
+packages = []
+
+# The job agent (id "job_search_agent": the module id plus _agent), bundled with its module and its job.* menu; off at launch (modules.on job_search).
+# Takes the same keys as a task_agents profile. These keys are its access list, asked for in one
+# card when it's turned on (saved in data/permissions.toml; it asks again when the list changes):
+# read and write the job project, read the rest of C:\Chang\Jobs and JobRadar, run JobRadar's
+# Python, Chrome. Sessions always start in Manual. Anything else asks you with a card. It never
+# submits or sends anything.
+workspace = "C:/Chang/Jobs/CV"
+read_dirs = ["C:/Chang/Jobs", "C:/Chang/Git_projects/Resume"]
+python = "C:/Chang/Git_projects/Resume/.venv/Scripts/python.exe"  # JobRadar's Python (sweep.py), any arguments
+tools = "default"
+chrome = true             # the Claude in Chrome tools: forms, LinkedIn, the Sheet
+permission_mode = "acceptEdits"
+permission_timeout = 600.0
+transcript = "job_search_agent.jsonl"
+
+# The job UI ([ui], optional, not part of the access list): script (default
+# <workspace>/Recruiters/scripts/job_ui.py), python (default the `python` above), port (8781), page ("/tracker").

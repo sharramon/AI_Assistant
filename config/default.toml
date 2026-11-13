@@ -10,7 +10,7 @@
 enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "voice_in", "usage"]
 
 # Per-module settings go in [modules.<module id>]. A module that ships its own defaults
-# (module.toml in its folder; none so far) needs a section here only to override them.
+# (module.toml in its folder: cv, job_search) needs a section here only to override them.
 [modules.console_io]
 prompt = "> "
 
@@ -99,22 +99,6 @@ workspace = "C:/Chang/Jobs/rezi"
 read_dirs = ["C:/Chang/Jobs/CV", "C:/Chang/Git_projects/AI_Assistant/docs"]
 tools = "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,PowerShell"
 transcript = "rezi.jsonl"
-
-[modules.job_search]
-# The job agent (id "job_search_agent": the module id plus _agent), bundled with its module and its job.* menu; off at launch (modules.on job_search).
-# Takes the same keys as a task_agents profile. These keys are its access list, asked for in one
-# card when it's turned on (saved in data/permissions.toml; it asks again when the list changes):
-# read and write the job project, read the rest of C:\Chang\Jobs and JobRadar, run JobRadar's
-# Python, Chrome. Sessions always start in Manual. Anything else asks you with a card. It never
-# submits or sends anything.
-workspace = "C:/Chang/Jobs/CV"
-read_dirs = ["C:/Chang/Jobs", "C:/Chang/Git_projects/Resume"]
-python = "C:/Chang/Git_projects/Resume/.venv/Scripts/python.exe"  # JobRadar's Python (sweep.py), any arguments
-tools = "default"
-chrome = true             # the Claude in Chrome tools: forms, LinkedIn, the Sheet
-permission_mode = "acceptEdits"
-permission_timeout = 600.0
-transcript = "job_search_agent.jsonl"
 
 [modules.temp_ui]
 # TEMPORARY two-pane UI (Main Assistant | Talker) at http://127.0.0.1:8765/,

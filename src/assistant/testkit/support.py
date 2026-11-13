@@ -41,6 +41,38 @@ class Calculator(ModuleProtocol, IToolProvider):
             return Result.invalid_arguments(f"missing argument {exc}")
 
 
+def free_port() -> int:
+    """A free TCP port on 127.0.0.1, for a test server."""
+    import socket
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def stand_in(module_id: str) -> type[ModuleProtocol]:
+    """A bare module class with id `module_id` and nothing else, standing in for a module another
+    one `needs` (job_search needs cv), so a test can start the one under test without the real one."""
+
+    async def init(self, ctx: ModuleContext) -> None:
+        pass
+
+    return type(f"StandIn_{module_id}", (ModuleProtocol,), {"manifest": Manifest(id=module_id), "init": init})
+
+
+def module_config(module_id: str, section: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The config module `module_id` sees, as the core builds it: its `module.toml` defaults (none
+    if it has none) with `section` (its `[modules.<id>]`) merged over them. For `pre_grant`, whose
+    list must match what the module asks for. Reads the defaults with the core's own reader."""
+    import importlib
+
+    from app_kit import merge
+    from assistant.core import loader
+
+    cls = loader.find_module_class(importlib.import_module(f"{loader.MODULES_PACKAGE}.{module_id}"), module_id)
+    return merge(loader.module_defaults(cls), section or {})
+
+
 def pre_grant(app: Any, module_id: str, subject: str, config: dict[str, Any], own_folder: bool | None = None) -> None:
     """Save a grant for `config`'s whole access list, so `module_id` turns on with no card.
     `own_folder`: the list has the module's own folder, as its `request_access` asks; None:

@@ -23,11 +23,13 @@ from assistant.modules.job_search import JobSearchModule
 from assistant.modules.job_search.module import JOB_PROMPT, UI_SHORTCUT
 from assistant.modules.job_search.ui import ui_settings
 from assistant.modules.talker.prompt import talker_prompt
-from assistant.testkit import FAKE, FAKE_JOB_UI, pre_grant, wait_until
-from tests.test_app_kit import free_port
+from assistant.testkit import FAKE, FAKE_JOB_UI, free_port, module_config, pre_grant, stand_in, wait_until
+
+FOLDER = Path(__file__).resolve().parents[1]  # job_search's own module folder
 
 
 async def start_app(tmp_path, ui: dict | None = None) -> App:
+    """The Hub and job_search, with a stand-in for cv (job_search needs cv: it's turned on first)."""
     section = {"program": FAKE, "workspace": str(tmp_path / "CV"), "chrome": True}
     if ui is not None:
         section["ui"] = ui
@@ -39,10 +41,35 @@ async def start_app(tmp_path, ui: dict | None = None) -> App:
         },
         "core": {},
     }
-    app = App([AgentHubModule, JobSearchModule], config)
-    pre_grant(app, "job_search", "job_search_agent", {k: v for k, v in section.items() if k != "ui"})
+    app = App([AgentHubModule, stand_in("cv"), JobSearchModule], config)
+    pre_grant(app, "job_search", "job_search_agent", module_config("job_search", section))
     await app.start()
     return app
+
+
+def test_its_defaults_are_in_its_module_toml_under_the_apps_section():
+    # The config the module sees: module.toml, with [modules.job_search] (config/local.toml) over it.
+    defaults = module_config("job_search")
+    assert defaults["needs"] == ["cv"] and defaults["packages"] == []
+    for key in ("workspace", "read_dirs", "python", "tools", "permission_mode", "transcript"):
+        assert defaults[key], key
+    assert defaults["chrome"] is True and defaults["permission_timeout"] == 600.0
+    assert JobSearchModule.manifest.needs == ("cv",)
+    app = App([stand_in("cv"), JobSearchModule],
+              {"modules": {"enabled": [], "job_search": {"workspace": "C:/elsewhere", "ui": {"port": 9}}}, "core": {}})  # fmt: skip
+    seen = app._config_of("job_search")
+    assert seen["workspace"] == "C:/elsewhere" and seen["ui"] == {"port": 9}  # yours wins
+    assert {k: v for k, v in seen.items() if k not in ("workspace", "ui")} == {
+        k: v for k, v in defaults.items() if k != "workspace"}  # the rest unchanged
+
+
+async def test_turning_it_on_turns_on_cv_first(tmp_path):
+    app = await start_app(tmp_path)
+    try:
+        started = list(app._lifecycle._active)  # in start order; cv isn't in modules.enabled
+        assert "cv" in started and started.index("cv") < started.index("job_search")
+    finally:
+        await app.stop()
 
 
 async def test_the_job_agent_is_a_big_agent_with_chrome_and_the_projects_rules(tmp_path):
@@ -55,7 +82,7 @@ async def test_the_job_agent_is_a_big_agent_with_chrome_and_the_projects_rules(t
         assert "--chrome" in command
         assert "don't run handoff.ps1" in JOB_PROMPT and "Never submit" in JOB_PROMPT
         # its workspace, then its own module folder (every module can edit itself)
-        own = str(Path(__file__).resolve().parents[1] / "src" / "assistant" / "modules" / "job_search")
+        own = str(FOLDER)
         assert job.profile.write_folders() == (str((tmp_path / "CV").resolve()), own)
     finally:
         await app.stop()
