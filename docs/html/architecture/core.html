@@ -358,6 +358,11 @@
 <td>Callers that are you clicking; an agent's grant or revoke shows you a card</td>
 </tr>
 <tr>
+<td><code>core.generated_dir</code></td>
+<td><code>"generated"</code> (in <code>default.toml</code>; none in code)</td>
+<td>The core's <a href="#generated-files">generated files</a>, relative to the repo; <code>""</code> or missing writes none (tests pass a tmp folder)</td>
+</tr>
+<tr>
 <td><code>logging.dir</code></td>
 <td><code>"logs"</code></td>
 <td>Where the session folders go. See <a href="#logging">Logging</a></td>
@@ -408,6 +413,35 @@
     A-&gt;&gt;L: later lines go straight to the files
     Note over L: no theme by shutdown: finish() keeps only warnings, in logs/no-chat.log
 </code></pre>
+<h2 id="generated-files">Generated files</h2>
+<p><code>generated/</code> at the repo root (<code>[core] generated_dir</code>) is built for you to read, never hand-edited, gitignored and safe to delete. One small core part, <a href="../api/core.html#generatedfiles"><code>GeneratedFiles</code></a> in <code>core/generated.py</code>, writes it from the lifecycle's view:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modules.json</code></td>
+<td>The live module list: each module's id, state and description</td>
+</tr>
+<tr>
+<td><code>directory.json</code></td>
+<td>The module directory: each module's line (as <code>ListModules</code>) with its menu's tool specs (as <code>GetMenu</code>), and the core's own menu</td>
+</tr>
+<tr>
+<td><code>dependencies.json</code></td>
+<td>Each module's <code>needs</code>, <code>requires</code> and <code>packages</code></td>
+</tr>
+<tr>
+<td><code>module-library.md</code></td>
+<td>A copy of the <a href="module-library.html">module library</a> page, written by <code>scripts/build_docs.py</code> (the docs keep theirs)</td>
+</tr>
+</tbody>
+</table>
+<p><code>App</code> writes the three JSON files once after startup and again on every module state change (from its lifecycle callback, beside <code>ModuleStateChanged</code>). Each write replaces the whole file through a temp file, so a reader never sees half of one; a failed write is logged and never reaches the lifecycle. Deleted, the folder comes back on the next state change. Each file says it's generated (a <code>_generated</code> key in the JSON, a top comment in the Markdown).</p>
 <h2 id="adding-replacing-or-removing-a-module">Adding, replacing, or removing a module</h2>
 <p>Each module:</p>
 <ul>

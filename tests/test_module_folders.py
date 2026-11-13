@@ -637,6 +637,14 @@ def test_config_module_files_are_yours_and_ignored() -> None:
     assert not ignored("config/modules.toml") and not ignored("config/default.toml")
 
 
+def test_generated_is_ignored_and_set_in_the_core_config() -> None:
+    """Item 14: generated/ is built by the core and the docs build, never committed."""
+    assert subprocess.run(["git", "check-ignore", "-q", "generated/"], cwd=REPO).returncode == 0
+    assert subprocess.run(["git", "check-ignore", "-q", "generated/modules.json"], cwd=REPO).returncode == 0
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert default["core"]["generated_dir"] == "generated"
+
+
 def test_a_modules_settings_load_from_its_config_file_over_its_module_toml(tmp_path) -> None:
     from assistant.infra.config import load_config, module_config_ids
 

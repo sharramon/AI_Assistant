@@ -18,7 +18,7 @@ Wires the core together and runs the enabled modules. Construction validates the
 
 **Raises:** [`StartupError`](#startuperror) if the enabled modules can't run together.
 
-**Attributes:** `router: CommandRouter`, `bus: EventBus`, `container: Container`.
+**Attributes:** `router: CommandRouter`, `bus: EventBus`, `container: Container`, `generated: GeneratedFiles` (writes [`generated/`](#generatedfiles) after `start()` and on every module state change).
 
 | Method | Description |
 |--------|-------------|
@@ -110,6 +110,20 @@ The [`ModuleContext`](modules.md#modulecontext) implementation. Records every su
 The `ctx.logs` port. With a `LogSession`, `folder()` and `sink(name)` are the session's; without one (tests), `folder()` is `root` and `sink(name)` is `root / name`. `App` builds one for every module from its `logs` argument and `logging.dir`.
 
 **Defined in:** `src/assistant/core/logs.py`
+
+## `GeneratedFiles`
+
+`GeneratedFiles(folder: Path | None, lifecycle: LifecycleManager, core_specs: Callable[[], list[ToolSpec]])`
+
+Writes the core's [generated files](../architecture/core.md#generated-files): `modules.json`, `directory.json` and `dependencies.json`, each with a `_generated` note key. `App` builds one from `[core] generated_dir` (`app.generated`) and calls `write()` after startup and on every module state change. Built 2026-11-13 (module folders item 14).
+
+| Method | Description |
+|--------|-------------|
+| `from_config(generated_dir, lifecycle, core_specs)` | Class method: the folder relative to the repo unless absolute; empty or `None` for no folder (`folder` is `None`, nothing written) |
+| `write()` | Rewrite the three files, each atomically (temp file, then replace); creates the folder if it was deleted. A failure is logged, never raised |
+| `contents() -> dict[str, dict]` | Each file's name and JSON content, from `lifecycle.modules()`, `menu(id)`, `module_class(id).manifest` and the core's menu |
+
+**Defined in:** `src/assistant/core/generated.py` · **Tests:** `tests/test_generated.py`
 
 ## `PermissionsHandler`
 

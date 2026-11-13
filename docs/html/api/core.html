@@ -54,7 +54,7 @@
 </tbody>
 </table>
 <p><strong>Raises:</strong> <a href="#startuperror"><code>StartupError</code></a> if the enabled modules can't run together.</p>
-<p><strong>Attributes:</strong> <code>router: CommandRouter</code>, <code>bus: EventBus</code>, <code>container: Container</code>.</p>
+<p><strong>Attributes:</strong> <code>router: CommandRouter</code>, <code>bus: EventBus</code>, <code>container: Container</code>, <code>generated: GeneratedFiles</code> (writes <a href="#generatedfiles"><code>generated/</code></a> after <code>start()</code> and on every module state change).</p>
 <table>
 <thead>
 <tr>
@@ -229,6 +229,32 @@
 <p><code>SessionLogs(session: LogSession | None = None, root: str | Path = "logs")</code> (a <code>ModuleLogs</code>)</p>
 <p>The <code>ctx.logs</code> port. With a <code>LogSession</code>, <code>folder()</code> and <code>sink(name)</code> are the session's; without one (tests), <code>folder()</code> is <code>root</code> and <code>sink(name)</code> is <code>root / name</code>. <code>App</code> builds one for every module from its <code>logs</code> argument and <code>logging.dir</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/logs.py</code></p>
+<h2 id="generatedfiles"><code>GeneratedFiles</code></h2>
+<p><code>GeneratedFiles(folder: Path | None, lifecycle: LifecycleManager, core_specs: Callable[[], list[ToolSpec]])</code></p>
+<p>Writes the core's <a href="../architecture/core.html#generated-files">generated files</a>: <code>modules.json</code>, <code>directory.json</code> and <code>dependencies.json</code>, each with a <code>_generated</code> note key. <code>App</code> builds one from <code>[core] generated_dir</code> (<code>app.generated</code>) and calls <code>write()</code> after startup and on every module state change. Built 2026-11-13 (module folders item 14).</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>from_config(generated_dir, lifecycle, core_specs)</code></td>
+<td>Class method: the folder relative to the repo unless absolute; empty or <code>None</code> for no folder (<code>folder</code> is <code>None</code>, nothing written)</td>
+</tr>
+<tr>
+<td><code>write()</code></td>
+<td>Rewrite the three files, each atomically (temp file, then replace); creates the folder if it was deleted. A failure is logged, never raised</td>
+</tr>
+<tr>
+<td><code>contents() -&gt; dict[str, dict]</code></td>
+<td>Each file's name and JSON content, from <code>lifecycle.modules()</code>, <code>menu(id)</code>, <code>module_class(id).manifest</code> and the core's menu</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/generated.py</code> · <strong>Tests:</strong> <code>tests/test_generated.py</code></p>
 <h2 id="permissionshandler"><code>PermissionsHandler</code></h2>
 <p><code>PermissionsHandler(send, publish, find, grants_file=GRANTS_FILE, reviewer=REVIEWER, review_timeout=90.0, answer_timeout=600.0, you=YOU, log=None)</code> (<code>REVIEWER = ""</code>, <code>YOU = ()</code>: the core names no module, principle 21; <code>config/default.toml</code> sets <code>reviewer = "main_assistant"</code> and <code>you = ["temp_ui"]</code> under <code>[core.permissions]</code>) · <code>PermissionsHandler.from_config(config, send, publish, find)</code></p>
 <p>The <a href="../architecture/permissions.html#part-of-the-core">permissions handler</a>, part of the core and always on (its first piece: access lists). <code>send</code>, <code>publish</code>, <code>find</code>: the router's <code>send</code>, the bus's <code>publish</code> and the container's <code>get_one</code>; it uses nothing else of the app and imports no module. <code>App</code> builds it from <code>[core.permissions]</code> (every key optional: <code>grants_file</code>, <code>reviewer</code>, <code>review_timeout</code>, <code>answer_timeout</code>, <code>you</code>) as <code>app.permissions</code>, handles <code>AnswerPermissionRequest</code> with <code>answer</code>, subscribes <code>on_task_updated</code> to <code>TaskUpdated</code>, and calls <code>close()</code> in <code>stop()</code>.</p>

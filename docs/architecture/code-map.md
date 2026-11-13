@@ -30,7 +30,8 @@ flowchart LR
         Dir["CoreMenu · directory<br/>MenuTools · dispatch_tool"]
         Perm["PermissionsHandler<br/>card actions table · GrantStore · rules · port · menu"]
         Logs["SessionLogs"]
-        App --> Life & Router & Bus & DI & Dir & Perm & Logs
+        Gen["GeneratedFiles<br/>generated/*.json"]
+        App --> Life & Router & Bus & DI & Dir & Perm & Logs & Gen
         Life -- "ScopedContext per module" --> DI
     end
 

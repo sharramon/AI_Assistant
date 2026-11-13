@@ -26,6 +26,7 @@ from assistant.contracts import (
     Result,
     ShutdownRequested,
     TaskUpdated,
+    ToolSpec,
 )
 from assistant.contracts.permissions import AnswerPermissionRequest
 from assistant.core import loader
@@ -33,6 +34,7 @@ from assistant.core.bus import EventBus
 from assistant.core.container import Container
 from assistant.core.context import ScopedContext
 from assistant.core.directory import CORE_ID, CoreMenu
+from assistant.core.generated import GeneratedFiles
 from assistant.core.lifecycle import LifecycleManager
 from assistant.core.logs import SessionLogs
 from assistant.core.permissions import PermissionsHandler, PermissionsMenu, PermissionsPort
@@ -94,6 +96,9 @@ class App:
         self.core_menu_tools = MenuTools(CoreMenu.menu, self.core_menu)
         # The grant calls (permissions.*), on the same "core" menu.
         self.permissions_menu_tools = MenuTools(PermissionsMenu.menu, PermissionsMenu(self.permissions))
+        # generated/: the live module list, directory and dependencies, written at start and on every change.
+        self.generated = GeneratedFiles.from_config(core.get("generated_dir"), self._lifecycle, self._core_specs)
+        self._started = False
         self._stopping = asyncio.Event()
         self.restart_requested = False  # a ShutdownRequested asked for a restart
 
@@ -113,6 +118,8 @@ class App:
         self.bus.subscribe(ShutdownRequested, self._on_shutdown_requested)
         self.bus.subscribe(TaskUpdated, self.permissions.on_task_updated, owner=CORE_ID)
         await self._lifecycle.start()
+        self._started = True  # from here every state change rewrites generated/ (not once per startup step)
+        self.generated.write()
 
     async def stop(self) -> None:
         """Cancel in-flight commands, stop modules in reverse order, then close the bus."""
@@ -140,7 +147,7 @@ class App:
 
     async def _get_menu(self, command: GetMenu) -> Result:
         if command.module_id == CORE_ID:
-            return Result.ok(CoreMenu.menu.specs() + PermissionsMenu.menu.specs())
+            return Result.ok(self._core_specs())
         try:
             menu = self._lifecycle.menu(command.module_id)
         except KeyError:
@@ -194,6 +201,13 @@ class App:
 
     def _on_module_state(self, module_id: str, state: ModuleState) -> None:
         self.bus.publish(ModuleStateChanged(module_id=module_id, state=state))
+        if self._started:
+            self.generated.write()
+
+    @staticmethod
+    def _core_specs() -> list[ToolSpec]:
+        """The core's own menu: module control (`modules.*`) and the grant calls (`permissions.*`)."""
+        return CoreMenu.menu.specs() + PermissionsMenu.menu.specs()
 
     def _config_of(self, module_id: str) -> dict[str, Any]:
         """A module's config: its own defaults (`module.toml` in its folder) with its `[modules.<id>]`

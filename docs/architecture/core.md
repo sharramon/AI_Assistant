@@ -272,6 +272,7 @@ stateDiagram-v2
 | `core.permissions.reviewer` | `"main_assistant"` (in `default.toml`; `""` in code) | The agent that reviews an access list before its card shows; `""` for none |
 | `core.permissions.review_timeout` / `answer_timeout` | `90.0` / `600.0` | Seconds for the review (then "not reviewed") and for your answer (then Deny) |
 | `core.permissions.you` | `["temp_ui"]` (in `default.toml`; none in code) | Callers that are you clicking; an agent's grant or revoke shows you a card |
+| `core.generated_dir` | `"generated"` (in `default.toml`; none in code) | The core's [generated files](#generated-files), relative to the repo; `""` or missing writes none (tests pass a tmp folder) |
 | `logging.dir` | `"logs"` | Where the session folders go. See [Logging](#logging) |
 | `logging.file` | `"assistant.log"` | The app log's file name inside the session folder |
 | `logging.level` / `stderr` | `INFO` / `false` | See `setup_logging` |
@@ -309,6 +310,19 @@ sequenceDiagram
     A->>L: later lines go straight to the files
     Note over L: no theme by shutdown: finish() keeps only warnings, in logs/no-chat.log
 ```
+
+## Generated files
+
+`generated/` at the repo root (`[core] generated_dir`) is built for you to read, never hand-edited, gitignored and safe to delete. One small core part, [`GeneratedFiles`](../api/core.md#generatedfiles) in `core/generated.py`, writes it from the lifecycle's view:
+
+| File | Holds |
+|------|-------|
+| `modules.json` | The live module list: each module's id, state and description |
+| `directory.json` | The module directory: each module's line (as `ListModules`) with its menu's tool specs (as `GetMenu`), and the core's own menu |
+| `dependencies.json` | Each module's `needs`, `requires` and `packages` |
+| `module-library.md` | A copy of the [module library](module-library.md) page, written by `scripts/build_docs.py` (the docs keep theirs) |
+
+`App` writes the three JSON files once after startup and again on every module state change (from its lifecycle callback, beside `ModuleStateChanged`). Each write replaces the whole file through a temp file, so a reader never sees half of one; a failed write is logged and never reaches the lifecycle. Deleted, the folder comes back on the next state change. Each file says it's generated (a `_generated` key in the JSON, a top comment in the Markdown).
 
 ## Adding, replacing, or removing a module
 

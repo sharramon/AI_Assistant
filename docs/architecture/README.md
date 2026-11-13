@@ -117,7 +117,7 @@ The core runs on a PC today and will later move to a server, so it must not assu
 
 ## Currently fixing
 
-Making modules truly self-contained: each module's code, companion app, defaults, tests, docs and dependency list live in its own `modules/<id>` folder. Beside them sit a core group (the host and the core modules), `config/` (your choices only) and `generated/`. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: [module folders](../../html-next-steps/module-folders.html). Progress: **14 of 20 done**, item by item in the checklist `docs/next-steps/module-folders-checklist.md`, each checked against the code.
+Making modules truly self-contained: each module's code, companion app, defaults, tests, docs and dependency list live in its own `modules/<id>` folder. Beside them sit a core group (the host and the core modules), `config/` (your choices only) and `generated/`. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: [module folders](../../html-next-steps/module-folders.html). Progress: **15 of 20 done**, item by item in the checklist `docs/next-steps/module-folders-checklist.md`, each checked against the code.
 
 ## Pages
 
@@ -149,6 +149,7 @@ Making modules truly self-contained: each module's code, companion app, defaults
 | Contracts | `ModuleProtocol`, `Manifest`, `ModuleContext`, capability interfaces, command and event types | `src/assistant/contracts/` | [API](../api/README.md) |
 | Shared Infrastructure | Configuration and logging today; persistence and auth/secrets later | `src/assistant/infra/` | [API](../api/infra.md) |
 | Reusable parts | Behavior two parts need, built once and listed with who uses it: contracts, infra helpers, and `app_kit` for what the independent apps share too | `src/assistant/contracts/`, `src/assistant/infra/`, `src/app_kit/` | [reusable parts](reusable-parts.md), [index](../api/reusable.md) |
+| Generated files | `generated/` (gitignored, safe to delete): the live module list, the directory and the dependencies, rewritten by the core on every module state change; the docs build adds the module library's copy | `src/assistant/core/generated.py` | [core](core.md#generated-files) |
 | Log handler | Owns where logs go: one folder per app launch, named by start time and the theme of your first question. Modules reach it through their `ctx.logs` port | `src/assistant/infra/log.py`, `core/logs.py` | [core](core.md#logging) |
 | Modules | All capabilities, including the AI orchestration; each a wrapper (manifest, lifecycle, context) with a menu of tools. Today: `console_io`, `talker`, `main_assistant`, `agent_hub`, `temp_ui`, `voice_in` (voice input's thin module), and, off by default, `html_viewer` (the HTML viewer's thin module), `voice_notes`, `task_agents` (helper agents launched by name from kinds in config), `job_search` (the job agent and its menu), `assistant_view` and the `echo_orchestrator` stand-in | `src/assistant/modules/` | [module library](module-library.md), [agent runtime](../agents/runtime.md) |
 | UI handler | Owns the user-facing UIs (chat window, Quest, glasses). Not designed yet; `temp_ui` stands in | _TBD_ | [decisions](decisions.md#open-decisions) |

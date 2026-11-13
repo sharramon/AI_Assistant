@@ -23,6 +23,7 @@ module_stop_timeout = 5.0     # seconds each module gets to stop
 event_queue_size = 100        # per subscriber; events beyond this are dropped
 event_handler_timeout = 10.0  # seconds before a stuck event handler is cancelled
 reload_idle_timeout = 300.0   # seconds a ReloadModule waits for a busy module (replying, mid-task)
+generated_dir = "generated"   # the core's generated files (module list, directory, dependencies); relative to the repo; gitignored; "" for none
 
 [core.permissions]
 # The permissions handler (part of the core, always on). Every key is optional:

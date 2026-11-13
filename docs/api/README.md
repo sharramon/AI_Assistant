@@ -191,6 +191,7 @@ The stable host. Modules never use these directly. `from assistant.core import .
 | [`loader`](core.md#loader) | functions | Find the modules by folder (`find_modules`); every module's `app/` folder on the import path (`add_app_folders`); fresh import of a module's package; what may be reloaded |
 | [`ScopedContext`](core.md#scopedcontext) | class | The `ModuleContext` implementation; undoes registrations on close |
 | [`SessionLogs`](core.md#sessionlogs) | class | The `ctx.logs` port, backed by the launch's `LogSession` |
+| [`GeneratedFiles`](core.md#generatedfiles) | class | Writes `generated/` (module list, directory, dependencies) at start and on every module state change |
 | [`PermissionsHandler`](core.md#permissionshandler) | class | The permissions handler, part of the core and always on: access lists, saved grants, cards, the review, grant calls |
 | [`PermissionsPort`](core.md#permissionsport) | class | Each module's `ctx.permissions`, bound to its id, forwarding to the handler |
 | [`PermissionsMenu`](core.md#permissionsmenu) | class | The grant calls `permissions.grants / grant / request / revoke` on the core's menu |

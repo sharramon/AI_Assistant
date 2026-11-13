@@ -40,7 +40,8 @@
         Dir[&quot;CoreMenu · directory&lt;br/&gt;MenuTools · dispatch_tool&quot;]
         Perm[&quot;PermissionsHandler&lt;br/&gt;card actions table · GrantStore · rules · port · menu&quot;]
         Logs[&quot;SessionLogs&quot;]
-        App --&gt; Life &amp; Router &amp; Bus &amp; DI &amp; Dir &amp; Perm &amp; Logs
+        Gen[&quot;GeneratedFiles&lt;br/&gt;generated/*.json&quot;]
+        App --&gt; Life &amp; Router &amp; Bus &amp; DI &amp; Dir &amp; Perm &amp; Logs &amp; Gen
         Life -- &quot;ScopedContext per module&quot; --&gt; DI
     end
 
