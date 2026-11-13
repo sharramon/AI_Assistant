@@ -22,7 +22,7 @@ from assistant.infra.milestone_feed import MilestoneFeed
 from assistant.infra.permission_gate import PermissionGate
 from assistant.infra.profile_agent import ProfileAgent
 from assistant.infra.session_agent import SessionTaskAgent, session_usage, subagent_usage
-from assistant.infra.show_pages import ShowOutcome, show_command, show_page
+from assistant.infra.show_pages import NO_PAGE_VIEWER, ShowOutcome, open_page, show_page
 from assistant.infra.usage_ledger import UsageLedger
 
 __all__ = [
@@ -54,7 +54,8 @@ __all__ = [
     "ShowOutcome",
     "ShowTag",
     "Tag",
-    "show_command",
+    "NO_PAGE_VIEWER",
+    "open_page",
     "show_page",
     "session_usage",
     "subagent_usage",

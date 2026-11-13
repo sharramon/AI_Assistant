@@ -44,7 +44,11 @@ the core's settings); and no central test file names only one module unless it's
 
 Item 12: config/ is your choices only. `config/modules.toml` says which modules are on (default.toml has no
 `enabled` left), `config/<id>.toml` holds your choices for one module over its module.toml, `config/<id>.local.toml`
-over that, and `[modules.<id>]` in config/local.toml last; the saved grants' file is never read as a module's."""
+over that, and `[modules.<id>]` in config/local.toml last; the saved grants' file is never read as a module's.
+
+Item 15: the needs arrows point one way, never core → add-on. No code of the core group's modules, the core,
+contracts, infra or app_kit names an add-on's id or its menu items (docstrings and comments aside; an add-on's
+named events may be heard by name, decision 9); pages open through the `IPageOpener` slot, which html_viewer fills."""
 
 from __future__ import annotations
 
@@ -703,3 +707,79 @@ def test_a_local_only_module_file_still_counts(tmp_path) -> None:
     _write(folder, "usage.local.toml", "x = 1\n")
     config = load_config(folder)
     assert config["modules"] == {"usage": {"x": 1}}  # no modules.toml: nothing enabled, no error
+
+
+SRC = REPO / "src"
+SHARED_CODE = (SRC / "assistant" / "core", SRC / "assistant" / "contracts", SRC / "assistant" / "infra", SRC / "app_kit")
+
+
+def _groups() -> dict[str, str]:
+    """Each module's group (`core` or `add-on`), from its docs/docs.toml."""
+    return {p.name: tomllib.loads((p / "docs" / "docs.toml").read_text(encoding="utf-8")).get("group", "")
+            for p in module_folders()}  # fmt: skip
+
+
+def _code_strings(path: Path) -> list[tuple[int, str]]:
+    """The string literals and imported names in `path`'s code, without its docstrings."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                docstrings.add(id(first.value))
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
+            found.append((node.lineno, node.value))
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            found.append((node.lineno, node.module))
+        elif isinstance(node, ast.Import):
+            found += [(node.lineno, alias.name) for alias in node.names]
+    return found
+
+
+def test_no_core_code_names_an_add_on() -> None:
+    """Item 15: the core group and the shared code never name an add-on's id or its menu items."""
+    groups = _groups()
+    add_ons = sorted(m for m, g in groups.items() if g == "add-on")
+    assert {"html_viewer", "cv", "job_search", "voice_notes"} <= set(add_ons)  # the list stays true
+    classes = [loader.find_module_class(importlib.import_module(f"assistant.modules.{m}"), m) for m in add_ons]
+    tools = sorted({name for cls in classes if cls.menu is not None for name in cls.menu.names()})
+    heard = sorted({name for cls in classes for name in cls.manifest.publishes_named}, key=len, reverse=True)
+    assert "viewer.open" in tools and "viewer.highlight" in tools
+    words = [re.compile(r"(?<![\w.])" + re.escape(w) + r"(?![\w])") for w in (*add_ons, *tools)]
+    folders = [MODULES_FOLDER / m for m, g in groups.items() if g == "core"] + list(SHARED_CODE)
+    naming = []
+    for path in _python_files(*folders):
+        if {"tests", "app"} & set(path.relative_to(SRC).parts):
+            continue
+        for line, text in _code_strings(path):
+            for event in heard:  # an add-on's named event, heard by name (decision 9)
+                text = text.replace(event, "")
+            naming += [f"{path.relative_to(REPO).as_posix()}:{line}: {w.pattern}" for w in words if w.search(text)]
+    assert not naming, f"core code naming an add-on (use a contract it provides instead): {naming}"
+
+
+def test_no_viewer_tool_in_the_talker_temp_ui_or_infra() -> None:
+    """Item 15's done-when, as `git grep -n "viewer\\.open"` over the three folders (code, docs, tests)."""
+    folders = (MODULES_FOLDER / "temp_ui", MODULES_FOLDER / "talker", SRC / "assistant" / "infra")
+    naming = [f"{p.relative_to(REPO).as_posix()}:{n}" for folder in folders for p in folder.rglob("*")
+              if p.is_file() and "__pycache__" not in p.parts
+              for n, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1)
+              if "viewer.open" in line]  # fmt: skip
+    assert not naming, naming
+
+
+def test_html_viewer_fills_the_page_opener_slot() -> None:
+    from assistant.contracts import IPageOpener, StartProvider
+    from assistant.infra import AGENT_SENDS, AGENT_USES
+
+    viewer = loader.find_module_class(importlib.import_module("assistant.modules.html_viewer"), "html_viewer")
+    assert IPageOpener in viewer.manifest.provides
+    toml = tomllib.loads((HTML_VIEWER / "module.toml").read_text(encoding="utf-8"))
+    assert toml["start_on_use"] is True  # opening a page still turns it on (StartProvider, by contract)
+    for module_id in ("talker", "temp_ui"):
+        cls = loader.find_module_class(importlib.import_module(f"assistant.modules.{module_id}"), module_id)
+        assert IPageOpener in cls.manifest.uses and StartProvider in cls.manifest.sends, module_id
+    assert IPageOpener in AGENT_USES and StartProvider in AGENT_SENDS  # every worker's SHOW tags

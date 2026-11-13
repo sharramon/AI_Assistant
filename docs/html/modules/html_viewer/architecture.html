@@ -26,6 +26,10 @@
 <td><code>viewer.open</code> (open a file in a tab), <code>viewer.highlight</code> (open it and highlight a quoted part), <code>viewer.tabs</code> (open files and highlights): <a href="../../api/tools.html#tools-offered-today">tools offered today</a>. The core links it and routes <a href="../../api/tools.html#invoketool"><code>InvokeTool</code></a> to it, checking the arguments first</td>
 </tr>
 <tr>
+<td>Provides</td>
+<td><a href="../../api/modules.html#ipageopener"><code>IPageOpener</code></a> while it's on (<code>ctx.provide</code> at start, <code>withdraw</code> at stop): the page-opener slot the Talker, the workers' SHOW tags and temp_ui's Open in viewer button use, so no core module names this one. Its <code>open</code> runs the same code as <code>viewer.open</code> / <code>viewer.highlight</code> (<code>_PageOpener</code>). With <code>start_on_use = true</code>, the core turns it on when a caller finds no opener (<a href="../../api/control.html#startprovider"><code>StartProvider</code></a>)</td>
+</tr>
+<tr>
 <td>Handles</td>
 <td>nothing</td>
 </tr>
@@ -84,9 +88,10 @@
     Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;SHOW tags&quot;]
     Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;SHOW lines (SessionTaskAgent)&quot;]
     UI[&quot;temp UI&lt;br/&gt;Open in viewer&quot;]
-    Core[&quot;&lt;b&gt;core&lt;/b&gt;&lt;br/&gt;InvokeTool · start on use&quot;]
+    Core[&quot;&lt;b&gt;core&lt;/b&gt;&lt;br/&gt;StartProvider · start on use&quot;]
     subgraph HV[&quot;html_viewer (thin module)&quot;]
         Tools[&quot;tools&lt;br/&gt;open · highlight · tabs&quot;]
+        Opener[&quot;IPageOpener&lt;br/&gt;(_PageOpener)&quot;]
         Relay[&quot;event relay&quot;]
     end
     subgraph App[&quot;viewer app (own program, port 8766)&quot;]
@@ -96,10 +101,12 @@
         Stream[&quot;event stream&quot;]
     end
 
-    Talker -- InvokeTool --&gt; Core
-    UI -- InvokeTool --&gt; Core
-    Main -- InvokeTool --&gt; Core
-    Core -- &quot;turns it on if off,&lt;br/&gt;then calls&quot; --&gt; Tools
+    Talker -- &quot;IPageOpener.open&quot; --&gt; Opener
+    UI -- &quot;IPageOpener.open&quot; --&gt; Opener
+    Main -- &quot;IPageOpener.open&quot; --&gt; Opener
+    Talker -. &quot;none on: StartProvider&quot; .-&gt; Core
+    Core -- &quot;turns it on if off&quot; --&gt; HV
+    Opener --&gt; Tools
     Tools -- &quot;launch (CompanionApp)&lt;br/&gt;calls&quot; --&gt; Api
     Api --&gt; State --&gt; View
     State --&gt; Stream --&gt; Relay

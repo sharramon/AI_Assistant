@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 15 of 20 done** (items 1 to 14 and 20).
+**Count: 16 of 20 done** (items 1 to 15 and 20).
 
 **Architecture check after the add-on chunk (items 7–10):** modularity OK (a grep of `core/`, `contracts/`, `infra/` and `app_kit` for the add-ons' ids finds only comments and examples, plus `infra/show_pages.py`'s `viewer.open`, which item 15 moves behind a slot); reuse OK (every app move reused `add_app_folders` and `launch_env`; temp_ui's test helpers joined `assistant.testkit`); fit OK (each add-on's defaults, `needs` and `packages` are in its `module.toml`, read by the core with no names).
 
@@ -10,6 +10,7 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **App restart needed, item 15:** the new contract `IPageOpener` and the core command `StartProvider`. **Until the restart, pages may not open from the chat** (the running Talker and temp_ui still use the old path, which works with the old code only). **Hand check:** temp_ui's Open in viewer button brings the window to the front; a SHOW tag with html_viewer off turns it on and opens the page.
 - **App restart needed, item 14:** the core writes `generated/modules.json`, `directory.json` and `dependencies.json` only after a restart. **Hand check:** they appear after the start and change when a module is turned on or off.
 - **Flaky test seen, item 14:** `voice_in/tests/test_voice_pieces.py::test_closing_the_socket_cancels_the_running_piece_and_frees_the_slot[True]` failed once in a full run and passed on rerun (unrelated to item 14). Worth a look.
 - **App restart needed, item 13:** the permissions handler reads and writes `config/permissions.toml`. **Hand check:** after the first start, `config/permissions.toml` exists with your old grants, and `data/permissions.toml` is still there (yours to delete once you're happy).
@@ -83,6 +84,10 @@ For you to review. Each picks the option closest to the approved picture.
 34. **`config/` layout** (item 12): `config/modules.toml` is committed (the shipped on/off list, `enabled` at top level); `config/<id>.toml` files are yours and gitignored (`config/*.toml` except `default.toml` and `modules.toml`), none shipped. A module's settings load: `module.toml` → `[modules.<id>]` in `default.toml` (empty now) → `config/<id>.toml` → `config/<id>.local.toml` → `[modules.<id>]` in `config/local.toml`. The on/off list: `modules.toml` → `modules.local.toml` → `[modules] enabled` in `local.toml`. `default`, `local`, `modules`, `permissions` and `voice_service` are never module files. A missing `modules.toml` means nothing enabled. New helper `module_config_ids`.
 35. **The old grants path is named once** (item 13): `OLD_GRANTS` beside `copy_old_grants(new, old)` in `core/permissions/store.py`, run when the handler is built from config; it copies only if the new file is missing, never edits or deletes the old one, and the old file stays on the protected list. Tests point the old path into tmp.
 36. **`generated/` is one small core part** (item 14: `GeneratedFiles` in `core/generated.py`), built by `App` from `[core] generated_dir` (`"generated"` in `default.toml`; unset means nothing is written, so tests never write the repo). One write after startup, then one per state change from the lifecycle callback beside `ModuleStateChanged`; atomic, a failure only logged. `directory.json` includes the core's own menu. Not in the reusable index (only `App` uses it).
+37. **Pages open through `IPageOpener`** (item 15: `open(path, quote, heading, front)`, `contracts/pages.py`), which html_viewer provides; callers use `open_page(ctx, ...)` in `infra/show_pages.py` (looked up per call; `NO_PAGE_VIEWER` when none). `show_page` is only the SHOW-tag parser now; `show_command`, `VIEWER_OPEN` and `VIEWER_HIGHLIGHT` are gone. Agent modules' `AGENT_USES` gained `IPageOpener`.
+38. **Start on use, by contract** (item 15): a new core command `StartProvider(contract=...)` turns on the off module that lists the contract in `manifest.provides` and has `start_on_use = true`; it shares one search with the old tool-name path (`App._start_on_use`). No name of an add-on in the core.
+39. **The groups come from each module's `docs.toml`** (item 15): voice_in is in the core group there and echo_orchestrator is an add-on, unlike the item 11 list. The tripwire uses `docs.toml`, so changing a module's group there changes what it checks. **For you to review:** whether voice_in belongs in the core group (the picture drew it with the add-ons).
+40. **The tripwire** (item 15) reads string literals and imports in the core group, `core/`, contracts, infra and `app_kit`, skipping docstrings, and allows an add-on's named events (decision 9). The door's and the prompt's "e.g. `viewer.open`" examples now say `modules.docs`.
 
 ## The safeguards (from the audit, section 4)
 
@@ -232,7 +237,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** decision 8; gitignore `generated/`; written at start and on every module state change; a test deletes it and sees it written again.
 - **Done when:** the test passes; `git check-ignore generated/` succeeds. **Needs an app restart** (core).
 
-### 15. The needs arrows: never core → add-on
+### 15. The needs arrows: never core → add-on: **done** (2026-11-13)
+
+**Checked:** `git grep -n "viewer\.open"` over temp_ui, talker and infra finds nothing; the three new tripwires in `tests/test_module_folders.py` pass; `tests/test_show_pages.py` and `tests/test_start_on_use.py` pass (a fake opener, none provided, start on use by contract); full suite 910 passed, 2 deselected; ruff clean. **Needs an app restart** (new contract and core command).
 
 - **What:** no core module names an add-on: temp_ui stops sending `InvokeTool viewer.open` directly and uses a slot an add-on fills ("plugs in").
 - **Why:** the picture: "'needs' arrows point one way: add-on → core, or add-on → add-on · never core → add-on", with the crossed-out arrow from temp_ui and talker to html_viewer.

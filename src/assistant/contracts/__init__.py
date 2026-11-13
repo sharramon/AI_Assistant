@@ -44,6 +44,7 @@ from assistant.contracts.control import (
     ModuleState,
     ModuleStateChanged,
     ReloadModule,
+    StartProvider,
 )
 from assistant.contracts.door import IModuleDoor
 from assistant.contracts.menu import Menu, MenuItem
@@ -71,6 +72,7 @@ from assistant.contracts.module import (
     SubscriptionHandle,
     event_name_ok,
 )
+from assistant.contracts.pages import IPageOpener
 from assistant.contracts.permissions import (
     AccessDenied,
     AccessItem,
@@ -175,4 +177,6 @@ __all__ = [
     "VoiceTranscript",
     "IVoice",
     "IModuleDoor",
+    "IPageOpener",
+    "StartProvider",
 ]

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from assistant.contracts import InvokeTool, ModuleEvent
+from assistant.contracts import DeactivateModule, InvokeTool, IPageOpener, ModuleEvent, StartProvider
 from assistant.core import App
 from assistant.infra import LogSession
 from assistant.modules.html_viewer import HtmlViewerModule
@@ -492,6 +492,31 @@ async def test_opening_a_page_turns_the_viewer_on_when_it_is_off(tmp_path):
         assert result.is_ok, result.error
         assert "html_viewer" in app._lifecycle._active
         assert server.tabs()["tabs"][0]["path"] == str(page.resolve())
+    finally:
+        await app.stop()
+        server.stop()
+
+
+async def test_it_fills_the_page_opener_slot_and_starts_on_use_by_contract(tmp_path):
+    server = ViewerServer(port=0, window="none", profile=tmp_path / "profile")
+    server.start()
+    page = write(tmp_path / "sections.html", SECTIONS)
+    config = module_config(server.port, start_on_use=True)
+    config["modules"]["enabled"] = []  # off at launch
+    app = App([HtmlViewerModule], config)
+    await app.start()
+    try:
+        assert HtmlViewerModule.manifest.provides == (IPageOpener,)
+        assert app.container.get_one(IPageOpener) is None
+        assert (await app.router.send(StartProvider(contract="IPageOpener"))).is_ok  # no module named
+        opener = app.container.get_one(IPageOpener)
+        assert (await opener.open(str(page))).is_ok
+        marked = await opener.open(str(page), "core hosts modules", "Other")
+        assert marked.is_ok and marked.value["found"] and marked.value["matches"] == 1
+        assert (await opener.open(str(page), "nowhere")).value["found"] is False
+        assert (await opener.open(str(tmp_path / "nope.html"))).status == "invalid_arguments"
+        assert (await app.router.send(DeactivateModule(module_id="html_viewer"))).is_ok
+        assert app.container.get_one(IPageOpener) is None  # withdrawn at stop
     finally:
         await app.stop()
         server.stop()

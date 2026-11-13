@@ -19,12 +19,14 @@ from assistant.contracts import (
     IToolProvider,
     ListModules,
     Manifest,
+    ModuleInfo,
     ModuleProtocol,
     ModuleState,
     ModuleStateChanged,
     ReloadModule,
     Result,
     ShutdownRequested,
+    StartProvider,
     TaskUpdated,
     ToolSpec,
 )
@@ -87,6 +89,7 @@ class App:
             ListModules: self._list_modules,
             GetMenu: self._get_menu,
             ActivateModule: self._activate_module,
+            StartProvider: self._start_provider,
             DeactivateModule: self._deactivate_module,
             ReloadModule: self._reload_module,
             AddModule: self._add_module,
@@ -165,13 +168,26 @@ class App:
         `start_on_use = true` in its `[modules.<id>]` config, the same way as `ActivateModule`.
         None when no module qualifies. Several calls at once start it once (the lifecycle's
         lock queues them; the later ones find it on). A module you turned off starts too."""
+
+        def has_tool(info: ModuleInfo) -> bool:
+            menu = self._lifecycle.menu(info.id)
+            return menu is not None and any(spec.name == name for spec in menu.specs())
+
+        return await self._start_on_use(has_tool, name)
+
+    async def _start_provider(self, command: StartProvider) -> Result:
+        """`StartProvider`: start on use by contract, for a caller that names no module."""
+        started = await self._start_on_use(lambda info: command.contract in info.provides, command.contract)
+        return started or Result.not_available(f"No module that provides {command.contract} is off and starts on use")
+
+    async def _start_on_use(self, offers: Callable[[ModuleInfo], bool], what: str) -> Result | None:
+        """Turn on the first module that is off, `offers` what's asked for, and allows start on use."""
         for info in self._lifecycle.modules():
             if info.state is ModuleState.ACTIVE or not self._config_of(info.id).get("start_on_use"):
                 continue
-            menu = self._lifecycle.menu(info.id)
-            if menu is None or not any(spec.name == name for spec in menu.specs()):
+            if not offers(info):
                 continue
-            log.info("Starting %s on use (%s)", info.id, name)
+            log.info("Starting %s on use (%s)", info.id, what)
             result = await asyncio.shield(self._lifecycle.activate(info.id))
             if not result.is_ok:
                 return Result.failed(f"The {info.id} module couldn't start: {result.error}", retryable=True)

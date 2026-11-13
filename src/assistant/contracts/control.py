@@ -55,6 +55,17 @@ class ActivateModule(Command):
     module_id: str
 
 
+class StartProvider(Command):
+    """Start on use, by contract: turn on the module that is off, declares `contract` (a contract's
+    class name, e.g. `"IPageOpener"`) in its `manifest.provides`, and has `start_on_use = true` in
+    its config, the same way as `ActivateModule`. So a caller names a contract, never a module.
+
+    Result: the start's result (ok, or `failed` with the reason); `not_available` when no module
+    qualifies (none provides it, or it's already on, or its config doesn't allow it)."""
+
+    contract: str
+
+
 class DeactivateModule(Command):
     """Deactivate a module. Refused while an active module requires it, unless `with_dependents`."""
 

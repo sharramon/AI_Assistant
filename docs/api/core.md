@@ -237,9 +237,9 @@ The core's adapter from a module's [`Menu`](modules.md#menu) to `IToolProvider`,
 
 The `InvokeTool` handler. Looks up providers at call time; returns `not_available` for an unknown tool, `failed` for a name offered twice, else the provider's result.
 
-**♻ Reusable · Used by:** every `InvokeTool` caller: `talker` (SHOW), `temp_ui` (Open in viewer), `SessionTaskAgent` (SHOW), the agents' door (`use_item`) · start on use built 2026-11-05.
+**♻ Reusable · Used by:** every `InvokeTool` caller: `talker` (the Hub's menu), `temp_ui` (its menu calls), the agents' door (`use_item`) · start on use built 2026-11-05. Pages (SHOW, Open in viewer) no longer come this way: they go through [`IPageOpener`](modules.md#ipageopener), and their start on use is [`StartProvider`](control.md#startprovider) (by contract, the same `App._start_on_use`).
 
-**Start on use:** when nobody offers the tool, `App` passes `start_on_use=App._start_for_tool`. It finds the module that is off, has the tool on its menu, and has `start_on_use = true` in its `[modules.<id>]` config, and turns it on the same way as [`ActivateModule`](control.md#activatemodule) (`LifecycleManager.activate`, with what it requires); then the call goes ahead. A failed start answers `failed` with "The <id> module couldn't start: …" (retryable; the next call tries again). Calls that arrive while it's starting wait on the lifecycle's lock and find it on, so it starts once. A module you turned off is started again too. Today only `html_viewer` sets it.
+**Start on use:** when nobody offers the tool, `App` passes `start_on_use=App._start_for_tool`. It finds the module that is off, has the tool on its menu, and has `start_on_use = true` in its `[modules.<id>]` config, and turns it on the same way as [`ActivateModule`](control.md#activatemodule) (`LifecycleManager.activate`, with what it requires); then the call goes ahead. A failed start answers `failed` with "The <id> module couldn't start: …" (retryable; the next call tries again). Calls that arrive while it's starting wait on the lifecycle's lock and find it on, so it starts once. A module you turned off is started again too. Today only `html_viewer` sets it. `StartProvider` uses the same search (`App._start_on_use`), matching a contract in `manifest.provides` instead of a tool on the menu.
 
 **Defined in:** `src/assistant/core/tools.py`
 

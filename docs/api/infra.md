@@ -182,7 +182,7 @@ An [`ITaskAgent`](agents.md#itaskagent) backed by one `ClaudeSession`: the share
 
 **Edit note.** With `edit_note`, the second edit to a file in a task (`Edit`, `Write`, `MultiEdit` or `NotebookEdit`, paths compared lowercase with `/`, counted across handoffs) is logged (`batching note for task … : <path> edited twice`) and published as `AgentActivity` (`batching note: a.md`), once per file. It only reports and never sends the agent anything: the note the agent reads comes from the edit hook, with the tool call. With `task_file`, the current task's id is written there at each `assign`, so the hook can count by task across sessions.
 
-**SHOW tags.** Every `<<SHOW: path>>` or `<<SHOW: path | "quote" | heading>>` in the agent's text (read with [`agent_tags`](#agent_tags)) is sent as `InvokeTool viewer.open` or `viewer.highlight` through [`show_page`](#show_page), in the background; the core turns the viewer on first if it's off ([start on use](core.md#dispatch_tool)). A failure is logged and published as `AgentActivity` (`couldn't show <path>: <error>`). Built 2026-11-05; it was the `html_viewer` module's job before.
+**SHOW tags.** Every `<<SHOW: path>>` or `<<SHOW: path | "quote" | heading>>` in the agent's text (read with [`agent_tags`](#agent_tags)) is opened through the page-opener slot ([`IPageOpener`](modules.md#ipageopener)) by [`show_page`](#show_page), in the background; the core turns the module that provides it on first if it's off ([`StartProvider`](control.md#startprovider)). A failure is logged and published as `AgentActivity` (`couldn't show <path>: <error>`). Built 2026-11-05; it was the `html_viewer` module's job before.
 
 **Permission mode.** It holds the [`PermissionMode`](agents.md#permissionmode) in memory, Manual at every launch. The owning module builds each session's command for `permission_mode` (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Every switch applies at once. Mid-task, a switch to Manual sends `ClaudeSession.set_permission_mode(manual_claude_mode)` when the running process is in Auto. A switch to Auto mid-task leaves the process in its Manual mode (the `git push` block is a launch flag) and the agent answers each `can_use_tool` itself: allowed, logged as `allowed in Auto: …`, or, for a PowerShell or Bash command containing `git push`, refused (`refused in Auto: …`). An open tool request is answered the same way at the switch. The session gets the new mode's rules (`AUTO_ACCESS` / `MANUAL_ACCESS`) at the end of its next message; to Auto mid-turn it's interrupted for them (the usual message path), then carries on. Every switch is logged, published as `AgentActivity`, and published as [`PermissionModeChanged`](agents.md#permissionmodechanged).
 
@@ -402,18 +402,18 @@ Reads the tags agents write in their text, the same way everywhere. Replaced the
 
 ## `show_page`
 
-**Reusable** · Used by: `SessionTaskAgent` (`_show`), `talker` (its `SHOW` tag) · built 2026-11-08
+**Reusable** · Used by: `SessionTaskAgent` (`_show`), `talker` (its `SHOW` tag), `temp_ui` (`open_page`: the Open in viewer button) · built 2026-11-08; through `IPageOpener` since 2026-11-13 (module folders item 15)
 
-`async show_page(ctx: ModuleContext, argument: str) -> ShowOutcome` · `from assistant.infra import show_page, show_command, ShowOutcome` (the tool names: `from assistant.infra.show_pages import VIEWER_OPEN, VIEWER_HIGHLIGHT`)
+`async show_page(ctx: ModuleContext, argument: str) -> ShowOutcome` · `async open_page(ctx, path, quote=None, heading=None, front=False) -> Result` · `from assistant.infra import show_page, open_page, ShowOutcome, NO_PAGE_VIEWER`
 
-The one place that turns a SHOW tag's argument (`path`, or `path | "quote" | heading`) into the viewer's tool call, sent through `ctx.send` as `InvokeTool`, so the core starts the viewer if it's off. Each caller words its own messages from the outcome.
+The one place that opens a page for the core group, through the page-opener slot ([`IPageOpener`](modules.md#ipageopener)), never a viewer's id or tools. `open_page` looks the provider up; with none on it sends [`StartProvider`](control.md#startprovider) so the core turns on the module that provides it and starts on use, then looks again; still none: `not_available` with `NO_PAGE_VIEWER` ("No page viewer is on"); a start that failed gives its error. `show_page` turns a SHOW tag's argument (`path`, or `path | "quote" | heading`) into that call. Each caller words its own messages from the outcome, and declares `IPageOpener` in `manifest.uses` and `StartProvider` in `manifest.sends` (the agent modules through [`AGENT_USES` / `AGENT_SENDS`](#agentkit)).
 
 | Name | Does |
 |------|------|
-| `show_page(ctx, argument)` | Parse the argument ([`parse_show`](#agent_tags)) and send the call; returns `ShowOutcome(show, result)` |
+| `show_page(ctx, argument)` | Parse the argument ([`parse_show`](#agent_tags)) and open it with `open_page`; returns `ShowOutcome(show, result)` |
+| `open_page(ctx, path, quote, heading, front)` | Open a page through `IPageOpener`, starting its provider on use; the `Result` of `IPageOpener.open` |
 | `ShowOutcome.quote_missing` | The page opened but the quote isn't on it (`result.value["found"] is False`) |
-| `show_command(show) -> InvokeTool` | The call for a parsed `ShowTag`: `viewer.highlight` with `path`, `text` (and `heading`) when there's a quote, else `viewer.open` with `path` |
-| `VIEWER_OPEN`, `VIEWER_HIGHLIGHT` | The viewer's tool names, written only here |
+| `NO_PAGE_VIEWER` | The error when no module provides `IPageOpener` |
 
 **Example**
 
@@ -472,7 +472,7 @@ What every agent module used to repeat: it provides each [`ProfileAgent`](#profi
 | `follow_grant(agent_id, config)` | The agent takes its grant live when it changes (`granted_config` → `set_access`) |
 | `busy()`, `async stop()` | For the module's `busy` and `stop` |
 
-**The declarations, named once** (principle 17): `AGENT_USES` (`IModuleDoor`, `IAgentNames`, in [`Manifest.uses`](modules.md#manifest): looked up at each call, no start order), `AGENT_SENDS` (`ReportTask`, `InvokeTool`), `AGENT_PUBLISHES` (`AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged`), `AGENT_LISTENS` (`ResetRequested`, `ModuleStateChanged`). A module adds `PermissionChanged` when it follows grants.
+**The declarations, named once** (principle 17): `AGENT_USES` (`IModuleDoor`, `IAgentNames`, `IPageOpener` for SHOW tags, in [`Manifest.uses`](modules.md#manifest): looked up at each call, no start order), `AGENT_SENDS` (`ReportTask`, `StartProvider`: a SHOW with no page opener on), `AGENT_PUBLISHES` (`AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged`), `AGENT_LISTENS` (`ResetRequested`, `ModuleStateChanged`). A module adds `PermissionChanged` when it follows grants.
 
     manifest = Manifest(id="job_search", provides=(ITaskAgent,), uses=AGENT_USES, sends=AGENT_SENDS,
                         publishes=(*AGENT_PUBLISHES, AgentNotice), listens=(*AGENT_LISTENS, PermissionChanged))

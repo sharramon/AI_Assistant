@@ -54,7 +54,7 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 | `await next_matching(queue, predicate)` | The next item on an `asyncio.Queue` that `predicate` accepts, within `TIMEOUT` |
 | `report(kind)` | A predicate for `next_matching`: a `TaskUpdated` of that `ReportKind` |
 | `await start_hub(tmp_path, **main_config) -> (app, updates)` | A started `App` with the Agent Hub and a Main Assistant on the fake `claude` (workspace `tmp_path`), and a queue of its `TaskUpdated`. The caller stops the app |
-| `StubSession`, `StubContext` | Just enough of a `ClaudeSession` and a `ModuleContext` to drive a `SessionTaskAgent` by hand |
+| `StubSession`, `StubContext` | Just enough of a `ClaudeSession` and a `ModuleContext` to drive a `SessionTaskAgent` by hand; `StubContext.provided` (`{IPageOpener: a_fake}`) answers `get_one` |
 | `FakeAgent(agent_id, folders)` | An `ITaskAgent` that only records what the Hub asks of it (`calls`, `notes`); `busy` and `working` set by the test |
 | `agent_module(agent_id, folders) -> (module_class, agent)` | A module class providing one `FakeAgent` |
 | `await status(app, task_id)` | A task's `TaskInfo` from the Hub (`GetTaskStatus`) |

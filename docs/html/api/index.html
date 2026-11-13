@@ -19,9 +19,9 @@
 <h2 id="reusable-parts">♻ Reusable parts</h2>
 <p><strong>Check the <a href="reusable.html">reusable parts index</a> before writing a helper.</strong> One line per part (name, kind, purpose, where, used by), sorted by where it lives:</p>
 <ul>
-<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code> (with <code>request_set</code>), <code>Manifest</code>, the Event Bus, <code>AccessItem</code> and the access cards (<code>PermissionRequested</code>, <code>AnswerPermissionRequest</code>, <code>PermissionChanged</code>), <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code> (with <code>request_approval</code>), <code>AgentState</code>, <code>DeliverMessage</code>, <code>IAgentNames</code>, <code>ModuleContext.withdraw</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>SetFocus</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>AgentNotice</code>, <code>QuestionKind</code> (with <code>RISKY_PREFIX</code>), <code>MAX_SNIPS</code>, <code>PASTED_FILE</code>, the Hub's menu, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
+<li><strong>Contracts</strong> (<code>assistant.contracts</code>): <code>ModuleProtocol</code>, <code>Menu</code>, <code>ModuleContext</code>, <code>ctx.logs</code>, <code>ctx.permissions</code> (with <code>request_set</code>), <code>Manifest</code>, the Event Bus, <code>AccessItem</code> and the access cards (<code>PermissionRequested</code>, <code>AnswerPermissionRequest</code>, <code>PermissionChanged</code>), <code>InputReceived</code>, <code>ResponseReady</code>, <code>IToolProvider</code>, <code>ITaskAgent</code> (with <code>request_approval</code>), <code>AgentState</code>, <code>DeliverMessage</code>, <code>IAgentNames</code>, <code>ModuleContext.withdraw</code>, <code>AgentActivity</code>, <code>SessionUsage</code>, <code>PermissionMode</code>, <code>SetPermissionMode</code>, <code>PermissionModeChanged</code>, <code>SetFocus</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>AgentNotice</code>, <code>QuestionKind</code> (with <code>RISKY_PREFIX</code>), <code>MAX_SNIPS</code>, <code>PASTED_FILE</code>, the Hub's menu, <code>IPageOpener</code>, <code>IVoice</code>, <code>StartListening</code>, <code>StopListening</code>, <code>ListeningState</code>, <code>VoiceState</code>, <code>VoiceTranscript</code></li>
 <li><strong>Voice service</strong> (<code>voice_service</code>): the <code>/ws/listen</code> messages (<code>protocol</code>); inside the service, <code>SttEngine</code> / <code>SttStream</code>, <code>AudioSource</code> / <code>FakeSource</code> / <code>FileSource</code>, and <code>transcribe</code> / <code>transcribe_file</code></li>
-<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code> (with <code>set_context</code>), <code>default_context</code>, <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>AgentKit</code> (with <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>), <code>AgentProfile</code>, <code>manual_claude_mode</code>, <code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>MilestoneFeed</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>show_page</code>, <code>mcp_door</code>, <code>check_agent_id</code>, <code>free_agent_id</code></li>
+<li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code> (with <code>set_context</code>), <code>default_context</code>, <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>AgentKit</code> (with <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>), <code>AgentProfile</code>, <code>manual_claude_mode</code>, <code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>MilestoneFeed</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>show_page</code> (with <code>open_page</code>), <code>mcp_door</code>, <code>check_agent_id</code>, <code>free_agent_id</code></li>
 <li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code> (with <code>window_profile</code>), <code>load_layered</code>, <code>local_path</code>, <code>merge</code>, <code>module_docs</code>, <code>CompanionApp</code>, <code>CompanionHandover</code>, <code>launch_env</code>, <code>local_guard</code></li>
 <li><strong>For tests only</strong> (<a href="testkit.html"><code>assistant.testkit</code></a>): <code>make_config</code>, <code>wait_until</code>, <code>pre_grant</code>, <code>pre_grant_kinds</code>, <code>module_config</code>, <code>stand_in</code>, <code>free_port</code>, <code>sample_card</code>, <code>ui_port</code>, <code>read_events</code>, <code>Speaker</code>, <code>Calculator</code>, the fake <code>claude</code> (<code>FAKE</code>), <code>FAKE_JOB_UI</code>, <code>start_hub</code>, <code>next_matching</code>, <code>report</code>, <code>StubSession</code>, <code>StubContext</code>, <code>FakeAgent</code>, <code>agent_module</code>, <code>status</code>, <code>request</code>, <code>post</code>, <code>next_item</code>, <code>FakeVoiceIn</code>, <code>clip_event</code>, <code>dropped_event</code></li>
 <li><strong>Core host</strong> (<code>assistant.core</code>, internal): <code>add_app_folders</code> (every module's <code>app/</code> folder on the import path)</li>
@@ -62,6 +62,11 @@
 <td><a href="modules.html#modulecontextlogs"><code>ctx.logs</code></a></td>
 <td>interface</td>
 <td>♻ This launch's log <code>folder()</code> and files (<code>sink(name)</code>), owned by the core (<code>ModuleLogs</code>)</td>
+</tr>
+<tr>
+<td><a href="modules.html#ipageopener"><code>IPageOpener</code></a></td>
+<td>contract</td>
+<td>♻ The page-opener slot: <code>open(path, quote, heading, front)</code>; <code>html_viewer</code> provides it, the Talker, temp_ui and the workers' SHOW tags use it, so no core module names the viewer</td>
 </tr>
 <tr>
 <td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a></td>
@@ -276,6 +281,11 @@
 <td><a href="control.html#activatemodule"><code>ActivateModule</code></a></td>
 <td>command</td>
 <td>Turn a module on, with the providers it requires</td>
+</tr>
+<tr>
+<td><a href="control.html#startprovider"><code>StartProvider</code></a></td>
+<td>command</td>
+<td>Start on use by contract: turn on the module that provides a contract and has <code>start_on_use</code> (no module named)</td>
 </tr>
 <tr>
 <td><a href="control.html#deactivatemodule"><code>DeactivateModule</code></a></td>
@@ -566,7 +576,7 @@
 <tr>
 <td><a href="infra.html#show_page"><code>show_page</code></a></td>
 <td>function</td>
-<td>♻ A SHOW tag → the viewer's tool call (<code>viewer.open</code> / <code>viewer.highlight</code>), for the worker and the Talker</td>
+<td>♻ Open a page through <code>IPageOpener</code> (<code>open_page</code>; started on use, or "No page viewer is on"); <code>show_page</code> for a SHOW tag, for the worker, the Talker and temp_ui</td>
 </tr>
 <tr>
 <td><a href="infra.html#agent_names"><code>agent_names</code></a></td>

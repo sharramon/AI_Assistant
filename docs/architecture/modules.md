@@ -49,7 +49,7 @@ Each manifest gets a one-line description, the core gets the two asks, and both 
 
 ### How the agents reach the menus: one door
 
-> **Status: built (2026-11-05)** for both the Main Assistant and the Talker (chunks 8 and 9 of the module system change note, `docs/next-steps/module-system.md`). The Talker's SHOW tags stay a shorthand for the viewer's `viewer.open` / `viewer.highlight`. The door is a small **stdio relay** that `claude` starts itself (`python -m assistant.infra.mcp_door`, from the session's `--mcp-config`); it passes each call over local HTTP, with a token, to a `DoorServer` the Agent Hub hosts, which sends `ListModules`, `GetMenu` or `InvokeTool` through the core. The Hub offers it as the [`IModuleDoor`](../api/tools.md#imoduledoor) contract. In Manual, `use_item` asks with the permission card; the two read-only tools don't.
+> **Status: built (2026-11-05)** for both the Main Assistant and the Talker (chunks 8 and 9 of the module system change note, `docs/next-steps/module-system.md`). The Talker's SHOW tags stay a shorthand for opening a page, now through the [page-opener slot](#the-needs-arrows-point-one-way) (`IPageOpener`), not the viewer's tools. The door is a small **stdio relay** that `claude` starts itself (`python -m assistant.infra.mcp_door`, from the session's `--mcp-config`); it passes each call over local HTTP, with a token, to a `DoorServer` the Agent Hub hosts, which sends `ListModules`, `GetMenu` or `InvokeTool` through the core. The Hub offers it as the [`IModuleDoor`](../api/tools.md#imoduledoor) contract. In Manual, `use_item` asks with the permission card; the two read-only tools don't.
 
 The agents are `claude` sessions, and MCP is how a `claude` session calls tools in the middle of a reply. So the app serves **one MCP server, the door**, in front of the core. It has three fixed tools that map onto the three steps above: **list modules**, **show a menu**, **use an item**. Everything behind it is our own wrapper: the core's directory, `InvokeTool`, and the permission check.
 
@@ -150,6 +150,16 @@ Solid: built (the mic button's flow, and voice notes v1, which follows its own s
 - **No module starts another itself.** Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.
 - **Voice:** `voice_in` provides the voice contract [`IVoice`](../api/messaging.md#ivoice), and voice notes requires it: turning voice notes on turns `voice_in` on first, and `voice_in` can't be turned off while voice notes is on. Any other module that provides `IVoice` can replace `voice_in`.
 
+### The needs arrows point one way
+
+> **Status: built (2026-11-13, module folders item 15).** Tripwire: `test_no_core_code_names_an_add_on` in `tests/test_module_folders.py`.
+
+"Needs" arrows go add-on → core, or add-on → add-on, **never core → add-on**. No core module (the `core` group in each module's `docs/docs.toml`), and no code in the core, `contracts`, `infra` or `app_kit`, names an add-on's id or its menu items. When the core group wants something an add-on does, it asks for a **slot**: a contract in `assistant.contracts` that an add-on fills ("plugs in"), looked up at each call (`uses`, no start order). With nothing plugged in, the caller says so plainly.
+
+- **Opening a page:** the Talker's and the workers' SHOW tags and temp_ui's Open in viewer button go through [`IPageOpener`](../api/modules.md#ipageopener), with [`open_page` / `show_page`](../api/infra.md#show_page). `html_viewer` fills it while it's on; none on: "No page viewer is on". They used to send `InvokeTool viewer.open` / `viewer.highlight`, naming the viewer's tools.
+- **Start on use stays, by contract:** with no provider on, `open_page` sends [`StartProvider`](../api/control.md#startprovider)`("IPageOpener")`, and the core turns on the module that declares it in `manifest.provides` and has `start_on_use = true` in its config. No module is named anywhere on the way.
+- **Hearing an add-on's named events by name is allowed** (module folders decision 9, [chaining modules](#chaining-modules)): the Talker and temp_ui listen to `html_viewer.tabs_changed` / `html_viewer.clip` by name, with no import, and nothing breaks when nobody publishes them.
+
 ## Hot swap
 
 > **Status:** built (2026-11-03).
@@ -173,6 +183,7 @@ A module's code is swapped while the app runs: `ReloadModule` stops it, imports 
 | Menus: a `Menu` part on the module, linked by the core, called with `InvokeTool` | Built (2026-11-05; the HTML viewer, the echo stand-in) |
 | `requires` / `optional` by contract, dependency order, refusal to stop a needed provider | Built |
 | `needs` by module id, from `module.toml`: turned on first, refused off while needed | Built (2026-11-13) |
+| Needs arrows one way: no core code names an add-on; slots (`IPageOpener`) and `StartProvider` instead | Built (2026-11-13, module folders item 15) |
 | `packages` in `module.toml` (listed, not installed) and a module's own `ruff.toml` | Built (2026-11-13) |
 | Reload and add while running | Built (2026-11-03) |
 | Events from one module heard by another (`VoiceTranscript`, `VoiceState`) | Built |

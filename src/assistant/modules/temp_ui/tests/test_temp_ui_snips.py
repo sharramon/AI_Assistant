@@ -12,13 +12,12 @@ from pathlib import Path
 
 from assistant.contracts import (
     InputReceived,
-    IToolProvider,
+    IPageOpener,
     Manifest,
     ModuleContext,
     ModuleEvent,
     ModuleProtocol,
     Result,
-    ToolSpec,
 )
 from assistant.core import App
 from assistant.infra import LogSession
@@ -154,21 +153,30 @@ async def test_temp_ui_turns_a_pasted_image_into_a_snip(tmp_path, caplog):
 
 # --- the chat's Open in viewer button ---
 
-class FakeViewer(ModuleProtocol, IToolProvider):
-    manifest = Manifest(id="fake_viewer", provides=(IToolProvider,))
+class FakeViewer(ModuleProtocol, IPageOpener):
+    """Any add-on that fills the page-opener slot; temp_ui never names it."""
+
+    manifest = Manifest(id="fake_viewer", provides=(IPageOpener,))
     opened: list[str] = []
     front: list[bool] = []
 
     async def init(self, ctx: ModuleContext) -> None:
-        ctx.provide(IToolProvider, self)
+        ctx.provide(IPageOpener, self)
 
-    def tools(self) -> list[ToolSpec]:
-        return [ToolSpec(name="viewer.open", description="open")]
-
-    async def invoke(self, name: str, args: dict) -> Result:
-        self.opened.append(args["path"])
-        self.front.append(args.get("front"))
+    async def open(self, path: str, quote: str | None = None, heading: str | None = None, front: bool = False) -> Result:
+        self.opened.append(path)
+        self.front.append(front)
         return Result.ok({})
+
+
+async def open_in_viewer(app: App, path: str) -> bytes:
+    body = json.dumps({"path": path}).encode()
+    reader, writer = await request(
+        ui_port(app), b"POST /open-in-viewer HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body)
+    )
+    answer = await reader.read()
+    writer.close()
+    return answer
 
 
 async def test_temp_ui_open_in_viewer_button():
@@ -176,15 +184,21 @@ async def test_temp_ui_open_in_viewer_button():
     app = App([TempUIModule, FakeViewer], config)
     await app.start()
     try:
-        body = json.dumps({"path": "docs/html/agents/runtime.html"}).encode()
-        reader, writer = await request(
-            ui_port(app), b"POST /open-in-viewer HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body)
-        )
-        answer = await reader.read()
-        writer.close()
+        answer = await open_in_viewer(app, "docs/html/agents/runtime.html")
         assert b'"ok": true' in answer and FakeViewer.opened == ["docs/html/agents/runtime.html"]
         assert FakeViewer.front == [True]  # your click brings the viewer to the front
         page = (Path(sys.modules[TempUIModule.__module__].__file__).with_name("page.html")).read_text(encoding="utf-8")
         assert "Open in viewer" in page
+    finally:
+        await app.stop()
+
+
+async def test_temp_ui_open_in_viewer_with_no_page_viewer_says_so():
+    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TempUIModule], config)
+    await app.start()
+    try:
+        answer = await open_in_viewer(app, "a.html")
+        assert b'{"ok": false, "error": "No page viewer is on"}' in answer
     finally:
         await app.stop()

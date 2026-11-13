@@ -9,7 +9,7 @@ View, edit, highlight and snip HTML files in tabs. `html_viewer` is the thin mod
 | Field | Value |
 |-------|-------|
 | id | `html_viewer` |
-| provides / requires / optional | none |
+| provides / requires / optional | provides [`IPageOpener`](../../../../../docs/api/modules.md#ipageopener) (the page-opener slot); requires and optional: none |
 | needs | none (`needs = []` in its `module.toml`) |
 | packages | none beyond the app's own (the viewer uses the standard library and `markdown`) |
 | menu | a [`Menu`](../../../../../docs/api/modules.md#menu): `viewer.open`, `viewer.highlight`, `viewer.tabs` |

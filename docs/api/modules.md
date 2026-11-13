@@ -307,4 +307,31 @@ Base for capability interfaces that modules provide and resolve. Subclasses must
 | `multiple` | `ClassVar[bool]` | Whether several modules may provide it at once. Default `False` |
 
 **Defined in:** `src/assistant/contracts/module.py`
-**See also:** [`IToolProvider`](tools.md#itoolprovider)
+**See also:** [`IToolProvider`](tools.md#itoolprovider), [`IPageOpener`](#ipageopener)
+
+## `IPageOpener`
+
+**♻ Reusable · Used by:** `talker` (its SHOW tags), `temp_ui` (the Open in viewer button), `SessionTaskAgent` (every worker's SHOW tags), all through [`open_page` / `show_page`](infra.md#show_page) · provided by `html_viewer` · built 2026-11-13 (module folders item 15)
+
+`class IPageOpener(Contract)` · `from assistant.contracts import IPageOpener`
+
+The page-opener slot: opening a page (an HTML file) for you to look at, optionally highlighting a quote on it. It's how the core group opens pages without naming an add-on or its tools ("needs" arrows never point core → add-on, [modules](../architecture/modules.md#the-needs-arrows-point-one-way)). One provider at a time; `html_viewer` provides it while it's on (`ctx.provide` at start, `ctx.withdraw` at stop). A caller declares it in `manifest.uses` and looks it up at each call, never keeps it (a reload swaps the provider).
+
+`async open(path: str, quote: str | None = None, heading: str | None = None, front: bool = False) -> Result`
+
+| Parameter | Description |
+|-----------|-------------|
+| `path` | The file to open; switches to it if it's already open |
+| `quote` | A short text on the page to highlight and scroll to |
+| `heading` | Look for `quote` only in the section under this heading |
+| `front` | Bring the window to the front: your own click, not for agents' pages |
+
+**Returns:** `ok` once the page is open; with a quote, the value has `found` (False when the quote isn't on the page: the page is open, nothing marked). `invalid_arguments` for a missing file; `failed` (retryable) when the viewer can't be reached.
+
+**Start on use, by contract:** with no provider on, [`open_page`](infra.md#show_page) sends [`StartProvider`](control.md#startprovider)`(contract="IPageOpener")`; the core turns on the module that declares it in `manifest.provides` and has `start_on_use = true` in its config, then looks again. Still none: `not_available`, "No page viewer is on".
+
+**Example**
+
+    result = await open_page(ctx, r"C:\docs\page.html", quote="exact words")  # the lookup, the start, the "none" answer
+
+**Defined in:** `src/assistant/contracts/pages.py` · **Tests:** `tests/test_show_pages.py`, `tests/test_start_on_use.py`, `modules/html_viewer/tests/test_html_viewer.py`, `modules/temp_ui/tests/test_temp_ui_snips.py`

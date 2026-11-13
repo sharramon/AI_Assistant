@@ -1,8 +1,8 @@
 # temp_ui's own defaults. `[modules.temp_ui]` in the app's config only overrides them (merged key by key).
 
 # The modules temp_ui can't run without, by id (Manifest.needs): none. It talks to the agents, the mic
-# and the usage tally through commands and events; when one is off, the page says so. (Its Open in
-# viewer button still sends `viewer.open` directly; module folders item 15 moves that behind a slot.)
+# and the usage tally through commands and events; when one is off, the page says so. Its Open in
+# viewer button opens pages through the page-opener slot (`IPageOpener`), which an add-on fills.
 needs = []
 
 # The pip packages temp_ui needs beyond the app's own (Manifest.packages): none. Its page is served

@@ -449,7 +449,44 @@ if result.is_ok:
 </tbody>
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/module.py</code>
-<strong>See also:</strong> <a href="tools.html#itoolprovider"><code>IToolProvider</code></a></p>
+<strong>See also:</strong> <a href="tools.html#itoolprovider"><code>IToolProvider</code></a>, <a href="#ipageopener"><code>IPageOpener</code></a></p>
+<h2 id="ipageopener"><code>IPageOpener</code></h2>
+<p><strong>♻ Reusable · Used by:</strong> <code>talker</code> (its SHOW tags), <code>temp_ui</code> (the Open in viewer button), <code>SessionTaskAgent</code> (every worker's SHOW tags), all through <a href="infra.html#show_page"><code>open_page</code> / <code>show_page</code></a> · provided by <code>html_viewer</code> · built 2026-11-13 (module folders item 15)</p>
+<p><code>class IPageOpener(Contract)</code> · <code>from assistant.contracts import IPageOpener</code></p>
+<p>The page-opener slot: opening a page (an HTML file) for you to look at, optionally highlighting a quote on it. It's how the core group opens pages without naming an add-on or its tools ("needs" arrows never point core → add-on, <a href="../architecture/modules.html#the-needs-arrows-point-one-way">modules</a>). One provider at a time; <code>html_viewer</code> provides it while it's on (<code>ctx.provide</code> at start, <code>ctx.withdraw</code> at stop). A caller declares it in <code>manifest.uses</code> and looks it up at each call, never keeps it (a reload swaps the provider).</p>
+<p><code>async open(path: str, quote: str | None = None, heading: str | None = None, front: bool = False) -&gt; Result</code></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path</code></td>
+<td>The file to open; switches to it if it's already open</td>
+</tr>
+<tr>
+<td><code>quote</code></td>
+<td>A short text on the page to highlight and scroll to</td>
+</tr>
+<tr>
+<td><code>heading</code></td>
+<td>Look for <code>quote</code> only in the section under this heading</td>
+</tr>
+<tr>
+<td><code>front</code></td>
+<td>Bring the window to the front: your own click, not for agents' pages</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Returns:</strong> <code>ok</code> once the page is open; with a quote, the value has <code>found</code> (False when the quote isn't on the page: the page is open, nothing marked). <code>invalid_arguments</code> for a missing file; <code>failed</code> (retryable) when the viewer can't be reached.</p>
+<p><strong>Start on use, by contract:</strong> with no provider on, <a href="infra.html#show_page"><code>open_page</code></a> sends <a href="control.html#startprovider"><code>StartProvider</code></a><code>(contract="IPageOpener")</code>; the core turns on the module that declares it in <code>manifest.provides</code> and has <code>start_on_use = true</code> in its config, then looks again. Still none: <code>not_available</code>, "No page viewer is on".</p>
+<p><strong>Example</strong></p>
+<pre><code>result = await open_page(ctx, r"C:\docs\page.html", quote="exact words")  # the lookup, the start, the "none" answer
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/pages.py</code> · <strong>Tests:</strong> <code>tests/test_show_pages.py</code>, <code>tests/test_start_on_use.py</code>, <code>modules/html_viewer/tests/test_html_viewer.py</code>, <code>modules/temp_ui/tests/test_temp_ui_snips.py</code></p>
 <footer>Generated from <code>docs/api/modules.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

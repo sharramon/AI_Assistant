@@ -49,7 +49,7 @@ flowchart LR
         Gate["PermissionGate · HandoffKeeper<br/>LastLineTags"]
         CS["ClaudeSession<br/>process I/O"]
         Meter["UsageMeter<br/>token counting · TOKEN_KINDS"]
-        Show["show_page<br/>SHOW → viewer.open · highlight"]
+        Show["show_page · open_page<br/>SHOW → IPageOpener"]
         Door["mcp_door · DoorServer"]
         InfraOther["MilestoneFeed · ContextWatch · agent_tags<br/>agent_names · UsageLedger · LogSession · config"]
         Kit --> PA --> STA --> CS --> Meter
@@ -86,7 +86,7 @@ flowchart LR
     Agents -. "MCP: list · menu · use" .-> Door
     Hub -- hosts --> Door
     Door -- "ListModules · GetMenu · InvokeTool" --> Router
-    Show -- "InvokeTool" --> Router
+    Show -- "StartProvider (none on)" --> Router
     Router --> Dir
     VIn -- CompanionApp --> VS
     HVm -- CompanionApp --> HV
@@ -113,10 +113,10 @@ flowchart LR
 
 - **Imports point one way.** Modules import contracts and infra; infra imports contracts and `app_kit`; the core imports contracts and infra. No module imports another module, and the core imports no module. `app_kit`, `html_viewer` and `voice_service` never import `assistant`. Tests sit apart: the [test kit](../api/testkit.md) (`assistant.testkit`) holds the fakes they share, may import anything, and is imported by tests only, the central `tests/` and each module's own `tests/`.
 - **Agents.** Every big agent is a `ProfileAgent` (its `AgentProfile`, `ClaudeSession` and `SessionTaskAgent`); the Agent Hub starts their tasks through `ITaskAgent` and hosts the one MCP door their `claude` processes call. Messages between agents and from modules go through the Hub's `Delivery` (`DeliverMessage`, never into a turn), and an agent's message to one that isn't its child asks first through the `MessageGate`. More in [Agents: code layout](agents-code.md).
-- **SHOW tags.** The worker and the Talker both turn a SHOW tag into the viewer's tool call with one helper, [`show_page`](../api/infra.md#show_page); the core starts the viewer if it's off.
+- **SHOW tags.** The worker and the Talker both open a SHOW tag's page with one helper, [`show_page`](../api/infra.md#show_page), through the page-opener slot ([`IPageOpener`](../api/modules.md#ipageopener)); the core starts the module that provides it if it's off (`StartProvider`).
 - **Independent apps.** Each runs in its own process, launched by its thin module through `CompanionApp`, and refuses other hosts and other origins with [`local_guard`](../api/app_kit.md#local_guard) ([companion app checklist](reusable-parts.md#companion-app-checklist)).
 - **The permissions handler** is part of the core; it asks you through cards (`PermissionRequested`) and runs the Main Assistant's review as a Hub task.
 
 ## Known gaps
 
-The code review of 2026-11-08 found where the code doesn't follow [principles 18 to 22](principles.md) yet: big classes doing several jobs (`SessionTaskAgent`, `temp_ui`, the Agent Hub, the permissions handler, the Talker, `ClaudeSession`), facts passed as text prefixes, if-chains where a table would do, and module names in the core and shared code. They are cleaned up in small chunks, each redrawn here when it lands. **Built 2026-11-08 (waiting on the app restart):** `SessionTaskAgent` split into its gate, handoff keeper and tag table; `UsageMeter` out of `ClaudeSession`; `AgentKit` for the agent modules; `CompanionHandover` and `window_profile` in `app_kit`; the reserved ids and the coordinator block out of shared code; honest manifests (`Manifest.uses`, logged undeclared uses); the core's one init path, one single-provider rule (`allows_another`) and the card actions table; the Talker's `RestartFlow` and tag table; the permissions reviewer and "you" in config; typed question kinds (`QuestionKind` on `TaskInfo` / `TaskUpdated`, set by the Hub, read by the Talker and the temp UI) and the shared snip limits (`MAX_SNIPS`, `PASTED_FILE`) in the contracts. **Still open:** `show_page` names the viewer's two tools (kept, in one place, by your choice), the Agent Hub split (not approved yet), the `"permission allowed"` text the temp UI still reads, and `temp_ui`.
+The code review of 2026-11-08 found where the code doesn't follow [principles 18 to 22](principles.md) yet: big classes doing several jobs (`SessionTaskAgent`, `temp_ui`, the Agent Hub, the permissions handler, the Talker, `ClaudeSession`), facts passed as text prefixes, if-chains where a table would do, and module names in the core and shared code. They are cleaned up in small chunks, each redrawn here when it lands. **Built 2026-11-08 (waiting on the app restart):** `SessionTaskAgent` split into its gate, handoff keeper and tag table; `UsageMeter` out of `ClaudeSession`; `AgentKit` for the agent modules; `CompanionHandover` and `window_profile` in `app_kit`; the reserved ids and the coordinator block out of shared code; honest manifests (`Manifest.uses`, logged undeclared uses); the core's one init path, one single-provider rule (`allows_another`) and the card actions table; the Talker's `RestartFlow` and tag table; the permissions reviewer and "you" in config; typed question kinds (`QuestionKind` on `TaskInfo` / `TaskUpdated`, set by the Hub, read by the Talker and the temp UI) and the shared snip limits (`MAX_SNIPS`, `PASTED_FILE`) in the contracts. **Still open:** the Agent Hub split (`show_page` naming the viewer's two tools was closed by module folders item 15: it opens pages through `IPageOpener` now) (not approved yet), the `"permission allowed"` text the temp UI still reads, and `temp_ui`.

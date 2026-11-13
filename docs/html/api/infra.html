@@ -259,7 +259,7 @@ await session.send("Hello")
 <p><strong>Questions are messages</strong> (built 2026-11-10). Outside, the agent is <code>active</code> or <code>idle</code> (<a href="agents.html#agentstate"><code>AgentState</code></a>, <code>info().state</code>). A turn ending <code>NEED: &lt;question&gt;</code> reports <code>need</code> with the question's key (<a href="agents.html#reporttask"><code>ReportTask.key</code></a>), drops the task and is idle as soon as the Hub has the report: it takes new work, whatever it asked. The answer comes back as the same task (<code>Task.question_key</code> set): into the live session if that still has the question (nothing ran since), else a fresh session whose first message adds "[App] This is a fresh session …" and the module's notes for the key. A <code>message</code> to a task it has just asked in gets <code>not_available</code> until the report is with the Hub.</p>
 <p><strong>Context reminder.</strong> With <code>context_reminder</code> (tokens; 0, the default, is off), the first time the session's context passes it during a task, checked with <a href="#contextwatch"><code>ContextWatch</code></a> wherever usage is published, the task gets a <code>[Context check]</code> message the same way <a href="agents.html#itaskagent"><code>message</code></a> sends any (interrupt, then carry on): find a safe point, write what's done and next into the change note, and end with <code>HANDOFF:</code>. Once per crossing: a fresh session starts small and re-arms it. While the task waits on you (a permission request) the reminder is held and sent once it works again, so an open request isn't dropped. Logged (<code>context 152k past 150k: reminded task … to find a reset point</code>) and published as <code>AgentActivity</code> (<code>context reminder sent (152k)</code>).</p>
 <p><strong>Edit note.</strong> With <code>edit_note</code>, the second edit to a file in a task (<code>Edit</code>, <code>Write</code>, <code>MultiEdit</code> or <code>NotebookEdit</code>, paths compared lowercase with <code>/</code>, counted across handoffs) is logged (<code>batching note for task … : &lt;path&gt; edited twice</code>) and published as <code>AgentActivity</code> (<code>batching note: a.md</code>), once per file. It only reports and never sends the agent anything: the note the agent reads comes from the edit hook, with the tool call. With <code>task_file</code>, the current task's id is written there at each <code>assign</code>, so the hook can count by task across sessions.</p>
-<p><strong>SHOW tags.</strong> Every <code>&lt;&lt;SHOW: path&gt;&gt;</code> or <code>&lt;&lt;SHOW: path | "quote" | heading&gt;&gt;</code> in the agent's text (read with <a href="#agent_tags"><code>agent_tags</code></a>) is sent as <code>InvokeTool viewer.open</code> or <code>viewer.highlight</code> through <a href="#show_page"><code>show_page</code></a>, in the background; the core turns the viewer on first if it's off (<a href="core.html#dispatch_tool">start on use</a>). A failure is logged and published as <code>AgentActivity</code> (<code>couldn't show &lt;path&gt;: &lt;error&gt;</code>). Built 2026-11-05; it was the <code>html_viewer</code> module's job before.</p>
+<p><strong>SHOW tags.</strong> Every <code>&lt;&lt;SHOW: path&gt;&gt;</code> or <code>&lt;&lt;SHOW: path | "quote" | heading&gt;&gt;</code> in the agent's text (read with <a href="#agent_tags"><code>agent_tags</code></a>) is opened through the page-opener slot (<a href="modules.html#ipageopener"><code>IPageOpener</code></a>) by <a href="#show_page"><code>show_page</code></a>, in the background; the core turns the module that provides it on first if it's off (<a href="control.html#startprovider"><code>StartProvider</code></a>). A failure is logged and published as <code>AgentActivity</code> (<code>couldn't show &lt;path&gt;: &lt;error&gt;</code>). Built 2026-11-05; it was the <code>html_viewer</code> module's job before.</p>
 <p><strong>Permission mode.</strong> It holds the <a href="agents.html#permissionmode"><code>PermissionMode</code></a> in memory, Manual at every launch. The owning module builds each session's command for <code>permission_mode</code> (pass the session a callable). A session started in another mode is always replaced at the next task, even if unused. Every switch applies at once. Mid-task, a switch to Manual sends <code>ClaudeSession.set_permission_mode(manual_claude_mode)</code> when the running process is in Auto. A switch to Auto mid-task leaves the process in its Manual mode (the <code>git push</code> block is a launch flag) and the agent answers each <code>can_use_tool</code> itself: allowed, logged as <code>allowed in Auto: …</code>, or, for a PowerShell or Bash command containing <code>git push</code>, refused (<code>refused in Auto: …</code>). An open tool request is answered the same way at the switch. The session gets the new mode's rules (<code>AUTO_ACCESS</code> / <code>MANUAL_ACCESS</code>) at the end of its next message; to Auto mid-turn it's interrupted for them (the usual message path), then carries on. Every switch is logged, published as <code>AgentActivity</code>, and published as <a href="agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a>.</p>
 <table>
 <thead>
@@ -601,9 +601,9 @@ question = last_line(text, "NEED:")   # "Which folder?" or None
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/agent_tags.py</code> · <strong>Tests:</strong> <code>tests/test_agent_tags.py</code></p>
 <h2 id="show_page"><code>show_page</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> (<code>_show</code>), <code>talker</code> (its <code>SHOW</code> tag) · built 2026-11-08</p>
-<p><code>async show_page(ctx: ModuleContext, argument: str) -&gt; ShowOutcome</code> · <code>from assistant.infra import show_page, show_command, ShowOutcome</code> (the tool names: <code>from assistant.infra.show_pages import VIEWER_OPEN, VIEWER_HIGHLIGHT</code>)</p>
-<p>The one place that turns a SHOW tag's argument (<code>path</code>, or <code>path | "quote" | heading</code>) into the viewer's tool call, sent through <code>ctx.send</code> as <code>InvokeTool</code>, so the core starts the viewer if it's off. Each caller words its own messages from the outcome.</p>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> (<code>_show</code>), <code>talker</code> (its <code>SHOW</code> tag), <code>temp_ui</code> (<code>open_page</code>: the Open in viewer button) · built 2026-11-08; through <code>IPageOpener</code> since 2026-11-13 (module folders item 15)</p>
+<p><code>async show_page(ctx: ModuleContext, argument: str) -&gt; ShowOutcome</code> · <code>async open_page(ctx, path, quote=None, heading=None, front=False) -&gt; Result</code> · <code>from assistant.infra import show_page, open_page, ShowOutcome, NO_PAGE_VIEWER</code></p>
+<p>The one place that opens a page for the core group, through the page-opener slot (<a href="modules.html#ipageopener"><code>IPageOpener</code></a>), never a viewer's id or tools. <code>open_page</code> looks the provider up; with none on it sends <a href="control.html#startprovider"><code>StartProvider</code></a> so the core turns on the module that provides it and starts on use, then looks again; still none: <code>not_available</code> with <code>NO_PAGE_VIEWER</code> ("No page viewer is on"); a start that failed gives its error. <code>show_page</code> turns a SHOW tag's argument (<code>path</code>, or <code>path | "quote" | heading</code>) into that call. Each caller words its own messages from the outcome, and declares <code>IPageOpener</code> in <code>manifest.uses</code> and <code>StartProvider</code> in <code>manifest.sends</code> (the agent modules through <a href="#agentkit"><code>AGENT_USES</code> / <code>AGENT_SENDS</code></a>).</p>
 <table>
 <thead>
 <tr>
@@ -614,19 +614,19 @@ question = last_line(text, "NEED:")   # "Which folder?" or None
 <tbody>
 <tr>
 <td><code>show_page(ctx, argument)</code></td>
-<td>Parse the argument (<a href="#agent_tags"><code>parse_show</code></a>) and send the call; returns <code>ShowOutcome(show, result)</code></td>
+<td>Parse the argument (<a href="#agent_tags"><code>parse_show</code></a>) and open it with <code>open_page</code>; returns <code>ShowOutcome(show, result)</code></td>
+</tr>
+<tr>
+<td><code>open_page(ctx, path, quote, heading, front)</code></td>
+<td>Open a page through <code>IPageOpener</code>, starting its provider on use; the <code>Result</code> of <code>IPageOpener.open</code></td>
 </tr>
 <tr>
 <td><code>ShowOutcome.quote_missing</code></td>
 <td>The page opened but the quote isn't on it (<code>result.value["found"] is False</code>)</td>
 </tr>
 <tr>
-<td><code>show_command(show) -&gt; InvokeTool</code></td>
-<td>The call for a parsed <code>ShowTag</code>: <code>viewer.highlight</code> with <code>path</code>, <code>text</code> (and <code>heading</code>) when there's a quote, else <code>viewer.open</code> with <code>path</code></td>
-</tr>
-<tr>
-<td><code>VIEWER_OPEN</code>, <code>VIEWER_HIGHLIGHT</code></td>
-<td>The viewer's tool names, written only here</td>
+<td><code>NO_PAGE_VIEWER</code></td>
+<td>The error when no module provides <code>IPageOpener</code></td>
 </tr>
 </tbody>
 </table>
@@ -690,7 +690,7 @@ elif outcome.quote_missing: ...
 </tr>
 </tbody>
 </table>
-<p><strong>The declarations, named once</strong> (principle 17): <code>AGENT_USES</code> (<code>IModuleDoor</code>, <code>IAgentNames</code>, in <a href="modules.html#manifest"><code>Manifest.uses</code></a>: looked up at each call, no start order), <code>AGENT_SENDS</code> (<code>ReportTask</code>, <code>InvokeTool</code>), <code>AGENT_PUBLISHES</code> (<code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>), <code>AGENT_LISTENS</code> (<code>ResetRequested</code>, <code>ModuleStateChanged</code>). A module adds <code>PermissionChanged</code> when it follows grants.</p>
+<p><strong>The declarations, named once</strong> (principle 17): <code>AGENT_USES</code> (<code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code> for SHOW tags, in <a href="modules.html#manifest"><code>Manifest.uses</code></a>: looked up at each call, no start order), <code>AGENT_SENDS</code> (<code>ReportTask</code>, <code>StartProvider</code>: a SHOW with no page opener on), <code>AGENT_PUBLISHES</code> (<code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>), <code>AGENT_LISTENS</code> (<code>ResetRequested</code>, <code>ModuleStateChanged</code>). A module adds <code>PermissionChanged</code> when it follows grants.</p>
 <pre><code>manifest = Manifest(id="job_search", provides=(ITaskAgent,), uses=AGENT_USES, sends=AGENT_SENDS,
                     publishes=(*AGENT_PUBLISHES, AgentNotice), listens=(*AGENT_LISTENS, PermissionChanged))
 </code></pre>

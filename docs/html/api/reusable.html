@@ -76,11 +76,11 @@
 <td>every module</td>
 </tr>
 <tr>
-<td><a href="core.html#dispatch_tool">Start on use</a> (<code>dispatch_tool</code>, <code>App._start_for_tool</code>)</td>
+<td><a href="core.html#dispatch_tool">Start on use</a> (<code>dispatch_tool</code>, <code>App._start_for_tool</code>, <a href="control.html#startprovider"><code>StartProvider</code></a>)</td>
 <td>core</td>
-<td>A tool call turns on the module that is off and has the tool, if its config has <code>start_on_use = true</code> (same path as <code>ActivateModule</code>); failed start → its error; one start for calls at once</td>
+<td>A tool call, or a <code>StartProvider(contract)</code>, turns on the module that is off and has the tool (or provides the contract), if its config has <code>start_on_use = true</code> (same path as <code>ActivateModule</code>, one <code>App._start_on_use</code>); failed start → its error; one start for calls at once</td>
 <td><code>core/tools.py</code>, <code>core/app.py</code></td>
-<td>every <code>InvokeTool</code> caller: <code>talker</code> (SHOW), <code>temp_ui</code> (Open in viewer), <code>SessionTaskAgent</code> (SHOW), the agents' door (<code>use_item</code>); modules opted in: <code>html_viewer</code></td>
+<td>every <code>InvokeTool</code> caller (the agents' door, <code>use_item</code>); <code>StartProvider</code>: <code>open_page</code> (<code>talker</code>, <code>temp_ui</code>, <code>SessionTaskAgent</code>); modules opted in: <code>html_viewer</code></td>
 </tr>
 <tr>
 <td>Event Bus (<code>ctx.subscribe</code> / <code>ctx.publish</code>)</td>
@@ -270,6 +270,13 @@
 <td>The voice contract: <code>listen(session_id, destination)</code> / <code>finish(session_id)</code>, each caller ends only its own session</td>
 <td><code>contracts/voice.py</code>, <code>modules/voice_in/module.py</code> (<code>_Voice</code>)</td>
 <td><code>voice_in</code> provides; <code>voice_notes</code> requires</td>
+</tr>
+<tr>
+<td><a href="modules.html#ipageopener"><code>IPageOpener</code></a></td>
+<td>contract</td>
+<td>The page-opener slot: <code>open(path, quote, heading, front)</code>, so the core group opens pages without naming an add-on</td>
+<td><code>contracts/pages.py</code>, <code>modules/html_viewer/module.py</code> (<code>_PageOpener</code>)</td>
+<td><code>html_viewer</code> provides; <code>talker</code>, <code>temp_ui</code>, <code>SessionTaskAgent</code> use (through <code>open_page</code>)</td>
 </tr>
 <tr>
 <td><a href="messaging.html#startlistening"><code>StartListening</code></a>, <a href="messaging.html#stoplistening"><code>StopListening</code></a></td>
@@ -560,11 +567,11 @@
 <td><code>talker</code> (<code>context_warning</code>), <code>SessionTaskAgent</code> (<code>context_reminder</code>)</td>
 </tr>
 <tr>
-<td><a href="infra.html#show_page"><code>show_page</code></a>, <code>show_command</code>, <code>ShowOutcome</code></td>
+<td><a href="infra.html#show_page"><code>show_page</code></a>, <code>open_page</code>, <code>ShowOutcome</code>, <code>NO_PAGE_VIEWER</code></td>
 <td>function, part</td>
-<td>A SHOW tag's argument → the viewer's tool call (<code>viewer.open</code> / <code>viewer.highlight</code>, names in this one place) through <code>ctx.send</code>; the outcome says if the quote was missing</td>
+<td>Open a page through <a href="modules.html#ipageopener"><code>IPageOpener</code></a> (starting its provider on use with <code>StartProvider</code>; none: "No page viewer is on"); <code>show_page</code> for a SHOW tag's argument; the outcome says if the quote was missing</td>
 <td><code>infra/show_pages.py</code></td>
-<td><code>SessionTaskAgent</code> (<code>_show</code>), <code>talker</code> (its <code>SHOW</code> tag)</td>
+<td><code>SessionTaskAgent</code> (<code>_show</code>), <code>talker</code> (its <code>SHOW</code> tag), <code>temp_ui</code> (<code>open_page</code>: Open in viewer)</td>
 </tr>
 <tr>
 <td><a href="infra.html#agent_tags"><code>agent_tags</code></a></td>

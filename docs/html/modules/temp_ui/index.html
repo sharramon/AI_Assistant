@@ -41,7 +41,7 @@
 </tr>
 <tr>
 <td>needs</td>
-<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): a core module, it needs no other module by id. Its Open in viewer button still sends <code>viewer.open</code> directly; module folders item 15 moves that behind a slot</td>
+<td>none (<a href="../../api/modules.html#manifest"><code>Manifest.needs</code></a>, from its <code>module.toml</code>): a core module, it needs no other module by id. Its Open in viewer button opens pages through the page-opener slot (<a href="../../api/modules.html#ipageopener"><code>IPageOpener</code></a>), which an add-on fills, so it names no add-on</td>
 </tr>
 <tr>
 <td>packages</td>

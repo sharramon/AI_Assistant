@@ -6,6 +6,8 @@ doesn't import the assistant. The two talk over its local HTTP API (this module 
 and its event stream (viewer → this module). This module starts it on the first show
 request and stops it when the app stops; a viewer you started yourself, it connects to and
 leaves running. It:
+- provides the page-opener slot (`IPageOpener`) while it's on: the Talker, the worker's SHOW tags
+  and temp_ui's Open in viewer button open pages through it and never name this module
 - has a menu: `viewer.open` (open an HTML file in a tab), `viewer.highlight` (open it and
   highlight a quoted part), and `viewer.tabs`; the core offers it through `InvokeTool`
 - publishes the viewer's open tabs and highlights as its named event `html_viewer.tabs_changed`
@@ -25,6 +27,7 @@ from typing import Any
 from app_kit import CompanionHandover
 from app_kit.window import window_profile
 from assistant.contracts import (
+    IPageOpener,
     Manifest,
     Menu,
     ModuleContext,
@@ -44,6 +47,7 @@ class HtmlViewerModule(ModuleProtocol):
     manifest = Manifest(
         id="html_viewer",
         description="View, edit, highlight and snip HTML; launches the viewer app",
+        provides=(IPageOpener,),
         publishes_named=(TABS_CHANGED, CLIP),
     )
     menu = menu
@@ -65,13 +69,16 @@ class HtmlViewerModule(ModuleProtocol):
         )  # fmt: skip
         self._app = self._companion.app
         self._relay_task: asyncio.Task | None = None
+        self._opener = _PageOpener(self)
 
     async def start(self) -> None:
+        self._ctx.provide(IPageOpener, self._opener)
         # Nothing to launch yet. A viewer you started yourself: follow its tabs from now on.
         if await self._ping():
             self._follow()
 
     async def stop(self) -> None:
+        self._ctx.withdraw(IPageOpener, self._opener)
         if self._relay_task:
             self._relay_task.cancel()
             await asyncio.gather(self._relay_task, return_exceptions=True)
@@ -192,3 +199,17 @@ class HtmlViewerModule(ModuleProtocol):
             image = Path(item["path"])
         self._ctx.publish_named(CLIP, {"id": item["id"], "image_path": str(image), "file": item["file"],
                                        "heading": item.get("heading")})  # fmt: skip
+
+
+class _PageOpener(IPageOpener):
+    """html_viewer's `IPageOpener` part: the same code as its `viewer.open` and `viewer.highlight`."""
+
+    def __init__(self, module: HtmlViewerModule) -> None:
+        self._module = module
+
+    async def open(
+        self, path: str, quote: str | None = None, heading: str | None = None, front: bool = False
+    ) -> Result:
+        if quote:
+            return await self._module.highlight(path, quote, heading, front)
+        return await self._module.show(path, front)

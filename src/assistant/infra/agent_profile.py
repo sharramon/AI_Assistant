@@ -22,7 +22,7 @@ DOOR_PROMPT = """
 
 The app's modules: your `modules` tools reach every module's menu through the app's core. \
 Call `list_modules` (one line each), then `show_menu` for the module you need, then \
-`use_item` with an item's name and inputs (for example `viewer.open` with a path). \
+`use_item` with an item's name and inputs (for example `modules.docs` with a module's id). \
 Module control (on, off, reload, add) is the `core` menu. The SHOW, RELOAD and ADD_MODULE \
 lines still work as before."""
 

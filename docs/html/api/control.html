@@ -193,6 +193,33 @@ if not result.is_ok:
     ctx.log.warning("Couldn't enable voice output: %s", result.error)
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
+<h2 id="startprovider"><code>StartProvider</code></h2>
+<p><code>StartProvider(contract: str)</code> (command) · built 2026-11-13 (module folders item 15)</p>
+<p>Start on use, by contract: turn on the module that is off, declares <code>contract</code> (a contract's class name, e.g. <code>"IPageOpener"</code>) in its <code>manifest.provides</code>, and has <code>start_on_use = true</code> in its config, the same way as <code>ActivateModule</code>. A caller names a contract, never a module, so no core module names an add-on. Sent by <a href="infra.html#show_page"><code>open_page</code></a> when no <a href="modules.html#ipageopener"><code>IPageOpener</code></a> is on.</p>
+<p><strong>Returns</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ok</code></td>
+<td>The module started; look the contract up again</td>
+</tr>
+<tr>
+<td><code>not_available</code></td>
+<td>No module qualifies: none provides it, it's already on, or its config doesn't allow start on use</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>The module couldn't start (<code>The &lt;id&gt; module couldn't start: …</code>, retryable)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code> (command), <code>src/assistant/core/app.py</code> (<code>App._start_provider</code>) · <strong>Tests:</strong> <code>tests/test_start_on_use.py</code></p>
 <h2 id="deactivatemodule"><code>DeactivateModule</code></h2>
 <p><code>DeactivateModule(module_id: str, with_dependents: bool = False)</code> (command)</p>
 <p>Turn a module off: <code>stop</code>, then everything it registered is removed. Its tools, handlers, and contracts disappear.</p>

@@ -22,7 +22,7 @@ from assistant.contracts import (
     AgentStateChanged,
     IAgentNames,
     IModuleDoor,
-    InvokeTool,
+    IPageOpener,
     ITaskAgent,
     ModuleContext,
     ModuleStateChanged,
@@ -30,16 +30,17 @@ from assistant.contracts import (
     ReportTask,
     ResetRequested,
     SessionUsage,
+    StartProvider,
 )
 from assistant.infra.agent_access import granted_config, request_access, watch_grant
 from assistant.infra.profile_agent import ProfileAgent
 
 # What every agent module's manifest declares for its ProfileAgents and this kit, named once.
 #: Looked up at each call, no start order (the Hub provides both and uses the agents):
-#: the door at each session start, the names at start and stop.
-AGENT_USES = (IModuleDoor, IAgentNames)
-#: Reports to the Hub; SHOW opens pages through the viewer's tools.
-AGENT_SENDS = (ReportTask, InvokeTool)
+#: the door at each session start, the names at start and stop; and the page opener, at each SHOW.
+AGENT_USES = (IModuleDoor, IAgentNames, IPageOpener)
+#: Reports to the Hub; SHOW asks the core to start the page opener's module if none is on.
+AGENT_SENDS = (ReportTask, StartProvider)
 AGENT_PUBLISHES = (AgentActivity, AgentStateChanged, SessionUsage, PermissionModeChanged)
 #: The kit's resets; a ProfileAgent that starts before the door waits for a module to turn on.
 AGENT_LISTENS = (ResetRequested, ModuleStateChanged)

@@ -38,6 +38,7 @@ from assistant.contracts import (
     IModuleDoor,
     InputReceived,
     InvokeTool,
+    IPageOpener,
     ListAgents,
     Manifest,
     ModuleContext,
@@ -55,6 +56,7 @@ from assistant.contracts import (
     SessionTheme,
     SessionUsage,
     ShutdownRequested,
+    StartProvider,
     TaskState,
     TaskUpdated,
 )
@@ -100,7 +102,8 @@ class TalkerModule(ModuleProtocol):
         id="talker",
         description="Talks with you, one Talker per agent tab; hands work to the Agent Hub",
         optional=(IModuleDoor,),  # the agents' door to the module menus, from the Agent Hub
-        sends=(InvokeTool, AnswerPermissionRequest, ListAgents,),  # the Hub through its menu (hub.*), one road
+        uses=(IPageOpener,),  # SHOW: whichever add-on opens pages, looked up at each tag
+        sends=(InvokeTool, AnswerPermissionRequest, ListAgents, StartProvider,),  # the Hub through its menu (hub.*), one road
         publishes=(ResponseReady, SessionUsage, SessionTheme, ResetRequested, ShutdownRequested,),
         listens=(InputReceived, TaskUpdated, FocusChanged, FocusSuggested, SessionUsage, ResetRequested,
                  PermissionModeChanged, PermissionRequested, PermissionChanged, AgentStateChanged, ModuleStateChanged,),

@@ -59,7 +59,7 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "The item's name, e.g. viewer.open"},
+                "name": {"type": "string", "description": "The item's name, e.g. modules.docs"},
                 "args": {"type": "object", "description": "The item's inputs"},
             },
             "required": ["name"],

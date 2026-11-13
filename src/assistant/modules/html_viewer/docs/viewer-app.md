@@ -85,7 +85,7 @@ sequenceDiagram
     T->>U: ResponseReady: "... docs/html/agents/runtime.html ..."
     Note over U: an HTML path: an Open in viewer button
     You->>U: click Open in viewer
-    U->>V: InvokeTool viewer.open(path)
+    U->>V: IPageOpener.open(path, front) (open_page; none on: StartProvider first)
     V->>P: start it, if it isn't running
     V->>P: POST /api/open {path, front: true}
     P-->>You: the file in a tab, the window in front (opened if none is showing)
@@ -94,8 +94,8 @@ sequenceDiagram
     T->>T: "[Viewer] open: ..." added before your next message
 ```
 
-- **The Main Assistant** writes `<<SHOW: path>>` on its own line, or `<<SHOW: path | "quoted text" | heading>>` to highlight; its `SessionTaskAgent` reads the tag and sends `viewer.open` or `viewer.highlight` as `InvokeTool` (it can also call them through the door). The Talker uses the same tag.
-- **Off at launch, on when used:** `html_viewer` isn't in `enabled`; it has `start_on_use = true`, so the first page opened (SHOW, Open in viewer, any `viewer.*` call) turns it on through the core ([start on use](../../../../../docs/api/core.md#dispatch_tool)), even if you turned it off. Both prompts say HTML files never open in the default browser.
+- **The Main Assistant** writes `<<SHOW: path>>` on its own line, or `<<SHOW: path | "quoted text" | heading>>` to highlight; its `SessionTaskAgent` reads the tag and opens the page through the page-opener slot ([`IPageOpener`](../../../../../docs/api/modules.md#ipageopener), which this module provides), never naming this module or its tools (it can also call them through the door). The Talker uses the same tag, and the Open in viewer button the same slot.
+- **Off at launch, on when used:** `html_viewer` isn't in `enabled`; it has `start_on_use = true`, so the first page opened (SHOW, Open in viewer, any `viewer.*` call) turns it on through the core ([start on use](../../../../../docs/api/core.md#dispatch_tool); for the SHOW tags and the button, by contract: [`StartProvider`](../../../../../docs/api/control.md#startprovider)), even if you turned it off. Both prompts say HTML files never open in the default browser.
 - **To the front:** your click on Open in viewer sends `front: true`. The viewer finds its Edge window (`raise_window` in [`app_kit.window`](../../../../../docs/api/app_kit.md#window), Windows only, ctypes), restores it if minimized, and brings it to the front, borrowing the input of the window in front (`AttachThreadInput`) because Windows keeps a background process from doing that. If the window is gone, it opens a new one at once. Pages an agent opens with SHOW don't take focus.
 - **Full paths:** the Talker always writes an HTML file's full absolute path. The button can't find a bare file name: it would look for it in the app's folder.
 - **The viewer app:** a stdlib HTTP server on `127.0.0.1:8766` in its own process. It opens in an Edge app-mode window on its own profile. Each tab is an `<iframe>` served from the viewer's own address (same origin), so the edit tool and highlights can reach into the page.
@@ -132,7 +132,7 @@ No existing viewer combines tabs, an open-tabs list the app can read, and the ha
 6. **Generated pages:** editable; saving into `docs/html` or `docs/html-next-steps` writes text edits back to the Markdown source, matched by text, and warns about edits it can't place (2026-10-27; first a warning only). The viewer doesn't rebuild the docs.
 7. **Undo:** in memory only, one stack per tab; no permanent backups; one temporary copy of the original per open tab, deleted when the tab closes. Redo comes later.
 8. **Window code:** first shared in `assistant.infra`, then copied into the viewer when it became its own app (`html_viewer/window.py`, which also opens Edge's DevTools port for snip). **Replaced 2026-11-02 ([build it once](../../../../../docs/architecture/principles.md)):** one shared copy in [`app_kit.window`](../../../../../docs/api/app_kit.md#window), used by the viewer and `temp_ui`. The thin `html_viewer` module launches the viewer with [`CompanionApp`](../../../../../docs/api/app_kit.md#companionapp) and reads SHOW tags with [`agent_tags`](../../../../../docs/api/infra.md#agent_tags). All three are built (2026-11-02).
-9. **HTML opened through the chat goes to the viewer**, never the default browser. The Talker writes the file's path and the chat shows an Open in viewer button; the Main Assistant writes `<<SHOW: path>>`, and its `SessionTaskAgent` sends `viewer.open`, which turns the module on and starts the viewer if needed.
+9. **HTML opened through the chat goes to the viewer**, never the default browser. The Talker writes the file's path and the chat shows an Open in viewer button; the Main Assistant writes `<<SHOW: path>>`, and its `SessionTaskAgent` opens it through `IPageOpener` (since 2026-11-13; before, it sent `viewer.open`), which turns the module on and starts the viewer if needed.
 10. **Focus** (2026-10-28): only your click on Open in viewer brings the viewer to the front. Pages an agent opens on its own stay in the background. Agents write full absolute paths, never bare names.
 10. **Highlights** (2026-10-27): the assistant quotes the page's words (plus an optional heading); several can be on a page and stay until you clear them; no labels; page text only, not inside diagrams.
 11. **Snip** (2026-10-27): Edge's own screenshot of the box (DevTools), so diagrams come out exactly; up to 3 snips wait for your next message; thumbnails above the chat input, each with an × to drop it.

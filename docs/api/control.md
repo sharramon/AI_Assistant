@@ -92,6 +92,21 @@ Turn a module on: a fresh instance, then `init` and `start`.
 
 **Defined in:** `src/assistant/contracts/control.py`
 
+## `StartProvider`
+
+`StartProvider(contract: str)` (command) · built 2026-11-13 (module folders item 15)
+
+Start on use, by contract: turn on the module that is off, declares `contract` (a contract's class name, e.g. `"IPageOpener"`) in its `manifest.provides`, and has `start_on_use = true` in its config, the same way as `ActivateModule`. A caller names a contract, never a module, so no core module names an add-on. Sent by [`open_page`](infra.md#show_page) when no [`IPageOpener`](modules.md#ipageopener) is on.
+
+**Returns**
+| Status | When |
+|--------|------|
+| `ok` | The module started; look the contract up again |
+| `not_available` | No module qualifies: none provides it, it's already on, or its config doesn't allow start on use |
+| `failed` | The module couldn't start (`The <id> module couldn't start: …`, retryable) |
+
+**Defined in:** `src/assistant/contracts/control.py` (command), `src/assistant/core/app.py` (`App._start_provider`) · **Tests:** `tests/test_start_on_use.py`
+
 ## `DeactivateModule`
 
 `DeactivateModule(module_id: str, with_dependents: bool = False)` (command)

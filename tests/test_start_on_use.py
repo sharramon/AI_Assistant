@@ -1,4 +1,5 @@
-"""Start on use: a tool call turns on the module that is off and has the tool, if its config allows."""
+"""Start on use: a tool call turns on the module that is off and has the tool, if its config allows;
+and `StartProvider` does the same by contract, so a caller (the SHOW tags, temp_ui) names no module."""
 
 import asyncio
 
@@ -6,31 +7,43 @@ from assistant.contracts import (
     AgentActivity,
     DeactivateModule,
     InvokeTool,
+    IPageOpener,
     Manifest,
     Menu,
     ModuleContext,
     ModuleProtocol,
     Result,
+    StartProvider,
     Status,
     Task,
 )
 from assistant.core import App
-from assistant.infra import SessionTaskAgent
+from assistant.infra import NO_PAGE_VIEWER, SessionTaskAgent
 from assistant.testkit import StubContext, StubSession
 
 menu = Menu()
 
 
+class Opener(IPageOpener):
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    async def open(self, path, quote=None, heading=None, front=False):
+        self.calls.append((path, quote, heading, front))
+        return Result.ok({"opened": path})
+
+
 class Pages(ModuleProtocol):
-    manifest = Manifest(id="pages", description="a viewer stand-in")
+    manifest = Manifest(id="pages", description="a viewer stand-in", provides=(IPageOpener,))
     menu = menu
     starts = 0
     fail = False
 
     async def init(self, ctx: ModuleContext) -> None:
-        pass
+        self._ctx = ctx
 
     async def start(self) -> None:
+        self._ctx.provide(IPageOpener, Opener())
         type(self).starts += 1
         await asyncio.sleep(0.05)  # long enough for a second call to arrive meanwhile
         if type(self).fail:
@@ -107,34 +120,65 @@ async def test_a_module_you_turned_off_starts_again_on_use():
         await app.stop()
 
 
-async def test_task_agent_opens_its_show_tags_through_invoke_tool():
-    session, ctx, sent = StubSession(), StubContext(), []
+async def test_start_provider_turns_on_the_module_that_provides_the_contract():
+    app = make_app()
+    await app.start()
+    try:
+        assert app.container.get_one(IPageOpener) is None
+        assert (await app.router.send(StartProvider(contract="IPageOpener"))).is_ok
+        assert "pages" in app._lifecycle._active and app.container.get_one(IPageOpener) is not None
+        again = await app.router.send(StartProvider(contract="IPageOpener"))  # already on: nothing to start
+        assert again.status is Status.NOT_AVAILABLE and Pages.starts == 1
+        assert (await app.router.send(DeactivateModule(module_id="pages"))).is_ok
+        assert app.container.get_one(IPageOpener) is None  # withdrawn with the module
+    finally:
+        await app.stop()
 
-    async def send(command):
-        sent.append(command)
-        return Result.ok({})
 
-    ctx.send = send
+async def test_start_provider_only_for_modules_that_allow_it():
+    app = make_app(start_on_use=False)
+    await app.start()
+    try:
+        result = await app.router.send(StartProvider(contract="IPageOpener"))
+        assert result.status is Status.NOT_AVAILABLE and Pages.starts == 0
+        nobody = await app.router.send(StartProvider(contract="INobody"))
+        assert nobody.status is Status.NOT_AVAILABLE
+    finally:
+        await app.stop()
+
+
+async def test_start_provider_gives_a_failed_start():
+    app = make_app()
+    Pages.fail = True
+    await app.start()
+    try:
+        result = await app.router.send(StartProvider(contract="IPageOpener"))
+        assert result.status is Status.FAILED and "no window" in result.error
+    finally:
+        await app.stop()
+
+
+async def test_task_agent_opens_its_show_tags_through_the_page_opener():
+    session, ctx, opener = StubSession(), StubContext(), Opener()
+    ctx.provided[IPageOpener] = opener
     agent = SessionTaskAgent(session, ctx, "worker", "a worker")
     assert (await agent.assign(Task(id="t1", text="build it"))).is_ok
     text = 'Done.\n<<SHOW: C:\\d\\a.html>>\n<<SHOW: C:\\d\\b.html | "the core" | Parts>>'
     session.on_event({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
     await asyncio.sleep(0.05)
-    tools = [(c.name, c.args) for c in sent if isinstance(c, InvokeTool)]
-    assert tools == [
-        ("viewer.open", {"path": "C:\\d\\a.html"}),
-        ("viewer.highlight", {"path": "C:\\d\\b.html", "text": "the core", "heading": "Parts"}),
+    assert sorted(opener.calls) == [
+        ("C:\\d\\a.html", None, None, False),
+        ("C:\\d\\b.html", "the core", "Parts", False),
     ]
     await agent.close()
 
 
-async def test_task_agent_reports_a_show_that_failed():
+async def test_task_agent_reports_a_show_with_no_page_viewer():
     session, ctx, published = StubSession(), StubContext(), []
     ctx.publish = published.append
 
     async def send(command):
-        return Result.failed("The html_viewer module couldn't start: no window") if isinstance(command, InvokeTool) \
-            else Result.ok()
+        return Result.not_available("nobody starts on use") if isinstance(command, StartProvider) else Result.ok()
 
     ctx.send = send
     agent = SessionTaskAgent(session, ctx, "worker", "a worker")
@@ -142,5 +186,26 @@ async def test_task_agent_reports_a_show_that_failed():
     session.on_event({"type": "assistant", "message": {"content": [{"type": "text", "text": "<<SHOW: C:\\a.html>>"}]}})
     await asyncio.sleep(0.05)
     notes = [e.text for e in published if isinstance(e, AgentActivity) and e.text.startswith("couldn't show")]
-    assert notes == ["couldn't show C:\\a.html: The html_viewer module couldn't start: no window"]
+    assert notes == [f"couldn't show C:\\a.html: {NO_PAGE_VIEWER}"]
     await agent.close()
+
+
+async def test_a_real_app_opens_a_show_page_with_its_provider_off():
+    """End to end: the provider is off; the agent's SHOW starts it through StartProvider."""
+
+    class Shower(ModuleProtocol):
+        manifest = Manifest(id="shower", uses=(IPageOpener,), sends=(StartProvider,))
+
+        async def init(self, ctx: ModuleContext) -> None:
+            type(self).ctx = ctx
+
+    Pages.starts, Pages.fail = 0, False
+    app = App([Pages, Shower], {"modules": {"enabled": ["shower"], "pages": {"start_on_use": True}}, "core": {}})
+    await app.start()
+    try:
+        from assistant.infra import show_page
+
+        outcome = await show_page(Shower.ctx, r'C:\d\a.html | "words"')
+        assert outcome.result.is_ok and outcome.result.value == {"opened": r"C:\d\a.html"} and Pages.starts == 1
+    finally:
+        await app.stop()

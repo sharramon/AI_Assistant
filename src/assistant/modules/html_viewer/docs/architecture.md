@@ -5,6 +5,7 @@
 | | |
 |---|---|
 | Menu | `viewer.open` (open a file in a tab), `viewer.highlight` (open it and highlight a quoted part), `viewer.tabs` (open files and highlights): [tools offered today](../../../../../docs/api/tools.md#tools-offered-today). The core links it and routes [`InvokeTool`](../../../../../docs/api/tools.md#invoketool) to it, checking the arguments first |
+| Provides | [`IPageOpener`](../../../../../docs/api/modules.md#ipageopener) while it's on (`ctx.provide` at start, `withdraw` at stop): the page-opener slot the Talker, the workers' SHOW tags and temp_ui's Open in viewer button use, so no core module names this one. Its `open` runs the same code as `viewer.open` / `viewer.highlight` (`_PageOpener`). With `start_on_use = true`, the core turns it on when a caller finds no opener ([`StartProvider`](../../../../../docs/api/control.md#startprovider)) |
 | Handles | nothing |
 | Calls | nothing |
 | Publishes | its named events `html_viewer.tabs_changed` and `html_viewer.clip` (a snip, image copied into the launch's log folder): [events](#events) |
@@ -34,9 +35,10 @@ flowchart LR
     Talker["<b>Talker</b><br/>SHOW tags"]
     Main["<b>Main Assistant</b><br/>SHOW lines (SessionTaskAgent)"]
     UI["temp UI<br/>Open in viewer"]
-    Core["<b>core</b><br/>InvokeTool · start on use"]
+    Core["<b>core</b><br/>StartProvider · start on use"]
     subgraph HV["html_viewer (thin module)"]
         Tools["tools<br/>open · highlight · tabs"]
+        Opener["IPageOpener<br/>(_PageOpener)"]
         Relay["event relay"]
     end
     subgraph App["viewer app (own program, port 8766)"]
@@ -46,10 +48,12 @@ flowchart LR
         Stream["event stream"]
     end
 
-    Talker -- InvokeTool --> Core
-    UI -- InvokeTool --> Core
-    Main -- InvokeTool --> Core
-    Core -- "turns it on if off,<br/>then calls" --> Tools
+    Talker -- "IPageOpener.open" --> Opener
+    UI -- "IPageOpener.open" --> Opener
+    Main -- "IPageOpener.open" --> Opener
+    Talker -. "none on: StartProvider" .-> Core
+    Core -- "turns it on if off" --> HV
+    Opener --> Tools
     Tools -- "launch (CompanionApp)<br/>calls" --> Api
     Api --> State --> View
     State --> Stream --> Relay

@@ -96,16 +96,21 @@ class StubSession:
 
 
 class StubContext:
-    """Just enough of a `ModuleContext` for a `SessionTaskAgent`: a log, no events, every command ok."""
+    """Just enough of a `ModuleContext` for a `SessionTaskAgent`: a log, no events, every command ok,
+    and the contracts in `provided` (`{IPageOpener: a_fake}`; none by default)."""
 
     def __init__(self):
         self.log = logging.getLogger("test")
+        self.provided: dict = {}
 
     def publish(self, event):
         pass
 
     async def send(self, command):
         return Result.ok()
+
+    def get_one(self, contract):
+        return self.provided.get(contract)
 
 
 class FakeAgent(ITaskAgent):

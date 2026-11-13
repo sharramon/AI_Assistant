@@ -89,9 +89,9 @@
 <td>The worker: does the tasks the Talker hands over</td>
 <td>yes</td>
 <td>none</td>
-<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>InvokeTool</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
 <td><code>ResetRequested</code>, <code>ModuleStateChanged</code></td>
 </tr>
@@ -100,9 +100,9 @@
 <td>Talks with you, one Talker per agent tab; hands work to the Agent Hub</td>
 <td>yes</td>
 <td>none</td>
-<td>optional <code>IModuleDoor</code></td>
+<td>optional <code>IModuleDoor</code>; uses <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>InvokeTool</code>, <code>AnswerPermissionRequest</code>, <code>ListAgents</code></td>
+<td><code>InvokeTool</code>, <code>AnswerPermissionRequest</code>, <code>ListAgents</code>, <code>StartProvider</code></td>
 <td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
 <td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code>, <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
 </tr>
@@ -111,9 +111,9 @@
 <td>Temporary two-pane page: worker and Talker, mic, usage, permissions</td>
 <td>yes</td>
 <td>none</td>
-<td>optional <code>IAgentNames</code></td>
+<td>optional <code>IAgentNames</code>; uses <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ListModules</code>, <code>ListAgents</code>, <code>SetFocus</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>GetTaskStatus</code>, <code>CancelTask</code></td>
+<td><code>ListModules</code>, <code>ListAgents</code>, <code>SetFocus</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>StartProvider</code>, <code>GetTaskStatus</code>, <code>CancelTask</code></td>
 <td><code>InputReceived</code>, <code>ResetRequested</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
 <td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>FocusChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code></td>
 </tr>
@@ -155,9 +155,9 @@
 <td>Helper agents launched by name from kinds in config, each a task agent the Hub can start and focus</td>
 <td>no</td>
 <td><code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code></td>
-<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>ITaskAgent</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code>, <code>ITaskAgent</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>InvokeTool</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
 <td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
 </tr>
@@ -184,9 +184,9 @@
 <td>Tailors a CV for one job with Rezi: one clean page, checked by Rezi, your yes; its worker cv_agent</td>
 <td>no</td>
 <td><code>rezi.sign_in</code>, <code>rezi.status</code>, <code>rezi.list_resumes</code>, <code>rezi.read_resume</code>, <code>rezi.get_resume_format</code>, <code>rezi.write_resume</code>, <code>rezi.generate_keywords</code>, <code>rezi.search_jobs</code>, <code>rezi.get_job_details</code>, <code>cv.task</code>, <code>cv.read_result</code>, <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.tool_draft</code>, <code>cv.tool_internal_round</code>, <code>cv.check_fonts</code>, <code>cv.tool_result</code>, <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code>, <code>cv.report</code></td>
-<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>InvokeTool</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>DeliverMessage</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>DeliverMessage</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>ResponseReady</code>, <code>AgentNotice</code>, <code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
 <td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code>, <code>TaskUpdated</code></td>
 </tr>
@@ -206,7 +206,7 @@
 <td>View, edit, highlight and snip HTML; launches the viewer app</td>
 <td>no</td>
 <td><code>viewer.open</code>, <code>viewer.highlight</code>, <code>viewer.tabs</code></td>
-<td>none</td>
+<td>provides <code>IPageOpener</code></td>
 <td>none</td>
 <td>none</td>
 <td><code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code></td>
@@ -217,9 +217,9 @@
 <td>The job agent (applies to jobs, runs searches in the job project), with its job.* menu</td>
 <td>no</td>
 <td><code>job.open_ui</code>, <code>job.search</code></td>
-<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code></td>
+<td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>InvokeTool</code>, <code>DeliverMessage</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>DeliverMessage</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>AgentNotice</code></td>
 <td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code>, <code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
 </tr>

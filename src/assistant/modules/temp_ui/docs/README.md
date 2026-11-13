@@ -12,7 +12,7 @@ A local web page with the worker's activity on the left and the Talker conversat
 | provides / requires | nothing |
 | optional | [`IAgentNames`](../../../../../docs/api/agents.md#iagentnames) (which module an agent belongs to, for the tabs' ×) |
 | permissions | none declared |
-| needs | none ([`Manifest.needs`](../../../../../docs/api/modules.md#manifest), from its `module.toml`): a core module, it needs no other module by id. Its Open in viewer button still sends `viewer.open` directly; module folders item 15 moves that behind a slot |
+| needs | none ([`Manifest.needs`](../../../../../docs/api/modules.md#manifest), from its `module.toml`): a core module, it needs no other module by id. Its Open in viewer button opens pages through the page-opener slot ([`IPageOpener`](../../../../../docs/api/modules.md#ipageopener)), which an add-on fills, so it names no add-on |
 | packages | none |
 
 ## Config

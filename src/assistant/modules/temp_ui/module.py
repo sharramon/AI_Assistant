@@ -28,8 +28,9 @@ Serves `page.html` on http://127.0.0.1:<port>/ (standard library only):
   that agent's tab. A `need` starting with `Risky:` shows as an amber card
   with Go ahead / Don't, which send that answer through `/say`, as typing it would.
 - `POST /open-logs`: opens the logs folder in Explorer
-- `POST /open-in-viewer`: `{"path"}` sends `InvokeTool viewer.open` with `front` (the Open in viewer button on
-  an HTML path in a Talker message)
+- `POST /open-in-viewer`: `{"path"}` opens it with `front` through the page-opener slot (`open_page`,
+  `IPageOpener`: whichever add-on opens pages; none on: "No page viewer is on") (the Open in viewer
+  button on an HTML path in a Talker message)
 - snips from the HTML viewer (its named event `html_viewer.clip`, heard by name) show as thumbnails
   above the input until your next message (up to 3, like the Talker); `GET /snip/<id>` is the image,
   `POST /drop-snip` `{"id"}` drops one (this module's `temp_ui.clip_dropped`). A snip can be sent with
@@ -119,6 +120,7 @@ from assistant.contracts import (
     IAgentNames,
     InputReceived,
     InvokeTool,
+    IPageOpener,
     ListAgents,
     ListeningState,
     ListModules,
@@ -140,6 +142,7 @@ from assistant.contracts import (
     SetFocus,
     SetPermissionMode,
     StartListening,
+    StartProvider,
     Status,
     StopListening,
     TaskState,
@@ -147,6 +150,7 @@ from assistant.contracts import (
     VoiceState,
     VoiceTranscript,
 )
+from assistant.infra import open_page
 
 from .agent_tabs import AgentTabs
 
@@ -209,7 +213,8 @@ class TempUIModule(ModuleProtocol):
         id="temp_ui",
         description="Temporary two-pane page: worker and Talker, mic, usage, permissions",
         optional=(IAgentNames,),
-        sends=(ListModules, ListAgents, SetFocus, StartListening, StopListening, AnswerPermission, AnswerPermissionRequest, SetPermissionMode, InvokeTool, GetTaskStatus, CancelTask,),
+        uses=(IPageOpener,),  # the Open in viewer button: whichever add-on opens pages
+        sends=(ListModules, ListAgents, SetFocus, StartListening, StopListening, AnswerPermission, AnswerPermissionRequest, SetPermissionMode, InvokeTool, StartProvider, GetTaskStatus, CancelTask,),
         publishes=(InputReceived, ResetRequested,),
         listens=(InputReceived, ResponseReady, TaskUpdated, AgentActivity, AgentStateChanged, FocusChanged, PermissionModeChanged, SessionUsage, VoiceState, VoiceTranscript, ModuleStateChanged, PermissionRequested, PermissionChanged,),
         publishes_named=(PASTED_CLIP, CLIP_DROPPED),
@@ -751,7 +756,7 @@ class TempUIModule(ModuleProtocol):
             elif method == "POST" and path == "/open-in-viewer":
                 body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")
                 # Your click: the viewer comes to the front (an agent's own pages don't).
-                result = await self._ctx.send(InvokeTool(name="viewer.open", args={"path": str(body["path"]), "front": True}))
+                result = await open_page(self._ctx, str(body["path"]), front=True)
                 answer = {"ok": result.is_ok, "error": result.error}
                 await self._respond(writer, 200, "application/json", json.dumps(answer).encode())
             else:

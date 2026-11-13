@@ -122,8 +122,8 @@ class SessionTaskAgent(ITaskAgent):
     with the module's notes for the key (`set_context`'s `notes(key)`, default the handoff note).
     Publishes `SessionUsage` whenever the session's usage changes (every call), and one
     per sub-agent whose tokens grew (`subagent_usage`).
-    Opens the pages its text names with `<<SHOW: …>>` (`show_page`, through `InvokeTool`; the
-    core turns the viewer on first if it's off).
+    Opens the pages its text names with `<<SHOW: …>>` (`show_page`, through `IPageOpener`;
+    the core turns the module that provides it on first if it's off).
 
     With `context_reminder` (tokens, 0 = off), the first time the session's context
     passes it during a task, the task gets the context reminder the way `message` sends
@@ -519,7 +519,7 @@ class SessionTaskAgent(ITaskAgent):
 
     def _show_tags(self, text: str) -> None:
         """Open the pages the agent names with `<<SHOW: path>>` or `<<SHOW: path | "quote" | heading>>`,
-        through `InvokeTool` (the core starts the viewer if it's off). Never waits on it."""
+        through the page opener (`IPageOpener`; the core starts its module if it's off). Never waits on it."""
         for tag in find_tags(text, ("SHOW",)):
             if tag.argument:
                 self._spawn(self._show(tag.argument))
