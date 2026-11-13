@@ -2,7 +2,7 @@ import asyncio
 
 from assistant.contracts import Event
 from assistant.core.bus import EventBus
-from tests.support import wait_until
+from assistant.testkit import wait_until
 
 
 class Ping(Event):

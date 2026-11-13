@@ -32,6 +32,7 @@
         "../html/api/agents.html",
         "../html/api/infra.html",
         "../html/api/app_kit.html",
+        "../html/api/testkit.html",
         "../html/api/core.html"
       ],
       "sep": false,
@@ -152,6 +153,10 @@
             {
               "name": "App kit",
               "href": "../html/api/app_kit.html"
+            },
+            {
+              "name": "Test kit",
+              "href": "../html/api/testkit.html"
             },
             {
               "name": "Core host (internal)",

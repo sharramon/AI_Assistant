@@ -120,8 +120,10 @@ async def test_companion_app_runs_an_app_outside_the_convention_by_its_command_l
     """The job UI's way: a script by its command line, any 200 from the ping path, no quit call."""
     import sys
 
+    from assistant.testkit import FAKE_JOB_UI
+
     port = free_port()
-    script = str(Path(__file__).with_name("fake_job_ui.py"))
+    script = FAKE_JOB_UI
     app = CompanionApp("job_ui", "127.0.0.1", port, ping="/tracker", plain_ping=True, quit=None,
                        command=[sys.executable, "-I", script], args=["--port", str(port), "--no-browser"])  # fmt: skip
     assert not await app.ping()

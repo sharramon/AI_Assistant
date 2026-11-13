@@ -14,7 +14,7 @@
 <h1 id="api-reference">API Reference</h1>
 <p>Every public class and function, grouped by area. Check here before writing something new. If it already exists, reuse or extend it.</p>
 <p>Each group links to a page with full signatures, parameters, return values, errors and examples. For how the pieces fit together, see the <a href="../architecture/index.html">architecture overview</a>. For which module handles, sends, and listens to each type, see the <a href="../architecture/module-library.html">module library</a>.</p>
-<p>Modules may use <strong>Modules</strong>, <strong>Messaging</strong>, <strong>Tools</strong>, <strong>Module control</strong>, <strong>Agents</strong>, <strong>Infrastructure</strong>, and <strong>App kit</strong>. <strong>Core host</strong> is internal to <code>assistant.core</code>; it's listed so nothing gets duplicated.</p>
+<p>Modules may use <strong>Modules</strong>, <strong>Messaging</strong>, <strong>Tools</strong>, <strong>Module control</strong>, <strong>Agents</strong>, <strong>Infrastructure</strong>, and <strong>App kit</strong>; their tests also use the <strong>Test kit</strong>. <strong>Core host</strong> is internal to <code>assistant.core</code>; it's listed so nothing gets duplicated.</p>
 <p><strong>♻ Reusable</strong> marks a part built once and shared (<a href="../architecture/principles.html">principle 13</a>). Its entry starts with <strong>Reusable · Used by: …</strong>.</p>
 <h2 id="reusable-parts">♻ Reusable parts</h2>
 <p><strong>Check the <a href="reusable.html">reusable parts index</a> before writing a helper.</strong> One line per part (name, kind, purpose, where, used by), sorted by where it lives:</p>
@@ -23,6 +23,7 @@
 <li><strong>Voice service</strong> (<code>voice_service</code>): the <code>/ws/listen</code> messages (<code>protocol</code>); inside the service, <code>SttEngine</code> / <code>SttStream</code>, <code>AudioSource</code> / <code>FakeSource</code> / <code>FileSource</code>, and <code>transcribe</code> / <code>transcribe_file</code></li>
 <li><strong>Main-app helpers</strong> (<code>assistant.infra</code>): <code>load_config</code>, <code>setup_logging</code>, <code>LogSession</code>, <code>LogSink</code>, <code>theme_slug</code>, <code>ClaudeSession</code>, <code>claude_command</code>, <code>path_rule</code>, <code>SessionTaskAgent</code> (with <code>set_context</code>), <code>default_context</code>, <code>PermissionGate</code>, <code>HandoffKeeper</code>, <code>LastLineTags</code>, <code>UsageMeter</code>, <code>AgentKit</code> (with <code>AGENT_USES</code> / <code>SENDS</code> / <code>PUBLISHES</code> / <code>LISTENS</code>), <code>AgentProfile</code>, <code>manual_claude_mode</code>, <code>access_items</code>, <code>granted_config</code>, <code>request_access</code>, <code>MilestoneFeed</code>, <code>session_usage</code>, <code>ContextWatch</code>, <code>agent_tags</code>, <code>show_page</code>, <code>mcp_door</code>, <code>check_agent_id</code>, <code>free_agent_id</code></li>
 <li><strong>Shared with the independent apps</strong> (<a href="app_kit.html"><code>app_kit</code></a>): <code>window</code> (with <code>window_profile</code>), <code>load_layered</code>, <code>local_path</code>, <code>merge</code>, <code>module_docs</code>, <code>CompanionApp</code>, <code>CompanionHandover</code>, <code>launch_env</code>, <code>local_guard</code></li>
+<li><strong>For tests only</strong> (<a href="testkit.html"><code>assistant.testkit</code></a>): <code>make_config</code>, <code>wait_until</code>, <code>pre_grant</code>, <code>pre_grant_kinds</code>, <code>Speaker</code>, <code>Calculator</code>, the fake <code>claude</code> (<code>FAKE</code>), <code>FAKE_JOB_UI</code>, <code>start_hub</code>, <code>next_matching</code>, <code>report</code>, <code>StubSession</code>, <code>StubContext</code>, <code>FakeAgent</code>, <code>agent_module</code>, <code>status</code></li>
 <li><strong>Core host</strong> (<code>assistant.core</code>, internal): <code>add_app_folders</code> (every module's <code>app/</code> folder on the import path)</li>
 </ul>
 <h2 id="groups">Groups</h2>
@@ -659,6 +660,29 @@
 <td><a href="app_kit.html#local_guard"><code>local_guard</code></a></td>
 <td>functions</td>
 <td>♻ Refuse other hosts and other origins: <code>require_loopback</code>, <code>local_request</code>, <code>LOOPBACK_HOSTS</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="test-kit"><a href="testkit.html">Test kit</a></h3>
+<p>The fakes and helpers every test may use, central or a module's own; for tests only. <code>from assistant.testkit import ...</code></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Kind</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="testkit.html#helpers">Helpers</a></td>
+<td>functions, fakes</td>
+<td>♻ <code>make_config</code>, <code>wait_until</code>, <code>pre_grant</code> / <code>pre_grant_kinds</code> (a saved grant, no card), <code>Speaker</code>, <code>Calculator</code></td>
+</tr>
+<tr>
+<td><a href="testkit.html#the-fake-claude-and-agent-fakes">The fake <code>claude</code> and agent fakes</a></td>
+<td>fakes</td>
+<td>♻ <code>FAKE</code> (the fake <code>claude -p</code>, run by path), <code>FAKE_JOB_UI</code>, <code>start_hub</code>, <code>next_matching</code>, <code>report</code>, <code>StubSession</code>, <code>StubContext</code>, <code>FakeAgent</code>, <code>agent_module</code>, <code>status</code></td>
 </tr>
 </tbody>
 </table>

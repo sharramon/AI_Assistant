@@ -15,7 +15,7 @@ from assistant.infra.mcp_door import CALLER_HEADER, READ_ONLY, TOKEN_HEADER, TOO
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.echo_orchestrator import EchoOrchestrator
 from assistant.modules.main_assistant.module import build_command
-from tests.support import wait_until
+from assistant.testkit import FAKE, start_hub, wait_until
 
 
 @pytest.fixture
@@ -135,8 +135,6 @@ def test_the_worker_session_gets_the_door(tmp_path):
 async def test_the_worker_restarts_once_to_pick_up_the_door(tmp_path, monkeypatch):
     """At launch the worker starts before the Hub, whose door has no address yet: once the Hub
     is on, the idle worker restarts its session once, now with the door."""
-    from tests.test_agents import start_hub
-
     started: list[list[str]] = []
     original = ClaudeSession.start
 
@@ -160,7 +158,6 @@ async def test_the_worker_restarts_once_to_pick_up_the_door(tmp_path, monkeypatc
 
 async def test_the_talker_session_gets_the_door():
     from assistant.modules.talker import TalkerModule
-    from tests.test_agents import FAKE
 
     config = {"modules": {"enabled": ["agent_hub", "talker"], "talker": {"program": FAKE}}, "core": {}}
     app = App([AgentHubModule, TalkerModule], config)

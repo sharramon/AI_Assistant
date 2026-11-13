@@ -582,6 +582,56 @@
 </tr>
 </tbody>
 </table>
+<h2 id="test-kit-assistanttestkit-tests-only">Test kit: <code>assistant.testkit</code> (tests only)</h2>
+<p>Imported by tests only: the central <code>tests/</code> and each module's own <code>tests/</code> (a tripwire checks it). A module's tests take shared helpers from here, never from <code>tests.*</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Kind</th>
+<th>Purpose</th>
+<th>Where</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="testkit.html#helpers"><code>make_config</code>, <code>wait_until</code>, <code>Speaker</code>, <code>Calculator</code></a></td>
+<td>functions, fakes</td>
+<td>A test config; wait on a condition; a single-provider contract and a tool provider for tests</td>
+<td><code>testkit/support.py</code></td>
+<td>most central tests; <code>echo_orchestrator</code> (<code>make_config</code>), <code>agent_hub</code>, <code>cv</code> (<code>wait_until</code>)</td>
+</tr>
+<tr>
+<td><a href="testkit.html#helpers"><code>pre_grant</code>, <code>pre_grant_kinds</code></a></td>
+<td>functions</td>
+<td>Save a grant for a module's whole access list (or every <code>task_agents</code> kind), so it turns on with no card</td>
+<td><code>testkit/support.py</code></td>
+<td><code>cv</code> (<code>test_worker.py</code>), <code>test_access_cards</code>, <code>test_agent_names</code>, <code>test_agent_tabs</code>, <code>test_job_search</code>, <code>test_task_agents</code></td>
+</tr>
+<tr>
+<td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>FAKE</code>, <code>FAKE_JOB_UI</code>, <code>TIMEOUT</code></a></td>
+<td>constants, scripts</td>
+<td>The fake <code>claude -p</code> (<code>fake_claude.py</code>) and the stand-in job UI (<code>fake_job_ui.py</code>), run as subprocesses by path</td>
+<td><code>testkit/agents.py</code>, <code>testkit/fake_claude.py</code>, <code>testkit/fake_job_ui.py</code></td>
+<td><code>cv</code> (<code>test_worker.py</code>), every central test running an agent; <code>test_app_kit</code>, <code>test_job_search</code> (<code>FAKE_JOB_UI</code>)</td>
+</tr>
+<tr>
+<td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>start_hub</code>, <code>next_matching</code>, <code>report</code>, <code>status</code></a></td>
+<td>functions</td>
+<td>A started Hub with a Main Assistant on the fake <code>claude</code>; the next matching update; a report-kind predicate; a task's status</td>
+<td><code>testkit/agents.py</code></td>
+<td><code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, <code>test_questions_as_messages</code>, <code>test_restart</code>, <code>test_mcp_door</code>, <code>test_agent_names</code>, <code>test_task_agents</code></td>
+</tr>
+<tr>
+<td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>StubSession</code>, <code>StubContext</code>, <code>FakeAgent</code>, <code>agent_module</code></a></td>
+<td>fakes</td>
+<td>Drive a <code>SessionTaskAgent</code> by hand; an <code>ITaskAgent</code> that records what the Hub asks, and a module providing it</td>
+<td><code>testkit/agents.py</code></td>
+<td><code>agent_hub</code> (<code>test_end_waiting</code>, <code>test_end_report_race</code>, <code>test_gate</code>), <code>test_agents</code>, <code>test_start_on_use</code>, <code>test_multi_agent</code>, <code>test_permissions_handler</code>, <code>test_agent_names</code>, <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_talker_agents</code>, <code>test_task_agents</code>, <code>test_usage</code></td>
+</tr>
+</tbody>
+</table>
 <h2 id="core-host-assistantcore-internal">Core host: <code>assistant.core</code> (internal)</h2>
 <table>
 <thead>

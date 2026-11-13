@@ -3,17 +3,14 @@ total, the Talker's line, and the usage module's menu. Tokens only: no money fig
 
 import asyncio
 import json
-import sys
-from pathlib import Path
 
 from assistant.contracts import InvokeTool, SessionUsage, Status
 from assistant.core import App
 from assistant.infra import ClaudeSession, UsageLedger, session_usage, subagent_usage
 from assistant.modules.temp_ui import TempUIModule
 from assistant.modules.usage import UsageModule
-from tests.support import wait_until
+from assistant.testkit import FAKE, wait_until
 
-FAKE = [sys.executable, str(Path(__file__).parent / "fake_claude.py")]
 SUB_ID = "main_assistant/general-purpose #a1b2"
 
 
@@ -179,7 +176,7 @@ async def test_usage_menu_answers_total_agents_and_the_callers_own():
 async def test_a_closed_agents_rows_say_closed_and_stay_in_the_total(tmp_path):
     from assistant.contracts import DeactivateModule
     from assistant.modules.agent_hub import AgentHubModule
-    from tests.test_multi_agent import agent_module
+    from assistant.testkit import agent_module
 
     main_module, _ = agent_module("main_assistant", (str(tmp_path / "main"),))
     helper_module, _ = agent_module("helper", (str(tmp_path / "jobs"),))

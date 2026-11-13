@@ -10,7 +10,7 @@ from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.talker import TalkerModule
 from assistant.modules.talker.module import AFTER_RESTART, APP_STATE_HEAD
-from tests.test_agents import FAKE, TIMEOUT, next_matching
+from assistant.testkit import FAKE, TIMEOUT, next_matching
 
 
 def _app(tmp_path, with_worker: bool = True) -> App:

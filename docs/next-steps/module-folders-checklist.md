@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 5 of 20 done** (items 1 to 4 and 20).
+**Count: 6 of 20 done** (items 1 to 5 and 20).
 
 ## Morning list, kept as the run goes
 
@@ -48,6 +48,7 @@ For you to review. Each picks the option closest to the approved picture.
 14. **The Hub keeps `[modules.agent_hub] named_only` as an empty fallback** (item 3): an agent's own `named_only = true` (read by `ProfileAgent`, carried on `AgentInfo`) is the source; the Hub's list stays readable for an agent not built from a profile, empty by default.
 15. **Finding app folders lives in the core, launching them in `app_kit`** (item 4): `add_app_folders()` (core loader: at startup, reload, add, and in `conftest.py`) puts every `modules/*/app` on the import path; `CompanionApp` launches `python -m <app>` with `launch_env` (its folder first on `PYTHONPATH`). Items 8 and 9 reuse both.
 16. **The CV Tool's defaults are its module's workspace** (item 4): `cvlib.WORKSPACE` = `modules/cv/workspace` (with a made-up `cvs` folder for running it by hand); the cv module still passes its real folders on the command line.
+17. **The test kit is `assistant.testkit`** (item 5), moved from `tests/` (`support.py`, `fake_claude.py`, `fake_job_ui.py`, and the agent fakes from `test_agents.py` / `test_multi_agent.py`), with no pytest code; the `hub` fixture stays in `tests/test_agents.py`. The loader counts it as shared code (not reloadable). No cv-only test was left in `tests/`, so none moved.
 
 ## The safeguards (from the audit, section 4)
 
@@ -107,7 +108,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** `git mv`; the core puts each module's `app/` folder on the import path (by folder, decision 2) and so does the test setup (`conftest.py`); `CvTool` launches it with that path; replace the hard-coded `C:/Chang/Jobs/CV_Module` defaults in `cv_tool.toml` and `cvlib.py` with paths relative to the module's workspace (decision 5); the independence test covers the new place. Docs: cv's pages, the overview's parts table, `docs/architecture/reusable-parts.md` if it names the path.
 - **Done when:** `src/cv_tool` doesn't exist; `modules/cv/app/cv_tool/__main__.py` exists; the CV Tool tests pass from the new place; `test_module_folders.py::test_no_app_outside_its_module` passes for cv. **Needs an app restart** (the import path and the running cv module).
 
-### 5. cv: all cv tests in the module, on a public core test kit
+### 5. cv: all cv tests in the module, on a public core test kit: **done** (2026-11-13)
+
+**Checked:** `git grep -E "from tests\.|import tests\.|from tests import" src/assistant/modules` finds nothing; `git ls-files tests` has no cv file; `test_module_tests_use_only_the_testkit`, `test_no_cv_only_test_is_central` and `test_only_tests_import_the_testkit` pass; full suite 857 passed, 2 deselected; ruff clean. No restart needed.
 
 - **What:** every cv test lives in `modules/cv/tests/`, and module tests import shared helpers only from a public test kit, never from `tests.test_*`.
 - **Why:** the picture: "all cv tests, on the core test kit" and "public test kit (from tests/support)"; the audit's row 5 lists the central imports.

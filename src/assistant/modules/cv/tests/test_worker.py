@@ -27,8 +27,7 @@ from assistant.modules.cv.odt import OdtWriter
 from assistant.modules.cv.order import SectionOrder
 from assistant.modules.cv.tests.pdf_fixture import write_pdf
 from assistant.modules.cv.worker import AGENT_ID, WORKER_PROMPT, worker_config, worker_prompt
-from tests.support import pre_grant, wait_until
-from tests.test_agents import FAKE
+from assistant.testkit import FAKE, pre_grant, wait_until
 
 DEFAULTS = tomllib.loads((Path(__file__).parents[1] / "module.toml").read_text(encoding="utf-8"))
 CV = CvContent(sections={"contact": ("Ada Lovelace", "ada@example.com"), "skills": ("Python",),

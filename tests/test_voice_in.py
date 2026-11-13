@@ -29,7 +29,7 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.modules.voice_in import VoiceInModule
-from tests.support import wait_until
+from assistant.testkit import wait_until
 from voice_service.audio import FakeSource
 from voice_service.config import ServiceConfig
 from voice_service.engines.fake import FakeEngine

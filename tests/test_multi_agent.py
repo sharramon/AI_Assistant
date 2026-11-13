@@ -4,25 +4,17 @@ menu and who may use it, and the STATUS milestones and notices that reach the co
 from pathlib import Path
 
 from assistant.contracts import (
-    AgentInfo,
     AgentNotice,
-    AgentState,
     FocusChanged,
     FocusSuggested,
-    GetTaskStatus,
     InvokeTool,
     ITaskAgent,
-    Manifest,
-    ModuleContext,
-    ModuleProtocol,
     PermissionMode,
     ReportKind,
     ReportTask,
-    Result,
     SetFocus,
     StartTask,
     Status,
-    Task,
     TaskUpdated,
 )
 from assistant.core import App
@@ -31,65 +23,7 @@ from assistant.infra.agent_profile import HELPER_BLOCK
 from assistant.infra.milestone_feed import HEADER
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant.module import COORDINATOR_BLOCK
-from tests.support import wait_until
-from tests.test_agents import next_matching, report, start_hub
-
-
-class FakeAgent(ITaskAgent):
-    """A task agent that only records what the Hub asks of it."""
-
-    def __init__(self, agent_id: str, folders: tuple[str, ...]) -> None:
-        self.agent_id, self.folders = agent_id, folders
-        self.busy = False  # holds a task (assign refuses a second)
-        self.working = False  # in a turn: the Hub never delivers into it
-        self.calls: list[tuple] = []
-        self.notes: list[str] = []
-        self.ctx: ModuleContext | None = None
-
-    def info(self) -> AgentInfo:
-        return AgentInfo(agent_id=self.agent_id, description="fake",
-                         state=AgentState.ACTIVE if self.working else AgentState.IDLE, write_folders=self.folders)
-
-    async def assign(self, task: Task) -> Result:
-        if self.busy:
-            return Result.not_available(f"{self.agent_id} is active")
-        self.busy = True
-        self.calls.append(("assign", task.id, task.text))
-        return Result.ok()
-
-    async def message(self, task_id: str, text: str, resume: bool = True) -> Result:
-        self.calls.append(("message", task_id, text))
-        return Result.ok()
-
-    async def cancel(self, task_id: str) -> Result:
-        self.busy = False
-        self.calls.append(("cancel", task_id))
-        return Result.ok()
-
-    async def answer_permission(self, task_id: str, allow: bool) -> Result:
-        self.calls.append(("permission", task_id, allow))
-        return Result.ok()
-
-    def note(self, text: str) -> None:
-        self.notes.append(text)
-
-
-def agent_module(agent_id: str, folders: tuple[str, ...]) -> tuple[type, FakeAgent]:
-    agent = FakeAgent(agent_id, folders)
-
-    class FakeAgentModule(ModuleProtocol):
-        manifest = Manifest(id=agent_id, description="A fake agent", provides=(ITaskAgent,),
-                            sends=(ReportTask, InvokeTool))  # fmt: skip
-
-        async def init(self, ctx: ModuleContext) -> None:
-            agent.ctx = ctx
-            ctx.provide(ITaskAgent, agent)
-
-        async def start(self) -> None: ...
-
-        async def stop(self) -> None: ...
-
-    return FakeAgentModule, agent
+from assistant.testkit import agent_module, next_matching, report, start_hub, status, wait_until
 
 
 async def start_app(tmp_path: Path, helper_folder: Path | None = None, **hub_config):
@@ -109,10 +43,6 @@ async def start_app(tmp_path: Path, helper_folder: Path | None = None, **hub_con
         app.bus.subscribe(kind, record)
     await app.start()
     return app, main, helper, events
-
-
-async def status(app: App, task_id: str):
-    return (await app.router.send(GetTaskStatus(task_id=task_id))).value[0]
 
 
 def use(name: str, caller: str, **args) -> InvokeTool:

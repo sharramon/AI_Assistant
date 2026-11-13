@@ -23,7 +23,7 @@ from assistant.contracts import (
 from assistant.core import App
 from assistant.core.loader import LoadError, check_reloadable
 from assistant.core.router import CommandRouter
-from tests.support import Calculator, Speaker, make_config, wait_until
+from assistant.testkit import Calculator, Speaker, make_config, wait_until
 
 MODULE = """
 from assistant.contracts import IToolProvider, Manifest, ModuleProtocol, Result, ToolSpec
@@ -192,12 +192,15 @@ async def test_add_module_needing_a_new_contract_says_it_needs_a_restart(pkg):
 
 
 async def test_shared_code_and_loose_classes_are_not_reloadable():
-    app = App([Calculator], make_config("calculator"))  # lives in `tests.support`, not its own package
+    app = App([Calculator], make_config("calculator"))  # lives in the test kit: shared code, no module's own
     await app.start()
     result = await app.router.send(ReloadModule(module_id="calculator"))
-    assert result.status is Status.FAILED and "own package" in result.error
+    assert result.status is Status.FAILED and "shared code (assistant.testkit)" in result.error
     await app.stop()
-    for shared in ("assistant.core", "assistant.contracts.voice", "assistant.infra", "app_kit", "assistant.modules"):
+    with pytest.raises(LoadError, match="own package"):
+        check_reloadable("tests")  # a loose class in a test file
+    for shared in ("assistant.core", "assistant.contracts.voice", "assistant.infra", "app_kit", "assistant.modules",
+                   "assistant.testkit"):  # fmt: skip
         with pytest.raises(LoadError):
             check_reloadable(shared)
     check_reloadable("assistant.modules.voice_in")
@@ -215,7 +218,7 @@ async def test_reloading_a_provider_restarts_the_modules_that_require_it(pkg):
     package, write = pkg
     provider = """
 from assistant.contracts import Manifest, ModuleProtocol
-from tests.support import Speaker
+from assistant.testkit import Speaker
 
 
 class SpeakerTool(ModuleProtocol, Speaker):

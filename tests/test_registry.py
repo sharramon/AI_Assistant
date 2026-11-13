@@ -2,7 +2,7 @@ import pytest
 
 from assistant.contracts import Contract, IToolProvider, Manifest, ModuleProtocol
 from assistant.core.registry import StartupError, resolve_modules
-from tests.support import Speaker
+from assistant.testkit import Speaker
 
 
 def module(id: str, **manifest) -> type[ModuleProtocol]:

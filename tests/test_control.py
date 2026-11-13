@@ -21,7 +21,7 @@ from assistant.contracts import (
 from assistant.core import App
 from assistant.modules.console_io import ConsoleIO
 from assistant.modules.console_io import module as console_module
-from tests.support import Calculator, Speaker, make_config, wait_until
+from assistant.testkit import Calculator, Speaker, make_config, wait_until
 
 
 class Tracked(ModuleProtocol):

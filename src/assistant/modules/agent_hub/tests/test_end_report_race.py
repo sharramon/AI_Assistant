@@ -8,11 +8,11 @@ from assistant.contracts import AgentStateChanged, DeliverMessage, ReportKind, R
 from assistant.infra import SessionTaskAgent
 from assistant.modules.agent_hub.delivery import Delivery
 from assistant.modules.agent_hub.tasks import TaskBoard
-from tests.test_agents import _StubContext, _StubSession
+from assistant.testkit import StubContext, StubSession
 
 
 async def test_a_turn_end_before_its_done_report_does_not_fail_the_task():
-    session, ctx = _StubSession(), _StubContext()
+    session, ctx = StubSession(), StubContext()
     log = logging.getLogger("test")
     board = TaskBoard(publish=lambda event: None, log=log, agents=lambda: [agent], agent=lambda _id: agent,
                       focused=lambda: "", feed=lambda line: None, coordinator="main_assistant",
@@ -52,7 +52,7 @@ async def test_a_turn_end_before_its_done_report_does_not_fail_the_task():
 
 
 async def test_the_agent_says_not_available_for_a_task_it_just_ended():
-    session, ctx = _StubSession(), _StubContext()
+    session, ctx = StubSession(), StubContext()
     gate = asyncio.Event()
     sent = []
 
@@ -60,7 +60,7 @@ async def test_the_agent_says_not_available_for_a_task_it_just_ended():
         sent.append(command.kind)
         if command.kind is ReportKind.DONE:  # the Hub gets the end report late
             await gate.wait()
-        return (await _StubContext.send(ctx, command))
+        return (await StubContext.send(ctx, command))
 
     ctx.send = send
     agent = SessionTaskAgent(session, ctx, "worker", "a worker")
@@ -77,12 +77,12 @@ async def test_the_agent_says_not_available_for_a_task_it_just_ended():
 
 
 async def test_a_message_while_the_turn_settles_carries_the_task_on():
-    session, ctx = _StubSession(), _StubContext()
+    session, ctx = StubSession(), StubContext()
     gate = asyncio.Event()
 
     async def send(command):
         await gate.wait()  # the Hub's answer to turn_end comes late
-        return (await _StubContext.send(ctx, command))
+        return (await StubContext.send(ctx, command))
 
     ctx.send = send
     agent = SessionTaskAgent(session, ctx, "worker", "a worker")

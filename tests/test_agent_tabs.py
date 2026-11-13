@@ -21,9 +21,7 @@ from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.job_search import JobSearchModule
 from assistant.modules.task_agents import TaskAgentsModule
 from assistant.modules.temp_ui import TempUIModule
-from tests.support import pre_grant, wait_until
-from tests.test_agents import FAKE
-from tests.test_multi_agent import agent_module
+from assistant.testkit import FAKE, agent_module, pre_grant, wait_until
 from tests.test_temp_ui import post, request, ui_port
 
 

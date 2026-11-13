@@ -23,7 +23,7 @@
 <li><strong>What qualifies:</strong> the same behavior, not just similar, knowing nothing about any one module. Module specifics are parameters.</li>
 <li><strong>Built by composition</strong> (<a href="principles.html">principle 12</a>): objects and functions you compose, never a base class with code in it.</li>
 </ul>
-<h2 id="where-they-live-three-places-by-who-may-import-them">Where they live: three places, by who may import them</h2>
+<h2 id="where-they-live-by-who-may-import-them">Where they live: by who may import them</h2>
 <table>
 <thead>
 <tr>
@@ -52,8 +52,15 @@
 <td>standard library only</td>
 <td><code>html_viewer</code>, <code>voice_service</code>, <code>temp_ui</code>, thin modules, other apps</td>
 </tr>
+<tr>
+<td><code>assistant.testkit</code></td>
+<td>The fakes and helpers tests share: the fake <code>claude</code>, app builders, pre-saved grants (<a href="../api/testkit.html">test kit</a>)</td>
+<td>anything in <code>assistant</code></td>
+<td>tests only: the central <code>tests/</code> and every module's own <code>tests/</code></td>
+</tr>
 </tbody>
 </table>
+<p>A module's tests import shared helpers from <code>assistant.testkit</code> only, never from <code>tests.*</code>, so the module's folder carries its tests whole. Nothing in the app imports the test kit.</p>
 <p><code>app_kit</code> exists because the <a href="decisions.html#decided">independent apps</a> can't import <code>assistant</code>. That rule used to force copies (the viewer had its own window code). <code>app_kit</code> is a small package in the same repo, ships with each app that uses it, and never imports <code>assistant</code>. Each part has one import path: the window functions come only from <code>app_kit</code>, not re-exported from <code>assistant.infra</code>.</p>
 <h2 id="left-out-on-purpose">Left out on purpose</h2>
 <ul>

@@ -11,13 +11,16 @@ Behavior that two parts need is built once and shared ([principle 13](principles
 - **What qualifies:** the same behavior, not just similar, knowing nothing about any one module. Module specifics are parameters.
 - **Built by composition** ([principle 12](principles.md)): objects and functions you compose, never a base class with code in it.
 
-## Where they live: three places, by who may import them
+## Where they live: by who may import them
 
 | Place | Holds | Imports | Used by |
 |-------|-------|---------|---------|
 | `assistant.contracts` | Interfaces, commands, events: reusable by definition | nothing | core, modules |
 | `assistant.infra` | Helpers for the main app's modules: `ClaudeSession`, `SessionTaskAgent`, `LogSession`, config, and `agent_tags` | contracts, `app_kit` | core, modules |
 | `src/app_kit/` | Helpers shared by the main app **and** the independent apps: the Edge window, layered config, `CompanionApp`, the local-only guard (`local_guard`) | standard library only | `html_viewer`, `voice_service`, `temp_ui`, thin modules, other apps |
+| `assistant.testkit` | The fakes and helpers tests share: the fake `claude`, app builders, pre-saved grants ([test kit](../api/testkit.md)) | anything in `assistant` | tests only: the central `tests/` and every module's own `tests/` |
+
+A module's tests import shared helpers from `assistant.testkit` only, never from `tests.*`, so the module's folder carries its tests whole. Nothing in the app imports the test kit.
 
 `app_kit` exists because the [independent apps](decisions.md#decided) can't import `assistant`. That rule used to force copies (the viewer had its own window code). `app_kit` is a small package in the same repo, ships with each app that uses it, and never imports `assistant`. Each part has one import path: the window functions come only from `app_kit`, not re-exported from `assistant.infra`.
 

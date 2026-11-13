@@ -17,7 +17,7 @@ from assistant.contracts import (
     ReloadModule,
 )
 from assistant.core import App, find_modules
-from tests.test_agents import FAKE
+from assistant.testkit import FAKE
 from tests.test_voice_in import free_port
 
 SKIP = {"console_io"}  # reads the console; its reload is covered in tests/test_reload.py

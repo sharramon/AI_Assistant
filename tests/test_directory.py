@@ -13,7 +13,7 @@ from assistant.contracts import (
     Status,
 )
 from assistant.core import App
-from tests.support import Speaker, make_config
+from assistant.testkit import Speaker, make_config
 from tests.test_menu import Counter
 
 

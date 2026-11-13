@@ -31,8 +31,7 @@ from assistant.core import App
 from assistant.core.permissions.rules import REPO, protected_paths, refusals, rule_warnings
 from assistant.core.permissions.store import Grant, GrantStore, fingerprint
 from assistant.modules.agent_hub import AgentHubModule
-from tests.support import wait_until
-from tests.test_multi_agent import FakeAgent, agent_module
+from assistant.testkit import FakeAgent, agent_module, wait_until
 
 
 def items_of(tmp_path: Path, chrome: bool = True) -> list[AccessItem]:

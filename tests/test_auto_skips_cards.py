@@ -23,7 +23,7 @@ from assistant.core.directory import CoreMenu
 from assistant.core.permissions.handler import ACTING_FOR, PermissionsHandler
 from assistant.core.permissions.store import Grant, fingerprint
 from assistant.infra.permission_gate import PermissionGate
-from tests.support import wait_until
+from assistant.testkit import wait_until
 
 AGENTS = [AgentInfo(agent_id="job", description="", permission_mode=PermissionMode.AUTO),
           AgentInfo(agent_id="mgr", description="", permission_mode=PermissionMode.MANUAL)]  # fmt: skip

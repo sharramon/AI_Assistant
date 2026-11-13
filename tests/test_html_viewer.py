@@ -33,11 +33,11 @@ from assistant.infra.agent_tags import parse_show
 from assistant.modules.html_viewer import HtmlViewerModule
 from assistant.modules.talker import TalkerModule
 from assistant.modules.temp_ui import TempUIModule
+from assistant.testkit import FAKE
 from html_viewer.document import EditText, HtmlDocument, add_ids
 from html_viewer.highlight import count
 from html_viewer.markdown_source import MarkdownSource, blocks
 from html_viewer.viewer import ViewerServer, fs_path, fs_url
-from tests.test_agents import FAKE
 from tests.test_temp_ui import request, ui_port
 
 PAGE = (

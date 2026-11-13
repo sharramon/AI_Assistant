@@ -9,7 +9,7 @@ import pytest
 
 from assistant.core import App, find_modules
 from assistant.core.loader import LoadError, check_folder, find_module_class
-from tests.support import make_config
+from assistant.testkit import make_config
 
 ROOT = Path(__file__).resolve().parents[1]
 

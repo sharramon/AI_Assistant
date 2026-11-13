@@ -9,7 +9,7 @@ from assistant.__main__ import use_log_session
 from assistant.contracts import Manifest, ModuleProtocol
 from assistant.core import App
 from assistant.infra import ClaudeSession, LogSession, setup_logging, theme_slug
-from tests.test_agents import FAKE
+from assistant.testkit import FAKE
 
 START = datetime(2026, 10, 26, 3, 6, 52)
 

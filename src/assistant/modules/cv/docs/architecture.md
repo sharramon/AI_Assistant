@@ -206,7 +206,7 @@ flowchart TB
 - **A reload** waits while the worker has a task (`busy`; a question waiting on you doesn't count). The new copy claims the id again, and the guard's ids come over through the handover.
 - **Questions are messages** (2026-11-10): a `NEED:` ends the worker's turn and frees it for another job. The question's key is the job's folder (`JobStartAgent.question_key`, from `_jobs`: task id → job folder), set with `SessionTaskAgent.set_context(gate.question_key, job_notes)` in `cv/module.py`. When your answer comes and the session no longer has the question, `job_notes(key)` (`job_start.py`) adds the job's `job_start.json` in brief (company, role, folder, the base CV copy and JD, the files there, where the result went) and points it at the folder's `*handoff*.md` notes; a key that isn't a job folder gets the default (`default_context`: the handoff note).
 - **Its prompt** is `WORKER_PROMPT` with the config's target, rounds, paper and folders filled in. It names the items for each step: `cv.read` (step 1), `rezi.get_resume_format` and `rezi.write_resume` with `sections` and no id (step 2), `cv.build` (step 5), `rezi.read_resume` with `cv.compare` (`parsed_resume`, step 6), and `cv.report` (step 8). Steps 3 and 7 are `NEED:` questions to you. It also asks with `NEED:` before `rezi.sign_in` opens your browser.
-- **Tested with a fake `claude`** (`tests/test_agents.FAKE`) and a pre-saved grant. No session ran against Rezi.
+- **Tested with a fake `claude`** (`assistant.testkit.FAKE`, from the [test kit](../../../../../docs/api/testkit.md)) and a pre-saved grant (`pre_grant`). No session ran against Rezi.
 
 ## The hand-off (`handoff.py`)
 

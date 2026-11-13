@@ -22,5 +22,5 @@ The job agent, bundled with its own module: one big agent (id `job_search_agent`
 ## Code and tests
 
 - `src/assistant/modules/job_search/module.py`, `ui.py`
-- `tests/test_job_search.py`, `tests/fake_job_ui.py` (a stand-in job UI); `CompanionApp`'s command-line mode in `tests/test_app_kit.py`
+- `tests/test_job_search.py`, and the stand-in job UI `fake_job_ui.py` in the [test kit](../../../../../docs/api/testkit.md) (`FAKE_JOB_UI`); `CompanionApp`'s command-line mode in `tests/test_app_kit.py`
 - `docs/`: this overview, [Architecture](architecture.md), [Tools](tools.md) (generated from its menu), [the job project](job-project.md), and `docs.toml` (its docs tab and group)

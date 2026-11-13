@@ -17,7 +17,7 @@ from assistant.contracts import (
 )
 from assistant.core import App, StartupError
 from assistant.modules.echo_orchestrator import EchoOrchestrator
-from tests.support import Calculator, Speaker, make_config
+from assistant.testkit import Calculator, Speaker, make_config
 
 
 class ShoutOrchestrator(ModuleProtocol):

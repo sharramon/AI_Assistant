@@ -2,7 +2,7 @@ import pytest
 
 from assistant.contracts import Contract
 from assistant.core.container import Container
-from tests.support import Calculator, Speaker
+from assistant.testkit import Calculator, Speaker
 
 
 class Impl(Speaker):

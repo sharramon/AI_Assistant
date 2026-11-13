@@ -30,9 +30,7 @@ from assistant.infra import check_agent_id, free_agent_id
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.agent_hub.module import RESERVED_AGENT_IDS
 from assistant.modules.job_search import JobSearchModule
-from tests.support import pre_grant, wait_until
-from tests.test_agents import FAKE, next_matching, report
-from tests.test_multi_agent import FakeAgent
+from assistant.testkit import FAKE, FakeAgent, next_matching, pre_grant, report, wait_until
 from tests.test_task_agents import agent, start_app
 
 # --- the rules ---
@@ -240,7 +238,7 @@ async def test_a_launch_without_a_yes_does_nothing_and_needs_a_task(tmp_path):
 
 
 async def test_request_approval_waits_for_the_answer_then_reports_the_outcome(tmp_path):
-    from tests.test_agents import start_hub as start_main
+    from assistant.testkit import start_hub as start_main
 
     app, updates = await start_main(tmp_path)
     try:
@@ -273,7 +271,7 @@ async def test_request_approval_waits_for_the_answer_then_reports_the_outcome(tm
 
 
 async def test_request_approval_needs_a_task(tmp_path):
-    from tests.test_agents import start_hub as start_main
+    from assistant.testkit import start_hub as start_main
 
     app, _ = await start_main(tmp_path)
     try:

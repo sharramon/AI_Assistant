@@ -13,7 +13,10 @@ not in agent_hub's config; the Hub reads it from the agent (`AgentInfo.named_onl
 
 Item 4: the CV Tool app is in cv's folder, `cv/app/cv_tool/`. No app is left in `src/<app>`; the core
 finds every module's `app/` folder by folder and puts it on the import path, a launch passes it on
-(`PYTHONPATH`), the app never imports `assistant`, and its defaults are in cv's workspace."""
+(`PYTHONPATH`), the app never imports `assistant`, and its defaults are in cv's workspace.
+
+Item 5: cv's tests are in its module, on the public test kit. No module file imports `tests`; the
+shared fakes and helpers are in `assistant.testkit`, which only tests import; no cv test is central."""
 
 from __future__ import annotations
 
@@ -47,7 +50,7 @@ from assistant.infra import MODULES_FOLDER, access_items, module_folder, module_
 from assistant.infra.profile_agent import named_only
 from assistant.modules.agent_hub.tasks import folders_clash
 from assistant.modules.cv import CvModule
-from tests.support import make_config
+from assistant.testkit import FAKE, FAKE_JOB_UI, make_config
 from tests.test_agent_hub_parts import FakeAgent, Rig
 
 REPO = MODULES_FOLDER.parents[2]
@@ -250,14 +253,22 @@ def test_no_app_outside_its_module() -> None:
     assert Path(child.stdout.strip()).parent == CV_APP / "cv_tool"
 
 
+def _imports(file: Path) -> list[str]:
+    """The absolute imports of a Python file (`a.b` for `import a.b` and `from a.b import c`)."""
+    names: list[str] = []
+    for node in ast.walk(ast.parse(file.read_text(encoding="utf-8-sig"))):  # some files start with a BOM
+        if isinstance(node, ast.Import):
+            names += [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            names.append(node.module or "")
+    return names
+
+
 def test_every_module_app_never_imports_assistant() -> None:
     folders = loader.app_folders()
     assert CV_APP in folders
     for file in (f for folder in folders for f in folder.rglob("*.py")):
-        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
-            names = [a.name for a in node.names] if isinstance(node, ast.Import) else (
-                [node.module or ""] if isinstance(node, ast.ImportFrom) and not node.level else [])  # fmt: skip
-            assert not any(n.split(".")[0] == "assistant" for n in names), file
+        assert not any(n.split(".")[0] == "assistant" for n in _imports(file)), file
 
 
 def test_the_cv_tool_defaults_are_in_the_module_workspace(tmp_path) -> None:
@@ -277,3 +288,40 @@ def test_the_cv_tool_defaults_are_in_the_module_workspace(tmp_path) -> None:
     config.write_text((CV_APP / "cv_tool" / "cv_tool.toml").read_text(encoding="utf-8"), encoding="utf-8")
     settings = server.settings(["--config", str(config)])
     assert Path(settings["data_dir"]) == workspace / "cv_tool" and Path(settings["cv_dir"]) == workspace / "cvs"
+
+
+# Item 5: cv's tests in its module, on the public test kit.
+
+TESTKIT = REPO / "src" / "assistant" / "testkit"
+SKIPPED = {"__pycache__", "workspace", ".venv"}  # an agent's workspace holds its own files, not the app's
+
+
+def _python_files(*folders: Path) -> list[Path]:
+    return [f for folder in folders for f in folder.rglob("*.py") if not SKIPPED & set(f.relative_to(REPO).parts)]
+
+
+def test_module_tests_use_only_the_testkit() -> None:
+    files = _python_files(MODULES_FOLDER)
+    assert any(f.parts[-2] == "tests" for f in files)  # the modules' own tests are in the walk
+    for file in files:
+        assert not any(n == "tests" or n.startswith("tests.") for n in _imports(file)), file
+
+
+def test_no_cv_only_test_is_central() -> None:
+    assert (CV / "tests" / "test_worker.py").is_file()  # cv's tests are in its folder
+    central = [f.name for f in (REPO / "tests").rglob("*") if "cv" in f.name.lower() and "__pycache__" not in f.parts]
+    assert central == []
+
+
+def test_only_tests_import_the_testkit() -> None:
+    def a_test(file: Path) -> bool:
+        parts = file.relative_to(REPO).parts
+        return parts[0] == "tests" or "tests" in parts[:-1] or file.is_relative_to(TESTKIT) or file.name == "conftest.py"
+
+    for file in _python_files(REPO / "src", REPO / "scripts", REPO / "tests") + list(REPO.glob("*.py")):
+        if any(n.split(".")[:2] == ["assistant", "testkit"] for n in _imports(file)):
+            assert a_test(file), f"{file} imports the test kit outside the tests"
+    # The kit holds the shared fakes; the scripts run as subprocesses are found by path, and it needs no pytest.
+    assert Path(FAKE[1]).parent == TESTKIT and Path(FAKE[1]).is_file() and Path(FAKE_JOB_UI).is_file()
+    assert not list((REPO / "tests").glob("fake_*.py")) and not (REPO / "tests" / "support.py").exists()
+    assert not any(n.split(".")[0] == "pytest" for f in _python_files(TESTKIT) for n in _imports(f))

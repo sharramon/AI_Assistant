@@ -7,7 +7,7 @@ from app_kit import window
 from assistant.contracts import QuestionKind, ReportKind, TaskState, TaskUpdated
 from assistant.core import App
 from assistant.modules.temp_ui import TempUIModule
-from tests.support import wait_until
+from assistant.testkit import wait_until
 from tests.test_access_cards import sample_card
 
 

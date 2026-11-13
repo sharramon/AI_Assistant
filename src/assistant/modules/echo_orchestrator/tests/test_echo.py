@@ -5,7 +5,7 @@ import asyncio
 from assistant.contracts import InputReceived, InvokeTool, ResponseReady
 from assistant.core import App
 from assistant.modules.echo_orchestrator import EchoOrchestrator
-from tests.support import make_config
+from assistant.testkit import make_config
 
 
 async def ask(app: App, text: str) -> str:

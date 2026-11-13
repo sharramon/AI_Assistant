@@ -37,7 +37,7 @@ APP_FOLDER = "app"
 
 # Packages whose classes are shared by every module. Reloading them (or anything inside them)
 # would break isinstance checks and contract identity, so they still need a restart.
-SHARED = ("assistant.core", "assistant.contracts", "assistant.infra", "app_kit")
+SHARED = ("assistant.core", "assistant.contracts", "assistant.infra", "assistant.testkit", "app_kit")
 # Parents of modules' packages: reloading one of these would reload every module at once.
 PARENTS = ("assistant", "assistant.modules")
 

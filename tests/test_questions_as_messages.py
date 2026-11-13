@@ -16,7 +16,7 @@ from assistant.contracts import (
 )
 from assistant.infra.session_agent import CONTEXT_AGAIN, default_context
 from assistant.modules.cv.job_start import job_notes
-from tests.test_agents import next_matching, report, start_hub
+from assistant.testkit import next_matching, report, start_hub
 
 
 def _module(app, module_id):

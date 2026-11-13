@@ -16,7 +16,7 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.infra import SessionTaskAgent
-from tests.test_agents import _StubContext, _StubSession
+from assistant.testkit import StubContext, StubSession
 
 menu = Menu()
 
@@ -108,7 +108,7 @@ async def test_a_module_you_turned_off_starts_again_on_use():
 
 
 async def test_task_agent_opens_its_show_tags_through_invoke_tool():
-    session, ctx, sent = _StubSession(), _StubContext(), []
+    session, ctx, sent = StubSession(), StubContext(), []
 
     async def send(command):
         sent.append(command)
@@ -129,7 +129,7 @@ async def test_task_agent_opens_its_show_tags_through_invoke_tool():
 
 
 async def test_task_agent_reports_a_show_that_failed():
-    session, ctx, published = _StubSession(), _StubContext(), []
+    session, ctx, published = StubSession(), StubContext(), []
     ctx.publish = published.append
 
     async def send(command):

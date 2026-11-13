@@ -26,8 +26,7 @@ from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.main_assistant.module import build_command
 from assistant.modules.talker import TalkerModule
 from assistant.modules.temp_ui import TempUIModule
-from tests.support import wait_until
-from tests.test_agents import FAKE, TIMEOUT, next_matching, report, start_hub
+from assistant.testkit import FAKE, TIMEOUT, next_matching, report, start_hub, wait_until
 from tests.test_temp_ui import request, ui_port
 
 

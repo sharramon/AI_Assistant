@@ -23,7 +23,7 @@ from assistant.contracts import (
 from assistant.infra import SessionTaskAgent
 from assistant.modules.agent_hub.delivery import Delivery
 from assistant.modules.agent_hub.tasks import TaskBoard
-from tests.test_agents import _StubContext, _StubSession
+from assistant.testkit import StubContext, StubSession
 
 COORDINATOR = "main_assistant"
 
@@ -40,7 +40,7 @@ class Rig:
 
     def __init__(self) -> None:
         self.agents: dict[str, SessionTaskAgent] = {}
-        self.sessions: dict[str, _StubSession] = {}
+        self.sessions: dict[str, StubSession] = {}
         self.feed: list[str] = []
         self.ran: list[object] = []  # commands other than reports (a reload the user allowed)
         self.flushes: list[asyncio.Future] = []
@@ -48,7 +48,7 @@ class Rig:
         self.delivery = Delivery(self.board, self.agents.get, logging.getLogger("test"))
 
     def add(self, agent_id: str) -> SessionTaskAgent:
-        session, ctx = _StubSession(), _StubContext()
+        session, ctx = StubSession(), StubContext()
 
         async def send(command):
             if isinstance(command, ReportTask):
@@ -224,7 +224,7 @@ async def test_a_waiting_record_outlives_a_hub_reload():
 
 
 async def test_an_agent_told_to_wait_drops_the_task_keeps_its_card_and_resumes_in_the_live_session():
-    session, ctx = _StubSession(), _StubContext()
+    session, ctx = StubSession(), StubContext()
     closes = []
     real_close = session.close
 

@@ -12,7 +12,7 @@
 <nav data-root="" data-page="module-folders-checklist.html"></nav>
 <main>
 <h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
-<p><strong>Count: 5 of 20 done</strong> (items 1 to 4 and 20).</p>
+<p><strong>Count: 6 of 20 done</strong> (items 1 to 5 and 20).</p>
 <h2 id="morning-list-kept-as-the-run-goes">Morning list, kept as the run goes</h2>
 <ul>
 <li><strong>App restart needed:</strong> item 1 (<code>infra/agent_access.py</code>, the Hub's folder check); item 2 (<code>Manifest.needs</code>, the core's loader, registry and lifecycle); item 3 (<code>AgentInfo.named_only</code>, <code>ProfileAgent</code>, the Hub); item 4 (<code>add_app_folders</code> in the core's loader, <code>launch_env</code> in <code>CompanionApp</code>: <strong>until the restart, the running app can't launch the CV Tool</strong>, since <code>src/cv_tool</code> is gone).</li>
@@ -55,6 +55,7 @@
 <li><strong>The Hub keeps <code>[modules.agent_hub] named_only</code> as an empty fallback</strong> (item 3): an agent's own <code>named_only = true</code> (read by <code>ProfileAgent</code>, carried on <code>AgentInfo</code>) is the source; the Hub's list stays readable for an agent not built from a profile, empty by default.</li>
 <li><strong>Finding app folders lives in the core, launching them in <code>app_kit</code></strong> (item 4): <code>add_app_folders()</code> (core loader: at startup, reload, add, and in <code>conftest.py</code>) puts every <code>modules/*/app</code> on the import path; <code>CompanionApp</code> launches <code>python -m &lt;app&gt;</code> with <code>launch_env</code> (its folder first on <code>PYTHONPATH</code>). Items 8 and 9 reuse both.</li>
 <li><strong>The CV Tool's defaults are its module's workspace</strong> (item 4): <code>cvlib.WORKSPACE</code> = <code>modules/cv/workspace</code> (with a made-up <code>cvs</code> folder for running it by hand); the cv module still passes its real folders on the command line.</li>
+<li><strong>The test kit is <code>assistant.testkit</code></strong> (item 5), moved from <code>tests/</code> (<code>support.py</code>, <code>fake_claude.py</code>, <code>fake_job_ui.py</code>, and the agent fakes from <code>test_agents.py</code> / <code>test_multi_agent.py</code>), with no pytest code; the <code>hub</code> fixture stays in <code>tests/test_agents.py</code>. The loader counts it as shared code (not reloadable). No cv-only test was left in <code>tests/</code>, so none moved.</li>
 </ol>
 <h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
 <table>
@@ -156,7 +157,8 @@
 <li><strong>How:</strong> <code>git mv</code>; the core puts each module's <code>app/</code> folder on the import path (by folder, decision 2) and so does the test setup (<code>conftest.py</code>); <code>CvTool</code> launches it with that path; replace the hard-coded <code>C:/Chang/Jobs/CV_Module</code> defaults in <code>cv_tool.toml</code> and <code>cvlib.py</code> with paths relative to the module's workspace (decision 5); the independence test covers the new place. Docs: cv's pages, the overview's parts table, <code>docs/architecture/reusable-parts.md</code> if it names the path.</li>
 <li><strong>Done when:</strong> <code>src/cv_tool</code> doesn't exist; <code>modules/cv/app/cv_tool/__main__.py</code> exists; the CV Tool tests pass from the new place; <code>test_module_folders.py::test_no_app_outside_its_module</code> passes for cv. <strong>Needs an app restart</strong> (the import path and the running cv module).</li>
 </ul>
-<h3 id="5-cv-all-cv-tests-in-the-module-on-a-public-core-test-kit">5. cv: all cv tests in the module, on a public core test kit</h3>
+<h3 id="5-cv-all-cv-tests-in-the-module-on-a-public-core-test-kit-done-2026-11-13">5. cv: all cv tests in the module, on a public core test kit: <strong>done</strong> (2026-11-13)</h3>
+<p><strong>Checked:</strong> <code>git grep -E "from tests\.|import tests\.|from tests import" src/assistant/modules</code> finds nothing; <code>git ls-files tests</code> has no cv file; <code>test_module_tests_use_only_the_testkit</code>, <code>test_no_cv_only_test_is_central</code> and <code>test_only_tests_import_the_testkit</code> pass; full suite 857 passed, 2 deselected; ruff clean. No restart needed.</p>
 <ul>
 <li><strong>What:</strong> every cv test lives in <code>modules/cv/tests/</code>, and module tests import shared helpers only from a public test kit, never from <code>tests.test_*</code>.</li>
 <li><strong>Why:</strong> the picture: "all cv tests, on the core test kit" and "public test kit (from tests/support)"; the audit's row 5 lists the central imports.</li>

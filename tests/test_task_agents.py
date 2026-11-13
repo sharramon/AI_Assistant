@@ -25,9 +25,7 @@ from assistant.infra.mcp_door import CALLER_ENV, SERVER
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.task_agents import TaskAgentsModule
 from assistant.modules.task_agents.module import agent_configs
-from tests.support import pre_grant_kinds, wait_until
-from tests.test_agents import FAKE
-from tests.test_multi_agent import agent_module, status
+from assistant.testkit import FAKE, agent_module, pre_grant_kinds, status, wait_until
 
 
 async def start_app(tmp_path, agents: dict, door: bool = False, **hub_config):

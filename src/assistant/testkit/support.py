@@ -1,4 +1,5 @@
-"""Shared test helpers and fake modules."""
+"""Test helpers and fake modules: a test config, waiting on a condition, a contract and a tool
+provider for tests, and pre-saved grants so a module turns on with no card."""
 
 from __future__ import annotations
 

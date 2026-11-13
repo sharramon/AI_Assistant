@@ -4,7 +4,7 @@ Every public class and function, grouped by area. Check here before writing some
 
 Each group links to a page with full signatures, parameters, return values, errors and examples. For how the pieces fit together, see the [architecture overview](../architecture/README.md). For which module handles, sends, and listens to each type, see the [module library](../architecture/module-library.md).
 
-Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Agents**, **Infrastructure**, and **App kit**. **Core host** is internal to `assistant.core`; it's listed so nothing gets duplicated.
+Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Agents**, **Infrastructure**, and **App kit**; their tests also use the **Test kit**. **Core host** is internal to `assistant.core`; it's listed so nothing gets duplicated.
 
 **♻ Reusable** marks a part built once and shared ([principle 13](../architecture/principles.md)). Its entry starts with **Reusable · Used by: …**.
 
@@ -16,6 +16,7 @@ Modules may use **Modules**, **Messaging**, **Tools**, **Module control**, **Age
 - **Voice service** (`voice_service`): the `/ws/listen` messages (`protocol`); inside the service, `SttEngine` / `SttStream`, `AudioSource` / `FakeSource` / `FileSource`, and `transcribe` / `transcribe_file`
 - **Main-app helpers** (`assistant.infra`): `load_config`, `setup_logging`, `LogSession`, `LogSink`, `theme_slug`, `ClaudeSession`, `claude_command`, `path_rule`, `SessionTaskAgent` (with `set_context`), `default_context`, `PermissionGate`, `HandoffKeeper`, `LastLineTags`, `UsageMeter`, `AgentKit` (with `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`), `AgentProfile`, `manual_claude_mode`, `access_items`, `granted_config`, `request_access`, `MilestoneFeed`, `session_usage`, `ContextWatch`, `agent_tags`, `show_page`, `mcp_door`, `check_agent_id`, `free_agent_id`
 - **Shared with the independent apps** ([`app_kit`](app_kit.md)): `window` (with `window_profile`), `load_layered`, `local_path`, `merge`, `module_docs`, `CompanionApp`, `CompanionHandover`, `launch_env`, `local_guard`
+- **For tests only** ([`assistant.testkit`](testkit.md)): `make_config`, `wait_until`, `pre_grant`, `pre_grant_kinds`, `Speaker`, `Calculator`, the fake `claude` (`FAKE`), `FAKE_JOB_UI`, `start_hub`, `next_matching`, `report`, `StubSession`, `StubContext`, `FakeAgent`, `agent_module`, `status`
 - **Core host** (`assistant.core`, internal): `add_app_folders` (every module's `app/` folder on the import path)
 
 ## Groups
@@ -170,6 +171,14 @@ Shared by the main app and the independent apps; standard library only. `from ap
 | [`module_docs`](app_kit.md#module_docs) | functions | ♻ A module's own `docs/` folder: `docs_settings`, `doc_pages`, `page_title`, `tools_page` (its tools page from its menu) |
 | [`CompanionApp`](app_kit.md#companionapp) | class | ♻ Launch a companion app if needed, call its API, read its event stream, quit it if we launched it; restart it on a reload when its code changed. `CompanionHandover`: one module copy's handover of it |
 | [`local_guard`](app_kit.md#local_guard) | functions | ♻ Refuse other hosts and other origins: `require_loopback`, `local_request`, `LOOPBACK_HOSTS` |
+
+### [Test kit](testkit.md)
+The fakes and helpers every test may use, central or a module's own; for tests only. `from assistant.testkit import ...`
+
+| Item | Kind | Summary |
+|------|------|---------|
+| [Helpers](testkit.md#helpers) | functions, fakes | ♻ `make_config`, `wait_until`, `pre_grant` / `pre_grant_kinds` (a saved grant, no card), `Speaker`, `Calculator` |
+| [The fake `claude` and agent fakes](testkit.md#the-fake-claude-and-agent-fakes) | fakes | ♻ `FAKE` (the fake `claude -p`, run by path), `FAKE_JOB_UI`, `start_hub`, `next_matching`, `report`, `StubSession`, `StubContext`, `FakeAgent`, `agent_module`, `status` |
 
 ### [Core host](core.md) (internal)
 The stable host. Modules never use these directly. `from assistant.core import ...`

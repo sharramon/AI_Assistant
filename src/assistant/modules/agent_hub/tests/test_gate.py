@@ -20,8 +20,7 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.modules.agent_hub import AgentHubModule
-from tests.support import wait_until
-from tests.test_multi_agent import FakeAgent
+from assistant.testkit import FakeAgent, wait_until
 
 
 class Agent(FakeAgent):

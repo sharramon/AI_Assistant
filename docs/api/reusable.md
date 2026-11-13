@@ -96,6 +96,18 @@ Its own app; never imports `assistant`. The protocol is shared with its Python c
 | [`agent_tags`](infra.md#agent_tags) | functions | Read `<<TAG: …>>` tags, SHOW arguments, `NEED:`, `HANDOFF:` and `STATUS:` lines (`status_lines`) | `infra/agent_tags.py` | `talker` (also `RESTART_READY`), `SessionTaskAgent` (SHOW, `NEED:`, `HANDOFF:`, `STATUS:` → `milestone`) |
 | [`mcp_door`](infra.md#mcp_door), [`IModuleDoor`](tools.md#imoduledoor) | module, contract | The agents' one MCP door: a stdio relay `claude` starts, and the app-side `DoorServer` sending `ListModules` / `GetMenu` / `InvokeTool` with the caller its token proves (`mcp_config(caller)`) | `infra/mcp_door.py`, `contracts/door.py` | `agent_hub` (hosts, provides), `main_assistant`, `talker` (each session) |
 
+## Test kit: `assistant.testkit` (tests only)
+
+Imported by tests only: the central `tests/` and each module's own `tests/` (a tripwire checks it). A module's tests take shared helpers from here, never from `tests.*`.
+
+| Name | Kind | Purpose | Where | Used by |
+|------|------|---------|-------|---------|
+| [`make_config`, `wait_until`, `Speaker`, `Calculator`](testkit.md#helpers) | functions, fakes | A test config; wait on a condition; a single-provider contract and a tool provider for tests | `testkit/support.py` | most central tests; `echo_orchestrator` (`make_config`), `agent_hub`, `cv` (`wait_until`) |
+| [`pre_grant`, `pre_grant_kinds`](testkit.md#helpers) | functions | Save a grant for a module's whole access list (or every `task_agents` kind), so it turns on with no card | `testkit/support.py` | `cv` (`test_worker.py`), `test_access_cards`, `test_agent_names`, `test_agent_tabs`, `test_job_search`, `test_task_agents` |
+| [`FAKE`, `FAKE_JOB_UI`, `TIMEOUT`](testkit.md#the-fake-claude-and-agent-fakes) | constants, scripts | The fake `claude -p` (`fake_claude.py`) and the stand-in job UI (`fake_job_ui.py`), run as subprocesses by path | `testkit/agents.py`, `testkit/fake_claude.py`, `testkit/fake_job_ui.py` | `cv` (`test_worker.py`), every central test running an agent; `test_app_kit`, `test_job_search` (`FAKE_JOB_UI`) |
+| [`start_hub`, `next_matching`, `report`, `status`](testkit.md#the-fake-claude-and-agent-fakes) | functions | A started Hub with a Main Assistant on the fake `claude`; the next matching update; a report-kind predicate; a task's status | `testkit/agents.py` | `test_agents`, `test_multi_agent`, `test_permission_mode`, `test_questions_as_messages`, `test_restart`, `test_mcp_door`, `test_agent_names`, `test_task_agents` |
+| [`StubSession`, `StubContext`, `FakeAgent`, `agent_module`](testkit.md#the-fake-claude-and-agent-fakes) | fakes | Drive a `SessionTaskAgent` by hand; an `ITaskAgent` that records what the Hub asks, and a module providing it | `testkit/agents.py` | `agent_hub` (`test_end_waiting`, `test_end_report_race`, `test_gate`), `test_agents`, `test_start_on_use`, `test_multi_agent`, `test_permissions_handler`, `test_agent_names`, `test_access_cards`, `test_agent_tabs`, `test_talker_agents`, `test_task_agents`, `test_usage` |
+
 ## Core host: `assistant.core` (internal)
 
 | Name | Kind | Purpose | Where | Used by |

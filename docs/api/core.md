@@ -79,7 +79,7 @@ Functions for finding the modules by folder and loading a module's code fresh. G
 | `package_of(cls) -> str` | The package a module class lives in |
 | `module_folder(cls) -> Path \| None` | The folder of that package, where the module keeps its own config defaults and docs; `None` if it can't be found |
 | `module_defaults(cls) -> dict` | The module's own config defaults, `module.toml` in its folder, read fresh each time (a reload picks up new defaults). `{}` if none; an unreadable file is logged and counts as none. `App` merges the `[modules.<id>]` section over it for `ctx.config` |
-| `check_reloadable(package)` | Raises `LoadError` for shared code (`assistant.core`, `.contracts`, `.infra`, `app_kit`), `assistant` / `assistant.modules` themselves, or a top-level name |
+| `check_reloadable(package)` | Raises `LoadError` for shared code (`assistant.core`, `.contracts`, `.infra`, `.testkit`, `app_kit`), `assistant` / `assistant.modules` themselves, or a top-level name |
 | `drop(package) -> dict` | Remove the package and its submodules from `sys.modules` (and their `__pycache__`); returns them |
 | `restore(package, removed)` | Put back what `drop` removed |
 | `import_fresh(package)` | Import from source (a new module's `app/` folder on the path first); a missing contract becomes `LoadError` ("needs a restart") |

@@ -5,7 +5,7 @@ import logging
 from assistant.contracts import Manifest, ModuleContext, ModuleProtocol
 from assistant.core import App
 from assistant.core.permissions import PermissionsPort
-from tests.support import make_config
+from assistant.testkit import make_config
 
 LOGGER = "assistant.core.permissions"
 

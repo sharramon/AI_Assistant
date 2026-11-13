@@ -110,7 +110,7 @@ flowchart LR
 
 ## How it reads
 
-- **Imports point one way.** Modules import contracts and infra; infra imports contracts and `app_kit`; the core imports contracts and infra. No module imports another module, and the core imports no module. `app_kit`, `html_viewer` and `voice_service` never import `assistant`.
+- **Imports point one way.** Modules import contracts and infra; infra imports contracts and `app_kit`; the core imports contracts and infra. No module imports another module, and the core imports no module. `app_kit`, `html_viewer` and `voice_service` never import `assistant`. Tests sit apart: the [test kit](../api/testkit.md) (`assistant.testkit`) holds the fakes they share, may import anything, and is imported by tests only, the central `tests/` and each module's own `tests/`.
 - **Agents.** Every big agent is a `ProfileAgent` (its `AgentProfile`, `ClaudeSession` and `SessionTaskAgent`); the Agent Hub starts their tasks through `ITaskAgent` and hosts the one MCP door their `claude` processes call. Messages between agents and from modules go through the Hub's `Delivery` (`DeliverMessage`, never into a turn), and an agent's message to one that isn't its child asks first through the `MessageGate`. More in [Agents: code layout](agents-code.md).
 - **SHOW tags.** The worker and the Talker both turn a SHOW tag into the viewer's tool call with one helper, [`show_page`](../api/infra.md#show_page); the core starts the viewer if it's off.
 - **Independent apps.** Each runs in its own process, launched by its thin module through `CompanionApp`, and refuses other hosts and other origins with [`local_guard`](../api/app_kit.md#local_guard) ([companion app checklist](reusable-parts.md#companion-app-checklist)).

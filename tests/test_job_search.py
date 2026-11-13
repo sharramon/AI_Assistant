@@ -23,8 +23,7 @@ from assistant.modules.job_search import JobSearchModule
 from assistant.modules.job_search.module import JOB_PROMPT, UI_SHORTCUT
 from assistant.modules.job_search.ui import ui_settings
 from assistant.modules.talker.prompt import talker_prompt
-from tests.support import pre_grant, wait_until
-from tests.test_agents import FAKE
+from assistant.testkit import FAKE, FAKE_JOB_UI, pre_grant, wait_until
 from tests.test_app_kit import free_port
 
 
@@ -107,7 +106,7 @@ async def test_job_open_ui_starts_the_job_ui_once_and_keeps_one_fresh_window(tmp
     monkeypatch.setattr("assistant.modules.job_search.ui.open_app_window",
                         lambda url, profile, **kw: calls.append(("open", profile)) or object())  # fmt: skip
     port = free_port()
-    script = str(Path(__file__).with_name("fake_job_ui.py"))
+    script = FAKE_JOB_UI
     monkeypatch.setattr("assistant.modules.job_search.ui.EDGE", [Path(script)])  # "Edge is installed" anywhere
     app = await start_app(tmp_path, {"script": script, "python": sys.executable, "port": port})
     try:
@@ -129,7 +128,7 @@ async def test_job_open_ui_never_falls_back_to_a_browser_tab(tmp_path, monkeypat
     opened: list[str] = []
     monkeypatch.setattr("assistant.modules.job_search.ui.EDGE", [tmp_path / "no-edge.exe"])
     monkeypatch.setattr("app_kit.window.webbrowser.open", opened.append)
-    script = str(Path(__file__).with_name("fake_job_ui.py"))
+    script = FAKE_JOB_UI
     app = await start_app(tmp_path, {"script": script, "python": sys.executable, "port": free_port()})
     try:
         refused = await app.router.send(InvokeTool(name="job.open_ui", args={}))

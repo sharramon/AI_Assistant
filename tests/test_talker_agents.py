@@ -18,9 +18,7 @@ from assistant.contracts import (
 from assistant.core import App
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.talker import TalkerModule
-from tests.support import wait_until
-from tests.test_agents import FAKE, next_matching
-from tests.test_multi_agent import agent_module
+from assistant.testkit import FAKE, agent_module, next_matching, wait_until
 
 
 async def start_app(tmp_path):

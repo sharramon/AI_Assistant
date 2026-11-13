@@ -2,8 +2,6 @@
 
 import asyncio
 import json
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -19,7 +17,6 @@ from assistant.contracts import (
     ReportKind,
     ResetRequested,
     ResponseReady,
-    Result,
     SendToTask,
     SessionTheme,
     SessionUsage,
@@ -28,7 +25,6 @@ from assistant.contracts import (
     Status,
     Task,
     TaskState,
-    TaskUpdated,
 )
 from assistant.core import App
 from assistant.infra import ClaudeSession, ContextWatch, SessionTaskAgent, claude_command
@@ -38,18 +34,16 @@ from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.talker import TalkerModule
 from assistant.modules.talker.module import split_tags
-from tests.support import wait_until
-
-FAKE = [sys.executable, str(Path(__file__).parent / "fake_claude.py")]
-TIMEOUT = 10.0
-
-
-async def next_matching(queue: asyncio.Queue, predicate):
-    async with asyncio.timeout(TIMEOUT):
-        while not predicate(event := await queue.get()):
-            pass
-    return event
-
+from assistant.testkit import (
+    FAKE,
+    TIMEOUT,
+    StubContext,
+    StubSession,
+    next_matching,
+    report,
+    start_hub,
+    wait_until,
+)
 
 # --- ClaudeSession ---
 
@@ -160,30 +154,11 @@ def test_command_rules_allow_any_arguments():
 # --- Hub + Main Assistant ---
 
 
-async def start_hub(tmp_path, **main_config):
-    config = {
-        "modules": {
-            "enabled": ["agent_hub", "main_assistant"],
-            "main_assistant": {"program": FAKE, "workspace": str(tmp_path), **main_config},
-        },
-        "core": {},
-    }
-    app = App([AgentHubModule, MainAssistantModule], config)
-    updates: asyncio.Queue[TaskUpdated] = asyncio.Queue()
-    app.bus.subscribe(TaskUpdated, updates.put)
-    await app.start()
-    return app, updates
-
-
 @pytest.fixture
 async def hub(tmp_path):
     app, updates = await start_hub(tmp_path)
     yield app, updates
     await app.stop()
-
-
-def report(kind: ReportKind):
-    return lambda event: event.kind is kind
 
 
 async def test_task_runs_to_done(hub):
@@ -553,49 +528,9 @@ async def test_context_reminder_hands_off_once_per_session(tmp_path):
         await app.stop()
 
 
-class _StubSession:
-    """Just enough of a `ClaudeSession` to drive a `SessionTaskAgent` by hand."""
-
-    def __init__(self):
-        self.on_event = None
-        self.running = self.working = True
-        self.context_tokens, self.id = 0, "stub"
-        self.used = {"input": 0, "cache_write": 0, "cache_read": 0, "output": 0}
-        self.subagents: dict[str, dict] = {}
-        self.sent: list[str] = []
-        self.interrupts = 0
-
-    async def start(self):
-        self.running = True
-
-    async def close(self):
-        self.running = False
-
-    async def send(self, text):
-        self.sent.append(text)
-
-    async def interrupt(self):
-        self.interrupts += 1
-
-    async def answer_permission(self, *args):
-        pass
-
-
-class _StubContext:
-    def __init__(self):
-        import logging
-        self.log = logging.getLogger("test")
-
-    def publish(self, event):
-        pass
-
-    async def send(self, command):
-        return Result.ok()
-
-
 async def test_context_reminder_waits_for_an_open_permission_request():
-    session = _StubSession()
-    agent = SessionTaskAgent(session, _StubContext(), "worker", "a worker", context_reminder=1000)
+    session = StubSession()
+    agent = SessionTaskAgent(session, StubContext(), "worker", "a worker", context_reminder=1000)
     assert (await agent.assign(Task(id="t1", text="build it"))).is_ok
     session.on_event({"type": "control_request", "request": {"subtype": "can_use_tool", "tool_name": "Write"}})
     session.context_tokens = 1500
@@ -617,7 +552,7 @@ async def test_context_reminder_waits_for_an_open_permission_request():
 
 
 async def test_edit_note_logs_the_second_edit_to_a_file_once_without_interrupting(tmp_path, caplog):
-    session, ctx, published = _StubSession(), _StubContext(), []
+    session, ctx, published = StubSession(), StubContext(), []
     ctx.publish = published.append
     task_file = tmp_path / "state" / "task.txt"
     agent = SessionTaskAgent(session, ctx, "worker", "a worker", edit_note=True, task_file=task_file)

@@ -14,7 +14,7 @@ from assistant.contracts import (
 )
 from assistant.core import App
 from assistant.modules.html_viewer import HtmlViewerModule
-from tests.support import make_config
+from assistant.testkit import make_config
 
 menu = Menu()
 
