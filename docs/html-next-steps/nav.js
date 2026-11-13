@@ -847,6 +847,7 @@
         "taskbar-flash.html",
         "usage-tokens-only.html",
         "cv-base-copy-name.html",
+        "handoff-0873d2c8.html",
         "handoff-20c1d08e.html",
         "handoff-3720fc90.html",
         "handoff-4dca192a.html",
@@ -1153,6 +1154,10 @@
             {
               "name": "The base CV's copy in a job folder is named `base_…`",
               "href": "cv-base-copy-name.html"
+            },
+            {
+              "name": "Handoff: the overnight module-folders run (task 0873d2c8)",
+              "href": "handoff-0873d2c8.html"
             },
             {
               "name": "Handoff 20c1d08e: cv module, PDF in and PDF out (build)",

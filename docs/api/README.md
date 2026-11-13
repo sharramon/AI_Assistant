@@ -142,7 +142,7 @@ Shared services for the main app's modules. `from assistant.infra import ...`
 | [`SessionTaskAgent`](infra.md#sessiontaskagent) | class | ♻ An `ITaskAgent` backed by a `ClaudeSession`, a fresh one per task, with handoffs and the permission mode; reuse it for every task agent |
 | [`AgentProfile`](infra.md#agentprofile) | class | ♻ One task agent's setup: folders, rules, command, prompt with the shared `STATUS:` / `NEED:` block |
 | [`ProfileAgent`](infra.md#profileagent) | class | ♻ One big agent from its config: profile, session and `SessionTaskAgent`, the door under its own name |
-| [`agent_access`](infra.md#agent_access) | functions | ♻ A task agent's access list from its config (`access_items`), the config cut to the grant (`granted_config`), both in one call (`request_access`) |
+| [`agent_access`](infra.md#agent_access) | functions | ♻ A task agent's access list from its config (`access_items`, with a write on its module's own folder by default), the config cut to the grant (`granted_config`), both in one call (`request_access`); `module_folder` / `module_folder_of` |
 | [`MilestoneFeed`](infra.md#milestonefeed) | class | ♻ Other agents' milestones, ends, focus moves and notices, merged for an agent's next turn |
 | [`session_usage`](infra.md#session_usage) | function | ♻ A `ClaudeSession`'s usage so far as a `SessionUsage` event |
 | [`UsageLedger`](infra.md#usageledger) | class | ♻ Every agent's usage since launch, sub-agents nested under their parent (the `usage` module's tally) |

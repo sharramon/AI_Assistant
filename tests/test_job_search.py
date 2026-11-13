@@ -55,7 +55,9 @@ async def test_the_job_agent_is_a_big_agent_with_chrome_and_the_projects_rules(t
         command = job.profile.command("prompt", PermissionMode.MANUAL)
         assert "--chrome" in command
         assert "don't run handoff.ps1" in JOB_PROMPT and "Never submit" in JOB_PROMPT
-        assert job.profile.write_folders() == (str((tmp_path / "CV").resolve()),)
+        # its workspace, then its own module folder (every module can edit itself)
+        own = str(Path(__file__).resolve().parents[1] / "src" / "assistant" / "modules" / "job_search")
+        assert job.profile.write_folders() == (str((tmp_path / "CV").resolve()), own)
     finally:
         await app.stop()
 

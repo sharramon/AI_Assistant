@@ -40,12 +40,15 @@ class Calculator(ModuleProtocol, IToolProvider):
             return Result.invalid_arguments(f"missing argument {exc}")
 
 
-def pre_grant(app: Any, module_id: str, subject: str, config: dict[str, Any]) -> None:
-    """Save a grant for `config`'s whole access list, so `module_id` turns on with no card."""
+def pre_grant(app: Any, module_id: str, subject: str, config: dict[str, Any], own_folder: bool | None = None) -> None:
+    """Save a grant for `config`'s whole access list, so `module_id` turns on with no card.
+    `own_folder`: the list has the module's own folder, as its `request_access` asks; None:
+    every module but `task_agents` (whose helpers ask without it)."""
     from assistant.core.permissions.store import Grant, fingerprint
     from assistant.infra import access_items
 
-    items = access_items(config)
+    own = module_id != "task_agents" if own_folder is None else own_folder
+    items = access_items(config, module_id if own else "")
     keys = tuple(i.key for i in items)
     app.permissions.store.put(Grant(module_id, subject, fingerprint(items), keys).with_granted(keys))
 

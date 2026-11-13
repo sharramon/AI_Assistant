@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff: the overnight module-folders run (task 0873d2c8)</title>
+<!-- Generated from docs/next-steps/handoff-0873d2c8.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="handoff-0873d2c8.html"></nav>
+<main>
+<h1 id="handoff-the-overnight-module-folders-run-task-0873d2c8">Handoff: the overnight module-folders run (task 0873d2c8)</h1>
+<p><strong>The work:</strong> <a href="module-folders-checklist.html">module-folders-checklist.md</a>. Carry on from it, item by item, in its order.</p>
+<h2 id="the-overnight-rules-from-the-user-2026-11-13-still-in-force">The overnight rules (from the user, 2026-11-13; still in force)</h2>
+<ul>
+<li>The user is asleep and pre-approved everything here, including doc and structure changes. <strong>Never raise a NEED and never wait.</strong> If a decision is needed, pick the option closest to the approved picture (<code>docs/html-next-steps/module-folders.html</code>, section 3; snip <code>logs\2026-11-13_02-19-03_wtf\snips\snip_ede23309.png</code>), and add it to the checklist's "Decisions made overnight". If an item is truly blocked, mark it blocked with the reason and go on to the next independent item.</li>
+<li><strong>No app restart or reload, and no modules on or off</strong>, unless the restart script check passes. The check: find the shell script the user wrote for restarting (look in <code>scripts/</code>, <code>docs/</code>, the next-steps notes and the app's restart handling), and read what it does. Use it only if it restarts the app and the new session picks this work up on its own from the catch-up message. Before using it, write the handoff and catch-up text so the work continues from the checklist, and log each restart in the morning report. If it doesn't resume the work by itself, or you can't tell, don't restart: put the restart on the morning list. Only check this when a restart or reload is actually needed.</li>
+<li>Never delete folders or files outside the repo (<code>C:\Chang\Jobs</code>, the Resume project, <code>C:\Chang\Jobs\CV_Module</code>). Copy only, and list what's left for the user to delete. Never <code>git push</code>.</li>
+<li>Privacy (see <a href="handoff-privacy-cleanup.html">handoff-privacy-cleanup.md</a>): real names, the real CV prefix and personal data stay in gitignored local config. Never put them in committed files, commit messages or tests (use <code>CV_Test_</code> and made-up names). Check the diff before each commit.</li>
+<li>Don't touch any helper's task (job_search_agent, cv_agent). Runs in Auto.</li>
+<li><strong>Per item:</strong> do the work, run the full <code>.\.venv\Scripts\python -m pytest -q -p no:cacheprovider</code> (about 3 min) and <code>.\.venv\Scripts\ruff check</code>, run the item's <strong>Done when</strong> check against the code yourself, then mark it done in the checklist with the evidence, update the count at the top ("N of 20 done") and the overview's "Currently fixing" count (<code>docs/architecture/README.md</code>) and the next-steps README row, rebuild the docs (<code>scripts\build_docs.py</code>), and commit that item on its own.</li>
+<li>Use the batching, architecture-first and architecture-check skills. Update the module docs, the API and reusable indexes and the overview as each item changes them.</li>
+<li><strong>At the end:</strong> write a morning report at the top of the checklist: items done and verified; items partly done or blocked, with reasons; the decisions made overnight; what needs an app restart; the hand checks due; old folders left for the user to delete; the real test numbers.</li>
+<li>What worked well this session: handing each item to a <code>general-purpose</code> subagent (foreground) with a full brief (read the checklist and the skills, these hard rules, no commit and no checklist edits, report files, tests and restart needs), then verifying and committing it yourself. That keeps your context small.</li>
+</ul>
+<h2 id="done-so-far">Done so far</h2>
+<ul>
+<li><strong>Part 1, commits:</strong> before them the full suite gave 841 passed, 2 deselected, with ruff clean. The real CV prefix was found in two untracked notes and replaced with <code>&lt;cv_prefix&gt;</code>. Commits: <code>2e283b2</code> (rules 1 and 2, with the Hub's child-result and race fixes), <code>010ecb6</code> (named events, the job-to-cv events and the cv fixes including the base_ rename; one commit because the files mix them, which is a decision to note in the report), <code>2660c25</code> (the audit note), <code>111250e</code> (docs rebuilt). <code>pytest_run.txt</code> is a stray old output, left untracked on purpose.</li>
+<li><strong>Part 2, the checklist:</strong> commit <code>2e81950</code>. 20 items, with nine overnight decisions, and the safeguards built: the architecture-check skill's "Plans and checklists" section, the count in "Currently fixing", <code>cv-agent-folders.md</code> marked replaced, and the audit's status updated.</li>
+<li><strong>Part 3, item 1 (every module edits itself): built by a subagent, NOT yet verified or committed.</strong> Its report:</li>
+<li>The default grant is in <code>infra/agent_access.py</code> (<code>access_items(config, module_id)</code>, plus the new <code>module_folder</code> and <code>module_folder_of</code>). task_agents helpers are left out (<code>own_folder=False</code>).</li>
+<li>The Hub's <code>folders_clash</code> in <code>agent_hub/tasks.py</code> allows a module folder inside a parent grant, and the refusal names the folder and whose grant holds it.</li>
+<li>The new <code>tests/test_module_folders.py</code> has 4 tests. The <code>config/default.toml</code> comment is fixed. Docs: agent_hub, permissions, api infra/agents/README/reusable, rebuilt.</li>
+<li>The subagent reported 845 passed, 2 deselected, ruff clean, but it edited <code>tests/support.py</code> after its last full run.</li>
+<li>It needs an app restart, and cv_agent's and job_search_agent's access cards will show once more (the fingerprint changes).</li>
+</ul>
+<h2 id="next">Next</h2>
+<ol>
+<li>Verify item 1: the full pytest and ruff; <code>git grep -n "can't run while the Main Assistant has a task"</code> finds nothing; <code>test_module_agent_edits_its_own_folder</code> and the overlap tests pass. Check <code>git diff</code> for personal data. Then mark item 1 done in the checklist (count 2 of 20, with the overview and README counts), add "the task_agents helpers don't get their module folder" to the decisions, add the restart and the two access cards to the morning list, rebuild the docs, and commit.</li>
+<li>Then items 2 to 19 in order, the same way.</li>
+<li>Then the morning report.</li>
+</ol>
+<p>No Chrome tabs are open.</p>
+<footer>Generated from <code>docs/next-steps/handoff-0873d2c8.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

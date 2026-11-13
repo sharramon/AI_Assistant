@@ -1,6 +1,12 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 1 of 20 done** (item 20 was done before this checklist; nothing else yet).
+**Count: 2 of 20 done** (items 1 and 20).
+
+## Morning list, kept as the run goes
+
+- **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check).
+- **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
+- **Old folders left for you to delete:** none yet.
 
 > **Status: building (started 2026-11-13, overnight, unattended, in Auto).** The user approved the plan ([module-folders.html](module-folders.html), section 3) and this overnight run: commit, this checklist, then the migration in this order. The morning report goes at the top of this page when the run ends.
 
@@ -33,6 +39,8 @@ For you to review. Each picks the option closest to the approved picture.
 6. **job_search keeps JobRadar's Python** (`C:\Chang\Git_projects\Resume\.venv`). Nothing new is installed. A module venv with a `requirements.txt` is noted for later.
 7. **Saved grants move to `config/permissions.toml`** (gitignored, since it holds your paths). The core reads it there, and on the first start copies `data/permissions.toml` across if the new file is missing. The old file is left in place.
 8. **`generated/`** is a gitignored folder at the repo root. The core writes the live module list, the module directory and the installed dependencies there. The module library page stays in the docs build too (the docs need it), and a copy goes to `generated/`.
+10. **task_agents helpers don't get their module folder** (item 1): they're generic helpers, several run at once, and none is `task_agents`' own agent, so `request_access(..., own_folder=False)`.
+11. **Part 1's cv commit is one commit** (`010ecb6`): the named events, the job-to-cv events, the cv fixes and the base_ rename share files, so they couldn't be split cleanly.
 9. **Viewer types leave the core:** `ViewerTabsChanged`, `ViewerClip` and `ViewerClipDropped` become html_viewer's named events (`ModuleEvent`, `html_viewer.*`). temp_ui and the SHOW handling call a generic "open a page" slot that any add-on can fill. html_viewer fills it today.
 
 ## The safeguards (from the audit, section 4)
@@ -52,7 +60,9 @@ For you to review. Each picks the option closest to the approved picture.
 
 ## The items
 
-### 1. Every module can edit itself by default
+### 1. Every module can edit itself by default: **done** (2026-11-13)
+
+**Checked:** `test_module_agent_edits_its_own_folder`, `test_a_module_agent_runs_beside_the_main_assistant`, `test_two_agents_on_one_module_folder_are_refused_with_the_folder_named` and `test_the_folder_rule` pass; the phrase "can't run while the Main Assistant has a task" is gone from `config/` and `docs/` (only this page quotes it); full suite 845 passed, 2 deselected; ruff clean. **Needs an app restart.**
 
 - **What:** each module's agent gets a saved write grant on its own module folder only, and the Hub stops refusing it for overlapping the Main Assistant's whole-repo grant.
 - **Why:** both agents' reports name this as the first blocker: a workspace inside the repo is refused whenever the Main Assistant has a task (`agent_hub/tasks.py`, "would write …, which main_assistant's open task writes").

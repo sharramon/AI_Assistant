@@ -257,17 +257,19 @@ Config keys besides `AgentProfile.from_config`'s: `description`, `capabilities`,
 
 ## `agent_access`
 
-**Reusable** · Used by: `job_search` (the job agent, subject `job_search_agent`), `task_agents` (each autostart kind on start, a launched helper's kind with `wait=True`) · built 2026-11-05
+**Reusable** · Used by: `job_search` (the job agent, subject `job_search_agent`), `cv` (`cv_agent`, through `AgentKit.open`), `task_agents` (each autostart kind on start, a launched helper's kind with `wait=True`; `own_folder=False`); `module_folder_of`: `agent_hub` (the folder check) · built 2026-11-05; the own module folder 2026-11-13
 
-`from assistant.infra import access_items, granted_config, request_access, watch_grant`
+`from assistant.infra import access_items, granted_config, request_access, watch_grant, module_folder, module_folder_of, MODULES_FOLDER`
 
-A task agent's access list, from its config section, asked for in one request. A module that uses it declares `agent.access` in its manifest. Design: [access lists](../architecture/permissions.md#access-lists-built).
+A task agent's access list, from its config section, asked for in one request. A module that uses it declares `agent.access` in its manifest. Design: [access lists](../architecture/permissions.md#access-lists-built). Every module can edit itself: a module's own agent's list has a write on its own module folder by default.
 
 | Function | Does |
 |----------|------|
-| `access_items(config) -> tuple[AccessItem, ...]` | The [`AccessItem`](messaging.md#accessitem)s of a config section: `workspace` (resolved, always first), `read_dirs`, `write_dirs` (resolved), `python`, `allowed_commands`, `chrome` |
-| `granted_config(config, granted) -> dict` | The config cut down to the `granted` items: trimmed folders, Python, commands and Chrome dropped; paths resolved. Granted items beyond the config's list (added by the agent's own `permissions.request`) are added. Raises [`AccessDenied`](messaging.md#accessdenied-accesspending) when the workspace wasn't granted, since an agent can't run without it |
-| `async request_access(ctx, config, subject="", reason="", wait=False) -> dict` | Both: asks with [`ctx.permissions.request_set`](modules.md#modulecontextpermissions) and returns the granted config. Raises `AccessPending` (with `wait=False`, while its card is open) or `AccessDenied`, as `request_set` does |
+| `access_items(config, module_id="") -> tuple[AccessItem, ...]` | The [`AccessItem`](messaging.md#accessitem)s of a config section: `workspace` (resolved, always first), `read_dirs`, `write_dirs` (resolved), with `module_id` a write on that module's own folder (`module_folder`, when it exists), then `python`, `allowed_commands`, `chrome` |
+| `granted_config(config, granted) -> dict` | The config cut down to the `granted` items: trimmed folders, Python, commands and Chrome dropped; paths resolved. Granted items beyond the config's list (its own module folder, or added by the agent's own `permissions.request`) are added. Raises [`AccessDenied`](messaging.md#accessdenied-accesspending) when the workspace wasn't granted, since an agent can't run without it |
+| `async request_access(ctx, config, subject="", reason="", wait=False, own_folder=True) -> dict` | Both: asks with [`ctx.permissions.request_set`](modules.md#modulecontextpermissions) and returns the granted config. `own_folder`: the list includes a write on `ctx.module_id`'s own folder (`task_agents` passes False: its helpers aren't that module's own agent). Raises `AccessPending` (with `wait=False`, while its card is open) or `AccessDenied`, as `request_set` does |
+| `module_folder(module_id) -> Path \| None` | The module's own folder, `MODULES_FOLDER / module_id` (`src/assistant/modules/<id>`, resolved), or None when there's no such folder |
+| `module_folder_of(path) -> Path \| None` | The module folder `path` is in (or is), or None outside every module's folder (the modules folder itself included). The Hub's folder check uses it |
 | `watch_grant(ctx, on_grant, subject=None)` | Call `async on_grant(subject, granted)` whenever one of this module's grants is saved with items (`PermissionChanged`); `subject=None`: every subject (a kind each in `task_agents`). A denied or removed grant is skipped (a revoke turns the module off). Subscribe in `init`; list `PermissionChanged` in `listens` |
 
 A trimmed folder or command never becomes a rule, so `claude` asks for it with a normal card. The config keys it reads, including `python` (a Python it may run, with any arguments), are [`AgentProfile.from_config`](#agentprofile)'s.

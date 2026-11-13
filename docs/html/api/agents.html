@@ -275,7 +275,7 @@
 <tr>
 <td><code>write_folders</code></td>
 <td><code>tuple[str, ...]</code></td>
-<td>Every folder it may write, resolved (its workspace and <code>write_dirs</code>, from <a href="infra.html#agentprofile"><code>AgentProfile.write_folders</code></a>). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it</td>
+<td>Every folder it may write, resolved (its workspace and <code>write_dirs</code>, from <a href="infra.html#agentprofile"><code>AgentProfile.write_folders</code></a>). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it, except a module's own folder under a wider grant (a module's agent beside the Main Assistant's whole repo; <a href="../modules/agent_hub/architecture.html#owns-and-launches">the rule</a>)</td>
 </tr>
 </tbody>
 </table>

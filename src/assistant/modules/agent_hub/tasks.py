@@ -42,6 +42,7 @@ from assistant.contracts import (
     TaskState,
     TaskUpdated,
 )
+from assistant.infra.agent_access import module_folder_of
 
 RECENT_REPORTS = 10
 RECENT_ACTIVITY = 15
@@ -446,16 +447,17 @@ class TaskBoard:
         return record
 
     def _folder_clash(self, agent_id: str, folders: tuple[str, ...], open_records: list[TaskRecord]) -> str | None:
-        """Why `agent_id` can't start: another open task's agent writes one of its folders."""
-        mine = [_norm(f) for f in folders]
+        """Why `agent_id` can't start: another active task's agent writes one of its folders
+        (`folders_clash`). The reason names both folders and whose grant holds the other one."""
         for record in open_records:
             other = self._agent(record.agent_id) if record.agent_id != agent_id else None
             if other is None:
                 continue
-            for folder in other.info().write_folders:
-                theirs = _norm(folder)
-                if any(_inside(a, theirs) or _inside(theirs, a) for a in mine):
-                    return f"{agent_id} would write {folder}, which {record.agent_id}'s open task {record.id} writes"
+            for theirs in other.info().write_folders:
+                for mine in folders:
+                    if why := folders_clash(mine, theirs):
+                        return (f"{agent_id} would write {mine}, but {record.agent_id}'s open task {record.id} "
+                                f"writes {theirs} (in {record.agent_id}'s write grant): {why}")  # fmt: skip
         return None
 
     def _finish(self, record: TaskRecord, state: TaskState, kind: ReportKind | None, text: str,
@@ -508,6 +510,28 @@ class TaskBoard:
             agent_id=record.agent_id, parent_task_id=record.parent_task_id, held=record.held,
             question_kind=record.question_kind,
         ))  # fmt: skip
+
+
+def folders_clash(a: str, b: str) -> str | None:
+    """Why two agents can't write folders `a` and `b` at once, or None when they can.
+
+    The same folder always clashes. One inside the other clashes too, unless the inner one is
+    in a module's own folder (`src/assistant/modules/<id>`) and the outer one is above that
+    module folder: a module's agent editing its own module beside the Main Assistant's
+    whole-repo grant. Two agents inside the same module folder still clash."""
+    a_path, b_path = _norm(a), _norm(b)
+    if a_path == b_path:
+        return "the same folder"
+    if _inside(a_path, b_path):
+        inner, outer = a_path, b_path
+    elif _inside(b_path, a_path):
+        inner, outer = b_path, a_path
+    else:
+        return None
+    own = module_folder_of(inner)
+    if own is not None and not _inside(outer, _norm(str(own))):
+        return None  # a module's own folder under a wider grant
+    return "one folder is inside the other"
 
 
 def _norm(folder: str) -> Path:

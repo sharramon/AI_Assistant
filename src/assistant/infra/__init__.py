@@ -1,6 +1,14 @@
 """Shared infrastructure used by the core and modules."""
 
-from assistant.infra.agent_access import access_items, granted_config, request_access, watch_grant
+from assistant.infra.agent_access import (
+    MODULES_FOLDER,
+    access_items,
+    granted_config,
+    module_folder,
+    module_folder_of,
+    request_access,
+    watch_grant,
+)
 from assistant.infra.agent_kit import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_USES, AgentKit
 from assistant.infra.agent_names import check_agent_id, free_agent_id
 from assistant.infra.agent_profile import AgentProfile, prompt_block
@@ -19,8 +27,11 @@ from assistant.infra.usage_ledger import UsageLedger
 
 __all__ = [
     "AgentProfile",
+    "MODULES_FOLDER",
     "access_items",
     "granted_config",
+    "module_folder",
+    "module_folder_of",
     "watch_grant",
     "request_access",
     "check_agent_id",

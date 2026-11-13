@@ -125,7 +125,7 @@ class TaskAgentsModule(ModuleProtocol):
             if not config.get("autostart"):
                 continue
             try:
-                granted[kind] = await request_access(self._ctx, config, subject=kind, reason=f"autostart {kind}")
+                granted[kind] = await request_access(self._ctx, config, own_folder=False, subject=kind, reason=f"autostart {kind}")
             except AccessPending as exc:
                 pending.append(str(exc))
         if pending:
@@ -238,7 +238,7 @@ class TaskAgentsModule(ModuleProtocol):
         if name in self._agents or name in self._launched:  # our own claim would repeat, and pass
             return Result.failed(f"{name} is already one of this module's helpers")
         try:
-            base = await request_access(self._ctx, self._kinds[kind], subject=kind, reason=f"launch {name}", wait=True)
+            base = await request_access(self._ctx, self._kinds[kind], own_folder=False, subject=kind, reason=f"launch {name}", wait=True)
         except AccessDenied as exc:
             return Result.failed(f"{name} wasn't launched: {exc}")
         agent = self._kit.add(self._build(name, kind, launched_config(name, base)))

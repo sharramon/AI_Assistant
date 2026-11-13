@@ -171,7 +171,7 @@ Frozen. What [`ITaskAgent.info`](#itaskagentinfo) returns.
 | `capabilities` | `tuple[str, ...]` | What kinds of tasks it takes |
 | `state` | [`AgentState`](#agentstate) | `active` (in a turn) or `idle`. `info.active` (property) is `state is AgentState.ACTIVE` |
 | `permission_mode` | `PermissionMode` | The mode its next session starts in; Manual at every launch |
-| `write_folders` | `tuple[str, ...]` | Every folder it may write, resolved (its workspace and `write_dirs`, from [`AgentProfile.write_folders`](infra.md#agentprofile)). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it |
+| `write_folders` | `tuple[str, ...]` | Every folder it may write, resolved (its workspace and `write_dirs`, from [`AgentProfile.write_folders`](infra.md#agentprofile)). The Hub refuses to start a task whose agent writes a folder another active task's agent writes, or one inside it, except a module's own folder under a wider grant (a module's agent beside the Main Assistant's whole repo; [the rule](../../src/assistant/modules/agent_hub/docs/architecture.md#owns-and-launches)) |
 
 ## `PermissionMode`
 

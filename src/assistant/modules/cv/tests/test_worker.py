@@ -137,7 +137,9 @@ async def test_the_worker_is_a_big_agent_in_manual_with_chrome_and_its_folders(t
         assert "--chrome" in command
         assert path_rule("Read", str((tmp_path / "out").resolve())) in command
         assert path_rule("Read", str((tmp_path / "CV").resolve())) in command
-        assert worker.profile.write_folders() == (str((tmp_path / "cv_agent").resolve()),)
+        # its workspace, then its own module folder (every module can edit itself)
+        own = str(Path(__file__).resolve().parents[1])
+        assert worker.profile.write_folders() == (str((tmp_path / "cv_agent").resolve()), own)
         assert (await app.router.send(InvokeTool(name="rezi.status", caller="cv_agent"))).is_ok  # the menu too
     finally:
         await app.stop()

@@ -499,9 +499,16 @@
 <tr>
 <td><a href="infra.html#agent_access"><code>access_items</code>, <code>granted_config</code>, <code>request_access</code></a></td>
 <td>functions</td>
-<td>A task agent's access list from its config section (with <code>python</code>); the config cut down to what you allowed (plus items the agent added itself); both in one call through <code>ctx.permissions.request_set</code></td>
+<td>A task agent's access list from its config section (with <code>python</code>, and by default a write on the asking module's own folder); the config cut down to what you allowed (plus items the agent added itself); both in one call through <code>ctx.permissions.request_set</code></td>
 <td><code>infra/agent_access.py</code></td>
-<td><code>job_search</code> (subject <code>job_search_agent</code>), <code>task_agents</code> (per kind: autostart on start, a launched helper with <code>wait=True</code>, a live grant)</td>
+<td><code>job_search</code> (subject <code>job_search_agent</code>), <code>cv</code> (<code>cv_agent</code>, through <code>AgentKit</code>), <code>task_agents</code> (per kind, <code>own_folder=False</code>: autostart on start, a launched helper with <code>wait=True</code>, a live grant)</td>
+</tr>
+<tr>
+<td><a href="infra.html#agent_access"><code>module_folder</code>, <code>module_folder_of</code>, <code>MODULES_FOLDER</code></a></td>
+<td>functions</td>
+<td>A module's own folder (<code>src/assistant/modules/&lt;id&gt;</code>); the module folder a path is in</td>
+<td><code>infra/agent_access.py</code></td>
+<td><code>access_items</code> (the own-folder item), <code>agent_hub</code> (<code>folders_clash</code>), <code>tests/test_module_folders.py</code></td>
 </tr>
 <tr>
 <td><a href="infra.html#agent_access"><code>watch_grant</code></a></td>

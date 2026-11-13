@@ -5,23 +5,54 @@ an access list (`access_items`), asks for it with `ctx.permissions.request_set` 
 on, and builds its agent from the config cut down to what you allowed (`granted_config`).
 `request_access` does both. A trimmed folder or command never becomes a rule, so `claude`
 asks for it with a normal card.
+
+Every module can edit itself: a module's own agent gets, by default, a write item on its own
+module folder (`src/assistant/modules/<id>`, `module_folder`), never a parent or another
+module's folder. `task_agents` asks without it (`own_folder=False`): its helpers are generic,
+several run at once, and none is that module's own agent.
 """
 
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 from assistant.contracts import AccessDenied, AccessItem, AccessKind, ModuleContext, PermissionChanged
 
+#: Where the modules live: one folder per module, named with its id (the loader's `assistant.modules`).
+MODULES_FOLDER = Path(__file__).resolve().parents[1] / "modules"
 
-def access_items(config: dict[str, Any]) -> tuple[AccessItem, ...]:
+
+def module_folder(module_id: str) -> Path | None:
+    """Module `module_id`'s own folder (`src/assistant/modules/<id>`, resolved), or None when
+    there's no such folder (a test's stand-in, a module that lives elsewhere)."""
+    if not module_id or os.sep in module_id or "/" in module_id or module_id.startswith("."):
+        return None
+    folder = MODULES_FOLDER / module_id
+    return folder if folder.is_dir() else None
+
+
+def module_folder_of(path: Any) -> Path | None:
+    """The module folder `path` is in, or is (`MODULES_FOLDER / <id>`); None for a path outside
+    every module's folder, the modules folder itself included. For the Hub's folder check."""
+    root = os.path.normcase(str(MODULES_FOLDER))
+    here = os.path.normcase(str(Path(str(path)).resolve()))
+    if not here.startswith(root + os.sep):
+        return None
+    return MODULES_FOLDER / here[len(root) + 1 :].split(os.sep)[0]
+
+
+def access_items(config: dict[str, Any], module_id: str = "") -> tuple[AccessItem, ...]:
     """The access list of an agent's config section: its `workspace` (resolved, always first),
-    `read_dirs`, `write_dirs` (resolved), `python`, `allowed_commands` and `chrome`."""
+    `read_dirs`, `write_dirs` (resolved), with `module_id`: a write on that module's own folder
+    (`module_folder`, when it exists), then `python`, `allowed_commands` and `chrome`."""
     items = [AccessItem(kind=AccessKind.WORKSPACE, target=_folder(config.get("workspace", "workspace")))]
     items += [AccessItem(kind=AccessKind.READ, target=_folder(d)) for d in config.get("read_dirs", ())]
     items += [AccessItem(kind=AccessKind.WRITE, target=_folder(d)) for d in config.get("write_dirs", ())]
+    if (own := module_folder(module_id)) is not None:
+        items.append(AccessItem(kind=AccessKind.WRITE, target=str(own)))
     if python := str(config.get("python") or "").strip():
         items.append(AccessItem(kind=AccessKind.PYTHON, target=python))
     items += [AccessItem(kind=AccessKind.COMMAND, target=str(c)) for c in config.get("allowed_commands", ())]
@@ -32,9 +63,9 @@ def access_items(config: dict[str, Any]) -> tuple[AccessItem, ...]:
 
 def granted_config(config: dict[str, Any], granted: tuple[AccessItem, ...]) -> dict[str, Any]:
     """`config` with only the `granted` items: trimmed folders, Python, commands and Chrome
-    dropped; paths resolved. Granted items beyond the config's list (what its agent asked for
-    itself with `permissions.request`) are added. Raises `AccessDenied` when its workspace
-    wasn't granted, since an agent can't run without its working folder."""
+    dropped; paths resolved. Granted items beyond the config's list (its own module folder, or
+    what its agent asked for itself with `permissions.request`) are added. Raises `AccessDenied`
+    when its workspace wasn't granted, since an agent can't run without its working folder."""
     keys = {i.key for i in granted}
     asked = access_items(config)
     workspace = asked[0]
@@ -54,12 +85,16 @@ def granted_config(config: dict[str, Any], granted: tuple[AccessItem, ...]) -> d
 
 
 async def request_access(
-    ctx: ModuleContext, config: dict[str, Any], subject: str = "", reason: str = "", wait: bool = False
-) -> dict[str, Any]:
+    ctx: ModuleContext, config: dict[str, Any], subject: str = "", reason: str = "", wait: bool = False,
+    own_folder: bool = True,
+) -> dict[str, Any]:  # fmt: skip
     """Ask for `config`'s access list (`ctx.permissions.request_set`) and return the config cut
-    down to what you allowed. Raises `AccessPending` (with `wait=False`, while its card is
-    open) or `AccessDenied`, as `request_set` does, and `AccessDenied` for a refused workspace."""
-    granted = await ctx.permissions.request_set(access_items(config), reason, subject, wait)
+    down to what you allowed. `own_folder`: the list includes a write on the asking module's own
+    folder (`module_folder(ctx.module_id)`). Raises `AccessPending` (with `wait=False`, while
+    its card is open) or `AccessDenied`, as `request_set` does, and `AccessDenied` for a refused
+    workspace."""
+    items = access_items(config, ctx.module_id if own_folder else "")
+    granted = await ctx.permissions.request_set(items, reason, subject, wait)
     return granted_config(config, tuple(granted))
 
 

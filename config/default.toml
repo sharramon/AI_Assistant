@@ -74,8 +74,10 @@ named_only = ["cv_agent"]
 # a kind takes the same keys as [modules.main_assistant], plus `description`, `prompt` (its role,
 # one or two sentences), and `autostart = true` to start one at launch (`instances` = N starts
 # <kind>, <kind>_2, ..., each writing its own sub-folder of the workspace).
-# An agent writing inside this repo can't run while the Main Assistant has a task (it writes the
-# whole repo: the Hub's folder-clash check), so a helper's workspace lives outside it.
+# The Hub's folder-clash check: two active agents never write the same folder, or one inside the
+# other, except a module's own folder (src/assistant/modules/<id>) under a wider grant such as the
+# Main Assistant's whole repo. A helper isn't a module's own agent (it gets no module folder), and
+# a helper folder elsewhere in this repo would clash with the Main Assistant, so it lives outside.
 permission_mode = "acceptEdits"
 permission_timeout = 600.0
 chrome = true             # every kind gets the Claude in Chrome tools (on its access card); a kind may set false
