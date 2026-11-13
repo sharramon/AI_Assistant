@@ -78,8 +78,11 @@ async def test_modules_still_use_each_other_after_swaps(app):
     await app.router.send(ReloadModule(module_id="voice_in", now=True))
     await app.router.send(ReloadModule(module_id="html_viewer", now=True))
     assert app.container.get_one(IVoice) is not None  # voice notes' recorder, from the new voice_in
-    # voice_in can't go while voice notes requires it
-    assert not (await app.router.send(DeactivateModule(module_id="voice_in"))).is_ok
+    # voice_in may go while voice notes requires it: voice notes stays on (then voice_in comes back)
+    off = await app.router.send(DeactivateModule(module_id="voice_in"))
+    assert off.is_ok and off.value == "voice_in is off; voice_notes needs it and stays on"
+    assert (await app.router.send(ActivateModule(module_id="voice_in"))).is_ok
+    assert app.container.get_one(IVoice) is not None
     # the menus are linked to the new copies
     assert (await app.router.send(InvokeTool(name="echo.say", args={"text": "hi"}))).value == "Echo: hi"
     assert (await app.router.send(InvokeTool(name="modules.list"))).is_ok

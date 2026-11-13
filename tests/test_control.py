@@ -153,14 +153,18 @@ async def test_unknown_module_is_invalid():
     await app.stop()
 
 
-async def test_deactivate_respects_dependents():
+async def test_deactivate_is_never_refused_and_leaves_dependents_on():
     app = App([SpeakerImpl, NeedsSpeaker], make_config("speaker", "needs_speaker"))
     await app.start()
     result = await send(app, DeactivateModule(module_id="speaker"))
-    assert result.status is Status.FAILED
-    assert "required by needs_speaker" in result.error
-    assert states(app)["speaker"] is ModuleState.ACTIVE
+    assert result.is_ok, result.error
+    assert result.value == "speaker is off; needs_speaker needs it and stays on"
+    assert states(app) == {"speaker": ModuleState.INACTIVE, "needs_speaker": ModuleState.ACTIVE}
+    await app.stop()
 
+    # with_dependents still takes both down.
+    app = App([SpeakerImpl, NeedsSpeaker], make_config("speaker", "needs_speaker"))
+    await app.start()
     assert (await send(app, DeactivateModule(module_id="speaker", with_dependents=True))).is_ok
     assert states(app) == {"speaker": ModuleState.INACTIVE, "needs_speaker": ModuleState.INACTIVE}
     await app.stop()

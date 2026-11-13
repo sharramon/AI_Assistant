@@ -132,6 +132,16 @@ def test_handoff_texts_carry_the_chrome_lines():
     assert "Chrome tabs belong to your session" in BASICS_BLOCK
 
 
+def test_every_agent_asks_before_turning_a_module_on():
+    """A call answering "isn't on" (core/tools.py module_off_text): ask the user, on yes modules.on."""
+    from assistant.core.tools import module_off_text
+    from assistant.infra.agent_profile import BASICS_BLOCK
+
+    assert "a module isn't on" in BASICS_BLOCK and "Never turn it on without their yes" in BASICS_BLOCK
+    text = module_off_text("cv", "cv.task")
+    assert "isn't on" in text and "Ask the user" in text and "modules.on" in text
+
+
 def test_last_line_tags_try_entries_in_order_and_pass_on():
     seen = []
     tags = LastLineTags().add("RELOAD:", lambda arg: bool(arg) and not seen.append(("reload", arg)))

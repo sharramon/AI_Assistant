@@ -58,7 +58,6 @@ class LifecycleManager:
             for cls in self._start_order:
                 self._set(cls.manifest.id, ModuleState.STARTING)
                 try:
-                    self._check_needs(cls.manifest)
                     module, ctx = await self._init_one(cls)
                 except Exception as exc:
                     self._skip(cls.manifest, "initialize", exc)
@@ -67,8 +66,8 @@ class LifecycleManager:
                 self._active[cls.manifest.id] = (module, ctx)
 
             for module, ctx in initialized:
+                self._note_missing_needs(module.manifest)
                 try:
-                    self._check_needs(module.manifest)
                     await module.start()
                 except Exception as exc:
                     del self._active[module.manifest.id]
@@ -114,7 +113,8 @@ class LifecycleManager:
             return await self._activate(module_id, ())
 
     async def deactivate(self, module_id: str, with_dependents: bool = False) -> Result:
-        """Deactivate a module at runtime. Refused while an active module requires it, unless `with_dependents`."""
+        """Deactivate a module at runtime. Never refused: the modules that need it stay on (the
+        result's value names them), unless `with_dependents`, which turns them off first."""
         async with self._lock:
             return await self._deactivate(module_id, with_dependents)
 
@@ -194,34 +194,21 @@ class LifecycleManager:
                     return result
             return Result.ok(module_id)
 
-    async def remove(self, module_id: str, enabled: Sequence[str] = ()) -> Result:
+    async def remove(self, module_id: str) -> Result:
         """Take a module out of this run: off if it's on, then out of the module list (until `add`).
-        Refused while another module needs it: an active one (`needs`, or a sole provider it
-        requires), or one in `enabled` whose `needs` lists it. Its package stays imported; `add`
-        imports it fresh."""
+        Never refused: the active modules that need it stay on (the result's value lists them).
+        Its package stays imported; `add` imports it fresh."""
         async with self._lock:
             if module_id not in self._classes:
                 return Result.invalid_arguments(f"No module called {module_id!r}")
-            needers = self._dependents(module_id) if module_id in self._active else []
-            needers += [
-                other
-                for other in enabled
-                if other != module_id
-                and other not in needers
-                and other in self._classes
-                and module_id in self._classes[other].manifest.needs
-            ]
-            if needers:
-                return Result.failed(
-                    f"{module_id!r} is needed by {', '.join(needers)}; remove or turn them off first"
-                )
+            still_on = self._dependents(module_id) if module_id in self._active else []
             result = await self._deactivate(module_id, False)
             if not result.is_ok:
                 return result
             del self._classes[module_id]
             del self._states[module_id]
             log.info("Removed %s from this run", module_id)
-            return Result.ok()
+            return Result.ok(still_on)
 
     async def _roll_back(self, module_id, old_cls, package, removed, was_active, stopped, error, state) -> Result:
         loader.restore(package, removed)
@@ -297,12 +284,15 @@ class LifecycleManager:
             if not result.is_ok:
                 return Result.failed(f"{module_id!r} requires {contract.__name__}: {result.error}")
 
-        for needed in manifest.needs:  # the modules it needs, by id: turned on first
+        for needed in manifest.needs:  # the modules it needs, by id: turned on first (start order only)
             if needed not in self._classes:
                 return Result.not_available(f"{module_id!r} needs the module {needed!r}, which doesn't exist")
+            if needed in (*chain, module_id):
+                return Result.failed(f"Circular dependency: {' -> '.join((*chain, module_id, needed))}")
             result = await self._activate(needed, (*chain, module_id))
-            if not result.is_ok:
-                return Result.failed(f"{module_id!r} needs {needed!r}: {result.error}")
+            if not result.is_ok:  # a module copes with a needed one being off by itself
+                log.warning("%s needs %s, which didn't turn on (%s); turning %s on without it",
+                            module_id, needed, result.error, module_id)
 
         self._set(module_id, ModuleState.STARTING)
         try:
@@ -340,17 +330,22 @@ class LifecycleManager:
             return Result.ok()
 
         dependents = self._dependents(module_id)
-        if dependents and not with_dependents:
-            return Result.failed(f"{module_id!r} is required by {', '.join(dependents)}; deactivate them first")
-        for dependent in reversed(dependents):
-            await self._deactivate(dependent, True)
+        if with_dependents:
+            for dependent in reversed(dependents):
+                await self._deactivate(dependent, True)
+            dependents = []
 
         module, ctx = self._active.pop(module_id)
         self._set(module_id, ModuleState.STOPPING)
         await self._stop_one(module, ctx)
         self._set(module_id, ModuleState.INACTIVE)
         log.info("Deactivated %s", module_id)
-        return Result.ok()
+        if not dependents:
+            return Result.ok()
+        one = len(dependents) == 1
+        left = f"{', '.join(dependents)} {'needs' if one else 'need'} it and {'stays' if one else 'stay'} on"
+        log.info("%s is off; %s", module_id, left)
+        return Result.ok(f"{module_id} is off; {left}")
 
     def _active_provider(self, contract: type[Contract], excluding: str | None = None) -> str | None:
         for module_id in self._active:
@@ -375,11 +370,12 @@ class LifecycleManager:
             )
         ]
 
-    def _check_needs(self, manifest: Manifest) -> None:
-        """At startup: raise if a module it needs didn't come up (failed or skipped), so it's skipped too."""
+    def _note_missing_needs(self, manifest: Manifest) -> None:
+        """At startup: a module it needs that didn't come up (failed, or waits on its card) doesn't
+        stop it; `needs` is start order only, and the module copes with the other being off."""
         missing = [needed for needed in manifest.needs if needed not in self._active]
         if missing:
-            raise RuntimeError(f"it needs {', '.join(map(repr, missing))}, which didn't start")
+            log.warning("%s starts without %s, which didn't start", manifest.id, ", ".join(missing))
 
     async def _stop_one(self, module: ModuleProtocol, ctx: ScopedContext) -> None:
         try:
