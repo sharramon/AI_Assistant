@@ -1,0 +1,7 @@
+# Which modules are on at startup (committed). A module listed here starts with the modules it
+# `needs`. The others can be turned on while the app runs (the core's modules.on).
+# Override the list in config/modules.local.toml (gitignored); a [modules] enabled in
+# config/local.toml still wins over both.
+# html_viewer and voice_notes are off at launch; turn them on with modules.on.
+# html_viewer also turns itself on when a page is opened (start_on_use in its module.toml).
+enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "voice_in", "usage"]

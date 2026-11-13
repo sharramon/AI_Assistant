@@ -40,7 +40,11 @@ are in their folders; the tests that run them together stay in `tests/`.
 
 Item 11 (second half): console_io, temp_ui, usage, assistant_view and echo_orchestrator have their
 module.toml too, so every module folder has one; config/default.toml has no module's defaults left (only
-the core's settings); and no central test file names only one module unless it's listed with its reason."""
+the core's settings); and no central test file names only one module unless it's listed with its reason.
+
+Item 12: config/ is your choices only. `config/modules.toml` says which modules are on (default.toml has no
+`enabled` left), `config/<id>.toml` holds your choices for one module over its module.toml, `config/<id>.local.toml`
+over that, and `[modules.<id>]` in config/local.toml last; the saved grants' file is never read as a module's."""
 
 from __future__ import annotations
 
@@ -609,3 +613,69 @@ def test_no_module_only_test_file_is_central() -> None:
             module_only.append(f"{path.name} ({named.pop()})")
     assert not module_only, f"module-only tests under tests/ (move them into the module's tests/): {module_only}"
     assert all((REPO / "tests" / name).is_file() for name in CENTRAL_ON_PURPOSE)  # the list stays true
+
+
+def _write(folder: Path, name: str, text: str) -> None:
+    folder.mkdir(exist_ok=True)
+    (folder / name).write_text(text, encoding="utf-8")
+
+
+def test_config_modules_toml_holds_the_on_off_list() -> None:
+    assert (REPO / "config" / "modules.toml").is_file()
+    shipped = tomllib.loads((REPO / "config" / "modules.toml").read_text(encoding="utf-8"))
+    assert "talker" in shipped["enabled"] and "agent_hub" in shipped["enabled"]
+    default = tomllib.loads((REPO / "config" / "default.toml").read_text(encoding="utf-8"))
+    assert "enabled" not in default.get("modules", {}), "the on/off list belongs in config/modules.toml"
+
+
+def test_config_module_files_are_yours_and_ignored() -> None:
+    def ignored(path: str) -> bool:
+        return subprocess.run(["git", "check-ignore", "-q", path], cwd=REPO).returncode == 0
+
+    assert ignored("config/temp_ui.toml") and ignored("config/temp_ui.local.toml") and ignored("config/permissions.toml")
+    assert not ignored("config/modules.toml") and not ignored("config/default.toml")
+
+
+def test_a_modules_settings_load_from_its_config_file_over_its_module_toml(tmp_path) -> None:
+    from assistant.infra.config import load_config, module_config_ids
+
+    folder = tmp_path / "config"
+    _write(folder, "default.toml", "[modules]\n[core]\ncommand_timeout = 7.0\n")
+    _write(folder, "modules.toml", 'enabled = ["console_io"]\n')
+    _write(folder, "temp_ui.toml", 'port = 9001\nwindow = "none"\n')
+    _write(folder, "permissions.toml", '[grants]\nx = 1\n')  # the saved grants, never a module's file
+    _write(folder, "voice_service.local.toml", "port = 1\n")
+    cls = loader.find_module_class(importlib.import_module("assistant.modules.temp_ui"), "temp_ui")
+
+    def temp_ui_config() -> tuple[dict, dict]:
+        config = load_config(folder)
+        app = App([cls], {**config, "modules": {**config["modules"], "enabled": []}})  # only temp_ui is available
+        return app._config_of("temp_ui"), config
+
+    seen, config = temp_ui_config()
+    assert seen["port"] == 9001 and seen["window"] == "none"  # config/temp_ui.toml over its module.toml
+    assert seen["needs"] == []  # the rest still from module.toml
+    assert config["modules"]["enabled"] == ["console_io"]  # config/modules.toml
+    assert config["core"]["command_timeout"] == 7.0
+    assert module_config_ids(folder) == ["temp_ui"]  # not permissions, voice_service, default, modules
+
+    _write(folder, "temp_ui.local.toml", "port = 9002\n")
+    _write(folder, "modules.local.toml", 'enabled = ["temp_ui"]\n')
+    seen, config = temp_ui_config()
+    assert seen["port"] == 9002 and seen["window"] == "none"  # .local over config/temp_ui.toml
+    assert config["modules"]["enabled"] == ["temp_ui"]
+
+    _write(folder, "local.toml", '[modules]\nenabled = ["talker"]\n[modules.temp_ui]\nport = 9003\n')
+    seen, config = temp_ui_config()
+    assert seen["port"] == 9003 and seen["window"] == "none"  # local.toml's section last
+    assert config["modules"]["enabled"] == ["talker"]
+
+
+def test_a_local_only_module_file_still_counts(tmp_path) -> None:
+    from assistant.infra.config import load_config
+
+    folder = tmp_path / "config"
+    _write(folder, "default.toml", "[core]\n")
+    _write(folder, "usage.local.toml", "x = 1\n")
+    config = load_config(folder)
+    assert config["modules"] == {"usage": {"x": 1}}  # no modules.toml: nothing enabled, no error

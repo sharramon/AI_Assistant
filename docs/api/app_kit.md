@@ -29,7 +29,7 @@ One copy of the Edge app-window code, merged from `assistant/infra/app_window.py
 
 ## `load_layered`
 
-**Reusable** · Used by: [`assistant.infra.load_config`](infra.md#load_config) (as a thin wrapper), `voice_service` (`config.py`: `voice_service.toml` beside its code and its `.local.toml`)
+**Reusable** · Used by: [`assistant.infra.load_config`](infra.md#load_config) (each `config/<name>.toml` with its `.local`), `voice_service` (`config.py`: `voice_service.toml` beside its code and its `.local.toml`)
 
 `load_layered(base: str | Path, local: str | Path | None = None) -> dict[str, Any]`
 
@@ -51,7 +51,7 @@ The local override's path for `base`: `.local` before the suffix (`voice_service
 
 ## `merge`
 
-**Reusable** · Used by: `load_layered` (the `.local` override), the core's `App` (a module's `module.toml` defaults under its `[modules.<id>]` section)
+**Reusable** · Used by: `load_layered` (the `.local` override), `load_config` (the `config/` layers), the core's `App` (a module's `module.toml` defaults under its `[modules.<id>]` section)
 
 `merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]`
 

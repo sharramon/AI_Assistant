@@ -1,18 +1,14 @@
-# Committed defaults. Put machine-specific overrides in config/local.toml
-# (gitignored), or point ASSISTANT_CONFIG_DIR at another directory.
+# The core's committed settings. Which modules are on is in config/modules.toml.
+# Your own choices for one module go in config/<module id>.toml (gitignored; top-level keys are
+# that module's settings, no [modules.<id>] header), and config/<id>.local.toml over that.
+# config/local.toml (gitignored) still overrides everything, last. Or point ASSISTANT_CONFIG_DIR
+# at another directory. The load order is in load_config (src/assistant/infra/config.py).
 
 [modules]
-# Which of the modules listed in src/assistant/__main__.py are active at startup.
-# The others can be turned on at runtime (ActivateModule). Swap the orchestrator
-# by changing this list.
-# html_viewer and voice_notes are off at launch; turn them on with the core's modules.on.
-# html_viewer also turns itself on when a page is opened (start_on_use in its section).
-enabled = ["console_io", "agent_hub", "main_assistant", "talker", "temp_ui", "voice_in", "usage"]
-
-# Per-module settings go in [modules.<module id>]. Every module ships its own defaults in the
-# module.toml in its folder (src/assistant/modules/<id>/module.toml), with its `needs` and
-# `packages`; a [modules.<id>] section here or in config/local.toml only overrides them, key by key.
-# So this file holds no module's defaults, only the core's settings below.
+# Empty on purpose. Every module ships its own defaults in the module.toml in its folder
+# (src/assistant/modules/<id>/module.toml), with its `needs` and `packages`; config/<id>.toml,
+# then config/<id>.local.toml, then a [modules.<id>] section in config/local.toml override them, key by key.
+# So this file holds no module's defaults and no on/off list, only the core's settings below.
 # The Talker's, main_assistant's, agent_hub's and task_agents' defaults (task_agents' kinds of helper
 # included) are in each module's module.toml; so are console_io's (prompt) and temp_ui's (port 8765,
 # window). usage, assistant_view and echo_orchestrator have none.

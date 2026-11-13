@@ -17,7 +17,7 @@ The job agent, bundled with its own module: one big agent (id `job_search_agent`
 
 ## Config
 
-Defaults in `module.toml` in this module's folder, with their comments; `[modules.job_search]` in the app's config (your `config/local.toml`) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it.
+Defaults in `module.toml` in this module's folder, with their comments; your `config/job_search.toml` (top-level keys, gitignored; `[modules.job_search]` in `config/local.toml` still works, last) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it.
 
 The keys: `ProfileAgent`'s, plus `agent_id` (default `job_search_agent`: the module id plus `_agent`; transcript `job_search_agent.jsonl`). Shipped: workspace `C:/Chang/Jobs/CV`, reads `C:/Chang/Jobs` and JobRadar, `python` (JobRadar's Python, any arguments), `tools = "default"`, `chrome = true`. These keys are its access list, asked for on one card ([`access_items`](../../../../../docs/api/infra.md#agent_access)). `permission_mode` takes Manual modes only: every session starts in Manual.
 

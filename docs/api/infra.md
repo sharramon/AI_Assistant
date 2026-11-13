@@ -8,12 +8,21 @@ Shared services for the main app's modules. All items: `from assistant.infra imp
 
 `load_config(config_dir: str | Path | None = None) -> dict[str, Any]`
 
-Load `default.toml`, then deep-merge `local.toml` over it if it exists. Tables merge key by key; other values (including lists) are replaced. A thin wrapper over [`app_kit.load_layered`](app_kit.md#load_layered).
+Load the app's config from `config/`, each layer deep-merged over the one before (tables key by key; other values, lists included, replaced), with [`app_kit.load_layered`](app_kit.md#load_layered) and [`merge`](app_kit.md#merge):
+
+1. `default.toml`: the core's settings.
+2. `modules.toml`, then `modules.local.toml`, into `[modules]`: which modules are on (`enabled`). Missing is fine.
+3. For every module id with a file (`module_config_ids`): `<id>.toml`, then `<id>.local.toml`, into `[modules.<id>]`; top-level keys are the module's settings. Either may be missing.
+4. `local.toml`, if it exists, over everything (as before).
+
+A module's own `module.toml` defaults go under all of these; the core merges them in (`App._config_of`). `NOT_MODULE_FILES` (`default`, `local`, `modules`, `permissions`, `voice_service`) are never read as a module's file. Also exported from `assistant.infra.config`: `module_config_ids(directory) -> list[str]`.
 
 **Parameters**
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `config_dir` | `str \| Path \| None` | no | Directory holding the files. Defaults to `ASSISTANT_CONFIG_DIR`, then `./config` |
+
+**Example:** `config/temp_ui.toml` holding `port = 9001` makes temp_ui's `ctx.config["port"]` 9001 over its `module.toml`'s 8765; `config/temp_ui.local.toml` overrides that, and `[modules.temp_ui]` in `config/local.toml` last.
 
 **Returns:** the merged config as nested dicts.
 

@@ -821,7 +821,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
 live_text = true          # false = the text on send even when the engine gives live text (sent as start.partials) (added 2026-11-03)
 final_timeout_on_send = 90.0  # the wait for the final when the session has no live text, or with two passes (added 2026-11-03)
 cleanup = true            # sentence case and one end mark per final (false = the raw text) (added 2026-11-03)
-terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&quot;, &quot;Unitree&quot;, &quot;Zipformer&quot;]  # written back as given; your own list in config/local.toml
+terms = [&quot;Isaac Sim&quot;, &quot;USD&quot;, &quot;glTF&quot;, &quot;Unity&quot;, &quot;Unitree&quot;, &quot;Zipformer&quot;]  # written back as given; your own list in config/voice_in.toml
 </code></pre>
 <p>The wait for a dropped mic is the service's setting (<code>[audio] mic_recovery_seconds</code>), since only the service can reopen the mic; <code>voice_in</code> gets it in <code>mic_dropped</code>'s <code>wait_seconds</code>.</p>
 <p><strong>How it launches and watches the service</strong> (the <a href="../../architecture/reusable-parts.html#companion-app-checklist">companion app</a> pattern, through the shared <a href="../../api/app_kit.html#companionapp"><code>CompanionApp</code></a>, revised 2026-11-02; no launch code of its own):</p>

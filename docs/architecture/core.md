@@ -261,8 +261,8 @@ stateDiagram-v2
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `modules.enabled` | `[]` | Module ids to run, from the modules found by folder |
-| `modules.<id>` | `{}` | That module's settings, passed as `ctx.config` |
+| `modules.enabled` | `[]` | Module ids to run, from the modules found by folder; `enabled` in `config/modules.toml` |
+| `modules.<id>` | `{}` | That module's settings, passed as `ctx.config`; your choices in `config/<id>.toml` |
 | `core.command_timeout` | `30.0` | Default command timeout, seconds |
 | `core.command_timeouts.<CommandClass>` | | Per-type override |
 | `core.module_stop_timeout` | `5.0` | Seconds each module gets to stop |
@@ -277,7 +277,14 @@ stateDiagram-v2
 | `logging.level` / `stderr` | `INFO` / `false` | See `setup_logging` |
 | `modules.<id>.transcript` | | A file name; the module writes it through `ctx.logs.sink(name)`, in the session folder |
 
-Config comes from `config/default.toml`, with `config/local.toml` deep-merged over it. A module's own defaults are in its `module.toml`, under its `[modules.<id>]` section from that config, merged key by key (`App._config_of`); Every module folder has a `module.toml` (module folders item 11), so `config/default.toml` keeps only the core settings (`[modules] enabled`, `[core]`, `[core.permissions]`, `[core.command_timeouts]`, `[logging]`) and no module's defaults; a tripwire (`tests/test_module_folders.py`) keeps it so. `ASSISTANT_CONFIG_DIR` points elsewhere (e.g. on a server).
+`config/` holds your choices only (module folders item 12). [`load_config`](../api/infra.md#load_config) reads it, each layer merged key by key over the one before:
+
+1. `config/default.toml`: the core's settings (`[core]`, `[core.permissions]`, `[core.command_timeouts]`, `[logging]`); no on/off list and no module's defaults.
+2. `config/modules.toml` (committed), then `config/modules.local.toml`: which modules are on (`enabled = [...]`).
+3. `config/<id>.toml`, then `config/<id>.local.toml`: your choices for one module, its settings as top-level keys (no `[modules.<id>]` header). Gitignored: they may hold your paths; none is shipped. `default`, `local`, `modules`, `permissions` (the saved grants' name) and `voice_service` are never read as a module's file.
+4. `config/local.toml` last, unchanged: its `[modules] enabled` and `[modules.<id>]` sections still win.
+
+A module's own defaults, its `module.toml`, go under all of these: the core merges its section over them (`App._config_of`). So for one module: `module.toml` → `config/<id>.toml` → `config/<id>.local.toml` → `[modules.<id>]` in `config/local.toml`. Every module folder has a `module.toml` (module folders item 11); tripwires (`tests/test_module_folders.py`) keep `config/default.toml` free of module defaults and of `enabled`. `ASSISTANT_CONFIG_DIR` points elsewhere (e.g. on a server).
 
 ## Logging
 

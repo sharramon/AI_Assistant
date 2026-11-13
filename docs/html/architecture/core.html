@@ -305,12 +305,12 @@
 <tr>
 <td><code>modules.enabled</code></td>
 <td><code>[]</code></td>
-<td>Module ids to run, from the modules found by folder</td>
+<td>Module ids to run, from the modules found by folder; <code>enabled</code> in <code>config/modules.toml</code></td>
 </tr>
 <tr>
 <td><code>modules.&lt;id&gt;</code></td>
 <td><code>{}</code></td>
-<td>That module's settings, passed as <code>ctx.config</code></td>
+<td>That module's settings, passed as <code>ctx.config</code>; your choices in <code>config/&lt;id&gt;.toml</code></td>
 </tr>
 <tr>
 <td><code>core.command_timeout</code></td>
@@ -379,7 +379,14 @@
 </tr>
 </tbody>
 </table>
-<p>Config comes from <code>config/default.toml</code>, with <code>config/local.toml</code> deep-merged over it. A module's own defaults are in its <code>module.toml</code>, under its <code>[modules.&lt;id&gt;]</code> section from that config, merged key by key (<code>App._config_of</code>); Every module folder has a <code>module.toml</code> (module folders item 11), so <code>config/default.toml</code> keeps only the core settings (<code>[modules] enabled</code>, <code>[core]</code>, <code>[core.permissions]</code>, <code>[core.command_timeouts]</code>, <code>[logging]</code>) and no module's defaults; a tripwire (<code>tests/test_module_folders.py</code>) keeps it so. <code>ASSISTANT_CONFIG_DIR</code> points elsewhere (e.g. on a server).</p>
+<p><code>config/</code> holds your choices only (module folders item 12). <a href="../api/infra.html#load_config"><code>load_config</code></a> reads it, each layer merged key by key over the one before:</p>
+<ol>
+<li><code>config/default.toml</code>: the core's settings (<code>[core]</code>, <code>[core.permissions]</code>, <code>[core.command_timeouts]</code>, <code>[logging]</code>); no on/off list and no module's defaults.</li>
+<li><code>config/modules.toml</code> (committed), then <code>config/modules.local.toml</code>: which modules are on (<code>enabled = [...]</code>).</li>
+<li><code>config/&lt;id&gt;.toml</code>, then <code>config/&lt;id&gt;.local.toml</code>: your choices for one module, its settings as top-level keys (no <code>[modules.&lt;id&gt;]</code> header). Gitignored: they may hold your paths; none is shipped. <code>default</code>, <code>local</code>, <code>modules</code>, <code>permissions</code> (the saved grants' name) and <code>voice_service</code> are never read as a module's file.</li>
+<li><code>config/local.toml</code> last, unchanged: its <code>[modules] enabled</code> and <code>[modules.&lt;id&gt;]</code> sections still win.</li>
+</ol>
+<p>A module's own defaults, its <code>module.toml</code>, go under all of these: the core merges its section over them (<code>App._config_of</code>). So for one module: <code>module.toml</code> → <code>config/&lt;id&gt;.toml</code> → <code>config/&lt;id&gt;.local.toml</code> → <code>[modules.&lt;id&gt;]</code> in <code>config/local.toml</code>. Every module folder has a <code>module.toml</code> (module folders item 11); tripwires (<code>tests/test_module_folders.py</code>) keep <code>config/default.toml</code> free of module defaults and of <code>enabled</code>. <code>ASSISTANT_CONFIG_DIR</code> points elsewhere (e.g. on a server).</p>
 <h2 id="logging">Logging</h2>
 <p><strong>One owner for where logs go:</strong> the log handler, <a href="../api/infra.html#logsession"><code>LogSession</code></a> in <code>src/assistant/infra/log.py</code>. It's shared infrastructure, not a module, because it must exist before any module starts. Modules decide <em>what</em> they write, through <code>ctx.log</code> or their own transcript; none picks its own path.</p>
 <ul>

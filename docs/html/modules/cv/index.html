@@ -351,7 +351,7 @@
 <tr>
 <td><code>cv_prefix</code></td>
 <td><code>CV_Test_</code></td>
-<td>The start of the PDFs the module makes (<code>&lt;cv_prefix&gt;&lt;Company&gt;.pdf</code>) and of the CVs the CV Tool lists. It is not a rule for <code>cv.task</code>'s <code>base_cv</code>, which takes any <code>.pdf</code>. Letters, digits, <code>_</code>, <code>-</code>. Your real prefix goes in the gitignored <code>config/local.toml</code> (<code>[modules.cv]</code>) and <code>cv/app/cv_tool/cv_tool.local.toml</code>; the module passes it to the CV Tool (<code>--cv-prefix</code>). This page's examples use <code>CV_Test_</code></td>
+<td>The start of the PDFs the module makes (<code>&lt;cv_prefix&gt;&lt;Company&gt;.pdf</code>) and of the CVs the CV Tool lists. It is not a rule for <code>cv.task</code>'s <code>base_cv</code>, which takes any <code>.pdf</code>. Letters, digits, <code>_</code>, <code>-</code>. Your real prefix goes in the gitignored <code>config/cv.toml</code> (or <code>[modules.cv]</code> in <code>config/local.toml</code>) and <code>cv/app/cv_tool/cv_tool.local.toml</code>; the module passes it to the CV Tool (<code>--cv-prefix</code>). This page's examples use <code>CV_Test_</code></td>
 </tr>
 <tr>
 <td><code>work_dir</code></td>

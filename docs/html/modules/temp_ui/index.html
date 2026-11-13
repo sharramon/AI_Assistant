@@ -50,7 +50,7 @@
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p>Defaults in <code>module.toml</code> in this module's folder; <code>[modules.temp_ui]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>port</code> (8765), <code>window</code> (<code>"app"</code>); <code>host</code>, <code>window_profile</code> and <code>worker</code> have their defaults in code.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder; your <code>config/temp_ui.toml</code> (top-level keys, gitignored; <code>[modules.temp_ui]</code> in <code>config/local.toml</code> still works, last) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>port</code> (8765), <code>window</code> (<code>"app"</code>); <code>host</code>, <code>window_profile</code> and <code>worker</code> have their defaults in code.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
 <li><code>src/assistant/modules/temp_ui/</code> (<code>module.py</code>, <code>module.toml</code>, <code>agent_tabs.py</code>, <code>page.html</code>, <code>static/grants.js</code>, <code>static/agent_tabs.js</code>)</li>

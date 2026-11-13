@@ -66,7 +66,7 @@ Its own app; never imports `assistant`. The protocol is shared with its Python c
 
 | Name | Kind | Purpose | Where | Used by |
 |------|------|---------|-------|---------|
-| [`load_config`](infra.md#load_config) | function | The app's TOML config plus `local.toml` | `infra/config.py` | `__main__`, tests |
+| [`load_config`](infra.md#load_config) | function | The app's TOML config: core settings, `modules.toml`, one `<id>.toml` per module, `.local` overrides, `local.toml` last | `infra/config.py` | `__main__`, tests |
 | [`setup_logging`](infra.md#setup_logging) | function | Root logging from `[logging]` | `infra/log.py` | `__main__`, tests |
 | [`LogSession`](infra.md#logsession), [`LogSink`](infra.md#logsink) | class | One log folder per launch; one file in it | `infra/log.py` | `__main__`, every transcript |
 | [`theme_slug`](infra.md#theme_slug) | function | Folder-safe theme words | `infra/log.py` | `LogSession`, `talker` |

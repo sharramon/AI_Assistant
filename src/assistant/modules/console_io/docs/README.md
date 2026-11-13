@@ -16,7 +16,7 @@ Terminal input and output: each line you type becomes an `InputReceived`, and th
 
 ## Config
 
-Defaults in `module.toml` in this module's folder; `[modules.console_io]` in the app's config (your `config/local.toml`) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it. The key: `prompt` (default `"> "`).
+Defaults in `module.toml` in this module's folder; your `config/console_io.toml` (top-level keys, gitignored; `[modules.console_io]` in `config/local.toml` still works, last) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it. The key: `prompt` (default `"> "`).
 
 ## Code and tests
 

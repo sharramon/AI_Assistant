@@ -47,7 +47,7 @@ Besides these, one more `claude -p` Talker session per helper tab you use (the s
 | Voice service (not drawn above) | `voice_in` module, on the first `StartListening`, not in `start`, through `CompanionApp`. One you started yourself is used (after a quick `/health` check) and left running | `python -m voice_service --host 127.0.0.1 --port 8767 [--config <file>]`, with no console: the mic and the speech engine, an HTTP and WebSocket server ([Voice](../../src/assistant/modules/voice_in/docs/voice-service.md#the-voice_in-module)). Stopped (`POST /quit`, wait 5 s, then killed) when the module stops, only if it launched it |
 | Terminal 2 (off by default; the [temp UI](#temp-ui) replaces it) | `assistant_view` module, in `start` | `python -m assistant.modules.assistant_view.viewer` in a new console window, its stdin a pipe from the app. It writes to its own window (`CONOUT$`), because its inherited stdout is terminal 1. Windows only for now |
 
-Each command line is built by [`claude_command`](../api/infra.md#claude_command); the model, tools, permission mode, and workspace come from the Talker's and the Main Assistant's config: the defaults in each module's `module.toml` (`modules/talker/`, `modules/main_assistant/`), with `[modules.talker]` and `[modules.main_assistant]` in `config/local.toml` merged over them. Each session also writes a **transcript** of every line in and out: `talker.jsonl` and `main_assistant.jsonl` in the launch's log folder, `logs/<start time>_<theme>/`, next to `assistant.log` ([Logging](../architecture/core.md#logging)). The Talker supplies the theme from your first question (`<<THEME: ...>>` in its first reply, published as `SessionTheme`).
+Each command line is built by [`claude_command`](../api/infra.md#claude_command); the model, tools, permission mode, and workspace come from the Talker's and the Main Assistant's config: the defaults in each module's `module.toml` (`modules/talker/`, `modules/main_assistant/`), with your `config/talker.toml` and `config/main_assistant.toml` (and `[modules.talker]`, `[modules.main_assistant]` in `config/local.toml`, last) merged over them. Each session also writes a **transcript** of every line in and out: `talker.jsonl` and `main_assistant.jsonl` in the launch's log folder, `logs/<start time>_<theme>/`, next to `assistant.log` ([Logging](../architecture/core.md#logging)). The Talker supplies the theme from your first question (`<<THEME: ...>>` in its first reply, published as `SessionTheme`).
 
 ## Temp UI
 
@@ -122,7 +122,7 @@ flowchart TB
     class CS,VS,Spawn new
 ```
 
-Purple: added for the agents. Outside the new modules, the only edits were two lists (`MODULES` in `__main__.py` gained the four module classes, and `modules.enabled` in `config/default.toml` switches them on and the echo module off) and `console_io` now also prints uncorrelated replies, so the Talker can speak first.
+Purple: added for the agents. Outside the new modules, the only edits were two lists (`MODULES` in `__main__.py` gained the four module classes, and `modules.enabled` (now in `config/modules.toml`) switches them on and the echo module off) and `console_io` now also prints uncorrelated replies, so the Talker can speak first.
 
 ## Messaging to and from the main app
 

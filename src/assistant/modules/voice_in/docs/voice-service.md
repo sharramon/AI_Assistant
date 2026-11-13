@@ -520,7 +520,7 @@ reply_timeout = 10.0      # seconds to wait for `started` after start, and for t
 live_text = true          # false = the text on send even when the engine gives live text (sent as start.partials) (added 2026-11-03)
 final_timeout_on_send = 90.0  # the wait for the final when the session has no live text, or with two passes (added 2026-11-03)
 cleanup = true            # sentence case and one end mark per final (false = the raw text) (added 2026-11-03)
-terms = ["Isaac Sim", "USD", "glTF", "Unity", "Unitree", "Zipformer"]  # written back as given; your own list in config/local.toml
+terms = ["Isaac Sim", "USD", "glTF", "Unity", "Unitree", "Zipformer"]  # written back as given; your own list in config/voice_in.toml
 ```
 
 The wait for a dropped mic is the service's setting (`[audio] mic_recovery_seconds`), since only the service can reopen the mic; `voice_in` gets it in `mic_dropped`'s `wait_seconds`.

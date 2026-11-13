@@ -16,7 +16,14 @@
 <h2 id="load_config"><code>load_config</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>__main__</code>, tests</p>
 <p><code>load_config(config_dir: str | Path | None = None) -&gt; dict[str, Any]</code></p>
-<p>Load <code>default.toml</code>, then deep-merge <code>local.toml</code> over it if it exists. Tables merge key by key; other values (including lists) are replaced. A thin wrapper over <a href="app_kit.html#load_layered"><code>app_kit.load_layered</code></a>.</p>
+<p>Load the app's config from <code>config/</code>, each layer deep-merged over the one before (tables key by key; other values, lists included, replaced), with <a href="app_kit.html#load_layered"><code>app_kit.load_layered</code></a> and <a href="app_kit.html#merge"><code>merge</code></a>:</p>
+<ol>
+<li><code>default.toml</code>: the core's settings.</li>
+<li><code>modules.toml</code>, then <code>modules.local.toml</code>, into <code>[modules]</code>: which modules are on (<code>enabled</code>). Missing is fine.</li>
+<li>For every module id with a file (<code>module_config_ids</code>): <code>&lt;id&gt;.toml</code>, then <code>&lt;id&gt;.local.toml</code>, into <code>[modules.&lt;id&gt;]</code>; top-level keys are the module's settings. Either may be missing.</li>
+<li><code>local.toml</code>, if it exists, over everything (as before).</li>
+</ol>
+<p>A module's own <code>module.toml</code> defaults go under all of these; the core merges them in (<code>App._config_of</code>). <code>NOT_MODULE_FILES</code> (<code>default</code>, <code>local</code>, <code>modules</code>, <code>permissions</code>, <code>voice_service</code>) are never read as a module's file. Also exported from <code>assistant.infra.config</code>: <code>module_config_ids(directory) -&gt; list[str]</code>.</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>
@@ -36,6 +43,7 @@
 </tr>
 </tbody>
 </table>
+<p><strong>Example:</strong> <code>config/temp_ui.toml</code> holding <code>port = 9001</code> makes temp_ui's <code>ctx.config["port"]</code> 9001 over its <code>module.toml</code>'s 8765; <code>config/temp_ui.local.toml</code> overrides that, and <code>[modules.temp_ui]</code> in <code>config/local.toml</code> last.</p>
 <p><strong>Returns:</strong> the merged config as nested dicts.</p>
 <p><strong>Raises:</strong> <code>FileNotFoundError</code> if <code>default.toml</code> is missing; <code>tomllib.TOMLDecodeError</code> for invalid TOML.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/infra/config.py</code>

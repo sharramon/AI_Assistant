@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 12 of 20 done** (items 1 to 11 and 20).
+**Count: 13 of 20 done** (items 1 to 12 and 20).
 
 **Architecture check after the add-on chunk (items 7–10):** modularity OK (a grep of `core/`, `contracts/`, `infra/` and `app_kit` for the add-ons' ids finds only comments and examples, plus `infra/show_pages.py`'s `viewer.open`, which item 15 moves behind a slot); reuse OK (every app move reused `add_app_folders` and `launch_env`; temp_ui's test helpers joined `assistant.testkit`); fit OK (each add-on's defaults, `needs` and `packages` are in its `module.toml`, read by the core with no names).
 
@@ -10,6 +10,7 @@
 
 - **App restart needed:** item 1 (`infra/agent_access.py`, the Hub's folder check); item 2 (`Manifest.needs`, the core's loader, registry and lifecycle); item 3 (`AgentInfo.named_only`, `ProfileAgent`, the Hub); item 4 (`add_app_folders` in the core's loader, `launch_env` in `CompanionApp`: **until the restart, the running app can't launch the CV Tool**, since `src/cv_tool` is gone); item 6 (`Manifest.packages`, `apply_module_toml`); item 8 (the viewer's event types left the contracts: **until the restart, the running app can't launch the viewer, and viewer tab notes and snips don't reach the Talker or temp_ui**; `.venv\Scripts\html-viewer.exe` is broken for good, run it as html_viewer's README says).
 - **App restart needed, item 9:** until the restart, the running app launches the voice service from `src/voice_service`, which is gone, so **the mic fails**. `.venv\Scripts\voice-service.exe` is broken for good; run `python -m voice_service` with `modules/voice_in/app` on `PYTHONPATH`.
+- **App restart needed, item 12:** `load_config` reads `config/modules.toml` and `config/<id>.toml`. Behavior stays the same (you have no `config/<id>.toml` yet; `config/local.toml` still loads last).
 - **Your local config, item 11:** the rezi helper kind's real folders left the committed defaults (now `../assistant-rezi`, reading `docs`). They were added for you to `config/local.toml` (`[modules.task_agents.agents.rezi]`: `workspace` and `read_dirs`, as before), so nothing changes. Check that section once.
 - **Note, item 11:** `.claude/state/reset-instructions.md` was missing when checked. Talker tests used to delete it on stop (fixed in item 11: tests now point `restart_note` into tmp). If a restart catch-up note was expected there, it's gone; the next restart writes a fresh one.
 - **Hand check, item 10:** after the restart, `modules.on voice_notes` turns voice_in on first.
@@ -76,6 +77,7 @@ For you to review. Each picks the option closest to the approved picture.
 31. **Tests never write the repo's `logs/` or `.claude/state/`** (item 11): the root `conftest.py` sends transcripts and the Talker's `restart_note` to tmp.
 32. **Central tests that stay** (item 11): those that run several modules together or test the core or a shared part with one module as an example (`test_agents`, `test_restart`, `test_multi_agent`, `test_permission_mode`, `test_mcp_door`, `test_app`, `test_directory`, `test_menu`, `test_reload`, `test_control`, `test_usage`, `test_access_cards` and the like). The tripwire flags a central test that names exactly one module and isn't on its reasoned list.
 33. **Small test moves** (item 11): `test_show_tag_arguments` was dropped (covered by `tests/test_agent_tags.py`); the `flash_window` test went to `tests/test_app_kit.py`; assistant_view has no `tests/` (covered by `test_swap_every_module`); the test kit gained `clip_event`, `dropped_event`, `ui_port`, `read_events`, `sample_card`, and `pre_grant_kinds` merges a module's `module.toml`.
+34. **`config/` layout** (item 12): `config/modules.toml` is committed (the shipped on/off list, `enabled` at top level); `config/<id>.toml` files are yours and gitignored (`config/*.toml` except `default.toml` and `modules.toml`), none shipped. A module's settings load: `module.toml` → `[modules.<id>]` in `default.toml` (empty now) → `config/<id>.toml` → `config/<id>.local.toml` → `[modules.<id>]` in `config/local.toml`. The on/off list: `modules.toml` → `modules.local.toml` → `[modules] enabled` in `local.toml`. `default`, `local`, `modules`, `permissions` and `voice_service` are never module files. A missing `modules.toml` means nothing enabled. New helper `module_config_ids`.
 
 ## The safeguards (from the audit, section 4)
 
@@ -198,7 +200,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** per module: `module.toml` from its `[modules.<id>]` section, its central test files moved onto the test kit. Tests that check the whole app (`test_swap_every_module.py` and the like) stay central.
 - **Done when:** every module folder has a `module.toml`; `config/default.toml` has no `[modules.<id>]` defaults left (only core settings); the tripwire lists no module-only test file under `tests/`.
 
-### 12. `config/`: your choices only, one file per module
+### 12. `config/`: your choices only, one file per module: **done** (2026-11-13)
+
+**Checked:** `config/modules.toml` exists (committed, the `enabled` list), `config/default.toml` has no `enabled`; `git check-ignore` matches `config/cv.toml` and not `config/modules.toml`; `test_a_modules_settings_load_from_its_config_file_over_its_module_toml` and the config tests pass; full suite 892 passed, 2 deselected; ruff clean. **Needs an app restart** (infra).
 
 - **What:** `config/<id>.toml` holds your own choices for a module, `config/modules.toml` says which add-ons are on, and `config/*.local.toml` are the local overrides.
 - **Why:** the picture: "config/: your choices only · kept across downloads · one file per module · which add-ons are on · local overrides".

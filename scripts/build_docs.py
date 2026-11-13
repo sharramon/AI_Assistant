@@ -413,7 +413,7 @@ def module_classes() -> list[type]:
         if len(classes) != 1:
             raise SystemExit(f"assistant.modules.{package} must export one module class with manifest id {package!r}")
         found[package] = classes[0]
-    enabled = tomllib.loads((ROOT / "config" / "default.toml").read_text(encoding="utf-8"))["modules"]["enabled"]
+    enabled = tomllib.loads((ROOT / "config" / "modules.toml").read_text(encoding="utf-8"))["enabled"]
     order = [m for m in enabled if m in found] + [m for m in found if m not in enabled]
     return [found[m] for m in order]
 
@@ -423,7 +423,7 @@ def library_block() -> str:
     docs.toml), generated from every module's manifest and menu. Each name links to its own docs."""
     import tomllib
 
-    enabled = tomllib.loads((ROOT / "config" / "default.toml").read_text(encoding="utf-8"))["modules"]["enabled"]
+    enabled = tomllib.loads((ROOT / "config" / "modules.toml").read_text(encoding="utf-8"))["enabled"]
     folders = module_doc_folders()
 
     def names(items) -> str:

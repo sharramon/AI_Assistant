@@ -16,7 +16,7 @@ Fast `claude` sessions that talk with you and hand work to the Agent Hub, **one 
 
 ## Config
 
-Defaults in `module.toml` in this module's folder, with their comments; `[modules.talker]` in the app's config (your `config/local.toml`) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it. The keys: `model` (every tab's), `turn_timeout`, `context_exchanges`, `context_warning`, `transcript` (the main tab's name; a helper's gets `-<agent>`), `restart_note`, `restart_timeout`, `door`.
+Defaults in `module.toml` in this module's folder, with their comments; your `config/talker.toml` (top-level keys, gitignored; `[modules.talker]` in `config/local.toml` still works, last) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it. The keys: `model` (every tab's), `turn_timeout`, `context_exchanges`, `context_warning`, `transcript` (the main tab's name; a helper's gets `-<agent>`), `restart_note`, `restart_timeout`, `door`.
 
 ## Code and tests
 

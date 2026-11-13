@@ -59,7 +59,7 @@
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/app_kit/window.py</code></p>
 <h2 id="load_layered"><code>load_layered</code></h2>
-<p><strong>Reusable</strong> · Used by: <a href="infra.html#load_config"><code>assistant.infra.load_config</code></a> (as a thin wrapper), <code>voice_service</code> (<code>config.py</code>: <code>voice_service.toml</code> beside its code and its <code>.local.toml</code>)</p>
+<p><strong>Reusable</strong> · Used by: <a href="infra.html#load_config"><code>assistant.infra.load_config</code></a> (each <code>config/&lt;name&gt;.toml</code> with its <code>.local</code>), <code>voice_service</code> (<code>config.py</code>: <code>voice_service.toml</code> beside its code and its <code>.local.toml</code>)</p>
 <p><code>load_layered(base: str | Path, local: str | Path | None = None) -&gt; dict[str, Any]</code></p>
 <p>Load the TOML file <code>base</code>, then deep-merge <code>local</code> over it if it exists (default: <code>base</code> with <code>.local</code> before the suffix, e.g. <code>voice_service.local.toml</code>). Tables merge key by key; other values, lists included, are replaced.</p>
 <p><strong>Raises:</strong> <code>FileNotFoundError</code> if <code>base</code> is missing; <code>tomllib.TOMLDecodeError</code> for invalid TOML.</p>
@@ -70,7 +70,7 @@
 <p>The local override's path for <code>base</code>: <code>.local</code> before the suffix (<code>voice_service.toml</code> → <code>voice_service.local.toml</code>). Added 2026-11-03.</p>
 <p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>
 <h2 id="merge"><code>merge</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>load_layered</code> (the <code>.local</code> override), the core's <code>App</code> (a module's <code>module.toml</code> defaults under its <code>[modules.&lt;id&gt;]</code> section)</p>
+<p><strong>Reusable</strong> · Used by: <code>load_layered</code> (the <code>.local</code> override), <code>load_config</code> (the <code>config/</code> layers), the core's <code>App</code> (a module's <code>module.toml</code> defaults under its <code>[modules.&lt;id&gt;]</code> section)</p>
 <p><code>merge(base: dict[str, Any], override: dict[str, Any]) -&gt; dict[str, Any]</code></p>
 <p><code>override</code> deep-merged over <code>base</code>, as a new dict: tables merge key by key; other values, lists included, are replaced. Neither input is changed. Added 2026-11-06.</p>
 <p><strong>Defined in:</strong> <code>src/app_kit/config.py</code></p>

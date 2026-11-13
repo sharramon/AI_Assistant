@@ -16,7 +16,7 @@ A small page in its own window: Record / Stop, a notes area you can edit, a stat
 
 ## Config
 
-Defaults in `module.toml` in this module's folder, with their comments: `port` (8770), `window` (`app`, `browser`, `none`); `host` (127.0.0.1) and `window_profile` are read too, with their defaults in the code. `[modules.voice_notes]` in the app's config (your `config/local.toml`) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it.
+Defaults in `module.toml` in this module's folder, with their comments: `port` (8770), `window` (`app`, `browser`, `none`); `host` (127.0.0.1) and `window_profile` are read too, with their defaults in the code. your `config/voice_notes.toml` (top-level keys, gitignored; `[modules.voice_notes]` in `config/local.toml` still works, last) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it.
 
 ## Code and tests
 

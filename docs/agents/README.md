@@ -26,7 +26,7 @@ How we run and work with the agents: setup, experiments, and what we've learned.
 ## Permissions
 
 - **Talker:** no tools.
-- **Main Assistant:** for now, the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (`tools = "default"`, shell included), `acceptEdits` mode, and the repo as its working folder, so it loads `CLAUDE.md` and reads the docs like Claude Code does. Settings in its `module.toml` (`modules/main_assistant/`; `[modules.main_assistant]` in `config/local.toml` overrides them): (`workspace`, `read_dirs`, `write_dirs`, `allowed_commands`):
+- **Main Assistant:** for now, the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (`tools = "default"`, shell included), `acceptEdits` mode, and the repo as its working folder, so it loads `CLAUDE.md` and reads the docs like Claude Code does. Settings in its `module.toml` (`modules/main_assistant/`; your `config/main_assistant.toml`, or `[modules.main_assistant]` in `config/local.toml`, overrides them): (`workspace`, `read_dirs`, `write_dirs`, `allowed_commands`):
 
   | Access | Where |
   |--------|-------|

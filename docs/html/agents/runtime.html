@@ -89,7 +89,7 @@
 </tr>
 </tbody>
 </table>
-<p>Each command line is built by <a href="../api/infra.html#claude_command"><code>claude_command</code></a>; the model, tools, permission mode, and workspace come from the Talker's and the Main Assistant's config: the defaults in each module's <code>module.toml</code> (<code>modules/talker/</code>, <code>modules/main_assistant/</code>), with <code>[modules.talker]</code> and <code>[modules.main_assistant]</code> in <code>config/local.toml</code> merged over them. Each session also writes a <strong>transcript</strong> of every line in and out: <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> in the launch's log folder, <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code>, next to <code>assistant.log</code> (<a href="../architecture/core.html#logging">Logging</a>). The Talker supplies the theme from your first question (<code>&lt;&lt;THEME: ...&gt;&gt;</code> in its first reply, published as <code>SessionTheme</code>).</p>
+<p>Each command line is built by <a href="../api/infra.html#claude_command"><code>claude_command</code></a>; the model, tools, permission mode, and workspace come from the Talker's and the Main Assistant's config: the defaults in each module's <code>module.toml</code> (<code>modules/talker/</code>, <code>modules/main_assistant/</code>), with your <code>config/talker.toml</code> and <code>config/main_assistant.toml</code> (and <code>[modules.talker]</code>, <code>[modules.main_assistant]</code> in <code>config/local.toml</code>, last) merged over them. Each session also writes a <strong>transcript</strong> of every line in and out: <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> in the launch's log folder, <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code>, next to <code>assistant.log</code> (<a href="../architecture/core.html#logging">Logging</a>). The Talker supplies the theme from your first question (<code>&lt;&lt;THEME: ...&gt;&gt;</code> in its first reply, published as <code>SessionTheme</code>).</p>
 <h2 id="temp-ui">Temp UI</h2>
 <blockquote>
 <p><strong>Temporary.</strong> A throwaway stand-in until a real <strong>UI handler</strong> and its UI configurations are designed, in a conversation of their own (an <a href="../architecture/decisions.html#open-decisions">open decision</a>). Kept small so it's easy to throw away; don't build on it.</p>
@@ -168,7 +168,7 @@
     classDef new fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
     class CS,VS,Spawn new
 </code></pre>
-<p>Purple: added for the agents. Outside the new modules, the only edits were two lists (<code>MODULES</code> in <code>__main__.py</code> gained the four module classes, and <code>modules.enabled</code> in <code>config/default.toml</code> switches them on and the echo module off) and <code>console_io</code> now also prints uncorrelated replies, so the Talker can speak first.</p>
+<p>Purple: added for the agents. Outside the new modules, the only edits were two lists (<code>MODULES</code> in <code>__main__.py</code> gained the four module classes, and <code>modules.enabled</code> (now in <code>config/modules.toml</code>) switches them on and the echo module off) and <code>console_io</code> now also prints uncorrelated replies, so the Talker can speak first.</p>
 <h2 id="messaging-to-and-from-the-main-app">Messaging to and from the main app</h2>
 <p>Modules never hold references to each other. Each gets a <code>ScopedContext</code>, and everything goes through the core's three parts. Only the pipes leave the process.</p>
 <pre><code class="language-mermaid">flowchart LR

@@ -46,7 +46,7 @@
 </tbody>
 </table>
 <h2 id="config">Config</h2>
-<p>Defaults in <code>module.toml</code> in this module's folder, with their comments; <code>[modules.talker]</code> in the app's config (your <code>config/local.toml</code>) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>model</code> (every tab's), <code>turn_timeout</code>, <code>context_exchanges</code>, <code>context_warning</code>, <code>transcript</code> (the main tab's name; a helper's gets <code>-&lt;agent&gt;</code>), <code>restart_note</code>, <code>restart_timeout</code>, <code>door</code>.</p>
+<p>Defaults in <code>module.toml</code> in this module's folder, with their comments; your <code>config/talker.toml</code> (top-level keys, gitignored; <code>[modules.talker]</code> in <code>config/local.toml</code> still works, last) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>model</code> (every tab's), <code>turn_timeout</code>, <code>context_exchanges</code>, <code>context_warning</code>, <code>transcript</code> (the main tab's name; a helper's gets <code>-&lt;agent&gt;</code>), <code>restart_note</code>, <code>restart_timeout</code>, <code>door</code>.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
 <li><code>src/assistant/modules/talker/module.py</code> (the router), <code>session.py</code> (<code>TalkerSession</code>), <code>prompt.py</code> (<code>talker_prompt</code>), <code>restart.py</code> (<code>RestartFlow</code>), <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>)</li>

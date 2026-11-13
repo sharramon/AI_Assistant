@@ -17,7 +17,7 @@ A local web page with the worker's activity on the left and the Talker conversat
 
 ## Config
 
-Defaults in `module.toml` in this module's folder; `[modules.temp_ui]` in the app's config (your `config/local.toml`) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it. The keys: `port` (8765), `window` (`"app"`); `host`, `window_profile` and `worker` have their defaults in code.
+Defaults in `module.toml` in this module's folder; your `config/temp_ui.toml` (top-level keys, gitignored; `[modules.temp_ui]` in `config/local.toml` still works, last) only overrides them, key by key ([how a module's config is built](../../../../../docs/api/core.md#app)). `config/default.toml` has no section for it. The keys: `port` (8765), `window` (`"app"`); `host`, `window_profile` and `worker` have their defaults in code.
 
 ## Code and tests
 

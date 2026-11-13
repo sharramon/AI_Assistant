@@ -5,6 +5,12 @@ __pycache__/
 logs/
 config/local.toml
 config/*.local.toml
+# config/ holds your choices: config/<module id>.toml (one per module, may hold your paths) and
+# config/permissions.toml (saved grants) are yours, never committed. Shipped: the core's settings
+# and the on/off list.
+config/*.toml
+!config/default.toml
+!config/modules.toml
 spikes/workspace/
 workspace/
 .claude/state/
