@@ -48,6 +48,16 @@ Rebuild with the `docs-html` skill once, with the other doc edits.
 - **Small drift** (a missed Used by line, a stray import, a name that breaks the conventions, a doc line that's now wrong): fix it on the spot, in the pending edits for that file (see `batching`: one edit per file).
 - **Real drift or a design question** (a principle broken, a boundary that has to move, a change to an approved design or a contract): stop. Report it plainly, or ask with a `NEED:` line, before changing course. Don't quietly redesign.
 
+## Plans and checklists
+
+When the user approves a plan (an HTML page, pictures, a list), these rules hold for every agent that works on it:
+
+1. **A checklist before any work.** The first step writes a Markdown note in `docs/next-steps/` with every item of the plan, numbered, in the plan's own words, each with What, Why, How and **Done when**. The work, handoffs and reports name items by number. If the plan isn't built now, its status says "approved, not started" with the date.
+2. **Done only after a check against the code.** An item is marked done only after its Done-when check has run against the files (a listing, a grep, a test that fails when the item is missing), with the evidence in the row. Passing tests, a commit or an earlier note don't count for an item they don't test. Add a tripwire test where one fits.
+3. **Name the scope and the count.** Every report on part of a plan names the item numbers it covers and the count ("items 1–3 of 20 done; 4–20 open"). "Currently fixing" in the overview and the next-steps row show the same count.
+4. **Never close without the full list.** A final report, handoff or restart message on a plan ends with done, partly done, blocked and not done, and its "Left:" list names every open plan the work touched, not only the task's own leftovers.
+5. **Reversing an older decision.** A plan that changes an earlier note names that note and updates its status.
+
 ## In the final report
 
 Add a short **Architecture check** section: when the checks ran, and one line each for **Modularity**, **Reuse**, and **Fit with the main app** saying what was checked and what was found (OK, fixed on the spot, or open), and a **Diagrams** line naming the diagrams updated. End with any structure choice the user should look at.

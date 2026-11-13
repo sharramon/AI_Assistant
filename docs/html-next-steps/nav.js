@@ -784,6 +784,7 @@
       "href": "index.html",
       "home": [
         "index.html",
+        "module-folders-checklist.html",
         "module-folders-audit.html",
         "auto-skips-cards.html",
         "job-cv-finish-event.html",
@@ -900,6 +901,10 @@
             {
               "name": "Overview",
               "href": "index.html"
+            },
+            {
+              "name": "Module folders: every module in its own folder, checked item by item",
+              "href": "module-folders-checklist.html"
             },
             {
               "name": "Module folders: what was promised, what was done, and why it was called done",

@@ -1,6 +1,6 @@
 # Module folders: what was promised, what was done, and why it was called done
 
-> **Status: findings complete (2026-11-13).** Sections 1–3 checked; section 4 waits on the user. Read-only investigation. Nothing was changed except this note, its row in the [next-steps list](README.md) and the rebuilt HTML: no code, no grants, no module on or off, no restart, no commit.
+> **Status: findings complete (2026-11-13); safeguards approved and being built** in the [module-folders checklist](module-folders-checklist.md) (its "The safeguards" table says where each one lives). Sections 1–3 checked. Read-only investigation. Nothing was changed except this note, its row in the [next-steps list](README.md) and the rebuilt HTML: no code, no grants, no module on or off, no restart, no commit.
 
 **Asked:** the user's plan [module-folders.html](module-folders.html) (commit `cce352c`, 2026-11-11 23:36, made with snips in that session) was taken as done, but most of it isn't. Find out what it promised, what is really there, where it was reported done and what that report was based on, and propose safeguards.
 

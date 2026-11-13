@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module folders: every module in its own folder, checked item by item</title>
+<!-- Generated from docs/next-steps/module-folders-checklist.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-folders-checklist.html"></nav>
+<main>
+<h1 id="module-folders-every-module-in-its-own-folder-checked-item-by-item">Module folders: every module in its own folder, checked item by item</h1>
+<p><strong>Count: 1 of 20 done</strong> (item 20 was done before this checklist; nothing else yet).</p>
+<blockquote>
+<p><strong>Status: building (started 2026-11-13, overnight, unattended, in Auto).</strong> The user approved the plan (<a href="module-folders.html">module-folders.html</a>, section 3) and this overnight run: commit, this checklist, then the migration in this order. The morning report goes at the top of this page when the run ends.</p>
+</blockquote>
+<h2 id="what-we-are-doing">What we are doing</h2>
+<p>Making every module truly self-contained: each module's code, companion app, defaults, dependency list (<code>needs</code>), packages, tests, docs and its agent's working folder live in its own folder <code>src/assistant/modules/&lt;id&gt;/</code>. Beside the modules sit <code>config/</code> (your own choices only, one file per module, plus the saved grants) and <code>generated/</code> (built by the core, never hand-edited, safe to delete).</p>
+<h2 id="why-we-are-doing-it">Why we are doing it</h2>
+<p>The rule from the approved picture: <strong>nothing of cv lives outside <code>modules/cv/</code>, except your own choices in <code>config/cv.toml</code>. Delete <code>modules/cv/</code> and nothing of cv is left behind.</strong> Every other add-on (job_search, html_viewer, voice_notes) has the same shape, and so do the core modules that own an app or tests. Today a module's pieces sit in five places (<code>src/&lt;app&gt;</code>, <code>config/default.toml</code>, <code>tests/</code>, <code>pyproject.toml</code>, folders outside the repo), so a module can't be added, swapped or removed whole. The <a href="module-folders-audit.html">audit</a> found 1 of 14 picture items done, and the plan was reported done by omission. This checklist exists so that can't happen again.</p>
+<h2 id="how-we-are-doing-it">How we are doing it</h2>
+<ul>
+<li>One numbered item at a time, in the order below. Each item has <strong>What</strong> (one sentence), <strong>Why</strong> (one sentence), <strong>How</strong> (the steps) and <strong>Done when</strong> (a check against the code: a file listing, a grep or a test, never a report).</li>
+<li>After each item: the full <code>pytest</code> and <code>ruff check</code>, the Done-when check run against the code, then it's marked done here with the evidence, and committed on its own.</li>
+<li>Each item adds its tripwire test to <code>tests/test_module_folders.py</code> (safeguard 6), so a done item can't slip back.</li>
+<li>Docs move with the code: the module's <code>docs/</code>, the API and reusable indexes, the architecture overview, rebuilt with <code>build_docs.py</code>.</li>
+<li>Nothing outside the repo is deleted: old folders are copied, never removed, and listed for you to delete.</li>
+<li>No app restart, no reload, no module on or off during the run. Whatever needs one goes on the morning list.</li>
+</ul>
+<h2 id="decisions-made-overnight">Decisions made overnight</h2>
+<p>For you to review. Each picks the option closest to the approved picture.</p>
+<ol>
+<li><strong>The module folder stays <code>src/assistant/modules/&lt;id&gt;/</code>.</strong> The picture's <code>core/</code> and <code>modules/</code> boxes are the two groups the docs already use (<code>group = "core"</code> or <code>"add-on"</code> in each <code>docs.toml</code>). Moving the packages to a top-level <code>modules/</code> folder would rename every import and the loader's search path, for no gain in self-containment.</li>
+<li><strong>A companion app moves into its module as <code>app/&lt;its package&gt;/</code></strong>, unchanged inside: <code>modules/cv/app/cv_tool/</code>, <code>modules/html_viewer/app/html_viewer/</code>, <code>modules/voice_in/app/voice_service/</code>. The app keeps its own import name, so it still never imports <code>assistant</code> (the independence rule and its test hold). The core puts each module's <code>app/</code> folder on the import path, found by folder with no names. Tests and launches get the same path.</li>
+<li><strong>Packages:</strong> each module lists its pip packages in its <code>module.toml</code> (<code>packages = [...]</code>), and the <code>cv</code> and <code>voice</code> extras leave <code>pyproject.toml</code>. A module's ruff exceptions go in its own <code>ruff.toml</code> (extending the root one). Nothing gets installed overnight.</li>
+<li><strong><code>needs</code> is a list of module ids</strong> in <code>module.toml</code> (<code>needs = []</code>). The core reads it: turning a module on also turns on what it needs, and turning off a module others need is refused. <code>requires</code> (contracts) stays as it is.</li>
+<li><strong>Agents' working folders:</strong> each agent works in <code>modules/&lt;id&gt;/workspace/</code>, which is already gitignored (<code>workspace/</code>). Its files are <strong>copied</strong> from the old folder, and the old one is left for you to delete. <strong>Your documents</strong> (your base CVs and cover letters in <code>C:\Chang\Jobs\CV</code>) count as your own choices, not module files. They stay where they are, named in config (<code>cv_dir</code>, job_search's <code>documents</code>), with read access (job_search also gets write access, since it writes per-company CVs there today).</li>
+<li><strong>job_search keeps JobRadar's Python</strong> (<code>C:\Chang\Git_projects\Resume\.venv</code>). Nothing new is installed. A module venv with a <code>requirements.txt</code> is noted for later.</li>
+<li><strong>Saved grants move to <code>config/permissions.toml</code></strong> (gitignored, since it holds your paths). The core reads it there, and on the first start copies <code>data/permissions.toml</code> across if the new file is missing. The old file is left in place.</li>
+<li><strong><code>generated/</code></strong> is a gitignored folder at the repo root. The core writes the live module list, the module directory and the installed dependencies there. The module library page stays in the docs build too (the docs need it), and a copy goes to <code>generated/</code>.</li>
+<li><strong>Viewer types leave the core:</strong> <code>ViewerTabsChanged</code>, <code>ViewerClip</code> and <code>ViewerClipDropped</code> become html_viewer's named events (<code>ModuleEvent</code>, <code>html_viewer.*</code>). temp_ui and the SHOW handling call a generic "open a page" slot that any add-on can fill. html_viewer fills it today.</li>
+</ol>
+<h2 id="the-safeguards-from-the-audit-section-4">The safeguards (from the audit, section 4)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Safeguard</th>
+<th>Where it's built</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A plan gets a numbered checklist before work starts</td>
+<td>This page; the rule is in the <code>architecture-check</code> skill ("Plans and checklists")</td>
+</tr>
+<tr>
+<td>2</td>
+<td>"Done" only after a check against the code</td>
+<td>Every item's <strong>Done when</strong> below; the same skill section</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Never close a plan without a done and not-done list</td>
+<td>The morning report at the top of this page; the skill section</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Name the narrowed scope in every report</td>
+<td>The skill section (reports name the item numbers, and the count)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>"Currently fixing" shows the count</td>
+<td>The overview's "Currently fixing" names this checklist with its count</td>
+</tr>
+<tr>
+<td>6</td>
+<td>A test as the tripwire</td>
+<td><code>tests/test_module_folders.py</code>, one test per finished item</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Grants and workspaces are part of "moved"</td>
+<td>Items 1, 17 and 18 check <code>config/permissions.toml</code>, not only the code</td>
+</tr>
+<tr>
+<td>8</td>
+<td>An approved plan is started or marked "approved, not started"</td>
+<td>The skill section; this plan's next-steps row says "building"</td>
+</tr>
+<tr>
+<td>9</td>
+<td>A "Left:" list includes every open plan the work touched</td>
+<td>The skill section</td>
+</tr>
+<tr>
+<td>10</td>
+<td>A plan that reverses an older decision names that note and updates it</td>
+<td>Done: <a href="cv-agent-folders.html">cv-agent-folders.md</a> now says it's replaced by item 17</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-items">The items</h2>
+<h3 id="1-every-module-can-edit-itself-by-default">1. Every module can edit itself by default</h3>
+<ul>
+<li><strong>What:</strong> each module's agent gets a saved write grant on its own module folder only, and the Hub stops refusing it for overlapping the Main Assistant's whole-repo grant.</li>
+<li><strong>Why:</strong> both agents' reports name this as the first blocker: a workspace inside the repo is refused whenever the Main Assistant has a task (<code>agent_hub/tasks.py</code>, "would write …, which main_assistant's open task writes").</li>
+<li><strong>How:</strong>
+  1. In the agents' access-list code (<code>infra/agent_access.py</code>), add <code>write:&lt;the module's own folder&gt;</code> to every module agent's list by default. Never a parent folder or another module's folder.
+  2. In the Hub's folder check (<code>agent_hub/tasks.py</code>), ignore an overlap where one side's folder is a parent of the other's (a whole-repo grant versus a module folder). Keep refusing two agents with the same folder or the same module folder.
+  3. Make the refusal message name the folder that clashed and both agents' grants for it, so it's clear which folder is the wrong one.
+  4. Tests: the default grant names only the module's own folder; a module agent runs beside a Main Assistant task; two agents on the same module folder are still refused, and the message names that folder.
+  5. Docs: the agent_hub architecture page, <code>docs/architecture/permissions.md</code>, and the comment in <code>config/default.toml</code> ("An agent writing inside this repo can't run while the Main Assistant has a task").</li>
+<li><strong>Done when:</strong> <code>tests/test_module_folders.py::test_module_agent_edits_its_own_folder</code> and the Hub's overlap tests pass; <code>git grep</code> finds no "can't run while the Main Assistant has a task" in the docs or config.</li>
+</ul>
+<h3 id="2-cv-a-needs-list">2. cv: a <code>needs</code> list</h3>
+<ul>
+<li><strong>What:</strong> <code>modules/cv/module.toml</code> has <code>needs = []</code>, and the core reads <code>needs</code> from every module's manifest.</li>
+<li><strong>Why:</strong> the picture's "dependency list (new)": today <code>requires</code> lists contracts only, so nothing knows that job_search needs cv.</li>
+<li><strong>How:</strong> add <code>needs: tuple[str, ...]</code> to <code>Manifest</code> (contracts), read from <code>module.toml</code>; the registry checks that every needed module exists; the lifecycle turns needed modules on first and refuses to turn off one that an active module needs. Tests in <code>tests/test_module_folders.py</code> and the core's tests. Docs: <code>docs/api/modules.md</code> (<code>Manifest</code>), <code>docs/architecture/modules.md</code>.</li>
+<li><strong>Done when:</strong> <code>cv/module.toml</code> contains <code>needs = []</code>; <code>Manifest</code> has <code>needs</code>; a test turns on a module that needs another and sees both on, and a test refuses turning off a needed module.</li>
+</ul>
+<h3 id="3-cv-the-agent-section-is-complete">3. cv: the <code>[agent]</code> section is complete</h3>
+<ul>
+<li><strong>What:</strong> everything about cv_agent lives in cv's <code>[agent]</code> section, including what agent_hub held for it (<code>named_only = ["cv_agent"]</code> in <code>config/default.toml</code>).</li>
+<li><strong>Why:</strong> the picture: "[agent] cv_agent ← agent_hub's section"; the audit's row 3 is only partly done.</li>
+<li><strong>How:</strong> add <code>named_only = true</code> to <code>[agent]</code> in <code>cv/module.toml</code>; agent_hub learns the named-only agents from the agents themselves (the module or the profile reports it) instead of its own list; remove <code>named_only = ["cv_agent"]</code> from <code>[modules.agent_hub]</code>. Tests; docs for agent_hub and cv.</li>
+<li><strong>Done when:</strong> <code>git grep -n "cv_agent" config/default.toml</code> finds nothing; a test shows cv_agent is still named-only (<code>hub.start</code> without its name never picks it).</li>
+</ul>
+<h3 id="4-cv-the-cv-tool-app-moves-into-modulescvapp">4. cv: the CV Tool app moves into <code>modules/cv/app/</code></h3>
+<ul>
+<li><strong>What:</strong> <code>src/cv_tool/</code> moves to <code>src/assistant/modules/cv/app/cv_tool/</code>, with <code>cv_tool.toml</code> next to it.</li>
+<li><strong>Why:</strong> the picture: "app/ ← src/cv_tool".</li>
+<li><strong>How:</strong> <code>git mv</code>; the core puts each module's <code>app/</code> folder on the import path (by folder, decision 2) and so does the test setup (<code>conftest.py</code>); <code>CvTool</code> launches it with that path; replace the hard-coded <code>C:/Chang/Jobs/CV_Module</code> defaults in <code>cv_tool.toml</code> and <code>cvlib.py</code> with paths relative to the module's workspace (decision 5); the independence test covers the new place. Docs: cv's pages, the overview's parts table, <code>docs/architecture/reusable-parts.md</code> if it names the path.</li>
+<li><strong>Done when:</strong> <code>src/cv_tool</code> doesn't exist; <code>modules/cv/app/cv_tool/__main__.py</code> exists; the CV Tool tests pass from the new place; <code>test_module_folders.py::test_no_app_outside_its_module</code> passes for cv. <strong>Needs an app restart</strong> (the import path and the running cv module).</li>
+</ul>
+<h3 id="5-cv-all-cv-tests-in-the-module-on-a-public-core-test-kit">5. cv: all cv tests in the module, on a public core test kit</h3>
+<ul>
+<li><strong>What:</strong> every cv test lives in <code>modules/cv/tests/</code>, and module tests import shared helpers only from a public test kit, never from <code>tests.test_*</code>.</li>
+<li><strong>Why:</strong> the picture: "all cv tests, on the core test kit" and "public test kit (from tests/support)"; the audit's row 5 lists the central imports.</li>
+<li><strong>How:</strong> create <code>src/assistant/testkit/</code> (the fakes and helpers modules need: the fake <code>claude</code>, the app builders now in <code>tests/test_agents.py</code> and <code>tests/test_multi_agent.py</code>); point <code>cv/tests/test_worker.py</code> and the agent_hub tests at it; move any cv test still in <code>tests/</code> into the module. Add it to the reusable index.</li>
+<li><strong>Done when:</strong> <code>git grep -n "from tests\.|import tests\." src/assistant/modules</code> finds nothing; <code>git ls-files tests | grep -i cv</code> finds nothing cv-only; the tripwire test passes.</li>
+</ul>
+<h3 id="6-cv-packages-and-the-ruff-rule-move-out-of-pyprojecttoml">6. cv: packages and the ruff rule move out of <code>pyproject.toml</code></h3>
+<ul>
+<li><strong>What:</strong> pymupdf is listed in <code>cv/module.toml</code> (<code>packages</code>), and the cvlib ruff exceptions are in <code>modules/cv/ruff.toml</code>.</li>
+<li><strong>Why:</strong> the picture: "packages: pymupdf · ruff rule ← pyproject".</li>
+<li><strong>How:</strong> add <code>packages = ["pymupdf&gt;=1.24"]</code> to <code>module.toml</code> and the <code>packages</code> field to <code>Manifest</code>; remove the <code>cv</code> extra and the <code>src/cv_tool/cvlib.py</code> per-file ignore from <code>pyproject.toml</code>; add <code>modules/cv/ruff.toml</code> with <code>extend</code> to the root config and the per-file ignore. Nothing is installed.</li>
+<li><strong>Done when:</strong> <code>pyproject.toml</code> has no <code>cv</code>, <code>pymupdf</code> or <code>cv_tool</code> line; <code>ruff check</code> is clean; the tripwire test (no module package in <code>pyproject.toml</code>) passes.</li>
+</ul>
+<h3 id="7-job_search-defaults-needs-and-tests-in-the-module">7. job_search: defaults, needs and tests in the module</h3>
+<ul>
+<li><strong>What:</strong> <code>modules/job_search/module.toml</code> holds job_search's defaults (from <code>[modules.job_search]</code> in <code>config/default.toml</code>) and <code>needs = ["cv"]</code>, and its tests (<code>tests/test_job_search.py</code>, <code>tests/fake_job_ui.py</code>) live in its <code>tests/</code>.</li>
+<li><strong>Why:</strong> the picture: "job_search/ code · docs · tests · needs cv".</li>
+<li><strong>How:</strong> create <code>module.toml</code>, move the defaults (your own paths go to <code>config/local.toml</code>, never committed), and move the tests onto the test kit. Docs.</li>
+<li><strong>Done when:</strong> <code>module.toml</code> exists with <code>needs = ["cv"]</code>; <code>config/default.toml</code> has no <code>[modules.job_search]</code> defaults; <code>tests/test_job_search.py</code> is gone and its tests pass from the module.</li>
+</ul>
+<h3 id="8-html_viewer-its-app-events-show-handling-and-tests-in-the-module">8. html_viewer: its app, events, SHOW handling and tests in the module</h3>
+<ul>
+<li><strong>What:</strong> <code>src/html_viewer/</code> moves to <code>modules/html_viewer/app/html_viewer/</code>, its events leave the core contracts (decision 9), the SHOW-to-viewer mapping (<code>infra/show_pages.py</code>) moves into html_viewer, and its tests move into its folder.</li>
+<li><strong>Why:</strong> the picture: "html_viewer/ code · viewer app · docs · tests · its events · SHOW handling".</li>
+<li><strong>How:</strong> <code>git mv</code>; <code>module.toml</code> with its defaults and <code>needs = []</code>; viewer events become <code>ModuleEvent</code>s (<code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>, <code>html_viewer.clip_dropped</code>) and their listeners subscribe by name; <code>show_page</code> asks the slot from item 15 instead of naming <code>viewer.open</code>; the <code>html-viewer</code> entry point is updated. Docs and the API indexes.</li>
+<li><strong>Done when:</strong> <code>src/html_viewer</code> doesn't exist; <code>git grep -n "ViewerClip|ViewerTabsChanged" src/assistant/contracts</code> finds nothing; <code>tests/test_html_viewer.py</code> is gone and its tests pass from the module. <strong>Needs an app restart</strong> (contracts).</li>
+</ul>
+<h3 id="9-voice_in-the-voice-service-app-packages-and-tests-in-the-module">9. voice_in: the voice service app, packages and tests in the module</h3>
+<ul>
+<li><strong>What:</strong> <code>src/voice_service/</code> moves to <code>modules/voice_in/app/voice_service/</code>, the <code>voice</code> packages go into <code>voice_in/module.toml</code>, <code>config/voice_service.toml</code> becomes the app's defaults in its folder, and the 7 voice test files move into <code>voice_in/tests/</code>.</li>
+<li><strong>Why:</strong> the picture: "voice_in/ voice_service app · docs · tests · voice packages".</li>
+<li><strong>How:</strong> <code>git mv</code>; app path (decision 2); the <code>voice-service</code> entry point; remove the <code>voice</code> extra from <code>pyproject.toml</code>; fix the old <code>docs/architecture/voice.md</code> comment. Docs.</li>
+<li><strong>Done when:</strong> <code>src/voice_service</code> doesn't exist; <code>pyproject.toml</code> has no <code>voice</code> extra; no <code>tests/test_voice*</code> file is left; the voice tests pass from the module. <strong>Needs an app restart.</strong></li>
+</ul>
+<h3 id="10-voice_notes-defaults-needs-and-tests-in-the-module">10. voice_notes: defaults, needs and tests in the module</h3>
+<ul>
+<li><strong>What:</strong> <code>modules/voice_notes/module.toml</code> with its defaults and <code>needs = ["voice_in"]</code>, and <code>tests/test_voice_notes.py</code> moved into its folder.</li>
+<li><strong>Why:</strong> the picture: "voice_notes/ code · page · docs · tests · needs voice_in".</li>
+<li><strong>How:</strong> as item 7.</li>
+<li><strong>Done when:</strong> <code>module.toml</code> exists with <code>needs = ["voice_in"]</code>; no <code>[modules.voice_notes]</code> defaults in <code>config/default.toml</code>; its tests pass from the module.</li>
+</ul>
+<h3 id="11-the-core-modules-defaults-and-tests-in-each-module">11. The core modules: defaults and tests in each module</h3>
+<ul>
+<li><strong>What:</strong> agent_hub, talker, main_assistant, console_io, temp_ui, task_agents (its kinds as defaults), usage, assistant_view and echo_orchestrator each get a <code>module.toml</code> with their defaults and <code>needs</code>, and their tests in their own <code>tests/</code>.</li>
+<li><strong>Why:</strong> the picture's core box: "own docs · tests", "kinds as defaults", and the rule that the core modules that own tests have the same shape.</li>
+<li><strong>How:</strong> per module: <code>module.toml</code> from its <code>[modules.&lt;id&gt;]</code> section, its central test files moved onto the test kit. Tests that check the whole app (<code>test_swap_every_module.py</code> and the like) stay central.</li>
+<li><strong>Done when:</strong> every module folder has a <code>module.toml</code>; <code>config/default.toml</code> has no <code>[modules.&lt;id&gt;]</code> defaults left (only core settings); the tripwire lists no module-only test file under <code>tests/</code>.</li>
+</ul>
+<h3 id="12-config-your-choices-only-one-file-per-module">12. <code>config/</code>: your choices only, one file per module</h3>
+<ul>
+<li><strong>What:</strong> <code>config/&lt;id&gt;.toml</code> holds your own choices for a module, <code>config/modules.toml</code> says which add-ons are on, and <code>config/*.local.toml</code> are the local overrides.</li>
+<li><strong>Why:</strong> the picture: "config/: your choices only · kept across downloads · one file per module · which add-ons are on · local overrides".</li>
+<li><strong>How:</strong> <code>load_config</code> reads in this order: the module's <code>module.toml</code>, <code>config/default.toml</code> (core settings), <code>config/&lt;id&gt;.toml</code>, then the <code>.local</code> overrides; your current <code>config/local.toml</code> choices stay readable (no file of yours is deleted). Tests; <code>docs/api/infra.md</code>, <code>docs/architecture/core.md</code>.</li>
+<li><strong>Done when:</strong> a test loads a module's settings from <code>config/&lt;id&gt;.toml</code> over its <code>module.toml</code>; <code>config/modules.toml</code> exists; the app's config tests pass. <strong>Needs an app restart</strong> (infra).</li>
+</ul>
+<h3 id="13-saved-grants-in-config">13. Saved grants in <code>config/</code></h3>
+<ul>
+<li><strong>What:</strong> the permissions handler reads and writes <code>config/permissions.toml</code>.</li>
+<li><strong>Why:</strong> the picture: "saved grants (now data/permissions.toml)" belong in <code>config/</code>, since they're your decisions.</li>
+<li><strong>How:</strong> decision 7; gitignore <code>config/permissions.toml</code>; tests; <code>docs/architecture/permissions.md</code>.</li>
+<li><strong>Done when:</strong> <code>git grep -n "data/permissions.toml" src</code> finds only the one-time copy; a test shows a grant saved to <code>config/permissions.toml</code>; <code>git check-ignore config/permissions.toml</code> succeeds. <strong>Needs an app restart</strong> (core).</li>
+</ul>
+<h3 id="14-generated">14. <code>generated/</code></h3>
+<ul>
+<li><strong>What:</strong> the core writes <code>generated/modules.json</code> (the live module list), <code>generated/directory.json</code> (the module directory), <code>generated/dependencies.json</code> (each module's <code>needs</code> and <code>packages</code>), and the docs build writes <code>generated/module-library.md</code>.</li>
+<li><strong>Why:</strong> the picture: "generated/: built by the core · never hand-edited · safe to delete".</li>
+<li><strong>How:</strong> decision 8; gitignore <code>generated/</code>; written at start and on every module state change; a test deletes it and sees it written again.</li>
+<li><strong>Done when:</strong> the test passes; <code>git check-ignore generated/</code> succeeds. <strong>Needs an app restart</strong> (core).</li>
+</ul>
+<h3 id="15-the-needs-arrows-never-core-add-on">15. The needs arrows: never core → add-on</h3>
+<ul>
+<li><strong>What:</strong> no core module names an add-on: temp_ui stops sending <code>InvokeTool viewer.open</code> directly and uses a slot an add-on fills ("plugs in").</li>
+<li><strong>Why:</strong> the picture: "'needs' arrows point one way: add-on → core, or add-on → add-on · never core → add-on", with the crossed-out arrow from temp_ui and talker to html_viewer.</li>
+<li><strong>How:</strong> a contract <code>IPageOpener</code> (<code>open(path, quote, heading)</code>) in the contracts. html_viewer provides it, and temp_ui, the Talker and <code>show_page</code> ask the container for it (none: they say so). A tripwire test scans the core group's modules for an add-on's id or tool names.</li>
+<li><strong>Done when:</strong> <code>git grep -n "viewer\.open" src/assistant/modules/temp_ui src/assistant/modules/talker src/assistant/infra</code> finds nothing; the tripwire passes. <strong>Needs an app restart</strong> (new contract).</li>
+</ul>
+<h3 id="16-removing-a-module-asks-purge-its-settings-or-keep-them">16. Removing a module asks: purge its settings or keep them</h3>
+<ul>
+<li><strong>What:</strong> the core's menu gets <code>modules.remove</code>, which refuses while another module needs it and asks you whether to purge <code>config/&lt;id&gt;.toml</code> or keep it.</li>
+<li><strong>Why:</strong> the overview's plan line: "removing a module asks whether to purge its settings or keep them".</li>
+<li><strong>How:</strong> a core menu item, <code>risky</code>, which asks first; it never deletes the module folder itself (that's yours to do); tests.</li>
+<li><strong>Done when:</strong> the tests for refuse, keep and purge pass. <strong>Needs an app restart</strong> (core).</li>
+</ul>
+<h3 id="17-cv_agent-works-from-modulescvworkspace">17. cv_agent works from <code>modules/cv/workspace/</code></h3>
+<ul>
+<li><strong>What:</strong> cv_agent's working files are copied from <code>C:\Chang\Jobs\CV_Module</code> into <code>modules/cv/workspace/</code>, its config and grant point there, and its memory notes are copied to the new folder's memory key.</li>
+<li><strong>Why:</strong> the rule (nothing of cv outside its folder); cv_agent's own plan (<code>C:\Chang\Jobs\CV_Module\cv-tools-move-plan.md</code>, section 5).</li>
+<li><strong>How:</strong> copy per cv_agent's step-1 table (skills and rules, facts, <code>cv_tool</code> data with <code>submits_seen.json</code>, <code>work\</code>, <code>applied\</code>, <code>scripts\</code>, <code>docs\</code>; not <code>.chrome_print</code>, not <code>.claude\state</code>); copy memory from <code>~\.claude\projects\C--Chang-Jobs-CV-Module\memory</code> to <code>…\C--Chang-Git-projects-AI-Assistant-src-assistant-modules-cv-workspace\memory</code>; <code>[agent] workspace</code> → the new folder, <code>output_dir</code> → <code>&lt;workspace&gt;/out</code>; the tests and docs that name <code>CV_Module</code>; check <code>git status</code> shows nothing from <code>workspace/</code>. The old folder is left for you.</li>
+<li><strong>Done when:</strong> <code>git grep -n "CV_Module" src</code> finds nothing; <code>modules/cv/workspace/.claude/skills/cv-writing/SKILL.md</code> and <code>…/cv_tool/submits_seen.json</code> exist; <code>git status --porcelain</code> lists nothing under <code>workspace/</code>; the cv tests pass. <strong>Hand check:</strong> the access card at the next start (the grant's fingerprint changes), and one smoke job.</li>
+</ul>
+<h3 id="18-job_search_agent-works-from-modulesjob_searchworkspace">18. job_search_agent works from <code>modules/job_search/workspace/</code></h3>
+<ul>
+<li><strong>What:</strong> the job project's tools, prompt and state are copied from <code>C:\Chang\Jobs\CV</code> into <code>modules/job_search/workspace/</code>, their hard-coded paths go through one paths file, and the config and grant point there.</li>
+<li><strong>Why:</strong> the rule; the job agent's report (<code>C:\Chang\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md</code>, section 5) found the tools were never cloned.</li>
+<li><strong>How:</strong> copy per its "Files to clone" table, plus <code>Recruiters\docs\</code> state, not the history it lists under "Don't clone". Your CV and cover-letter files stay in <code>C:\Chang\Jobs\CV</code> (decision 5). Add <code>workspace/job_paths.json</code> and switch the scripts to it. Keep the job project's tests out of the app's pytest run. Set <code>[modules.job_search] workspace</code> → the new folder, <code>documents</code> = <code>C:/Chang/Jobs/CV</code> (read and write). Keep JobRadar's Python (decision 6). Copy the memory notes. <code>ui.py</code>'s default script path. Docs (<code>job-project.md</code>).</li>
+<li><strong>Done when:</strong> <code>modules/job_search/workspace/CLAUDE.md</code> and <code>…/Recruiters/scripts/job_ui.py</code> exist; a grep of the copied scripts finds <code>C:\Chang\Jobs\CV</code> only in <code>job_paths.json</code>; <code>git status</code> lists nothing under <code>workspace/</code>; pytest collects nothing from the workspace. <strong>Hand check:</strong> the access card, <code>job.open_ui</code>, one dry apply session up to the form.</li>
+</ul>
+<h3 id="19-the-rule-holds-for-every-add-on">19. The rule holds for every add-on</h3>
+<ul>
+<li><strong>What:</strong> one tripwire checks the whole rule: no add-on file outside its folder (no <code>src/&lt;app&gt;</code>, no module packages in <code>pyproject.toml</code>, no <code>[modules.&lt;id&gt;]</code> defaults, no module-only test in <code>tests/</code>, no agent workspace outside the repo in config).</li>
+<li><strong>Why:</strong> the picture's rule ("delete <code>modules/cv/</code> and nothing of cv is left behind"), for every add-on, kept true from now on.</li>
+<li><strong>How:</strong> collect the per-item tripwires into one test per add-on in <code>tests/test_module_folders.py</code>, and update the overview (the parts table's locations, "Currently fixing").</li>
+<li><strong>Done when:</strong> <code>pytest tests/test_module_folders.py</code> passes with a test per add-on.</li>
+</ul>
+<h3 id="20-every-modules-docs-in-its-own-folder-done-2026-11-12-before-this-checklist">20. Every module's docs in its own folder: <strong>done</strong> (2026-11-12, before this checklist)</h3>
+<ul>
+<li><strong>What:</strong> every module has <code>docs/</code> with README, architecture, a generated tools page and <code>docs.toml</code>.</li>
+<li><strong>Why:</strong> the picture: "own docs" for every module.</li>
+<li><strong>How:</strong> done in commit <code>c0d2a5d</code> (the module docs move).</li>
+<li><strong>Done when:</strong> <code>scripts/build_docs.py</code>'s <code>check_module_tabs()</code> requires a <code>docs/</code> folder for every module package, and the build passes. <strong>Checked 2026-11-13:</strong> the build wrote 72 pages with no error.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/module-folders-checklist.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # cv agent: everything in one folder
 
-> **Status: proposed (2026-11-09).** Part of [cv-uses-cv-tool.md](cv-uses-cv-tool.md). Nothing is moved yet. Read only so far.
+> **Status: replaced (2026-11-13).** Its choice (the agent's folder outside the repo, which made `C:\Chang\Jobs\CV_Module`) is reversed by the [module-folders plan](module-folders.html): cv_agent works from `modules/cv/workspace/`, item 17 of the [module-folders checklist](module-folders-checklist.md). Earlier status: proposed (2026-11-09), part of [cv-uses-cv-tool.md](cv-uses-cv-tool.md).
 
 **Asked (2026-11-09):** put what cv_agent needs in one place, the way the other agents have it. Today it's spread over five places, and that confuses the agent too.
 
