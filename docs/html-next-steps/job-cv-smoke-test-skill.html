@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A skill for the job and cv smoke test</title>
+<!-- Generated from docs/next-steps/job-cv-smoke-test-skill.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="job-cv-smoke-test-skill.html"></nav>
+<main>
+<h1 id="a-skill-for-the-job-and-cv-smoke-test">A skill for the job and cv smoke test</h1>
+<blockquote>
+<p><strong>Status: proposed (2026-11-13).</strong> Waiting for the user's check. Nothing written yet besides this note.</p>
+</blockquote>
+<p><strong>Asked:</strong> "Make it into a skill that's always referred to when I ask for a smoke test for the job module and cv module."</p>
+<p><strong>Why:</strong> the last runs didn't follow your order: cv was turned on by hand, and the run went on with old saved grants. A skill makes every run start from the <a href="smoke-test-job-cv.html">smoke test page</a> and follow it as written.</p>
+<p><strong>Touches:</strong></p>
+<ul>
+<li>New: <code>.claude/skills/job-cv-smoke-test/SKILL.md</code> (a project skill, like <code>batching</code> and <code>architecture-first</code>).</li>
+<li>After your check: one line in <code>CLAUDE.md</code>'s Workflow section, <code>When the user asks for a smoke test of the job or cv module: use the job-cv-smoke-test skill.</code></li>
+<li>No code, no module, no config.</li>
+</ul>
+<p><strong>Approach:</strong> the skill is short and points at the page; the page holds the steps, so they're kept in one place. Its text:</p>
+<pre><code class="language-markdown">---
+name: job-cv-smoke-test
+description: Always use when the user asks for a smoke test of the job module and the cv module, or says &quot;job smoke test&quot;, &quot;cv smoke test&quot;, &quot;smoke test the job search&quot;, or &quot;smoke test job_search / cv&quot;. Runs the written test in docs/next-steps/smoke-test-job-cv.md exactly as written.
+---
+
+# Job and cv smoke test
+
+Read the page first: `docs/next-steps/smoke-test-job-cv.md` (HTML: `docs/html-next-steps/smoke-test-job-cv.html`). Follow it as written.
+
+## The user's order, exactly
+
+1. The Main Assistant turns on only `job_search`.
+2. `job_search` starts its agent.
+3. The agent realizes it needs a CV.
+4. `job_search` turns on `cv` at that moment, with the PDF and JD instructions, and subscribes to cv's event.
+5. `cv` runs and pings the event.
+6. `job_search` receives it and gets the tailored CV PDF.
+
+## Rules
+
+- **Never turn cv on by hand**, not even to unblock a step. cv coming up is what the test checks.
+- **Before step 1:** run in Manual mode, both modules inactive, and clear the saved grants (`permissions.grants`, then `permissions.revoke` for cv / cv_agent and job_search / job_search_agent), as on the page.
+- **Begin with the first check:** right after `job_search` is turned on, `cv` must still be off. If it's on, that's a fail; report it.
+- **Report each step pass or fail**, plainly, with what you saw. A fail is a finding, not something to fix mid-test.
+- Run the page's extra checks (E1, E2) at the end, and compare what you see with its known problems list.
+- **Ask the user before anything outside the test** (a restart, a reload, a fix, any other module on or off).
+</code></pre>
+<p><strong>Open questions:</strong></p>
+<ol>
+<li>The name <code>job-cv-smoke-test</code>: fine? Recommended: yes.</li>
+<li>The CLAUDE.md line above, added once you've checked this note: fine? Recommended: yes.</li>
+</ol>
+<footer>Generated from <code>docs/next-steps/job-cv-smoke-test-skill.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
