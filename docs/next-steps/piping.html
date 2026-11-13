@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The app's piping: every way data gets in and out, today and suggested</title>
+<style>
+  :root { --ink:#1d1d1b; --mute:#6f6d66; --line:#d9d6cf; --bg:#fbfaf7; --red:#c0392b; --redbg:#fdecea;
+          --teal:#0f7c7a; --tealbg:#e3f4f3; --ok:#eef0ec; --core:#55534d; --corebg:#f1f0ec;
+          --blue:#2f6f9f; --purple:#6b4fa0; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 40px 80px; font:18px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  h1 { font-size:30px; margin:0 0 6px; }
+  h2 { font-size:24px; margin:48px 0 14px; padding-top:14px; border-top:2px solid var(--line); }
+  h3 { margin:0 0 6px; font-size:21px; }
+  .sub { color:var(--mute); margin:0 0 8px; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; margin:10px 0 12px; font-size:16px; color:var(--mute); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .ln { width:26px; height:0; border-top:3px solid; display:inline-block; }
+  .ln.tool { border-color:var(--teal); } .ln.cmd { border-color:var(--core); } .ln.ev { border-color:var(--blue); }
+  .ln.perm { border-color:var(--purple); } .ln.st { border-color:var(--core); border-top-style:dashed; }
+  .ln.con { border-color:#3d7f4f; } .ln.int { border-color:#8a877c; border-top-style:dotted; }
+  h3.flow { font-size:20px; margin:26px 0 6px; }
+  .rule { border:3px solid var(--teal); background:var(--tealbg); border-radius:10px; padding:14px 18px; font-size:18px; }
+  .rule p { margin:0 0 8px; } .rule p:last-child { margin:0; }
+  .yes { color:var(--teal); font-weight:700; } .no { color:var(--red); font-weight:700; }
+  .note { font-size:16px; color:var(--mute); margin:10px 0 0; }
+  .note b { color:var(--ink); }
+  svg { display:block; width:100%; max-width:1100px; margin-top:6px; }
+  svg text { font-family:"Segoe UI", system-ui, sans-serif; }
+  table { border-collapse:collapse; font-size:16px; margin:10px 0; width:100%; max-width:1100px; background:#fff; }
+  th, td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--corebg); }
+  .approve { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:#fff; border:2px solid var(--line); border-radius:10px; padding:12px 16px; }
+  .card.s1 { border-color:var(--teal); }
+  .card h3 { font-size:20px; }
+  .card ul { margin:6px 0 10px; padding-left:20px; font-size:16px; }
+  .card .rec { font-size:16px; margin:0 0 10px; }
+  .sign { border-top:2px solid var(--line); padding-top:8px; font-weight:700; }
+  ul.changes li { margin:6px 0; }
+  code { font-size:.92em; }
+  @media (max-width: 1100px) { .approve { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<h1>The app's piping</h1>
+<p class="sub">Every way data gets in and out of the app: who sends what, by which path, and which checks it passes. Today, checked against the code, then a suggestion. A proposal page: nothing in the app is changed. 2026-11-13. Source note: <a href="core-and-hub-proposal.html">core-and-hub-definition</a> (the definition page) and <code>docs/next-steps/core-and-hub-definition.md</code>.</p>
+
+<div class="rule">
+  <p><b>Your ask:</b> tools, events and contracts harden how data gets in and out, so every call and every card passes the core's checks (router, permissions, the caller's mode), and the Agent Hub is a module that does agent coordination only. Each decision card is tagged with the part it serves: <i>calls</i>, <i>cards</i>, <i>Hub</i>; the gaps G1 to G20 carry the same tags in the note.</p>
+  <p><b>In plain words:</b> the door, the router, the bus and the contracts were built so that every call and every card goes through the core's checks. Today most of them do, but not all.</p>
+  <p>The biggest gap: the Agent Hub hosts the door, so a module, not the core, says which agent is calling. Commands carry no sender, so any module could switch an agent to Auto or answer a card. And the core's own Auto check asks the Hub, so it depends on a module being on.</p>
+  <p><b>What keeps track of which modules exist and what they do:</b> the core, not the Hub. At launch <code>find_modules</code> reads the module folders; the <code>LifecycleManager</code> keeps every module's class, on or off, and its state; the directory (<code>ListModules</code>, <code>GetMenu</code>) reads from it; each module's own manifest and menu say what it does. Sections 1b and 2b follow one add-on from "I want to start recording voice notes" to its first event.</p>
+  <p><b>The suggestion:</b> the door and a new <b>Callers</b> port (agent names, each caller's mode, who is "you") move into the core. Every tool call and every card passes one checked gate there. The router stamps the sender on every command. Events only notify, never control. The Agent Hub keeps agent coordination only: tasks, focus, held questions, delivery, milestones.</p>
+</div>
+
+<h2>Verification</h2>
+<p class="sub">A second pass (2026-11-13) read the code for eleven claims, one at a time; each result with its file and line is in <code>docs/next-steps/core-and-hub-definition.md</code> (V1 to V11, gaps G1 to G20). All read from the code; <b>nothing was tested by running it</b>.</p>
+<p><b>Verified:</b> the three control events, every publisher and listener (V1; <code>ShutdownRequested</code> stops the app with no check, <code>core/app.py:150-153</code>); every road that switches the mode (V2); the lifecycle in full: cycle check at launch and at runtime, start in dependency order, stop in reverse, reload with roll-back, no permission check in it (V3); <code>modules.add</code> isn't recorded for the next launch (V4); the bus's bounded queues, and queued events dropped when a module is turned off, reloaded or removed (V5); the door's HMAC token per caller name (V6); task agents asked before <code>use_item</code> in Manual (V7); commands carry no sender (V10); a tool call from a module's code is never asked about (V11).</p>
+<p><b>Found different, corrected on this page:</b></p>
+<ul>
+  <li><b>The "ask first" items don't ask.</b> <code>modules.add</code>, <code>modules.remove</code> and <code>modules.off</code> with dependents call a single-name <code>permissions.request</code>, which logs and allows (<code>core/permissions/port.py:29-35, 61-65</code>). The same holds for the mic: <code>voice_in</code> does ask for <code>microphone</code> (<code>voice_in/module.py:242-243</code>), and it's allowed and logged (G13). The earlier ✓ "a card" marks in 1b and A6 are now ✗.</li>
+  <li><b>The Talker has no gate:</b> all three door tools are allowed by rule (<code>talker/session.py:255</code>), so its <code>use_item</code> is never asked (G14). P1 holds for task agents only.</li>
+  <li>The door's config is handed out for <b>any name asked</b> (<code>agent_hub/module.py:69-76</code>; G11).</li>
+  <li><b>Two roads skip the router:</b> <code>ITaskAgent</code> called directly (Auto, card answers, cancel; G12), and every menu as an <code>IToolProvider</code> contract whose <code>invoke_as</code> takes any caller (G16).</li>
+  <li><b>temp_ui's page has no Host or Origin check</b> (<code>temp_ui/module.py:660-768</code>): one local POST can switch an agent to Auto, answer a card or reset a session (G10).</li>
+  <li><b>The Talker acts on tags in its model's reply on every turn:</b> <code>ALLOW</code> / <code>DENY</code>, <code>RESTART</code>, <code>RESET</code> (<code>talker/session.py:202-226, 375-403</code>; G17).</li>
+  <li>"You" is in two lists (the handler's config and task_agents' <code>YOU</code>), and a <code>you</code> caller's grants and revokes need no card (G18). The core's handler itself publishes <code>AgentNotice</code> (<code>handler.py:541</code>). A <code>ModuleEvent</code> can be forged with <code>ctx.publish</code> (G15).</li>
+</ul>
+<p><b>Still not verified:</b> see the list at the bottom of the page.</p>
+
+<div class="legend">
+  <span><i class="ln tool"></i> tool call (via the door, <code>InvokeTool</code>)</span>
+  <span><i class="ln cmd"></i> command through the router</span>
+  <span><i class="ln ev"></i> event on the bus</span>
+  <span><i class="ln perm"></i> permission check</span>
+  <span><svg viewBox="0 0 36 12" style="display:inline-block;width:36px;height:12px;margin:0"><line x1="2" y1="6" x2="26" y2="6" stroke="#6b4fa0" stroke-width="3"/><path d="M25,1 L35,6 L25,11 z" fill="#6b4fa0"/></svg> <b>question</b>: solid line, filled head</span>
+  <span><svg viewBox="0 0 36 12" style="display:inline-block;width:36px;height:12px;margin:0"><line x1="2" y1="6" x2="26" y2="6" stroke="#6b4fa0" stroke-width="3" stroke-dasharray="6 4"/><path d="M26,1.5 L34,6 L26,10.5 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></svg> <b>answer</b>: dashed line, hollow head (allow, deny, a mode, your answer to a card); in any path colour</span>
+  <span><i class="ln st"></i> STATUS line → report → milestone (dashed, filled head)</span>
+  <span><i class="ln con"></i> contract call (looked up in the container)</span>
+  <span><i class="ln int"></i> the core's own call (no message)</span>
+  <span><span class="yes">✓</span> check present · <span class="no">✗</span> check missing (G1 to G20, listed in the note)</span>
+  <span>P1 to P14: the permission steps in 1b and 2b (each question, its answer, and the cards to you)</span>
+</div>
+
+<!-- ============ 1 · TODAY ============ -->
+<h2>1 · Today (checked against the code)</h2>
+<svg viewBox="0 0 1100 530" aria-label="Today: the app's piping">
+  <defs>
+    <marker id="mt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="mc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="mb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="mhp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+    <marker id="mhc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#55534d" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <!-- agents column -->
+    <rect x="20" y="20" width="230" height="44" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="135" y="48" text-anchor="middle" font-size="17">You</text>
+    <rect x="20" y="90" width="230" height="64" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="113" font-size="16" font-weight="700">Talker</text>
+    <text x="34" y="133">reaches the Hub as caller "talker"</text>
+    <rect x="20" y="180" width="230" height="64" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="203" font-size="16" font-weight="700">Main Assistant</text>
+    <text x="34" y="223">coordinator · reviews cards</text>
+    <rect x="20" y="270" width="230" height="64" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="293" font-size="16" font-weight="700">Helpers</text>
+    <text x="34" y="313">cv_agent · job agent · task_agents</text>
+    <rect x="20" y="370" width="230" height="90" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="393" font-size="16" font-weight="700">temp_ui</text>
+    <text x="34" y="413">"you" by config (you = [temp_ui])</text>
+    <text x="34" y="431">Auto button, card answers</text>
+    <text x="34" y="449">shows cards, tasks, activity</text>
+
+    <!-- Hub -->
+    <rect x="290" y="20" width="340" height="450" rx="12" fill="#fff" stroke="#8a877c" stroke-width="2.5"/>
+    <text x="305" y="44" font-size="17" font-weight="700">Agent Hub (a module)</text>
+    <rect x="305" y="60" width="310" height="82" rx="8" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="317" y="80" font-size="15" font-weight="700">Module door (DoorServer) · H1</text>
+    <text x="317" y="98">list · menu · call → ListModules · GetMenu · InvokeTool</text>
+    <text x="317" y="116" fill="#0f7c7a" font-weight="600">✓ HMAC token per caller name</text>
+    <text x="317" y="133" fill="#c0392b" font-weight="600">✗ its host may set any caller (G1)</text>
+    <rect x="305" y="152" width="310" height="48" rx="8" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="317" y="172" font-size="15" font-weight="700">Agent names (IAgentNames) · H2</text>
+    <text x="317" y="190" fill="#c0392b">✗ identity kept by a module</text>
+    <rect x="305" y="210" width="310" height="84" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="317" y="230" font-size="15" font-weight="700">Coordination · H3–H11</text>
+    <text x="317" y="248">task board · focus · held questions · delivery</text>
+    <text x="317" y="266">milestones · message hold · rule 2 (_settle)</text>
+    <text x="317" y="284" fill="#0f7c7a" font-weight="600">✓ hub.* items: start_only_by · may_steer</text>
+    <rect x="305" y="304" width="310" height="62" rx="8" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="317" y="324" font-size="15" font-weight="700">Permission mode routing · H12</text>
+    <text x="317" y="342">SetPermissionMode → the agent</text>
+    <text x="317" y="359" fill="#c0392b">✗ doesn't ask who sent it (G2)</text>
+    <rect x="305" y="376" width="310" height="80" rx="8" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="317" y="396" font-size="15" font-weight="700">ListAgents · H4</text>
+    <text x="317" y="414">every agent with its permission mode</text>
+    <text x="317" y="432" fill="#c0392b">✗ the core's Auto check reads it:</text>
+    <text x="317" y="449" fill="#c0392b">Hub off → "not Auto" (G4)</text>
+
+    <!-- Core -->
+    <rect x="670" y="20" width="410" height="450" rx="12" fill="#f1f0ec" stroke="#55534d" stroke-width="2.5"/>
+    <text x="685" y="44" font-size="17" font-weight="700">Core</text>
+    <rect x="685" y="60" width="355" height="70" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="697" y="80" font-size="15" font-weight="700">Command router</text>
+    <text x="697" y="98" fill="#0f7c7a" font-weight="600">✓ one handler, handles strict</text>
+    <text x="697" y="116" fill="#c0392b" font-weight="600">✗ sends not checked, no sender (G2)</text>
+    <rect x="685" y="142" width="355" height="70" rx="8" fill="#fff" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="697" y="162" font-size="15" font-weight="700">InvokeTool → dispatch_tool → menu item</text>
+    <text x="697" y="180" fill="#0f7c7a" font-weight="600">✓ item callers list · argument schema</text>
+    <text x="697" y="198" fill="#c0392b" font-weight="600">✗ no permission or mode check (G5)</text>
+    <rect x="685" y="224" width="355" height="52" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="697" y="242" font-size="15" font-weight="700">Event bus</text>
+    <text x="697" y="258" font-size="12" fill="#c0392b" font-weight="600">✗ publishes not checked (G3)</text>
+    <text x="697" y="272" font-size="12" fill="#c0392b" font-weight="600">✗ 3 events act as controls (G6)</text>
+    <rect x="685" y="296" width="355" height="90" rx="8" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="697" y="316" font-size="15" font-weight="700">Permissions handler + cards</text>
+    <text x="697" y="334" fill="#0f7c7a" font-weight="600">✓ saved grants · access and message cards</text>
+    <text x="697" y="352" fill="#0f7c7a" font-weight="600">✓ rule 1: Auto check before a card</text>
+    <text x="697" y="370" fill="#c0392b" font-weight="600">✗ asks the Hub for the mode (G4) · starts the</text>
+    <text x="697" y="385" fill="#c0392b" font-weight="600">   review as a task (G7)</text>
+    <rect x="685" y="398" width="355" height="58" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="697" y="420" font-size="15" font-weight="700">Modules' menus, handlers, listeners</text>
+    <text x="697" y="440">cv · job_search · html_viewer · voice_in · …</text>
+
+    <!-- arrows: tools (teal) -->
+    <g stroke="#0f7c7a" stroke-width="2.5" fill="none">
+      <line x1="250" y1="120" x2="303" y2="88" marker-end="url(#mt)"/>
+      <line x1="250" y1="210" x2="303" y2="100" marker-end="url(#mt)"/>
+      <line x1="250" y1="292" x2="303" y2="112" marker-end="url(#mt)"/>
+      <path d="M615 82 L640 82 L640 170 L683 170" marker-end="url(#mt)"/>
+      <path d="M683 196 L652 196 L652 246 L617 246" marker-end="url(#mt)"/>
+      <path d="M1040 190 L1070 190 L1070 420 L1042 420" marker-end="url(#mt)"/>
+    </g>
+    <!-- commands (dark) -->
+    <g stroke="#55534d" stroke-width="2.5" fill="none">
+      <path d="M135 460 L135 508 L1092 508 L1092 92 L1042 92" marker-end="url(#mc)"/>
+      <path d="M685 112 L664 112 L664 334 L617 334" marker-end="url(#mc)"/>
+    </g>
+    <!-- STATUS (dashed) -->
+    <g stroke="#55534d" stroke-width="2" fill="none" stroke-dasharray="6 4">
+      <line x1="250" y1="318" x2="303" y2="272" marker-end="url(#mc)"/>
+      <line x1="305" y1="228" x2="252" y2="228" marker-end="url(#mc)"/>
+    </g>
+    <!-- events (blue): 10 into the bus; 12 the card into the bus, 13 out to temp_ui and the Talker -->
+    <g stroke="#2f6f9f" stroke-width="2.5" fill="none">
+      <line x1="617" y1="286" x2="683" y2="262" marker-end="url(#mb)"/>
+      <line x1="1000" y1="296" x2="1000" y2="279" marker-end="url(#mb)"/>
+      <path d="M1040 250 L1082 250 L1082 486 L200 486 L200 463" marker-end="url(#mb)"/>
+    </g>
+    <!-- question (purple, solid): 9 "is this agent in Auto?" -->
+    <path d="M685 366 L648 366 L648 400 L617 400" stroke="#6b4fa0" stroke-width="2.5" fill="none" marker-end="url(#mp)"/>
+    <!-- answers (dashed, hollow head): 11 the mode back; 14 your answer to the card -->
+    <g stroke-width="2.5" fill="none" stroke-dasharray="6 4">
+      <path d="M617 432 L668 432 L668 380 L683 380" stroke="#6b4fa0" marker-end="url(#mhp)"/>
+      <path d="M1040 120 L1055 120 L1055 340 L1042 340" stroke="#55534d" marker-end="url(#mhc)"/>
+    </g>
+
+    <!-- arrow numbers -->
+    <g font-size="12" font-weight="700" fill="#fff">
+      <circle cx="268" cy="140" r="10" fill="#0f7c7a"/><text x="268" y="144" text-anchor="middle">1</text>
+      <circle cx="640" cy="126" r="10" fill="#0f7c7a"/><text x="640" y="130" text-anchor="middle">2</text>
+      <circle cx="1070" cy="300" r="10" fill="#0f7c7a"/><text x="1070" y="304" text-anchor="middle">3</text>
+      <circle cx="652" cy="226" r="10" fill="#0f7c7a"/><text x="652" y="230" text-anchor="middle">4</text>
+      <circle cx="275" cy="296" r="10" fill="#55534d"/><text x="275" y="300" text-anchor="middle">5</text>
+      <circle cx="278" cy="228" r="10" fill="#55534d"/><text x="278" y="232" text-anchor="middle">6</text>
+      <circle cx="600" cy="508" r="10" fill="#55534d"/><text x="600" y="512" text-anchor="middle">7</text>
+      <circle cx="664" cy="300" r="10" fill="#55534d"/><text x="664" y="304" text-anchor="middle">8</text>
+      <circle cx="648" cy="383" r="10" fill="#6b4fa0"/><text x="648" y="387" text-anchor="middle">9</text>
+      <circle cx="650" cy="274" r="10" fill="#2f6f9f"/><text x="650" y="278" text-anchor="middle">10</text>
+      <circle cx="642" cy="432" r="10" fill="#6b4fa0"/><text x="642" y="436" text-anchor="middle">11</text>
+      <circle cx="1018" cy="287" r="9" fill="#2f6f9f"/><text x="1018" y="291" text-anchor="middle">12</text>
+      <circle cx="900" cy="486" r="10" fill="#2f6f9f"/><text x="900" y="490" text-anchor="middle">13</text>
+      <circle cx="1055" cy="160" r="10" fill="#55534d"/><text x="1055" y="164" text-anchor="middle">14</text>
+    </g>
+  </g>
+</svg>
+<p class="note">Rendering not checked by eye: a label may sit close to a line.</p>
+
+<table>
+  <tr><th>#</th><th>From → to</th><th>Path</th><th>Checks it passes today</th></tr>
+  <tr><td>1</td><td>Talker, Main Assistant, helpers → the door</td><td>tool call via the door (MCP: list · menu · call)</td><td><span class="yes">✓</span> HMAC token per caller name (<code>mcp_door.py:117, 174</code>). <span class="yes">✓</span> In Manual, Claude Code asks a task agent before <code>use_item</code> (agent side, <code>PermissionGate</code>). <span class="no">✗</span> The Talker has all three door tools allowed by rule, so it is never asked (<code>talker/session.py:255</code>; G14)</td></tr>
+  <tr><td>2</td><td>Door (in the Hub) → core</td><td><code>InvokeTool(name, args, caller)</code>, a command through the router</td><td><span class="no">✗</span> The door's host may name any caller; for every other module the core sets the caller to its id (<code>context.py:122</code>) (G1). And the Hub's <code>mcp_config(caller)</code> gives a valid token for any name asked, to any module (<code>agent_hub/module.py:69-76</code>; G11)</td></tr>
+  <tr><td>3</td><td><code>dispatch_tool</code> → a module's menu item</td><td>tool call</td><td><span class="yes">✓</span> item's <code>callers</code> and argument schema (<code>menu.py:108, 134</code>); starts an off module on use. <span class="no">✗</span> No permission or mode check (<code>tools.py:33</code>); a module calling <code>InvokeTool</code> from code is never asked (G5). Every menu is also an <code>IToolProvider</code> contract, so a module can skip the router and call <code>invoke_as</code> with any caller (<code>core/tools.py:29-30</code>; G16)</td></tr>
+  <tr><td>4</td><td><code>dispatch_tool</code> → the Hub's <code>hub.*</code> items (<code>hub.start</code>, <code>hub.send</code> …)</td><td>tool call</td><td><span class="yes">✓</span> <code>start_only_by</code>, <code>may_steer</code>, <code>hub.mode</code> refuses Auto (<code>agent_hub/module.py:180-289</code>), all trusting the caller from 2</td></tr>
+  <tr><td>5</td><td>Helper → Hub</td><td>a <code>STATUS:</code> line, read by the helper's own session, sent as <code>ReportTask</code> (milestone), a command</td><td><span class="no">✗</span> No sender on the command (G2); the report names its task</td></tr>
+  <tr><td>6</td><td>Hub → Main Assistant</td><td>the milestone into its <code>note</code>, merged by <code>MilestoneFeed</code> into its next turn</td><td>coordination, no check needed</td></tr>
+  <tr><td>7</td><td>temp_ui (and the Talker) → router</td><td><code>SetPermissionMode</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>: commands</td><td><span class="no">✗</span> No sender; <code>sends</code> not enforced: any module could send them (G2). temp_ui is "you" only by a config line (<code>temp_ui/module.py:683, 689, 710</code>; <code>talker/session.py:394</code>), and its page has no Host or Origin check (<code>temp_ui/module.py:660-768</code>; G10). The Talker sends its answers from tags in any turn's reply (G17). Besides the router, <code>ITaskAgent</code> lets a module switch the mode or answer directly (G12)</td></tr>
+  <tr><td>8</td><td>Router → Hub's mode routing → the agent</td><td>command handled by the Hub</td><td><span class="no">✗</span> <code>TaskBoard.set_mode</code> (<code>tasks.py:402</code>) doesn't ask who sent it</td></tr>
+  <tr><td>9</td><td>Permissions handler → Hub</td><td>the question: <code>ListAgents</code>, "is this agent in Auto?" (rule 1); its answer is 11</td><td><span class="no">✗</span> With the Hub off every check reads "not Auto": safe, but the core depends on a module (<code>handler.py:410</code>) (G4)</td></tr>
+  <tr><td>10</td><td>Hub, agents, handler → bus → UIs</td><td>events: <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>PermissionRequested</code> (the card)</td><td><span class="no">✗</span> <code>publishes</code> not enforced (<code>context.py:103</code>) (G3). <code>ResetRequested</code>, <code>ShutdownRequested</code> and <code>AgentNotice</code> make parts act, so they work as unchecked controls (G6; every publisher and listener traced, V1: any module can stop or restart the app, reset a session, or put a line into an agent's next turn)</td></tr>
+  <tr><td>11</td><td>Hub → permissions handler</td><td>the answer to 9: every agent with its mode, Manual or Auto (dashed, hollow head)</td><td><span class="no">✗</span> Hub off or no answer → read as "not Auto", so a card is shown (<code>handler.py:410-423</code>) (G4)</td></tr>
+  <tr><td>12</td><td>Permissions handler → bus</td><td><code>PermissionRequested</code>: the card, an event (<code>handler.py:475</code>)</td><td><span class="no">✗</span> <code>publishes</code> not checked (G3)</td></tr>
+  <tr><td>13</td><td>Bus → temp_ui and the Talker</td><td>the cards reach you: <code>PermissionRequested</code>, and the Hub's <code>TaskUpdated</code> for an agent's own question</td><td>temp_ui (<code>temp_ui/module.py:280</code>) and the Talker (<code>talker/module.py:138</code>) listen; <code>PermissionChanged</code> closes the card (<code>handler.py:427</code>)</td></tr>
+  <tr><td>14</td><td>Router → permissions handler</td><td>your answer: <code>AnswerPermissionRequest</code>, sent by temp_ui or the Talker along 7, handled by <code>PermissionsHandler.answer</code> (<code>app.py:93</code>, <code>handler.py:275</code>). An agent's own card is answered with <code>AnswerPermission</code>, router → Hub, as 8</td><td><span class="no">✗</span> No sender: any module could answer a card (G2)</td></tr>
+</table>
+<p class="note"><b>Where rules 1 and 2 sit today</b> (from <code>auto-skips-cards.md</code>): rule 1 (Auto shows no card) is checked in two places, the core handler (<code>request_set</code>, <code>ask</code>, <code>grant</code>, <code>request</code>, <code>revoke</code>) and the agent's <code>PermissionGate</code>; the mode itself is held by each agent and read back through the Hub (9). Rule 2 (a waiting task ends with a note) is <code>TaskBoard._settle</code> in the Hub, followed by the agent's <code>_settle</code>: that is coordination, and it stays.</p>
+
+<!-- ============ 1b · TODAY: ADD-ONS ============ -->
+<h2>1b · Today: how an add-on is found, turned on and reached</h2>
+<p class="sub">The opening case: you say <b>"I want to start recording voice notes"</b>. Steps A1 to A14 (A for add-on, apart from 1 to 14 above). P1 to P12 are the permission steps: each question (solid line), its answer (dashed, hollow head), and the cards that reach you (the box at the bottom). Checked against the code; file and line in the two tables.</p>
+<svg viewBox="0 0 1100 760" aria-label="Today: how an add-on is found, turned on and reached">
+  <defs>
+    <marker id="at" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3d7f4f"/></marker>
+    <marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a877c"/></marker>
+    <marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+    <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#55534d" stroke-width="1.5"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#3d7f4f" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <!-- you, agents, the agent's own gate, folders -->
+    <rect x="20" y="12" width="190" height="62" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="115" y="31" text-anchor="middle" font-size="15" font-weight="700">You</text>
+    <text x="115" y="49" text-anchor="middle">“I want to start recording</text>
+    <text x="115" y="65" text-anchor="middle">voice notes”</text>
+    <line x1="115" y1="74" x2="115" y2="86" stroke="#8a877c" stroke-width="2" marker-end="url(#ai)"/>
+    <rect x="20" y="88" width="190" height="80" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="32" y="108" font-size="15" font-weight="700">Talker or</text>
+    <text x="32" y="126" font-size="15" font-weight="700">Main Assistant</text>
+    <text x="32" y="146">finds it through the door's</text>
+    <text x="32" y="162">3 tools</text>
+    <rect x="20" y="200" width="190" height="100" rx="10" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="32" y="218" font-size="14" font-weight="700">Agent's own gate</text>
+    <g font-size="12">
+      <text x="32" y="235">PermissionGate, one per agent</text>
+      <text x="32" y="251">reads its own agent's mode</text>
+      <text x="32" y="267">Auto: allows all but git push</text>
+      <text x="32" y="283">Manual: a card via the Hub</text>
+    </g>
+    <rect x="20" y="330" width="190" height="110" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2"/>
+    <text x="32" y="350" font-size="15" font-weight="700">Module folders</text>
+    <text x="32" y="370">modules/&lt;id&gt;/: code,</text>
+    <text x="32" y="386">module.toml, its Menu</text>
+    <text x="32" y="406" font-weight="700">loader.find_modules</text>
+    <text x="32" y="424">reads them once, at launch</text>
+
+    <!-- Hub with the door and the task board -->
+    <rect x="235" y="60" width="220" height="325" rx="12" fill="#fff" stroke="#8a877c" stroke-width="2.5"/>
+    <text x="248" y="80" font-size="15" font-weight="700">Agent Hub (a module)</text>
+    <rect x="248" y="90" width="195" height="112" rx="8" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="258" y="108" font-size="14" font-weight="700">Module door (DoorServer)</text>
+    <text x="258" y="126">list_modules → ListModules</text>
+    <text x="258" y="142">show_menu → GetMenu</text>
+    <text x="258" y="158">use_item → InvokeTool</text>
+    <text x="258" y="176" fill="#0f7c7a" font-weight="600">✓ token per caller</text>
+    <text x="258" y="193" fill="#c0392b" font-weight="600">✗ host may set caller (G1)</text>
+    <rect x="248" y="218" width="195" height="158" rx="8" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="258" y="236" font-size="14" font-weight="700">Task board · H4, H5</text>
+    <g font-size="12">
+      <text x="258" y="254">holds an agent's own card:</text>
+      <text x="258" y="270">ReportTask(permission) in</text>
+      <text x="258" y="286">TaskUpdated (the card) out</text>
+      <text x="258" y="302">AnswerPermission in</text>
+      <text x="258" y="318">answer_permission → agent</text>
+      <text x="258" y="338">ListAgents: each agent's mode</text>
+      <text x="258" y="355" fill="#c0392b" font-weight="600">✗ the core reads the mode</text>
+      <text x="258" y="370" fill="#c0392b" font-weight="600">   here (G4)</text>
+    </g>
+
+    <!-- Core -->
+    <rect x="465" y="10" width="425" height="650" rx="12" fill="#f1f0ec" stroke="#55534d" stroke-width="2.5"/>
+    <text x="545" y="650" font-size="15" font-weight="700">Core</text>
+    <rect x="480" y="20" width="100" height="265" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <g font-size="12">
+      <text x="490" y="40" font-size="13" font-weight="700">Command</text>
+      <text x="490" y="56" font-size="13" font-weight="700">router</text>
+      <text x="490" y="80">ListModules</text>
+      <text x="490" y="97">GetMenu</text>
+      <text x="490" y="114">InvokeTool</text>
+      <text x="490" y="131">ActivateModule</text>
+      <text x="490" y="148">AddModule</text>
+      <text x="490" y="165">RemoveModule</text>
+      <text x="490" y="200" fill="#c0392b" font-weight="600">✗ no sender</text>
+      <text x="490" y="216" fill="#c0392b" font-weight="600">(G2)</text>
+    </g>
+    <rect x="635" y="20" width="245" height="65" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="647" y="38" font-size="14" font-weight="700">Directory (core/app.py)</text>
+    <text x="647" y="56">ListModules: every module, state</text>
+    <text x="647" y="74">GetMenu: one module's menu</text>
+    <rect x="635" y="100" width="245" height="60" rx="8" fill="#fff" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="647" y="117" font-size="14" font-weight="700">Core menu (core/directory.py)</text>
+    <text x="647" y="135" font-size="12">modules.list · menu · docs · on · off</text>
+    <text x="647" y="152" font-size="12" fill="#c0392b" font-weight="600">✗ add · remove · off+deps: logged, no card (G13)</text>
+    <rect x="635" y="190" width="245" height="72" rx="8" fill="#fff" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="647" y="208" font-size="14" font-weight="700">dispatch_tool (core/tools.py)</text>
+    <text x="647" y="225" font-size="12">finds the item's MenuTools provider</text>
+    <text x="647" y="241" font-size="12">starts an off start_on_use module</text>
+    <text x="647" y="257" font-size="12" font-weight="600"><tspan fill="#0f7c7a">✓ callers, schema</tspan> <tspan fill="#c0392b">✗ no ask (G5)</tspan></text>
+    <rect x="635" y="300" width="245" height="76" rx="8" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="647" y="318" font-size="14" font-weight="700">Permissions handler</text>
+    <text x="647" y="335" font-size="12" fill="#0f7c7a" font-weight="600">✓ access-list card at start</text>
+    <text x="647" y="351" font-size="12" fill="#0f7c7a" font-weight="600">✓ rule 1: Auto check before a card</text>
+    <text x="647" y="367" font-size="12" fill="#c0392b" font-weight="600">✗ reads the mode from the Hub (G4)</text>
+    <rect x="635" y="420" width="245" height="80" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="647" y="438" font-size="14" font-weight="700">LifecycleManager (lifecycle.py)</text>
+    <text x="647" y="456" font-size="12">keeps every module class, on or off</text>
+    <text x="647" y="473" font-size="12">on: what it requires and needs first</text>
+    <text x="647" y="490" font-size="12">init · link_menu (tools) · start</text>
+    <rect x="635" y="525" width="245" height="55" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="647" y="542" font-size="14" font-weight="700">Event bus (core/bus.py)</text>
+    <text x="647" y="559" font-size="12" fill="#c0392b" font-weight="600">✗ publishes not checked (G3)</text>
+    <text x="647" y="574" font-size="12" fill="#0f7c7a" font-weight="600">✓ named events: own prefix only</text>
+    <rect x="635" y="595" width="245" height="50" rx="8" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="647" y="613" font-size="13" font-weight="700">GeneratedFiles (generated.py)</text>
+    <text x="647" y="632" font-size="12">generated/: list · directory · deps</text>
+
+    <!-- modules -->
+    <rect x="925" y="20" width="160" height="290" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="937" y="40" font-size="15" font-weight="700">Add-ons</text>
+    <rect x="938" y="52" width="137" height="60" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="946" y="70" font-weight="700">html_viewer</text>
+    <text x="946" y="87" font-size="12">viewer.open</text>
+    <text x="946" y="103" font-size="12">· highlight · tabs</text>
+    <rect x="938" y="125" width="137" height="158" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <g font-size="12">
+      <text x="946" y="143" font-size="13" font-weight="700">voice_notes</text>
+      <text x="946" y="161">off at launch</text>
+      <text x="946" y="177">needs voice_in</text>
+      <text x="946" y="193">requires IVoice</text>
+      <text x="946" y="209">listens VoiceState,</text>
+      <text x="946" y="225">VoiceTranscript</text>
+      <text x="946" y="245">menu: none; its own</text>
+      <text x="946" y="261">page, Record / Stop</text>
+    </g>
+    <rect x="925" y="410" width="160" height="100" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <g font-size="12">
+      <text x="937" y="428" font-size="13" font-weight="700">voice_in</text>
+      <text x="937" y="444">a core module, on</text>
+      <text x="937" y="460">provides IVoice</text>
+      <text x="937" y="476">publishes VoiceState,</text>
+      <text x="937" y="492">VoiceTranscript</text>
+    </g>
+
+    <!-- where the cards reach you -->
+    <rect x="20" y="680" width="1065" height="66" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="32" y="699" font-size="14" font-weight="700">You see the card and answer it: temp_ui and the Talker</text>
+    <text x="32" y="717" font-size="12">temp_ui shows both kinds of card with buttons; the Talker reads them to you and sends your yes or no (hub.answer for an agent's card, AnswerPermissionRequest for the handler's)</text>
+    <text x="32" y="735" font-size="12">listen: TaskUpdated, PermissionRequested, PermissionChanged (closes the card) · send: AnswerPermission, AnswerPermissionRequest</text>
+
+    <!-- tool calls (teal) -->
+    <g stroke="#0f7c7a" stroke-width="2.5" fill="none">
+      <line x1="210" y1="128" x2="246" y2="128" marker-end="url(#at)"/>
+      <line x1="700" y1="188" x2="700" y2="163" marker-end="url(#at)"/>
+      <line x1="880" y1="215" x2="936" y2="96" marker-end="url(#at)"/>
+    </g>
+    <!-- commands (dark) -->
+    <g stroke="#55534d" stroke-width="2.5" fill="none">
+      <line x1="443" y1="150" x2="478" y2="150" marker-end="url(#ac)"/>
+      <line x1="580" y1="40" x2="633" y2="40" marker-end="url(#ac)"/>
+      <line x1="580" y1="70" x2="633" y2="70" marker-end="url(#ac)"/>
+      <line x1="580" y1="222" x2="633" y2="222" marker-end="url(#ac)"/>
+      <line x1="635" y1="135" x2="582" y2="135" marker-end="url(#ac)"/>
+      <path d="M530 285 L530 470 L633 470" marker-end="url(#ac)"/>
+      <line x1="210" y1="240" x2="246" y2="240" marker-end="url(#ac)"/>
+    </g>
+    <!-- the core's own calls (grey dotted) -->
+    <g stroke="#8a877c" stroke-width="2.5" fill="none" stroke-dasharray="2 4">
+      <line x1="210" y1="430" x2="632" y2="430" marker-end="url(#ai)"/>
+      <line x1="880" y1="460" x2="923" y2="460" marker-end="url(#ai)"/>
+      <line x1="880" y1="435" x2="936" y2="272" marker-end="url(#ai)"/>
+      <path d="M635 490 L608 490 L608 620 L633 620" marker-end="url(#ai)"/>
+    </g>
+    <!-- questions (purple, solid): P1 agent asks its gate, P7 a module asks for its access list, P8 "in Auto?" -->
+    <g stroke="#6b4fa0" stroke-width="2.5" fill="none">
+      <line x1="70" y1="168" x2="70" y2="198" marker-end="url(#ap)"/>
+      <line x1="700" y1="420" x2="700" y2="379" marker-end="url(#ap)"/>
+      <line x1="635" y1="312" x2="446" y2="312" marker-end="url(#ap)"/>
+    </g>
+    <!-- answers (dashed, hollow head) -->
+    <g stroke-width="2.5" fill="none" stroke-dasharray="6 4">
+      <line x1="150" y1="200" x2="150" y2="171" stroke="#6b4fa0" marker-end="url(#ahp)"/>
+      <line x1="443" y1="340" x2="633" y2="340" stroke="#6b4fa0" marker-end="url(#ahp)"/>
+      <line x1="780" y1="376" x2="780" y2="417" stroke="#6b4fa0" marker-end="url(#ahp)"/>
+      <line x1="248" y1="280" x2="213" y2="280" stroke="#3d7f4f" marker-end="url(#ahg)"/>
+      <line x1="500" y1="680" x2="500" y2="288" stroke="#55534d" marker-end="url(#ahc)"/>
+      <line x1="480" y1="262" x2="446" y2="262" stroke="#55534d" marker-end="url(#ahc)"/>
+      <path d="M580 275 L655 275 L655 297" stroke="#55534d" marker-end="url(#ahc)"/>
+    </g>
+    <!-- contract call (green) -->
+    <line x1="1005" y1="285" x2="1005" y2="408" stroke="#3d7f4f" stroke-width="2.5" marker-end="url(#ag)"/>
+    <!-- events (blue); P4 and P10 are the cards to you -->
+    <g stroke="#2f6f9f" stroke-width="2.5" fill="none">
+      <line x1="760" y1="501" x2="760" y2="523" marker-end="url(#ab)"/>
+      <path d="M1005 510 L1005 535 L882 535" marker-end="url(#ab)"/>
+      <path d="M880 552 L1092 552 L1092 200 L1077 200" marker-end="url(#ab)"/>
+      <line x1="300" y1="377" x2="300" y2="678" marker-end="url(#ab)"/>
+      <path d="M635 360 L622 360 L622 552 L633 552" marker-end="url(#ab)"/>
+      <path d="M880 572 L905 572 L905 678" marker-end="url(#ab)"/>
+    </g>
+    <!-- line labels -->
+    <g font-size="11" font-weight="600">
+      <text x="84" y="188" fill="#6b4fa0">use_item?</text>
+      <text x="164" y="188" fill="#6b4fa0">allow · deny</text>
+      <text x="540" y="306" fill="#6b4fa0">in Auto?</text>
+      <text x="540" y="356" fill="#6b4fa0">Manual or Auto</text>
+      <text x="690" y="402" fill="#6b4fa0" text-anchor="end">request_set</text>
+      <text x="794" y="402" fill="#6b4fa0">grant · wait · deny</text>
+      <text x="308" y="610" fill="#2f6f9f">TaskUpdated: the card</text>
+      <text x="912" y="640" fill="#2f6f9f">PermissionRequested</text>
+      <text x="508" y="660" fill="#55534d">your answers</text>
+    </g>
+
+    <!-- step numbers -->
+    <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="380" cy="430" r="12" fill="#8a877c"/><text x="380" y="434">A1</text>
+      <circle cx="228" cy="112" r="12" fill="#0f7c7a"/><text x="228" y="116">A2</text>
+      <circle cx="607" cy="28" r="12" fill="#55534d"/><text x="607" y="32">A3</text>
+      <circle cx="607" cy="57" r="12" fill="#55534d"/><text x="607" y="61">A4</text>
+      <circle cx="607" cy="208" r="12" fill="#55534d"/><text x="607" y="212">A5</text>
+      <circle cx="720" cy="175" r="12" fill="#0f7c7a"/><text x="720" y="179">A6</text>
+      <circle cx="607" cy="121" r="12" fill="#55534d"/><text x="607" y="125">A7</text>
+      <circle cx="565" cy="470" r="12" fill="#55534d"/><text x="565" y="474">A7</text>
+      <circle cx="902" cy="448" r="12" fill="#8a877c"/><text x="902" y="452">A8</text>
+      <circle cx="899" cy="380" r="12" fill="#8a877c"/><text x="899" y="384">A9</text>
+      <circle cx="780" cy="512" r="12" fill="#2f6f9f"/><text x="780" y="516">A10</text>
+      <circle cx="608" cy="590" r="12" fill="#8a877c"/><text x="608" y="594">A11</text>
+      <circle cx="1024" cy="350" r="12" fill="#3d7f4f"/><text x="1024" y="354">A12</text>
+      <circle cx="940" cy="535" r="12" fill="#2f6f9f"/><text x="940" y="539">A13</text>
+      <circle cx="1092" cy="380" r="12" fill="#2f6f9f"/><text x="1092" y="384">A13</text>
+      <circle cx="902" cy="168" r="12" fill="#0f7c7a"/><text x="902" y="172">A14</text>
+    </g>
+    <g font-size="10" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="70" cy="184" r="11" fill="#6b4fa0"/><text x="70" y="188">P1</text>
+      <circle cx="150" cy="184" r="11" fill="#6b4fa0"/><text x="150" y="188">P2</text>
+      <circle cx="228" cy="240" r="11" fill="#55534d"/><text x="228" y="244">P3</text>
+      <circle cx="300" cy="560" r="11" fill="#2f6f9f"/><text x="300" y="564">P4</text>
+      <circle cx="468" cy="262" r="11" fill="#55534d"/><text x="468" y="266">P5</text>
+      <circle cx="500" cy="560" r="11" fill="#55534d"/><text x="500" y="564">P5</text>
+      <circle cx="500" cy="590" r="11" fill="#55534d"/><text x="500" y="594">P11</text>
+      <circle cx="228" cy="280" r="11" fill="#3d7f4f"/><text x="228" y="284">P6</text>
+      <circle cx="700" cy="398" r="11" fill="#6b4fa0"/><text x="700" y="402">P7</text>
+      <circle cx="480" cy="312" r="11" fill="#6b4fa0"/><text x="480" y="316">P8</text>
+      <circle cx="480" cy="340" r="11" fill="#6b4fa0"/><text x="480" y="344">P9</text>
+      <circle cx="622" cy="410" r="11" fill="#2f6f9f"/><text x="622" y="414">P10</text>
+      <circle cx="905" cy="610" r="11" fill="#2f6f9f"/><text x="905" y="614">P10</text>
+      <circle cx="620" cy="275" r="11" fill="#55534d"/><text x="620" y="279">P11</text>
+      <circle cx="780" cy="398" r="11" fill="#6b4fa0"/><text x="780" y="402">P12</text>
+    </g>
+  </g>
+</svg>
+<p class="note">Rendering not checked by eye: a label may sit close to a line. The unnumbered dark arrow from the door into the router carries A3, A4 and A5: each door tool becomes one core command. The dashed dark arrow from the card box up into the router carries your answers to both kinds of card (P5 and P11); the router then sends each to its one handler.</p>
+
+<table>
+  <tr><th>#</th><th>From → to</th><th>Path</th><th>What happens · checks today</th></tr>
+  <tr><td>A1</td><td>Module folders → <code>LifecycleManager</code></td><td>the core's own call at launch: <code>App(find_modules(), …)</code> (<code>__main__.py:59</code>)</td><td><code>find_modules</code> (<code>loader.py:207</code>) takes every sub-folder of <code>assistant.modules</code> that exports one module class whose id is the folder's name. The lifecycle keeps every class, on or off. No check needed: local code</td></tr>
+  <tr><td>A2</td><td>Talker or Main Assistant → the door</td><td>tool call via the door: <code>list_modules</code>, <code>show_menu</code>, <code>use_item</code></td><td><span class="yes">✓</span> the token proves the caller (<code>mcp_door.py</code>). <span class="no">✗</span> the door's host may name any caller (G1)</td></tr>
+  <tr><td>A3</td><td>Router → directory</td><td><code>ListModules</code>, a command → <code>App._list_modules</code> (<code>app.py:155</code>) → <code>lifecycle.modules()</code></td><td>Finds voice_notes, off. Read-only, no check</td></tr>
+  <tr><td>A4</td><td>Router → directory</td><td><code>GetMenu("voice_notes")</code> → <code>App._get_menu</code> reads the class's <code>Menu</code>, on or off</td><td>voice_notes' menu is empty: it has no items, its page has the Record button. <code>modules.docs</code> reads its docs folder for what it does. Read-only</td></tr>
+  <tr><td>A5</td><td>Router → <code>dispatch_tool</code></td><td><code>InvokeTool("modules.on", {module_id: "voice_notes"}, caller)</code>, a command</td><td><span class="yes">✓</span> item <code>callers</code>, argument schema. <span class="no">✗</span> no permission or mode check (G5)</td></tr>
+  <tr><td>A6</td><td><code>dispatch_tool</code> → the core's menu</td><td>tool call to <code>CoreMenu.on</code> (<code>directory.py:67</code>), the caller kept as "acting for"</td><td>Turning a module on isn't a risky item, so no card. <span class="no">✗</span> <code>modules.add</code>, <code>modules.remove</code> and <code>off</code> with dependents call a single-name <code>permissions.request</code> (<code>directory.py:79, 94, 106</code>), which today allows and logs, never a card (<code>core/permissions/port.py:29-35</code>; G13). <code>modules.reload</code> asks nothing</td></tr>
+  <tr><td>A7</td><td>Core menu → router → lifecycle</td><td><code>ActivateModule</code>, a command → <code>App._activate_module</code> → <code>LifecycleManager.activate</code></td><td><span class="no">✗</span> no sender on the command (G2)</td></tr>
+  <tr><td>A8</td><td>Lifecycle → voice_in</td><td>the core's own call: <code>_activate</code> (<code>lifecycle.py:268</code>) turns on first the one provider of each contract voice_notes requires (<code>IVoice</code>) and each module it needs (<code>needs = ["voice_in"]</code>)</td><td>voice_in is on from launch, so nothing more happens. Two providers of a contract: refused, you pick one</td></tr>
+  <tr><td>A9</td><td>Lifecycle → voice_notes</td><td>the core's own call: init with its own context, <code>link_menu</code> (its tools, if any), then <code>start()</code>, where it subscribes</td><td>A module with an access list asks its card here: P7 to P12 (<code>request_set</code>); none in Auto. voice_notes and voice_in have no access list</td></tr>
+  <tr><td>A10</td><td>Lifecycle → bus</td><td>event <code>ModuleStateChanged</code> (starting, active), from <code>App._on_module_state</code> (<code>app.py:279</code>)</td><td>For UIs. Published by the core itself</td></tr>
+  <tr><td>A11</td><td>Core → <code>generated/</code></td><td>the core's own call: <code>GeneratedFiles.write()</code> on every state change</td><td>A copy for people and the docs; nothing reads it to decide</td></tr>
+  <tr><td>A12</td><td>voice_notes → voice_in</td><td>contract call: <code>IVoice.listen(session_id, CALLER)</code> on Record, looked up at each call (<code>get_one</code>)</td><td><span class="no">✗</span> voice_notes asks nothing; voice_in asks <code>ctx.permissions.request("microphone")</code> before each session (<code>voice_in/module.py:242-243</code>), but a single-name request only logs and allows (<code>core/permissions/port.py:29-35</code>; G13), so you're never asked</td></tr>
+  <tr><td>A13</td><td>voice_in → bus → voice_notes</td><td>events <code>VoiceState</code>, <code>VoiceTranscript</code></td><td><span class="no">✗</span> publishes not checked (G3). voice_notes declares both in <code>listens</code></td></tr>
+  <tr><td>A14</td><td>Later: door → router → <code>dispatch_tool</code> → an add-on's item (<code>viewer.open</code>)</td><td>tool call: A2 and A5 again</td><td><span class="yes">✓</span> item <code>callers</code>, schema; an off module with <code>start_on_use</code> starts here. <span class="no">✗</span> no permission check (G5)</td></tr>
+</table>
+
+<h3 class="flow">The permission steps, today (P1 to P12)</h3>
+<p class="sub">Two checks, in two places. P1 to P6: an agent's own gate, for its tool calls. P7 to P12: the core's permissions handler, for a module's access list. Questions are solid, answers dashed with a hollow head.</p>
+<table>
+  <tr><th>#</th><th>From → to</th><th>Question or answer</th><th>What happens · checks today</th></tr>
+  <tr><td>P1</td><td>Talker or Main Assistant → its own gate</td><td>question: may I run <code>use_item</code>?</td><td>For the Main Assistant and every task agent: <code>list_modules</code> and <code>show_menu</code> are allowed up front; <code>use_item</code> asks in Manual (<code>agent_profile.py:180-190</code>). <span class="no">✗</span> <b>Not the Talker:</b> it has no gate, all three door tools are allowed by rule (<code>talker/session.py:245-259</code>; G14)</td></tr>
+  <tr><td>P2</td><td>Gate → the agent</td><td>answer: allow or deny</td><td>The gate reads its own agent's mode. Auto answers at once: everything but <code>git push</code> (<code>permission_gate.py:176</code>). Manual answers after P3 to P6</td></tr>
+  <tr><td>P3</td><td>Gate → the Hub's task board</td><td>question, as a command: <code>ReportTask(permission)</code> (<code>permission_gate.py:173</code> → <code>tasks.py:366</code>)</td><td><span class="no">✗</span> no sender on the command (G2)</td></tr>
+  <tr><td>P4</td><td>Task board → bus → you</td><td>the card: <code>TaskUpdated</code> with the question</td><td>temp_ui shows it; the Talker reads it to you; held behind the <b>!</b> when the agent isn't in focus. <span class="no">✗</span> publishes not checked (G3)</td></tr>
+  <tr><td>P5</td><td>You → router → task board</td><td>your answer: <code>AnswerPermission</code> from temp_ui (<code>temp_ui/module.py:683</code>), or <code>hub.answer</code> from the Talker (<code>agent_hub/module.py:263</code>) → <code>TaskBoard.answer</code> (<code>tasks.py:383</code>)</td><td><span class="no">✗</span> no sender: any module could answer (G2)</td></tr>
+  <tr><td>P6</td><td>Task board → the agent's gate</td><td>answer, a contract call: <code>ITaskAgent.answer_permission</code> (<code>session_agent.py:456</code>)</td><td>The gate then gives P2</td></tr>
+  <tr><td>P7</td><td>Lifecycle (the module starting) → permissions handler</td><td>question: <code>ctx.permissions.request_set</code>, the module's access list</td><td><span class="yes">✓</span> asked once, at start</td></tr>
+  <tr><td>P8</td><td>Permissions handler → Hub</td><td>question: <code>ListAgents</code>, "is this agent in Auto?" (<code>handler.py:410-423</code>)</td><td><span class="no">✗</span> the core depends on a module for its rule-1 check (G4). Same as 9 in picture 1</td></tr>
+  <tr><td>P9</td><td>Hub → permissions handler</td><td>answer: every agent with its mode, Manual or Auto</td><td>Auto: granted, no card. Hub off or no answer: read as "not Auto", so the card is shown. Same as 11 in picture 1</td></tr>
+  <tr><td>P10</td><td>Permissions handler → bus → you</td><td>the card: <code>PermissionRequested</code> (<code>handler.py:475</code>)</td><td>temp_ui (<code>temp_ui/module.py:280</code>) and the Talker (<code>talker/module.py:138</code>) listen. <span class="no">✗</span> publishes not checked (G3)</td></tr>
+  <tr><td>P11</td><td>You → router → permissions handler</td><td>your answer: <code>AnswerPermissionRequest</code> from temp_ui (<code>temp_ui/module.py:689</code>) or the Talker (<code>talker/session.py:394</code>) → <code>PermissionsHandler.answer</code> (<code>app.py:93</code>, <code>handler.py:275</code>)</td><td><code>PermissionChanged</code> closes the card (<code>handler.py:427</code>). <span class="no">✗</span> no sender (G2)</td></tr>
+  <tr><td>P12</td><td>Permissions handler → the module starting</td><td>answer to P7: the grant, or <code>AccessPending</code> (the list waits on its card), or <code>AccessDenied</code></td><td>Matches <code>docs/architecture/permissions.md</code></td></tr>
+</table>
+
+<h3 class="flow">The five use cases, today</h3>
+<table>
+  <tr><th>Use case</th><th>How it goes</th><th>What keeps track (class, file)</th><th>Checks today</th></tr>
+  <tr><td><b>1 · Finding modules</b></td><td>A1 at launch. Then <code>modules.list</code> or the door's <code>list_modules</code> → <code>ListModules</code> → one line per module: id, what it does, state (A3). <code>modules.docs</code> gives its own pages</td><td><code>LifecycleManager._classes</code> and <code>_states</code> (<code>core/lifecycle.py</code>): every module that exists, on or off. What each does: its <code>Manifest</code> (description, contracts, <code>needs</code> from its <code>module.toml</code>). <code>generated/</code> is only a copy</td><td>Read-only, no ask. Who's asking rests on the door (G1)</td></tr>
+  <tr><td><b>2 · Finding and using tools</b></td><td><code>show_menu</code> → <code>GetMenu</code> reads the module's <code>Menu</code> (A4); <code>use_item</code> → <code>InvokeTool</code> → router → <code>dispatch_tool</code> → the provider with that name (A5, A14). Nobody offers it: a module with <code>start_on_use</code> starts</td><td>What a module offers: its class's <code>Menu</code> (<code>@menu.item</code>). Who offers it now: the container's <code>IToolProvider</code> list, filled by <code>ctx.link_menu</code> at start (<code>core/context.py:140</code>, a <code>MenuTools</code>), emptied at stop. The core's own items: <code>CoreMenu</code>, <code>PermissionsMenu</code></td><td><span class="yes">✓</span> item <code>callers</code>, schema. <span class="no">✗</span> no permission or mode check (G5); a module calling from code is never asked, and it can skip the router with <code>invoke_as</code> under any caller (G16)</td></tr>
+  <tr><td><b>3 · Setting up and using events</b></td><td>In <code>start()</code>: <code>ctx.subscribe(EventType, handler)</code>, or <code>ctx.subscribe_named("cv.job_finished")</code> (or <code>"cv.*"</code>) for a module's own named events. <code>ctx.publish(event)</code>; <code>ctx.publish_named("&lt;own id&gt;.&lt;what&gt;", plain JSON)</code> sends a <code>ModuleEvent</code>. The bus hands it to every subscriber</td><td><code>EventBus</code> (<code>core/bus.py</code>): the subscriptions, each with its owner. Each module's <code>ScopedContext</code> (<code>core/context.py</code>) keeps its handles, to undo them at stop. What a module should publish and listen to: its manifest's <code>publishes</code> / <code>listens</code> (and the <code>_named</code> lists)</td><td><span class="yes">✓</span> a named event only under the module's own id. <span class="no">✗</span> <code>publishes</code> not enforced (G3); an undeclared subscription only logs a warning</td></tr>
+  <tr><td><b>4 · Adding a new module</b></td><td><code>modules.add(package)</code> → a card ("load new code from …") → <code>AddModule</code> → the router holds commands meanwhile → <code>LifecycleManager.add</code>: refuses shared code, imports the package fresh, checks the folder is named with its id, records the class (state off: <code>ModuleStateChanged</code>, <code>generated/</code> rewritten). From then on <code>ListModules</code> and <code>GetMenu</code> show it. With <code>activate</code> (the default) it turns on as in A8 and A9: its handlers, contracts and menu are registered, then it starts and subscribes</td><td>The same <code>LifecycleManager._classes</code>; the menu and tools as in use case 2. Code: <code>lifecycle.py:172</code>, <code>app.py:212</code>, <code>loader.py</code></td><td><span class="no">✗</span> meant to ask a card before new code loads, but the ask is a single name, so it allows and logs today (<code>directory.py:79</code>; G13). Not recorded: at the next launch it is off (found by folder) or gone (from elsewhere) (V4). <b>Still needs a restart:</b> a new contract, or changes to shared code (core, contracts, infra, app_kit); the load is refused with that reason</td></tr>
+  <tr><td><b>5 · Removing a module</b></td><td><code>modules.remove(id, keep | purge)</code> → a card → <code>RemoveModule</code> → <code>LifecycleManager.remove</code>: refused while an active module needs it (<code>needs</code>, or it's the one provider of a contract that one requires) or while an enabled module's <code>needs</code> lists it. Else it turns off: its context closes, which unsubscribes all its events, unregisters its command handlers and takes back everything it provided, its tools too; anything it publishes later is dropped. Then its class leaves the list, so the directory stops showing it, and <code>generated/</code> is rewritten</td><td>The same <code>LifecycleManager._classes</code> and <code>_states</code>; the undo list in its <code>ScopedContext.close</code> (<code>context.py:166</code>). Code: <code>lifecycle.py:197</code>, <code>app.py:218</code></td><td><span class="no">✗</span> meant to ask a card first, but the single-name ask allows and logs today (<code>directory.py:94</code>; G13). <span class="yes">✓</span> refused while needed. Events still queued for it are dropped (V5). <b>Purge</b> deletes only <code>config/&lt;id&gt;.toml</code> and <code>config/&lt;id&gt;.local.toml</code>; <b>keep</b> deletes nothing. Never deletes its folder or edits <code>config/modules.toml</code>: the result says if it's still enabled (then it starts again at the next launch). <code>modules.add</code> brings it back in this run</td></tr>
+</table>
+
+<!-- ============ 2 · SUGGESTION ============ -->
+<h2>2 · Suggested</h2>
+<svg viewBox="0 0 1100 520" aria-label="Suggested: the app's piping">
+  <defs>
+    <marker id="nt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="nc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="nb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="np" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="nhp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+    <marker id="nhc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#55534d" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <rect x="20" y="20" width="230" height="44" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="135" y="48" text-anchor="middle" font-size="17">You</text>
+    <rect x="20" y="90" width="230" height="56" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="124" font-size="16" font-weight="700">Talker</text>
+    <rect x="20" y="170" width="230" height="56" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="204" font-size="16" font-weight="700">Main Assistant</text>
+    <rect x="20" y="250" width="230" height="64" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="275" font-size="16" font-weight="700">Helpers</text>
+    <text x="34" y="295">cv_agent · job agent · task_agents</text>
+    <rect x="20" y="380" width="230" height="70" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="403" font-size="16" font-weight="700">temp_ui</text>
+    <text x="34" y="423">a "you" caller in Callers</text>
+
+    <!-- Core -->
+    <rect x="290" y="20" width="520" height="470" rx="12" fill="#f1f0ec" stroke="#55534d" stroke-width="2.5"/>
+    <text x="305" y="44" font-size="17" font-weight="700">Core: every call and every card passes here</text>
+    <rect x="305" y="60" width="240" height="80" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="317" y="80" font-size="15" font-weight="700">Module door (core) · D1</text>
+    <text x="317" y="98">list · menu · call</text>
+    <text x="317" y="116" fill="#0f7c7a" font-weight="600">✓ caller proved by its token,</text>
+    <text x="317" y="132" fill="#0f7c7a" font-weight="600">   no module may name another</text>
+    <rect x="305" y="152" width="240" height="84" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="317" y="172" font-size="15" font-weight="700">Callers (new port) · D2</text>
+    <text x="317" y="190">agent names · kinds · each mode</text>
+    <text x="317" y="207">who is "you"</text>
+    <text x="317" y="225" fill="#0f7c7a" font-weight="600">✓ Auto set only by "you"</text>
+    <rect x="560" y="60" width="235" height="176" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2.5"/>
+    <text x="572" y="80" font-size="15" font-weight="700">One gate (dispatch_tool) · D4</text>
+    <text x="572" y="102">1 caller proved (door or module id)</text>
+    <text x="572" y="122">2 item callers + argument schema</text>
+    <text x="572" y="142">3 a risky item: asks the handler (7),</text>
+    <text x="572" y="160">   allow · deny · card back (8)</text>
+    <text x="572" y="180">4 sender stamped on the call</text>
+    <text x="572" y="220" fill="#0f7c7a" font-weight="600">✓ same gate from code or agent</text>
+    <rect x="305" y="276" width="490" height="64" rx="8" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="317" y="296" font-size="15" font-weight="700">Permissions handler + cards · D6</text>
+    <text x="317" y="314" fill="#0f7c7a" font-weight="600">✓ mode read from Callers (9, 10), no ListAgents · answers only from "you"</text>
+    <text x="317" y="332">the review: a listener that adds notes to a card, never a started task</text>
+    <rect x="305" y="360" width="490" height="46" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="317" y="388" font-size="15" font-weight="700">Bus · D5</text>
+    <text x="392" y="388" fill="#0f7c7a" font-weight="600">✓ publishes strict · events only notify, never control</text>
+    <rect x="305" y="420" width="490" height="56" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="317" y="440" font-size="15" font-weight="700">Router · D3</text>
+    <text x="317" y="462" fill="#0f7c7a" font-weight="600">✓ sender stamped · sends strict · control commands only from "you"</text>
+
+    <!-- Modules -->
+    <rect x="840" y="20" width="240" height="470" rx="12" fill="#fff" stroke="#55534d" stroke-width="2.5"/>
+    <text x="855" y="44" font-size="17" font-weight="700">Modules</text>
+    <rect x="855" y="60" width="210" height="170" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="867" y="80" font-size="15" font-weight="700">Agent Hub</text>
+    <text x="867" y="98" font-weight="600">coordination only</text>
+    <text x="867" y="120">task board · status · cancel</text>
+    <text x="867" y="138">focus · held questions</text>
+    <text x="867" y="156">delivery · message hold</text>
+    <text x="867" y="174">milestones to the coordinator</text>
+    <text x="867" y="192">rule 2 (_settle) · hub.* menu</text>
+    <text x="867" y="214" fill="#6f6d66">no door, no names, no mode</text>
+    <rect x="855" y="244" width="210" height="100" rx="8" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="867" y="264" font-size="15" font-weight="700">Core modules</text>
+    <text x="867" y="284">talker · main_assistant</text>
+    <text x="867" y="302">task_agents · temp_ui · usage</text>
+    <text x="867" y="320">console_io · assistant_view</text>
+    <text x="867" y="338">voice_in</text>
+    <rect x="855" y="358" width="210" height="110" rx="8" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="867" y="378" font-size="15" font-weight="700">Add-ons</text>
+    <text x="867" y="398">cv · job_search</text>
+    <text x="867" y="416">html_viewer · voice_notes</text>
+    <text x="867" y="434">echo_orchestrator</text>
+
+    <!-- tools -->
+    <g stroke="#0f7c7a" stroke-width="2.5" fill="none">
+      <line x1="250" y1="118" x2="303" y2="88" marker-end="url(#nt)"/>
+      <line x1="250" y1="198" x2="303" y2="100" marker-end="url(#nt)"/>
+      <line x1="250" y1="270" x2="303" y2="112" marker-end="url(#nt)"/>
+      <line x1="545" y1="100" x2="558" y2="100" marker-end="url(#nt)"/>
+      <line x1="795" y1="140" x2="853" y2="140" marker-end="url(#nt)"/>
+    </g>
+    <!-- commands -->
+    <g stroke="#55534d" stroke-width="2.5" fill="none">
+      <line x1="250" y1="445" x2="303" y2="445" marker-end="url(#nc)"/>
+      <line x1="795" y1="462" x2="853" y2="462" marker-end="url(#nc)"/>
+    </g>
+    <path d="M250 300 L278 300 L278 430 L303 430" stroke="#55534d" stroke-width="2" stroke-dasharray="6 4" fill="none" marker-end="url(#nc)"/>
+    <!-- events -->
+    <g stroke="#2f6f9f" stroke-width="2.5" fill="none">
+      <line x1="795" y1="383" x2="853" y2="383" marker-end="url(#nb)" marker-start="url(#nb)"/>
+      <line x1="760" y1="340" x2="760" y2="358" marker-end="url(#nb)"/>
+      <line x1="305" y1="392" x2="253" y2="392" marker-end="url(#nb)"/>
+    </g>
+    <!-- questions (purple, solid) -->
+    <g stroke="#6b4fa0" stroke-width="2.5" fill="none">
+      <line x1="600" y1="236" x2="600" y2="274" marker-end="url(#np)"/>
+      <line x1="340" y1="276" x2="340" y2="238" marker-end="url(#np)"/>
+    </g>
+    <!-- answers (dashed, hollow head) -->
+    <g stroke-width="2.5" fill="none" stroke-dasharray="6 4">
+      <line x1="700" y1="276" x2="700" y2="238" stroke="#6b4fa0" marker-end="url(#nhp)"/>
+      <line x1="460" y1="236" x2="460" y2="274" stroke="#6b4fa0" marker-end="url(#nhp)"/>
+      <path d="M795 448 L803 448 L803 318 L797 318" stroke="#55534d" marker-end="url(#nhc)"/>
+    </g>
+    <!-- line labels -->
+    <g font-size="11" font-weight="600" fill="#6b4fa0">
+      <text x="352" y="262">caller's mode?</text>
+      <text x="472" y="262">Manual or Auto</text>
+      <text x="612" y="262">risky: may it?</text>
+      <text x="712" y="262">allow · deny · card</text>
+    </g>
+    <g font-size="12" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="268" cy="140" r="10" fill="#0f7c7a"/><text x="268" y="144">1</text>
+      <circle cx="824" cy="128" r="10" fill="#0f7c7a"/><text x="824" y="132">2</text>
+      <circle cx="262" cy="445" r="10" fill="#55534d"/><text x="262" y="449">3</text>
+      <circle cx="278" cy="365" r="10" fill="#55534d"/><text x="278" y="369">4</text>
+      <circle cx="824" cy="450" r="10" fill="#55534d"/><text x="824" y="454">5</text>
+      <circle cx="824" cy="371" r="10" fill="#2f6f9f"/><text x="824" y="375">6</text>
+      <circle cx="600" cy="250" r="10" fill="#6b4fa0"/><text x="600" y="254">7</text>
+      <circle cx="700" cy="250" r="10" fill="#6b4fa0"/><text x="700" y="254">8</text>
+      <circle cx="340" cy="250" r="10" fill="#6b4fa0"/><text x="340" y="254">9</text>
+      <circle cx="460" cy="250" r="10" fill="#6b4fa0"/><text x="460" y="254">10</text>
+      <circle cx="780" cy="350" r="10" fill="#2f6f9f"/><text x="780" y="354">11</text>
+      <circle cx="803" cy="355" r="10" fill="#55534d"/><text x="803" y="359">12</text>
+      <circle cx="262" cy="392" r="10" fill="#2f6f9f"/><text x="262" y="396">13</text>
+    </g>
+  </g>
+</svg>
+<p class="note">Rendering not checked by eye. Questions are solid, answers dashed with a hollow head. The gate asks the permissions handler about a risky item (7) and gets allow, deny or a card back (8). The handler asks Callers for the caller's mode (9) and gets Manual or Auto (10). The card goes out as an event (11, then 13 to temp_ui and the Talker), and your answer comes back through the router (3, then 12).</p>
+
+<table>
+  <tr><th>#</th><th>From → to</th><th>Path</th><th>Checks it would pass</th></tr>
+  <tr><td>1</td><td>Every agent → the core's door → the gate</td><td>tool call</td><td>caller proved by the core (no module may name another); item <code>callers</code>; a risky item asks unless the caller is in Auto; the agent side keeps Claude Code's own asks</td></tr>
+  <tr><td>2</td><td>Gate → any module's item, <code>hub.*</code> included</td><td>tool call</td><td>the same gate whether the call comes from an agent or a module's code</td></tr>
+  <tr><td>3</td><td>temp_ui, Talker → router</td><td>commands (<code>SetPermissionMode</code>, card answers)</td><td>sender stamped; control commands only from a "you" caller; <code>SetPermissionMode</code> handled by Callers, not the Hub</td></tr>
+  <tr><td>4</td><td>Helper → router → Hub</td><td>STATUS line → <code>ReportTask</code> (milestone) → coordinator's next turn</td><td>sender stamped, so a report can only be about the sender's own task</td></tr>
+  <tr><td>5</td><td>Router → modules</td><td>commands to their one handler</td><td><code>handles</code> strict (as today), <code>sends</code> strict</td></tr>
+  <tr><td>6</td><td>Bus ↔ modules</td><td>events (<code>TaskUpdated</code>, <code>AgentActivity</code>, <code>PermissionRequested</code> …)</td><td><code>publishes</code> strict; only notifications. <code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code> become commands</td></tr>
+  <tr><td>7</td><td>Gate → permissions handler</td><td>question: a risky item, "may it?" (D4)</td><td>asked once, whether the call comes from an agent or from a module's code</td></tr>
+  <tr><td>8</td><td>Permissions handler → gate</td><td>answer: allow, deny, or "card" (the call waits on your answer, 11 to 12)</td><td>rule 1 in one place: in Auto, allow with no card</td></tr>
+  <tr><td>9</td><td>Permissions handler → Callers</td><td>question: the caller's mode</td><td>read in the core, no <code>ListAgents</code>: works with the Hub off (G4 closed)</td></tr>
+  <tr><td>10</td><td>Callers → permissions handler</td><td>answer: Manual or Auto</td><td>Auto can only have been set by "you": <code>SetPermissionMode</code> is handled in Callers</td></tr>
+  <tr><td>11</td><td>Permissions handler → bus</td><td><code>PermissionRequested</code>: the card</td><td><code>publishes</code> strict (D5)</td></tr>
+  <tr><td>12</td><td>Router → permissions handler</td><td>your answer: <code>AnswerPermissionRequest</code>, sent by temp_ui or the Talker along 3</td><td>sender stamped; answers only from a "you" caller (D3, D6)</td></tr>
+  <tr><td>13</td><td>Bus → temp_ui and the Talker</td><td>the card reaches you; <code>PermissionChanged</code> closes it</td><td>as today</td></tr>
+</table>
+<p class="note"><b>Rules 1 and 2, suggested:</b> rule 1 is checked once, in the core, with the mode read from Callers (no <code>ListAgents</code>), for access cards, message cards and risky tool calls alike. The agent's <code>PermissionGate</code> keeps only what Claude Code itself asks. Rule 2 stays in the Hub.</p>
+
+<!-- ============ 2b · SUGGESTED: ADD-ONS ============ -->
+<h2>2b · Suggested: how an add-on is found, turned on and reached</h2>
+<p class="sub">The same case and the same steps A1 to A14, with the proposal's changes: the door and the Callers port in the core, one checked gate. The same number means the same step in 1b. P1 to P14 are the permission steps: questions solid, answers dashed with a hollow head, and the cards that reach you (the box at the bottom).</p>
+<svg viewBox="0 0 1100 760" aria-label="Suggested: how an add-on is found, turned on and reached">
+  <defs>
+    <marker id="bt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="bc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="bb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="bp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="bg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3d7f4f"/></marker>
+    <marker id="bi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a877c"/></marker>
+    <marker id="bhp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+    <marker id="bhc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#55534d" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <!-- you, agents, the agent's own gate, folders -->
+    <rect x="20" y="12" width="190" height="62" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="115" y="31" text-anchor="middle" font-size="15" font-weight="700">You</text>
+    <text x="115" y="49" text-anchor="middle">“I want to start recording</text>
+    <text x="115" y="65" text-anchor="middle">voice notes”</text>
+    <line x1="115" y1="74" x2="115" y2="86" stroke="#8a877c" stroke-width="2" marker-end="url(#bi)"/>
+    <rect x="20" y="88" width="190" height="80" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="32" y="108" font-size="15" font-weight="700">Talker or</text>
+    <text x="32" y="126" font-size="15" font-weight="700">Main Assistant</text>
+    <text x="32" y="146">finds it through the door's</text>
+    <text x="32" y="162">3 tools</text>
+    <rect x="20" y="200" width="190" height="100" rx="10" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="32" y="218" font-size="14" font-weight="700">Agent's own gate</text>
+    <g font-size="12">
+      <text x="32" y="235">PermissionGate, one per agent</text>
+      <text x="32" y="251">only Claude Code's own asks</text>
+      <text x="32" y="267">its own card: P3 to P6,</text>
+      <text x="32" y="283">as in 1b (not drawn)</text>
+    </g>
+    <rect x="20" y="330" width="190" height="110" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2"/>
+    <text x="32" y="350" font-size="15" font-weight="700">Module folders</text>
+    <text x="32" y="370">modules/&lt;id&gt;/: code,</text>
+    <text x="32" y="386">module.toml, its Menu</text>
+    <text x="32" y="406" font-weight="700">loader.find_modules</text>
+    <text x="32" y="424">reads them once, at launch</text>
+
+    <!-- Core, now holding the door and Callers -->
+    <rect x="235" y="10" width="655" height="650" rx="12" fill="#f1f0ec" stroke="#55534d" stroke-width="2.5"/>
+    <text x="520" y="650" font-size="15" font-weight="700">Core: every call and every card passes here</text>
+    <rect x="248" y="90" width="195" height="112" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="258" y="108" font-size="14" font-weight="700">Module door (core) · D1</text>
+    <text x="258" y="126">list_modules → ListModules</text>
+    <text x="258" y="142">show_menu → GetMenu</text>
+    <text x="258" y="158">use_item → InvokeTool</text>
+    <text x="258" y="176" fill="#0f7c7a" font-weight="600">✓ caller proved by the core</text>
+    <text x="258" y="193" fill="#0f7c7a" font-weight="600">✓ no module names another</text>
+    <rect x="248" y="262" width="207" height="96" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="258" y="280" font-size="14" font-weight="700">Callers (new port) · D2</text>
+    <g font-size="12">
+      <text x="258" y="298">names · kinds · each caller's mode</text>
+      <text x="258" y="314">who is “you”</text>
+      <text x="258" y="332" fill="#0f7c7a" font-weight="600">✓ SetPermissionMode here:</text>
+      <text x="258" y="348" fill="#0f7c7a" font-weight="600">   Auto only from “you”</text>
+    </g>
+    <text x="250" y="380" font-size="12" fill="#6f6d66">The Agent Hub is off these paths:</text>
+    <text x="250" y="396" font-size="12" fill="#6f6d66">the door and the checks work with it off.</text>
+    <rect x="480" y="20" width="100" height="265" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <g font-size="12">
+      <text x="490" y="40" font-size="13" font-weight="700">Command</text>
+      <text x="490" y="56" font-size="13" font-weight="700">router</text>
+      <text x="490" y="80">ListModules</text>
+      <text x="490" y="97">GetMenu</text>
+      <text x="490" y="114">InvokeTool</text>
+      <text x="490" y="131">ActivateModule</text>
+      <text x="490" y="148">AddModule</text>
+      <text x="490" y="165">RemoveModule</text>
+      <text x="490" y="200" fill="#0f7c7a" font-weight="600">✓ sender</text>
+      <text x="490" y="216" fill="#0f7c7a" font-weight="600">stamped (D3)</text>
+    </g>
+    <rect x="635" y="20" width="245" height="65" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="647" y="38" font-size="14" font-weight="700">Directory (core/app.py)</text>
+    <text x="647" y="56">ListModules: every module, state</text>
+    <text x="647" y="74">GetMenu: one module's menu</text>
+    <rect x="635" y="100" width="245" height="60" rx="8" fill="#fff" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="647" y="117" font-size="14" font-weight="700">Core menu (core/directory.py)</text>
+    <text x="647" y="135" font-size="12">modules.list · menu · docs · on · off</text>
+    <text x="647" y="152" font-size="12" fill="#0f7c7a" font-weight="600">✓ add · remove · off+deps: risky items</text>
+    <rect x="635" y="190" width="245" height="72" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2.5"/>
+    <text x="647" y="208" font-size="14" font-weight="700">One gate: dispatch_tool · D4</text>
+    <text x="647" y="225" font-size="12" fill="#0f7c7a" font-weight="600">✓ caller proved · item callers</text>
+    <text x="647" y="241" font-size="12" fill="#0f7c7a" font-weight="600">✓ risky item: asks the handler (P13)</text>
+    <text x="647" y="257" font-size="12">starts an off start_on_use module</text>
+    <rect x="635" y="300" width="245" height="76" rx="8" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="647" y="318" font-size="14" font-weight="700">Permissions handler · D6</text>
+    <text x="647" y="335" font-size="12" fill="#0f7c7a" font-weight="600">✓ mode read from Callers (P8, P9)</text>
+    <text x="647" y="351" font-size="12" fill="#0f7c7a" font-weight="600">✓ answers only from “you” (P11)</text>
+    <text x="647" y="367" font-size="12">access-list card at start (P7)</text>
+    <rect x="635" y="420" width="245" height="80" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="647" y="438" font-size="14" font-weight="700">LifecycleManager (lifecycle.py)</text>
+    <text x="647" y="456" font-size="12">keeps every module class, on or off</text>
+    <text x="647" y="473" font-size="12">on: what it requires and needs first</text>
+    <text x="647" y="490" font-size="12">init · link_menu (tools) · start</text>
+    <rect x="635" y="525" width="245" height="55" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="647" y="542" font-size="14" font-weight="700">Event bus · D5</text>
+    <text x="647" y="559" font-size="12" fill="#0f7c7a" font-weight="600">✓ publishes strict, notify only</text>
+    <text x="647" y="574" font-size="12" fill="#0f7c7a" font-weight="600">✓ named events: own prefix only</text>
+    <rect x="635" y="595" width="245" height="50" rx="8" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="647" y="613" font-size="13" font-weight="700">GeneratedFiles (generated.py)</text>
+    <text x="647" y="632" font-size="12">generated/: list · directory · deps</text>
+
+    <!-- modules -->
+    <rect x="925" y="20" width="160" height="290" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="937" y="40" font-size="15" font-weight="700">Add-ons</text>
+    <rect x="938" y="52" width="137" height="60" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="946" y="70" font-weight="700">html_viewer</text>
+    <text x="946" y="87" font-size="12">viewer.open</text>
+    <text x="946" y="103" font-size="12">· highlight · tabs</text>
+    <rect x="938" y="125" width="137" height="158" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <g font-size="12">
+      <text x="946" y="143" font-size="13" font-weight="700">voice_notes</text>
+      <text x="946" y="161">off at launch</text>
+      <text x="946" y="177">needs voice_in</text>
+      <text x="946" y="193">requires IVoice</text>
+      <text x="946" y="209">listens VoiceState,</text>
+      <text x="946" y="225">VoiceTranscript</text>
+      <text x="946" y="245">menu: none; its own</text>
+      <text x="946" y="261">page, Record / Stop</text>
+    </g>
+    <rect x="925" y="410" width="160" height="100" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <g font-size="12">
+      <text x="937" y="428" font-size="13" font-weight="700">voice_in</text>
+      <text x="937" y="444">a core module, on</text>
+      <text x="937" y="460">provides IVoice</text>
+      <text x="937" y="476">publishes VoiceState,</text>
+      <text x="937" y="492">VoiceTranscript</text>
+    </g>
+
+    <!-- where the cards reach you -->
+    <rect x="20" y="680" width="1065" height="66" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="32" y="699" font-size="14" font-weight="700">You see the card and answer it: temp_ui and the Talker</text>
+    <text x="32" y="717" font-size="12">temp_ui shows the card with buttons; the Talker reads it to you and sends your yes or no. An agent's own card (P3 to P6) still comes through the Hub's task board, as in 1b</text>
+    <text x="32" y="735" font-size="12">listen: PermissionRequested, PermissionChanged (closes the card) · send: AnswerPermissionRequest, the sender stamped, so only a “you” caller may answer</text>
+
+    <!-- tool calls (teal) -->
+    <g stroke="#0f7c7a" stroke-width="2.5" fill="none">
+      <line x1="210" y1="128" x2="246" y2="128" marker-end="url(#bt)"/>
+      <line x1="700" y1="188" x2="700" y2="163" marker-end="url(#bt)"/>
+      <line x1="880" y1="215" x2="936" y2="96" marker-end="url(#bt)"/>
+    </g>
+    <!-- commands (dark) -->
+    <g stroke="#55534d" stroke-width="2.5" fill="none">
+      <line x1="443" y1="150" x2="478" y2="150" marker-end="url(#bc)"/>
+      <line x1="580" y1="40" x2="633" y2="40" marker-end="url(#bc)"/>
+      <line x1="580" y1="70" x2="633" y2="70" marker-end="url(#bc)"/>
+      <line x1="580" y1="222" x2="633" y2="222" marker-end="url(#bc)"/>
+      <line x1="635" y1="135" x2="582" y2="135" marker-end="url(#bc)"/>
+      <path d="M530 285 L530 470 L633 470" marker-end="url(#bc)"/>
+    </g>
+    <!-- the core's own calls (grey dotted) -->
+    <g stroke="#8a877c" stroke-width="2.5" fill="none" stroke-dasharray="2 4">
+      <line x1="210" y1="430" x2="632" y2="430" marker-end="url(#bi)"/>
+      <line x1="880" y1="460" x2="923" y2="460" marker-end="url(#bi)"/>
+      <line x1="880" y1="435" x2="936" y2="272" marker-end="url(#bi)"/>
+      <path d="M635 490 L608 490 L608 620 L633 620" marker-end="url(#bi)"/>
+    </g>
+    <!-- questions (purple, solid): P1 the agent asks its gate, P7 a module's access list, P8 the caller's mode, P13 a risky item -->
+    <g stroke="#6b4fa0" stroke-width="2.5" fill="none">
+      <line x1="70" y1="168" x2="70" y2="198" marker-end="url(#bp)"/>
+      <line x1="700" y1="420" x2="700" y2="379" marker-end="url(#bp)"/>
+      <line x1="635" y1="312" x2="458" y2="312" marker-end="url(#bp)"/>
+      <line x1="700" y1="262" x2="700" y2="298" marker-end="url(#bp)"/>
+    </g>
+    <!-- answers (dashed, hollow head): P2, P9, P12, P14, and your answer P11 -->
+    <g stroke-width="2.5" fill="none" stroke-dasharray="6 4">
+      <line x1="150" y1="200" x2="150" y2="171" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="455" y1="340" x2="633" y2="340" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="780" y1="376" x2="780" y2="417" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="774" y1="300" x2="774" y2="265" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="500" y1="680" x2="500" y2="288" stroke="#55534d" marker-end="url(#bhc)"/>
+      <path d="M580 275 L655 275 L655 297" stroke="#55534d" marker-end="url(#bhc)"/>
+    </g>
+    <!-- contract call (green) -->
+    <line x1="1005" y1="285" x2="1005" y2="408" stroke="#3d7f4f" stroke-width="2.5" marker-end="url(#bg)"/>
+    <!-- events (blue); P10 is the card to you -->
+    <g stroke="#2f6f9f" stroke-width="2.5" fill="none">
+      <line x1="760" y1="501" x2="760" y2="523" marker-end="url(#bb)"/>
+      <path d="M1005 510 L1005 535 L882 535" marker-end="url(#bb)"/>
+      <path d="M880 552 L1092 552 L1092 200 L1077 200" marker-end="url(#bb)"/>
+      <path d="M635 360 L622 360 L622 552 L633 552" marker-end="url(#bb)"/>
+      <path d="M880 572 L905 572 L905 678" marker-end="url(#bb)"/>
+    </g>
+    <!-- line labels -->
+    <g font-size="11" font-weight="600">
+      <text x="84" y="188" fill="#6b4fa0">use_item?</text>
+      <text x="164" y="188" fill="#6b4fa0">allow · deny</text>
+      <text x="540" y="306" fill="#6b4fa0">caller's mode?</text>
+      <text x="540" y="356" fill="#6b4fa0">Manual or Auto</text>
+      <text x="690" y="402" fill="#6b4fa0" text-anchor="end">request_set</text>
+      <text x="794" y="402" fill="#6b4fa0">grant · wait · deny</text>
+      <text x="714" y="284" fill="#6b4fa0">may it?</text>
+      <text x="788" y="284" fill="#6b4fa0">allow · deny · card</text>
+      <text x="912" y="640" fill="#2f6f9f">PermissionRequested</text>
+      <text x="508" y="660" fill="#55534d">your answer</text>
+    </g>
+
+    <!-- step numbers -->
+    <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="380" cy="430" r="12" fill="#8a877c"/><text x="380" y="434">A1</text>
+      <circle cx="228" cy="112" r="12" fill="#0f7c7a"/><text x="228" y="116">A2</text>
+      <circle cx="607" cy="28" r="12" fill="#55534d"/><text x="607" y="32">A3</text>
+      <circle cx="607" cy="57" r="12" fill="#55534d"/><text x="607" y="61">A4</text>
+      <circle cx="607" cy="208" r="12" fill="#55534d"/><text x="607" y="212">A5</text>
+      <circle cx="720" cy="175" r="12" fill="#0f7c7a"/><text x="720" y="179">A6</text>
+      <circle cx="607" cy="121" r="12" fill="#55534d"/><text x="607" y="125">A7</text>
+      <circle cx="565" cy="470" r="12" fill="#55534d"/><text x="565" y="474">A7</text>
+      <circle cx="902" cy="448" r="12" fill="#8a877c"/><text x="902" y="452">A8</text>
+      <circle cx="899" cy="380" r="12" fill="#8a877c"/><text x="899" y="384">A9</text>
+      <circle cx="780" cy="512" r="12" fill="#2f6f9f"/><text x="780" y="516">A10</text>
+      <circle cx="608" cy="590" r="12" fill="#8a877c"/><text x="608" y="594">A11</text>
+      <circle cx="1024" cy="350" r="12" fill="#3d7f4f"/><text x="1024" y="354">A12</text>
+      <circle cx="940" cy="535" r="12" fill="#2f6f9f"/><text x="940" y="539">A13</text>
+      <circle cx="1092" cy="380" r="12" fill="#2f6f9f"/><text x="1092" y="384">A13</text>
+      <circle cx="902" cy="168" r="12" fill="#0f7c7a"/><text x="902" y="172">A14</text>
+    </g>
+    <g font-size="10" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="70" cy="184" r="11" fill="#6b4fa0"/><text x="70" y="188">P1</text>
+      <circle cx="150" cy="184" r="11" fill="#6b4fa0"/><text x="150" y="188">P2</text>
+      <circle cx="700" cy="398" r="11" fill="#6b4fa0"/><text x="700" y="402">P7</text>
+      <circle cx="480" cy="312" r="11" fill="#6b4fa0"/><text x="480" y="316">P8</text>
+      <circle cx="480" cy="340" r="11" fill="#6b4fa0"/><text x="480" y="344">P9</text>
+      <circle cx="622" cy="410" r="11" fill="#2f6f9f"/><text x="622" y="414">P10</text>
+      <circle cx="905" cy="610" r="11" fill="#2f6f9f"/><text x="905" y="614">P10</text>
+      <circle cx="500" cy="590" r="11" fill="#55534d"/><text x="500" y="594">P11</text>
+      <circle cx="620" cy="275" r="11" fill="#55534d"/><text x="620" y="279">P11</text>
+      <circle cx="780" cy="398" r="11" fill="#6b4fa0"/><text x="780" y="402">P12</text>
+      <circle cx="700" cy="280" r="11" fill="#6b4fa0"/><text x="700" y="284">P13</text>
+      <circle cx="774" cy="282" r="11" fill="#6b4fa0"/><text x="774" y="286">P14</text>
+    </g>
+  </g>
+</svg>
+<p class="note">Rendering not checked by eye. P3 to P6 (an agent's own card, through the Hub's task board) are unchanged and not drawn: see 1b. P13 and P14 are new: the gate asks the permissions handler about a risky item and gets allow, deny or a card back. Only the steps the proposal changes are listed; the others stay as in 1b.</p>
+
+<table>
+  <tr><th>#</th><th>What changes</th><th>Checks it would pass</th></tr>
+  <tr><td>A2</td><td>The door is the core's (D1); no module hosts it</td><td>The caller proved by the core; no module may name another (G1 closed). Agents reach modules with the Hub off</td></tr>
+  <tr><td>A3–A5, A7</td><td>The router stamps the sender on each command (D3)</td><td><code>sends</code> strict; <code>ActivateModule</code> from the core's menu carries "core" as its sender</td></tr>
+  <tr><td>A5–A6</td><td><code>dispatch_tool</code> becomes the one gate (D4): for a risky item it asks the permissions handler (P13) and gets allow, deny or a card back (P14)</td><td>Caller proved, item <code>callers</code>; a risky item asks a card unless the caller is in Auto (rule 1 in one place). <code>modules.add</code>, <code>remove</code> and <code>off</code> with dependents would be marked risky there instead of each asking itself (a reading of D4, not spelled out in the note)</td></tr>
+  <tr><td>A9</td><td>The access-list card at start (P7 to P12) reads the caller's mode from Callers (P8, P9; D2)</td><td>No <code>ListAgents</code> to the Hub (G4 closed)</td></tr>
+  <tr><td>A10, A13</td><td><code>publishes</code> strict; events only notify (D5)</td><td>A module can only publish what its manifest says (G3 closed)</td></tr>
+  <tr><td>A12</td><td>Unchanged: a contract call is not gated</td><td><span class="no">✗</span> voice_in's mic ask is a single name, which only logs (G13). D4's note covers single-name asks in general; no decision covers the mic itself</td></tr>
+  <tr><td>A14</td><td>Through the same gate</td><td>The same checks whether the call comes from an agent or from a module's code (G5 closed)</td></tr>
+  <tr><td>P1, P2</td><td>The agent's own gate keeps only Claude Code's own asks</td><td>Unchanged for task agents: <code>use_item</code> asks in Manual. The Talker has no gate today (G14); with D4 its calls pass the core's gate like any other</td></tr>
+  <tr><td>P3–P6</td><td>An agent's own card, through the Hub's task board</td><td>Unchanged, not drawn; with D3 its <code>ReportTask</code> and <code>AnswerPermission</code> carry a sender</td></tr>
+  <tr><td>P8, P9</td><td>Permissions handler → Callers: "the caller's mode?"; Callers → handler: Manual or Auto</td><td>Read in the core, not from the Hub: works with the Hub off (G4 closed). Auto can only have been set by "you"</td></tr>
+  <tr><td>P10</td><td>Permissions handler → bus → you: <code>PermissionRequested</code></td><td><code>publishes</code> strict (D5)</td></tr>
+  <tr><td>P11</td><td>Your answer: <code>AnswerPermissionRequest</code> → router → handler</td><td>Sender stamped; only from a "you" caller (D2, D3). Also needs temp_ui's page guarded (G10) and a decision whether the Talker's tag answers count as you (G17)</td></tr>
+  <tr><td>P13</td><td>Gate → permissions handler: "may it?", for a risky item (<code>modules.add</code>, <code>remove</code>, <code>off</code> with dependents …)</td><td>Asked once, whether the call comes from an agent or from code (G5 closed). Today these items' own asks only log (G13), so this is the first real card for them</td></tr>
+  <tr><td>P14</td><td>Permissions handler → gate: allow, deny, or "card" (the call waits on your answer, P10 and P11)</td><td>Rule 1 in one place: in Auto, allow with no card</td></tr>
+</table>
+
+<h3 class="flow">The five use cases, suggested</h3>
+<table>
+  <tr><th>Use case</th><th>What changes</th><th>What keeps track</th></tr>
+  <tr><td><b>1 · Finding modules</b></td><td>Nothing, apart from the door now being the core's</td><td>Still <code>LifecycleManager._classes</code> and <code>_states</code>, and each module's manifest</td></tr>
+  <tr><td><b>2 · Finding and using tools</b></td><td>Every call passes the one gate (A5), from an agent or from code</td><td>Still the class's <code>Menu</code> and the container's <code>IToolProvider</code> list; the gate reads the caller's mode from Callers</td></tr>
+  <tr><td><b>3 · Setting up and using events</b></td><td><code>publishes</code> strict; <code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code> become commands</td><td>Still the <code>EventBus</code> and each <code>ScopedContext</code></td></tr>
+  <tr><td><b>4 · Adding a module</b></td><td>The card comes from the gate (risky item). An agent module's name is claimed in Callers instead of the Hub</td><td>Still <code>LifecycleManager</code>; agent names in Callers. A new contract still needs a restart</td></tr>
+  <tr><td><b>5 · Removing a module</b></td><td>The card comes from the gate. An agent module's name is released in Callers</td><td>Still <code>LifecycleManager</code> and <code>ScopedContext.close</code>; purge and keep unchanged</td></tr>
+</table>
+
+<h3 class="flow">Boxes with arrows one way only</h3>
+<ul class="changes">
+  <li><b>Fixed on this page:</b> the permissions handler and the bus in 1 (now 11 to 14); the Callers port and the permissions handler in 2 (7 to 13); the agent's own gate and the permissions handler in 1b (P1 to P12); Callers and the permissions handler in 2b (P8, P9, P13, P14, the card and your answer). On the <a href="core-and-hub-proposal.html">definition page</a>: the Hub's answer to the core's "is it Auto?".</li>
+  <li><b>You:</b> only arrows out, since you speak first; what comes back reaches you through temp_ui and the Talker (the card box in 1b and 2b).</li>
+  <li><b>Talker, Main Assistant, helpers, the door, the directory, the core's menu, html_viewer, the Hub's items:</b> a tool call or a command returns its <code>Result</code> along the same arrow. The return isn't drawn, to keep the pictures readable.</li>
+  <li><b>GeneratedFiles:</b> in only, by design: a copy for people and the docs; nothing reads it to decide.</li>
+  <li><b>Module folders:</b> out only, by design: read once, at launch.</li>
+</ul>
+
+<h2>3 · What changes</h2>
+<ul class="changes">
+  <li><b>The door</b> moves from the Agent Hub into the core (part of the Tools port). Agents reach modules even with the Hub off or reloading.</li>
+  <li><b>A Callers port</b> in the core holds agent names (today <code>IAgentNames</code> in the Hub), each caller's kind and permission mode, and who is "you". <code>SetPermissionMode</code> is handled there.</li>
+  <li><b>One gate</b> in <code>dispatch_tool</code>: caller proved, item callers, risky items ask through Permissions unless the caller is in Auto.</li>
+  <li><b>The router stamps the sender</b> on every command; <code>sends</code> and <code>publishes</code> become strict after a log-only run.</li>
+  <li><b>Three events become commands</b>: <code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code>.</li>
+  <li><b>The review</b> stops being a task the core starts; the reviewer listens to cards and adds notes.</li>
+  <li><b>The Agent Hub</b> keeps tasks, focus, held questions, delivery, milestones, the message hold, rule 2 and its <code>hub.*</code> menu. Nothing else.</li>
+  <li>Every one of these changes the core or the contracts, so each needs an app restart, asked first.</li>
+</ul>
+
+<h2>4 · Decisions</h2>
+<p class="sub">The same seven cards as on the <a href="core-and-hub-proposal.html">definition page</a>. Tick one per card.</p>
+<div class="approve">
+  <div class="card s1"><h3>D1 · Where the door lives <span class="note">(calls · Hub)</span></h3>
+    <ul><li>(a) The core hosts it, as part of the Tools port</li><li>(b) It stays in the Hub, but the core stamps the caller itself</li><li>(c) Leave as is</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> The identity check belongs to the house, not to a tenant; today a module that provides <code>IModuleDoor</code> may name any caller.</p>
+    <p class="rec"><b>Added by the check (V6, V11):</b> whichever is chosen, <code>mcp_config(caller)</code> must check the name against the module asking (a config only for itself or the agents it claimed), and the menus must not be reachable as a plain <code>IToolProvider</code> contract with a free caller (G11, G16).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ (c) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D2 · Agent names and the permission mode <span class="note">(cards · Hub)</span></h3>
+    <ul><li>(a) A new Callers port in the core holds names, kinds, modes and "you"</li><li>(b) Names to the core, the mode stays with each agent</li><li>(c) Leave both in the Hub</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> The core's Auto check stops depending on the Hub (G4), and the core can refuse Auto from anyone but you.</p>
+    <p class="rec"><b>Added by the check (V9):</b> "you" is in two lists today, the handler's config and task_agents' own <code>YOU</code> (G18); (a) makes it one.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ (c) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D3 · Sender on every command <span class="note">(calls · cards)</span></h3>
+    <ul><li>(a) Stamp the sender; <code>sends</code> and <code>publishes</code> strict; a list of control commands only "you" may send</li><li>(b) Stamp the sender, only log</li><li>(c) Leave</li></ul>
+    <p class="rec"><b>Recommended: (a)</b>, after one log-only run to catch undeclared sends.</p>
+    <p class="rec"><b>Added by the check (V2, V9, V10):</b> the sender alone doesn't cover the contract road (<code>ITaskAgent.set_permission_mode</code>, <code>answer_permission</code>, <code>cancel</code> called directly, G12), card ids on events any module hears, temp_ui's unguarded page (G10), or the Talker answering on its model's word (G17). So (a) also needs: those methods off the public contract or checked, the answer handlers checking the sender, and <code>local_guard</code> on temp_ui's page.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ (c) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D4 · One checked gate on tool calls <span class="note">(calls · cards)</span></h3>
+    <ul><li>(a) <code>dispatch_tool</code> checks callers, then asks for items marked risky unless the caller is in Auto; agents keep Claude Code's own asks</li><li>(b) Keep the ask on the agent side only</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> Today a module calling a tool from code is never asked (G5).</p>
+    <p class="rec"><b>Added by the check (V7, V8, V11):</b> single-name asks don't ask yet (G13), so today the "risky" core items only log; the Talker has no gate at all (G14); and the gate must sit where the contract road can't skip it (G16).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D5 · Events never control <span class="note">(calls)</span></h3>
+    <ul><li>(a) <code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code> become commands</li><li>(b) Keep them as events with a list of who may publish them</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> A command has one handler and a checked sender. Every publisher and listener is now traced (V1).</p>
+    <p class="rec"><b>Added by the check (V1):</b> the core's permissions handler itself publishes <code>AgentNotice</code> (<code>handler.py:541</code>), so (a) changes the core too; and today any module can stop or restart the app (<code>app.py:150-153</code>).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D6 · The card review <span class="note">(cards · Hub: coordination stays out of the core)</span></h3>
+    <ul><li>(a) The reviewer listens to cards and adds notes; the core never starts a task</li><li>(b) Leave as is</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> Today the core sends <code>StartTask</code> and <code>CancelTask</code> to the Main Assistant (G7).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D7 · The boundary tests <span class="note">(calls: they fence the checked roads)</span></h3>
+    <ul><li>(a) Add the rule 1 and rule 3 tests and extend rule 2 before any move</li><li>(b) Add them after</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> They fence the restructure.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+</div>
+
+<h2>Not verified</h2>
+<p class="sub">Closed by the verification pass: every subscriber of the three events (V1); other senders of <code>SetPermissionMode</code> (V2: only temp_ui; but see the contract road, G12); the lifecycle in full (V3); whether an added module starts again (V4: no); the bus's inside and queued events (V5); the door's host side (V6); the mic (V8: corrected in A12). What is still not verified:</p>
+<ul>
+  <li>Nothing was tested by running it; every finding is read from the code. In particular: whether a web page in a browser can reach temp_ui's or voice_notes' unguarded page (G10); whether an agent's text can lead the Talker to <code>ALLOW</code> (G17); whether <code>invoke_as</code> with another caller works end to end (G16); reading a door token from the process list (V6).</li>
+  <li>The full list of what <code>check_reloadable</code> calls shared code: V3 read the call (<code>loader.py:135-141</code>), not every case it covers.</li>
+  <li><code>talker/prompt.py</code> and <code>talker/session.py:121-159</code> weren't read line by line; <code>temp_ui/module.py</code> outside <code>:575-768</code> was checked by grep only.</li>
+  <li>The other add-ons (<code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>usage</code>, <code>assistant_view</code>, <code>console_io</code>) were checked only where a grep named them.</li>
+  <li>Whether an agent module's name moving to Callers on add and remove (2b) is how the note means D2; it's my reading.</li>
+</ul>
+
+</body>
+</html>

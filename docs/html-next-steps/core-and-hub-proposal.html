@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Core, Agent Hub and modules: a definition to approve</title>
+<style>
+  :root { --ink:#1d1d1b; --mute:#6f6d66; --line:#d9d6cf; --bg:#fbfaf7; --red:#c0392b; --redbg:#fdecea;
+          --teal:#0f7c7a; --tealbg:#e3f4f3; --ok:#eef0ec; --core:#55534d; --corebg:#f1f0ec;
+          --blue:#2f6f9f; --purple:#6b4fa0; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 40px 80px; font:18px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  h1 { font-size:30px; margin:0 0 6px; }
+  h2 { font-size:24px; margin:48px 0 14px; padding-top:14px; border-top:2px solid var(--line); }
+  h3 { margin:0 0 6px; font-size:21px; }
+  .sub { color:var(--mute); margin:0 0 8px; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; margin:10px 0 12px; font-size:16px; color:var(--mute); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .ln { width:26px; height:0; border-top:3px solid; display:inline-block; }
+  .ln.tool { border-color:var(--teal); } .ln.cmd { border-color:var(--core); } .ln.ev { border-color:var(--blue); } .ln.perm { border-color:var(--purple); }
+  .rule { border:3px solid var(--teal); background:var(--tealbg); border-radius:10px; padding:14px 18px; font-size:18px; }
+  .rule p { margin:0 0 8px; } .rule p:last-child { margin:0; }
+  .yes { color:var(--teal); font-weight:700; } .no { color:var(--red); font-weight:700; }
+  .note { font-size:16px; color:var(--mute); margin:10px 0 0; }
+  .note b { color:var(--ink); }
+  svg { display:block; width:100%; max-width:1100px; margin-top:6px; }
+  svg text { font-family:"Segoe UI", system-ui, sans-serif; }
+  table { border-collapse:collapse; font-size:16px; margin:10px 0; width:100%; max-width:1100px; background:#fff; }
+  th, td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:var(--corebg); }
+  .approve { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:#fff; border:2px solid var(--line); border-radius:10px; padding:12px 16px; }
+  .card.s1 { border-color:var(--teal); }
+  .card h3 { font-size:20px; }
+  .card ul { margin:6px 0 10px; padding-left:20px; font-size:16px; }
+  .card .rec { font-size:16px; margin:0 0 10px; }
+  .sign { border-top:2px solid var(--line); padding-top:8px; font-weight:700; }
+  ul.steps { list-style:none; padding:0; } ul.steps li { background:#fff; border:2px solid var(--line); border-radius:10px; padding:10px 14px; margin:10px 0; font-size:16px; }
+  ul.steps b.t { font-size:18px; }
+  code { font-size:.92em; }
+  @media (max-width: 1100px) { .approve { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Core, Agent Hub and modules: a definition to approve</h1>
+<p class="sub">Groundwork for the second full restructure. A proposal, <b>not approved</b>, nothing built, no code changed. 2026-11-13. Every finding is in <code>docs/next-steps/core-and-hub-definition.md</code> with its file and line; the detailed call flows are on <a href="piping.html">the piping page</a>.</p>
+
+<div class="rule">
+  <p><b>Your ask:</b> tools, events and contracts harden how data gets in and out, so every call and every card passes the core's checks (router, permissions, the caller's mode), and the Agent Hub is a module that does agent coordination only. Each decision card is tagged with the part it serves: <i>calls</i>, <i>cards</i>, <i>Hub</i>.</p>
+  <p><b>In plain words:</b> the Agent Hub grew up as the app's control centre, and it still holds three things that are not agent coordination: the module door every agent uses, the agent names, and the permission mode. They decide who is calling and whether a card shows, so they belong in the core.</p>
+  <p><b>The proposal:</b> the core is what the app can't start without, plus <b>seven ports</b> (one new: Callers). Core modules are the assistant itself and depend only on the core. Add-ons are everything the assistant runs without. Three rules keep the line, each checked by a test. The Hub keeps tasks, focus, held questions, delivery and milestones.</p>
+</div>
+
+<h2>Verification</h2>
+<p class="sub">A second pass (2026-11-13) read the code for eleven claims, one at a time. Each result, with its file and line, is in the note (V1 to V11). All of it was read from the code; <b>nothing was tested by running it</b>.</p>
+<p><b>Verified:</b></p>
+<ul>
+  <li><b>V1</b> The three control events: <code>ShutdownRequested</code> is heard only by the core, which stops the app with no check (<code>core/app.py:150-153</code>); <code>ResetRequested</code> by every agent module (through <code>AgentKit</code>) and the Talker; <code>AgentNotice</code> only by the Hub. Any module may publish all three.</li>
+  <li><b>V2</b> The permission mode: the command <code>SetPermissionMode</code> (Hub, no sender check; sent only by temp_ui), the menu item <code>hub.mode</code> (Talker, Manual only).</li>
+  <li><b>V3</b> The lifecycle, read in full: cycle check at launch (<code>registry.py:65-81</code>) and at runtime (<code>lifecycle.py:274-305</code>); start in dependency order, stop in reverse; reload with roll-back. No permission check anywhere in it.</li>
+  <li><b>V4</b> A module added with <code>modules.add</code> isn't recorded: at the next launch it's off (found by folder) or gone (from elsewhere).</li>
+  <li><b>V5</b> The bus: one bounded queue per subscriber (100 by default), a full queue drops the event for that subscriber only; on turn-off, reload or remove the queued events are dropped and a running handler is cancelled.</li>
+  <li><b>V6</b> The door's token is an HMAC of the caller's name with a launch secret (<code>infra/mcp_door.py:112-130, 173-175</code>): a session can't claim another name.</li>
+  <li><b>V7</b> Task agents in Manual are asked before <code>use_item</code>; in Auto they aren't.</li>
+  <li><b>V8</b> The voice modules' files; <code>voice_in</code> asks for <code>microphone</code> before each session.</li>
+  <li><b>V9</b> The Main Assistant holds nothing that belongs elsewhere.</li>
+  <li><b>V10</b> Commands carry no sender, <code>sends</code> isn't enforced, and the answer handlers check only that the card or task id is open.</li>
+  <li><b>V11</b> A tool call from a module's own code passes no permission, mode or card check (<code>core/tools.py:33-59</code>).</li>
+</ul>
+<p><b>Found different from the earlier text</b> (corrected below):</p>
+<ul>
+  <li>The door's config is handed out <b>for any name asked</b> to any module that looks up <code>IModuleDoor</code> (<code>agent_hub/module.py:69-76</code>), so a module can speak as <code>talker</code> or <code>main_assistant</code> (G11).</li>
+  <li><b>The Talker has all three door tools allowed by rule</b> (<code>talker/session.py:255</code>): its <code>use_item</code> is never asked (G14). The agent-side ask covers task agents in Manual only.</li>
+  <li><b>Single-name asks don't ask:</b> <code>ctx.permissions.request</code> logs and allows (<code>core/permissions/port.py:29-35, 61-65</code>). So the mic and the core menu's "ask first" items (<code>modules.add</code>, <code>modules.remove</code>, <code>modules.off</code> with dependents) never show a card today (G13).</li>
+  <li><b>Two roads skip the router:</b> <code>ITaskAgent</code> lets any module switch an agent to Auto, answer its card or cancel it directly (G12); every menu is an <code>IToolProvider</code> contract whose <code>invoke_as</code> takes any caller, so a module can call <code>permissions.grant</code> as <code>temp_ui</code> with no card (G16).</li>
+  <li><b>temp_ui's page has no Host or Origin check</b> (<code>temp_ui/module.py:660-768</code>, no <code>local_guard</code>): one local POST can switch an agent to Auto, answer a card, revoke a grant or reset a session. voice_notes' page is the same (G10).</li>
+  <li><b>The Talker acts on tags in its model's reply on every turn</b>, including turns started by an agent's text: <code>ALLOW</code> / <code>DENY</code> answer cards, <code>RESTART</code> restarts the app, <code>RESET</code> resets a session (<code>talker/session.py:202-226, 375-403</code>; G17).</li>
+  <li>"You" is kept in two lists (the handler's <code>you</code> config and task_agents' own <code>YOU</code>, <code>task_agents/module.py:83</code>), and a <code>you</code> caller's grants and revokes need no card (G18).</li>
+  <li>The core's permissions handler itself publishes <code>AgentNotice</code> (<code>handler.py:541</code>), so turning it into a command changes the core too.</li>
+  <li>A <code>ModuleEvent</code> can be forged with <code>ctx.publish</code>; the <code>source</code> stamp is only in <code>publish_named</code> (G15).</li>
+</ul>
+<p><b>Still not verified:</b></p>
+<ul>
+  <li>Nothing was run. In particular: whether a web page in a browser can reach temp_ui's or voice_notes' unguarded page (it depends on the browser's local-network rules); whether an agent's text can lead the Talker to <code>ALLOW</code>; whether <code>invoke_as</code> with another caller works end to end; reading a door token from the process list (the config is on <code>claude</code>'s command line).</li>
+  <li><code>talker/prompt.py</code> and <code>talker/session.py:121-159</code> weren't read line by line; <code>temp_ui/module.py</code> outside <code>:575-768</code> was checked by grep only.</li>
+  <li>The other add-ons (<code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>usage</code>, <code>assistant_view</code>, <code>console_io</code>) were checked only where a grep named them.</li>
+</ul>
+
+<div class="legend">
+  <span><i class="ln tool"></i> tools (the door)</span>
+  <span><i class="ln cmd"></i> commands (router)</span>
+  <span><i class="ln ev"></i> events (bus)</span>
+  <span><i class="ln perm"></i> permission check</span>
+  <span><svg viewBox="0 0 36 12" style="display:inline-block;width:36px;height:12px;margin:0"><line x1="2" y1="6" x2="26" y2="6" stroke="#6b4fa0" stroke-width="3"/><path d="M25,1 L35,6 L25,11 z" fill="#6b4fa0"/></svg> <b>question</b>: solid line, filled head</span>
+  <span><svg viewBox="0 0 36 12" style="display:inline-block;width:36px;height:12px;margin:0"><line x1="2" y1="6" x2="26" y2="6" stroke="#6b4fa0" stroke-width="3" stroke-dasharray="6 4"/><path d="M26,1.5 L34,6 L26,10.5 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></svg> <b>answer</b>: dashed line, hollow head</span>
+</div>
+
+<!-- ============ 1 · TODAY vs PROPOSAL ============ -->
+<h2>1 · Today and the proposal, in a few boxes</h2>
+<svg viewBox="0 0 1100 330" aria-label="Today versus proposal">
+  <defs>
+    <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="ph" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="14">
+    <text x="20" y="22" font-size="18" font-weight="700">Today</text>
+    <rect x="20" y="40" width="120" height="60" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="80" y="76" text-anchor="middle" font-weight="700">Agents</text>
+    <rect x="180" y="30" width="170" height="160" rx="10" fill="#fdecea" stroke="#c0392b" stroke-width="2"/>
+    <text x="194" y="54" font-size="16" font-weight="700">Agent Hub</text>
+    <text x="194" y="76">coordination</text>
+    <text x="194" y="96" fill="#c0392b" font-weight="600">+ the door</text>
+    <text x="194" y="116" fill="#c0392b" font-weight="600">+ agent names</text>
+    <text x="194" y="136" fill="#c0392b" font-weight="600">+ mode routing</text>
+    <text x="194" y="156" fill="#c0392b" font-weight="600">+ ListAgents for</text>
+    <text x="194" y="174" fill="#c0392b" font-weight="600">   the core's Auto check</text>
+    <rect x="20" y="210" width="330" height="100" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="234" font-size="16" font-weight="700">Core: 6 ports</text>
+    <text x="34" y="256">commands · events · contracts · tools</text>
+    <text x="34" y="276">permissions · config and logs</text>
+    <text x="34" y="296" fill="#c0392b">no sender on commands · events unchecked</text>
+    <rect x="390" y="210" width="150" height="100" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="465" y="252" text-anchor="middle" font-weight="700">Modules</text>
+    <text x="465" y="272" text-anchor="middle" font-size="13">core modules · add-ons</text>
+    <g fill="none" stroke-width="2.5">
+      <line x1="140" y1="70" x2="178" y2="70" stroke="#0f7c7a" marker-end="url(#t)"/>
+      <line x1="212" y1="190" x2="212" y2="208" stroke="#0f7c7a" marker-end="url(#t)"/>
+      <line x1="350" y1="260" x2="388" y2="260" stroke="#55534d" marker-end="url(#c)"/>
+      <path d="M285 208 L285 192" stroke="#6b4fa0" marker-end="url(#p)"/>
+      <path d="M320 192 L320 206" stroke="#6b4fa0" stroke-dasharray="5 3" marker-end="url(#ph)"/>
+    </g>
+    <text x="146" y="62" font-size="12" fill="#0f7c7a">tools</text>
+    <text x="281" y="204" font-size="11" fill="#6b4fa0" text-anchor="end">is it Auto?</text>
+    <text x="326" y="204" font-size="11" fill="#6b4fa0">Manual / Auto</text>
+
+    <line x1="570" y1="20" x2="570" y2="320" stroke="#d9d6cf" stroke-width="2"/>
+
+    <text x="600" y="22" font-size="18" font-weight="700">Proposal</text>
+    <rect x="600" y="40" width="120" height="60" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="660" y="76" text-anchor="middle" font-weight="700">Agents</text>
+    <rect x="600" y="130" width="300" height="180" rx="10" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2.5"/>
+    <text x="614" y="154" font-size="16" font-weight="700">Core: 7 ports</text>
+    <text x="614" y="176">commands (sender stamped)</text>
+    <text x="614" y="196">events (notify only) · contracts</text>
+    <text x="614" y="216">tools + <b>the door</b> + one gate</text>
+    <text x="614" y="236">permissions (rule 1, one place)</text>
+    <text x="614" y="256"><b>Callers</b>: names · modes · "you"</text>
+    <text x="614" y="276">config and logs</text>
+    <rect x="930" y="40" width="150" height="110" rx="10" fill="#fff" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="944" y="64" font-size="16" font-weight="700">Agent Hub</text>
+    <text x="944" y="86">coordination</text>
+    <text x="944" y="106">only (a core</text>
+    <text x="944" y="126">module)</text>
+    <rect x="930" y="180" width="150" height="130" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="1005" y="236" text-anchor="middle" font-weight="700">Other modules</text>
+    <text x="1005" y="256" text-anchor="middle" font-size="13">core modules · add-ons</text>
+    <g fill="none" stroke-width="2.5">
+      <line x1="660" y1="100" x2="660" y2="128" stroke="#0f7c7a" marker-end="url(#t)"/>
+      <path d="M900 160 L915 160 L915 95 L928 95" stroke="#0f7c7a" marker-end="url(#t)"/>
+      <line x1="900" y1="240" x2="928" y2="240" stroke="#55534d" marker-end="url(#c)"/>
+      <line x1="900" y1="285" x2="928" y2="285" stroke="#2f6f9f" marker-end="url(#b)" marker-start="url(#b)"/>
+    </g>
+    <text x="666" y="120" font-size="12" fill="#0f7c7a">tools via the core's door</text>
+  </g>
+</svg>
+<p class="note">Rendering not checked by eye. Every tool call, command and card goes through the core's box in the proposal; the Hub is reached like any other module. Today the core asks the Hub "is it Auto?" (solid) and gets each agent's mode back, Manual or Auto (dashed, hollow head); in the proposal both stay inside the core, in Callers. Agents and Modules show arrows one way only because a tool call or command returns its result along the same arrow, not drawn. The full question, answer and card arrows are on the <a href="piping.html">piping page</a>.</p>
+
+<!-- ============ 2 · HUB ============ -->
+<h2>2 · What the Agent Hub does today, and where each part belongs</h2>
+<p class="sub">The test: does it decide <b>who does what among the agents</b> (coordination: stays), or <b>whether data may get in or out and who is asking</b> (a check: the core)? All read in <code>src/assistant/modules/agent_hub/</code>.</p>
+<table>
+  <tr><th>#</th><th>Responsibility</th><th>Where</th><th>Verdict</th></tr>
+  <tr><td>H1</td><td>Hosts the module door for every agent (<code>DoorServer</code>, token, <code>CORE_LINE</code>), provides <code>IModuleDoor</code></td><td><code>module.py:69, 102-110, 151-168</code></td><td class="no">Core (Tools port)</td></tr>
+  <tr><td>H2</td><td>Agent names: one claim per id, reserved ids</td><td><code>names.py:14, 17</code> <code>AgentNames</code></td><td class="no">Core (Callers)</td></tr>
+  <tr><td>H3</td><td>Finding the agents (<code>ITaskAgent</code>)</td><td><code>module.py:339</code></td><td class="yes">Stays</td></tr>
+  <tr><td>H4</td><td><code>ListAgents</code>, with each agent's mode</td><td><code>module.py:322</code></td><td class="yes">Stays for UIs; the core stops needing it</td></tr>
+  <tr><td>H5</td><td>Task board: start, status, cancel, report, rule 2 (<code>_settle</code>)</td><td><code>tasks.py</code> <code>TaskBoard</code></td><td class="yes">Stays</td></tr>
+  <tr><td>H6</td><td>Focus, held questions</td><td><code>focus.py</code> <code>Focus</code></td><td class="yes">Stays</td></tr>
+  <tr><td>H7</td><td>Delivery: never into a turn, pending until free</td><td><code>delivery.py</code> <code>Delivery</code></td><td class="yes">Stays</td></tr>
+  <tr><td>H8</td><td>Message gate: card for messaging a non-child, hold, Deny note</td><td><code>gate.py:28</code> <code>MessageGate</code></td><td>Split: the card is already the core's (<code>ctx.permissions.ask</code>); hold and deliver stay</td></tr>
+  <tr><td>H9</td><td>Milestones to the coordinator; <code>AgentNotice</code> → <code>agent.note</code></td><td><code>module.py:315, 333</code></td><td>Milestones stay; <code>AgentNotice</code> becomes a command (D5)</td></tr>
+  <tr><td>H10</td><td><code>hub.*</code> menu and its caller policies</td><td><code>module.py:180-289</code></td><td class="yes">Stays, with the caller proved by the core</td></tr>
+  <tr><td>H11</td><td>Coordinator, extra-agent cap, <code>named_only</code>, <code>start_only_by</code></td><td><code>module.py:99, 114-121, 356-375</code></td><td class="yes">Stays</td></tr>
+  <tr><td>H12</td><td>Permission mode routing (<code>SetPermissionMode</code>)</td><td><code>module.py:142</code> → <code>tasks.py:402</code></td><td class="no">Core (Callers)</td></tr>
+  <tr><td>H13</td><td>Reload hand-over</td><td><code>module.py:162</code></td><td>Its own parts stay; door and claims go with H1, H2</td></tr>
+</table>
+<p class="note"><b>Rule 1 (Auto shows no card)</b> sits today in the core handler (<code>handler.py:220, 331, 364, 385</code>) and the agent's <code>PermissionGate</code>, with the mode read back through the Hub's <code>ListAgents</code> (<code>handler.py:410</code>). Proposed: one place, the core, with the mode in Callers. <b>Rule 2 (a waiting task ends with a note)</b> is <code>TaskBoard._settle</code> (<code>tasks.py:417</code>): coordination, it stays in the Hub.</p>
+
+<!-- ============ 3 · OTHERS ============ -->
+<h2>3 · The other holders of power</h2>
+<table>
+  <tr><th>Part</th><th>What it holds that isn't its own job</th><th>Proposal</th></tr>
+  <tr><td>Permissions handler (core)</td><td>Asks the Hub for the mode (<code>ListAgents</code>); starts and cancels review tasks on the Main Assistant (<code>handler.py:575, 588</code>)</td><td>Mode from Callers; the reviewer becomes a listener (D6)</td></tr>
+  <tr><td>Lifecycle (core)</td><td>No permission check anywhere in the lifecycle (V3); the asks are in the core's menu. <code>modules.reload</code> asks nothing; the "asks" for <code>modules.add</code>, <code>modules.remove</code> and <code>modules.off</code> with dependents are single names, so they <b>allow and log</b> today (V8). A module sending <code>ReloadModule</code> / <code>AddModule</code> / <code>RemoveModule</code> itself skips even those. An added module isn't recorded for the next launch (V4)</td><td>These items ask through the one gate (D4) in Manual; the commands only from the core's menu (D3)</td></tr>
+  <tr><td>Talker</td><td>Answers cards from its <code>ALLOW</code> / <code>DENY</code> tags (<code>session.py:385-403</code>), restarts the app (<code>RESTART</code>, no card) and resets sessions (<code>RESET</code>), from <b>any</b> turn's reply, including turns started by an agent's text (V9). All three door tools allowed by rule (V7)</td><td>Card answers accepted only from "you" callers, and a decision whether the Talker counts as "you"</td></tr>
+  <tr><td>Main Assistant</td><td>Nothing; it's an agent, named by the core as <code>reviewer</code> (read in full, V9)</td><td>Unchanged</td></tr>
+  <tr><td>task_agents</td><td>Claims names through <code>IAgentNames</code> (<code>module.py:179-181</code>); its own hard-coded <code>YOU = ("temp_ui",)</code> (<code>:83</code>) skips the approval card, a second copy of the handler's "you"; calls another agent's <code>request_approval</code> through <code>ITaskAgent</code> (<code>:197, 300-301</code>)</td><td>Claims and "you" in one place, Callers (D2)</td></tr>
+  <tr><td>temp_ui</td><td>Is "you" by a config line (its grants and revokes need no card, <code>handler.py:331, 385</code>); the only sender of <code>SetPermissionMode</code>; answers cards straight to the router. Its page has <b>no Host or Origin check</b> (<code>module.py:660-768</code>): one local POST can switch an agent to Auto, answer a card, revoke a grant, reset a session or close an agent's module (V2, V9)</td><td>The core checks that only "you" callers send these, and the page gets <code>local_guard</code> like the other local pages (G10)</td></tr>
+  <tr><td>Three events</td><td>Traced in full (V1): <code>ShutdownRequested</code> → only the core, which stops the app (<code>app.py:150-153</code>); <code>ResetRequested</code> → every agent module and the Talker; <code>AgentNotice</code> → only the Hub, and the core's handler is one of its publishers (<code>handler.py:541</code>). Any module may publish them</td><td>Commands (D5)</td></tr>
+  <tr><td>Every menu as a contract</td><td>The core provides each menu as <code>IToolProvider</code> (<code>core/context.py:147</code>); any module can look it up and call <code>invoke_as</code> with <b>any caller</b> (<code>core/tools.py:29-30</code>), skipping the router's stamp (V11, G16)</td><td>Menus reachable only through <code>InvokeTool</code> (D1, D4)</td></tr>
+  <tr><td>The door's config</td><td><code>mcp_config(caller)</code> gives a valid token for any name asked, to any module (<code>agent_hub/module.py:69-76</code>; V6, G11)</td><td>A module gets a config only for itself or the agents it claimed (D1)</td></tr>
+</table>
+
+<!-- ============ 4 · DEFINITION ============ -->
+<h2>4 · The definition</h2>
+<h3>Core</h3>
+<p>What the app can't start without, plus the ports: the host (<code>App</code>), registry and loader, lifecycle, router, bus, container, config and logs, the directory with the core's menu, generated files, the permissions handler, and, new, <b>the door and Callers</b>. Shared code: <code>contracts</code>, <code>infra</code>, <code>app_kit</code>.</p>
+<table>
+  <tr><th>#</th><th>Port</th><th>Road</th><th>Checked by the core (proposed)</th></tr>
+  <tr><td>1</td><td>Commands</td><td><code>send</code> / <code>handle</code> through the router</td><td><code>handles</code> strict (today); <code>sends</code> strict and the sender stamped (new); control commands only from "you" (new)</td></tr>
+  <tr><td>2</td><td>Events</td><td><code>publish</code> / <code>subscribe</code> on the bus</td><td><code>publishes</code> strict (new); events only notify</td></tr>
+  <tr><td>3</td><td>Contracts</td><td><code>provide</code> / <code>get</code> through the container</td><td>as today; <code>uses</code> strict after a warning period</td></tr>
+  <tr><td>4</td><td>Tools</td><td>menus, <code>InvokeTool</code>, the door</td><td>caller proved by the core's door (new); one gate: item callers, then risky items ask unless Auto (new)</td></tr>
+  <tr><td>5</td><td>Permissions</td><td><code>ctx.permissions</code>, cards</td><td>as today, mode read from Callers</td></tr>
+  <tr><td>6</td><td>Callers (new)</td><td>agent names, kinds, modes, who is "you"</td><td><code>SetPermissionMode</code> here; Auto and card answers only from "you"</td></tr>
+  <tr><td>7</td><td>Config and logs</td><td><code>ctx.config</code>, <code>ctx.logs</code></td><td>as today</td></tr>
+</table>
+<h3>Core modules</h3>
+<p>In the repo, on at launch, part of the assistant itself, depending only on the core: <code>agent_hub</code> (coordination only), <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code>, <code>temp_ui</code>, <code>console_io</code>, <code>usage</code>, <code>assistant_view</code>, <code>voice_in</code>. Checked: each has <code>group = "core"</code> in its <code>docs/docs.toml</code>.</p>
+<h3>Add-ons</h3>
+<p>Everything the assistant runs without: <code>html_viewer</code>, <code>voice_notes</code>, <code>cv</code>, <code>job_search</code>, <code>echo_orchestrator</code>. Checked: <code>group = "add-on"</code>.</p>
+<h3>The three boundary rules</h3>
+<table>
+  <tr><th>Rule</th><th>Test today</th><th>Test to add</th></tr>
+  <tr><td>1. Modules talk only through tools, events and contracts; they never import each other's code</td><td>Only for <code>voice_notes</code> (<code>test_voice_notes_imports_no_other_module_and_no_core</code>); <code>test_every_module_app_never_imports_assistant</code>; <code>test_module_tests_use_only_the_testkit</code>. A grep today finds no cross-module import</td><td>One import test over every module: only <code>assistant.contracts</code>, <code>assistant.infra</code>, <code>app_kit</code> and its own package. Plus <code>sends</code> / <code>publishes</code> enforced at run time</td></tr>
+  <tr><td>2. The core never names an add-on</td><td><span class="yes">Exists:</span> <code>test_no_core_code_names_an_add_on</code> (<code>tests/test_module_folders.py:771</code>), over the core group and shared code</td><td>Extend to <code>config/default.toml</code> and every core module's <code>module.toml</code></td></tr>
+  <tr><td>3. Arrows point one way: an add-on may need the core or another add-on; the core and core modules never need an add-on</td><td><span class="no">None.</span> True today (every core module has <code>needs = []</code>), but unenforced. The cycle part is already refused in code (V3: at launch <code>registry.py:65-81</code>, at runtime <code>lifecycle.py:274-305</code>); only a test is missing</td><td>A test over every <code>module.toml</code>: a core module's <code>needs</code> names only core modules; no cycle</td></tr>
+</table>
+
+<!-- ============ 5 · DECISIONS ============ -->
+<h2>5 · Decisions</h2>
+<p class="sub">The same seven cards as on <a href="piping.html">the piping page</a>. Tick one per card.</p>
+<div class="approve">
+  <div class="card s1"><h3>D1 · Where the door lives <span class="note">(calls · Hub)</span></h3>
+    <ul><li>(a) The core hosts it, as part of the Tools port</li><li>(b) It stays in the Hub, but the core stamps the caller itself</li><li>(c) Leave as is</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> The identity check belongs to the house, not to a tenant; today a module that provides <code>IModuleDoor</code> may name any caller.</p>
+    <p class="rec"><b>Added by the check (V6, V11):</b> whichever is chosen, <code>mcp_config(caller)</code> must check the name against the module asking (a config only for itself or the agents it claimed), and the menus must not be reachable as a plain <code>IToolProvider</code> contract with a free caller (G11, G16).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ (c) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D2 · Agent names and the permission mode <span class="note">(cards · Hub)</span></h3>
+    <ul><li>(a) A new Callers port in the core holds names, kinds, modes and "you"</li><li>(b) Names to the core, the mode stays with each agent</li><li>(c) Leave both in the Hub</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> The core's Auto check stops depending on the Hub, and the core can refuse Auto from anyone but you.</p>
+    <p class="rec"><b>Added by the check (V9):</b> "you" is in two lists today, the handler's config and task_agents' own <code>YOU</code>; (a) makes it one.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ (c) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D3 · Sender on every command <span class="note">(calls · cards)</span></h3>
+    <ul><li>(a) Stamp the sender; <code>sends</code> and <code>publishes</code> strict; a list of control commands only "you" may send</li><li>(b) Stamp the sender, only log</li><li>(c) Leave</li></ul>
+    <p class="rec"><b>Recommended: (a)</b>, after one log-only run to catch undeclared sends.</p>
+    <p class="rec"><b>Added by the check (V2, V9, V10):</b> the sender alone doesn't cover the contract road (<code>ITaskAgent.set_permission_mode</code>, <code>answer_permission</code>, <code>cancel</code> called directly, G12), card ids on events any module hears, temp_ui's unguarded page (G10), or the Talker answering on its model's word (G17). So (a) also needs: those methods off the public contract or checked, the answer handlers checking the sender, and <code>local_guard</code> on temp_ui's page.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ (c) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D4 · One checked gate on tool calls <span class="note">(calls · cards)</span></h3>
+    <ul><li>(a) <code>dispatch_tool</code> checks callers, then asks for items marked risky unless the caller is in Auto; agents keep Claude Code's own asks</li><li>(b) Keep the ask on the agent side only</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> Today a module calling a tool from code is never asked.</p>
+    <p class="rec"><b>Added by the check (V7, V8, V11):</b> single-name asks don't ask yet (G13), so today the "risky" core items only log; the Talker has no gate at all (G14); and the gate must sit where the contract road can't skip it (G16).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D5 · Events never control <span class="note">(calls)</span></h3>
+    <ul><li>(a) <code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code> become commands</li><li>(b) Keep them as events with a list of who may publish them</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> A command has one handler and a checked sender. Every publisher and listener is now traced (V1).</p>
+    <p class="rec"><b>Added by the check (V1):</b> the core's permissions handler itself publishes <code>AgentNotice</code> (<code>handler.py:541</code>), so (a) changes the core too; and today any module can stop or restart the app (<code>app.py:150-153</code>).</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D6 · The card review <span class="note">(cards · Hub: coordination stays out of the core)</span></h3>
+    <ul><li>(a) The reviewer listens to cards and adds notes; the core never starts a task</li><li>(b) Leave as is</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> Today the core sends <code>StartTask</code> and <code>CancelTask</code> to the Main Assistant.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+  <div class="card s1"><h3>D7 · The boundary tests <span class="note">(calls: they fence the checked roads)</span></h3>
+    <ul><li>(a) Add the rule 1 and rule 3 tests and extend rule 2 before any move</li><li>(b) Add them after</li></ul>
+    <p class="rec"><b>Recommended: (a).</b> They fence the restructure.</p>
+    <div class="sign">☐ Approve (a) &nbsp;·&nbsp; ☐ (b) &nbsp;·&nbsp; ☐ change: ________</div></div>
+</div>
+
+<!-- ============ 6 · CHECKLIST ============ -->
+<h2>6 · Restructure sketch: <span class="no">not started</span></h2>
+<p class="sub">A rough order for you to look over. Nothing is approved or started. Every step from R2 on changes the core or the contracts, so each needs an app restart, asked first.</p>
+<ul class="steps">
+  <li>☐ <b class="t">R1 · Boundary tests first.</b> <b>What:</b> the rule 1 import test, rule 2 extended to config and <code>module.toml</code>, the rule 3 <code>needs</code> test. <b>Why:</b> they fence every later step. <b>How:</b> import and TOML reads in one boundaries test file. <b>Done when:</b> they pass on today's code and fail on a planted bad import.</li>
+  <li>☐ <b class="t">R2 · Sender stamped, <code>sends</code> and <code>publishes</code> strict.</b> <b>Why:</b> any module can send any command today. <b>How:</b> the sender filled by <code>ScopedContext.send</code>; one log-only run, then strict. <b>Done when:</b> an undeclared send is refused in a test; the full suite is green.</li>
+  <li>☐ <b class="t">R3 · Callers port.</b> <b>What:</b> agent names, kinds, modes and "you" move into the core; <code>SetPermissionMode</code> handled there. <b>Why:</b> the core's Auto check stops depending on the Hub. <b>How:</b> a callers part in the core provides <code>IAgentNames</code>; the Hub keeps only its open-card update as a listener. <b>Done when:</b> the handler sends no <code>ListAgents</code>; a module sending Auto is refused in a test.</li>
+  <li>☐ <b class="t">R4 · The door in the core.</b> <b>What:</b> <code>DoorServer</code> hosted by the app; <code>IModuleDoor</code> provided by the core; the "door host may name any caller" exception removed. <b>Why:</b> identity is checked by the core. <b>How:</b> move the hosting code out of <code>agent_hub/module.py</code>. <b>Done when:</b> agents reach modules with the Hub off; a module can't name another caller.</li>
+  <li>☐ <b class="t">R5 · One gate on tool calls.</b> <b>What:</b> risky menu items; <code>dispatch_tool</code> asks through Permissions unless Auto. <b>Why:</b> calls from code are never asked today. <b>Done when:</b> a module calling a risky item from code gets a card in Manual.</li>
+  <li>☐ <b class="t">R6 · Events never control.</b> <b>What:</b> the three control events become commands. <b>Why:</b> they're unchecked controls. <b>How:</b> every subscriber is traced (V1); the core's handler, which publishes <code>AgentNotice</code>, changes too. <b>Done when:</b> no event subscriber changes another part's state on request.</li>
+  <li>☐ <b class="t">R7 · The review as a listener.</b> <b>Why:</b> the core shouldn't start agent tasks. <b>Done when:</b> the handler sends no <code>StartTask</code>.</li>
+  <li>☐ <b class="t">R8 · Docs and the overview diagram.</b> <b>Done when:</b> the architecture overview shows seven ports and a Hub with coordination only.</li>
+</ul>
+
+<h2>Not verified</h2>
+<p class="sub">The four gaps listed here before are closed by the verification pass (V1, V3, V9, V2). What is still not verified:</p>
+<ul>
+  <li>Nothing was tested by running it; every finding is read from the code. In particular: whether a web page in a browser can reach temp_ui's or voice_notes' unguarded page (G10); whether an agent's text can lead the Talker to <code>ALLOW</code> (G17); whether <code>invoke_as</code> with another caller works end to end (G16); reading a door token from the process list (V6).</li>
+  <li><code>talker/prompt.py</code> (what the Talker is told about answering cards) and <code>talker/session.py:121-159</code> (constructor and close) weren't read line by line.</li>
+  <li><code>temp_ui/module.py</code> outside <code>:575-768</code> was checked by grep for sends, publishes and subscribes, not read line by line.</li>
+  <li>The other add-ons (<code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>usage</code>, <code>assistant_view</code>, <code>console_io</code>) were checked only where a grep named them.</li>
+</ul>
+
+</body>
+</html>

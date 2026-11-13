@@ -34,8 +34,8 @@ flowchart LR
     TJ -. "hub.* (its partner)" .-> H
     H --> MA
     H --> JA
-    JA -- "STATUS milestones (feed)" --> MA
-    MA -- "hub.start · hub.send" --> H
+    JA -- "STATUS line → Hub report → milestone in MA's next turn" --> MA
+    MA -- "tool call via the door: hub.start · hub.send" --> H
     TM -- "ResponseReady(agent_id)" --> TabM
     TJ -. "ResponseReady(agent_id)" .-> TabJ
 ```
@@ -120,7 +120,7 @@ Every picture that showed one Talker in front of all agents now shows the pairs,
 
 1. `docs/next-steps/README.md`: a Pending changes row.
 2. Update every diagram showing one Talker in front of all agents, each marked **planned (agent-talkers)** (purple, `classDef planned fill:#efeaf7,stroke:#6b4fa0,stroke-dasharray:5 4`), with a one-line callout that the text describes what's built until then:
-   - `docs/architecture/README.md` bird's-eye: inside the Hub subgraph, a "Main tab" pair (Talker + Main Assistant) and a planned "Helper tab" pair (its own Talker + helper); `Main -. hub.start · hub.send .-> Helper`, `Helper -. STATUS .-> Main`; inputs go "to the tab you're in"; one sentence in "Built today".
+   - `docs/architecture/README.md` bird's-eye: inside the Hub subgraph, a "Main tab" pair (Talker + Main Assistant) and a planned "Helper tab" pair (its own Talker + helper); `Main -. tool call via the door: hub.start · hub.send .-> Helper`, `Helper -. STATUS line → Hub report → milestone in Main's next turn .-> Main`; inputs go "to the tab you're in"; one sentence in "Built today".
    - `docs/architecture/agents.md`: status callout; "The idea" mermaid redrawn with pairs; "Big agents and their modules" text (Mode A/B, workflow steps 1–7, "The Talker's part" and "In the temp UI" bullets) with planned phrasing; a note that the sequence diagrams' `T` is the tab's Talker.
    - `img/agents-switchboard.svg`: replace the single Talker box (y 96–152) with three Talker boxes above the agent columns (x 110/470/830, width 260); You → main Talker solid, others dashed "click a tab"; each Talker ↔ Hub line at x 240/600/960; tool path from x 1090 (`M1090,124 H1150 V300 H1197`); Tabs column "Talker + agent each · own chat"; Held column "questions and finished work wait until you open that tab"; Focus "which tab you're in"; a "Planned design" label top-left.
    - `img/agents-modes.svg`: per half, two Talkers on top (main tab, job tab), the Hub as a middle band, agents below; A: main pair blue, job agent's NEED/done held (!), job Talker idle; B: job pair blue, held items load into the job Talker, the MA's questions → ! on its tab; STATUS line kept.
