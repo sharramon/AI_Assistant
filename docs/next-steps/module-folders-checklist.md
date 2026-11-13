@@ -1,6 +1,6 @@
 # Module folders: every module in its own folder, checked item by item
 
-**Count: 18 of 20 done** (items 1 to 17 and 20).
+**Count: 19 of 20 done** (items 1 to 18 and 20).
 
 **Architecture check after the core chunk (items 11–16):** modularity OK (item 15's tripwires scan the core group, `core/`, contracts, infra and `app_kit` for an add-on's id or tool names and pass; every module has its `module.toml`); reuse OK (config layering reuses `load_layered` / `merge`; page opening is one helper, `open_page`; start on use is one search for tools and contracts); fit OK (`config/` holds only your choices and the on/off list, `generated/` only what the core writes, grants in `config/`; `modules.remove` goes through the same risky ask as the other core menu items).
 
@@ -29,6 +29,8 @@
 - **Hand check, item 7:** after the restart, turning job_search on turns cv on first (it needs cv); cv shows its access card if its grant isn't saved.
 - **Hand check, item 4:** after the restart, `cv.open_tool` opens the CV Tool from `modules/cv/app/cv_tool/`.
 - **Hand checks:** at the next start, cv_agent's and job_search_agent's access cards show once more (item 1 adds their module folder to the list, so the fingerprint changed).
+- **App restart needed, item 18:** job_search_agent works from `modules/job_search/workspace/` only after the restart. **Hand checks:** its access card shows again; `job.open_ui` opens the job UI from the workspace; one dry apply session up to the form (no submit). Same open issue as item 17 (the repo's `CLAUDE.md` loads into its session). Open: decision 49 (`cv_output`).
+- **Old folders left for you to delete (item 18):** `C:\Chang\Jobs\CV\.claude`, `C:\Chang\Jobs\CV\Recruiters\scripts` and the copied `Recruiters\docs` state (not the archive, which stays), and the old memory key `%USERPROFILE%\.claude\projects\C--Chang-Jobs-CV`. Your CVs and documents in `C:\Chang\Jobs\CV` stay. Delete them once the dry apply session works.
 - **Old folders left for you to delete:** see items 17 and 18 above.
 
 > **Status: building (started 2026-11-13, overnight, unattended, in Auto).** The user approved the plan ([module-folders.html](module-folders.html), section 3) and this overnight run: commit, this checklist, then the migration in this order. The morning report goes at the top of this page when the run ends.
@@ -97,6 +99,12 @@ For you to review. Each picks the option closest to the approved picture.
 41. **`modules.remove(module_id, settings="keep"|"purge")`** (item 16) asks first, then sends `RemoveModule`. It refuses while a module needs it: active and `needs` it (or requires a contract only it provides), or listed in `enabled` with `needs` naming it, even while off. It turns the module off and drops it from this run's list (`modules.add` brings it back). `purge` deletes only `config/<id>.toml` and `config/<id>.local.toml`; the shared names (`local`, `default`, `modules`, `permissions`, `voice_service`) never count. It never rewrites `config/modules.toml` or deletes the module folder: the result tells you to.
 42. **cv's job folders may sit in the repo, but only inside its own `workspace/`** (item 17): before, cv refused any work folder in the repo, so the new default wouldn't start. `[agent] workspace = "workspace"` (relative to the module folder), `output_dir` unset means `<workspace>/out`, and an output folder inside the workspace gets no read item of its own on the card. Your `config/local.toml` had no `CV_Module` key, so nothing there changed.
 43. **pytest skips `workspace` folders** (item 17: `norecursedirs` in `pyproject.toml`): the copied workspace holds old test scripts.
+44. **Your documents and company lists stay in `C:\Chang\Jobs\CV`** (item 18, decision 5): the CVs, cover letters, `2025/`, `2026/`, `StartUp/`, `UnderRadar/`, `_upload/` and the old `Recruiters/docs/archive/` weren't copied. The scripts find them through `workspace/job_paths.json`.
+45. **One shared helper for a module's relative folders** (item 18): `in_module_folder(module_id, path)` in `infra/agent_access.py` (reusable index), used by cv and job_search; cv's private `_from_here` is gone.
+46. **`documents` is a write folder** (item 18): the job agent saves per-company CVs there. The committed default is empty; your real folder is in the gitignored `config/local.toml` (`[modules.job_search] documents`).
+47. **The job agent's memory notes were copied** (24 files) to the workspace's memory key; the old key is left.
+48. **apply-session sends `jd_text`** to `cv.task`, since cv_agent won't read the job workspace.
+49. **Open, not fixed overnight:** `cv_output` in the job project still points at the old rezi output folder, so new cv PDFs won't show in the job UI until it's pointed at cv's `workspace/out`. Left for you because it changes where the job UI looks for your CVs.
 
 ## The safeguards (from the audit, section 4)
 
@@ -273,7 +281,9 @@ For you to review. Each picks the option closest to the approved picture.
 - **How:** copy per cv_agent's step-1 table (skills and rules, facts, `cv_tool` data with `submits_seen.json`, `work\`, `applied\`, `scripts\`, `docs\`; not `.chrome_print`, not `.claude\state`); copy memory from `~\.claude\projects\C--Chang-Jobs-CV-Module\memory` to `…\C--Chang-Git-projects-AI-Assistant-src-assistant-modules-cv-workspace\memory`; `[agent] workspace` → the new folder, `output_dir` → `<workspace>/out`; the tests and docs that name `CV_Module`; check `git status` shows nothing from `workspace/`. The old folder is left for you.
 - **Done when:** `git grep -n "CV_Module" src` finds nothing; `modules/cv/workspace/.claude/skills/cv-writing/SKILL.md` and `…/cv_tool/submits_seen.json` exist; `git status --porcelain` lists nothing under `workspace/`; the cv tests pass. **Hand check:** the access card at the next start (the grant's fingerprint changes), and one smoke job.
 
-### 18. job_search_agent works from `modules/job_search/workspace/`
+### 18. job_search_agent works from `modules/job_search/workspace/`: **done** (2026-11-13; open issues, see the morning list)
+
+**Checked:** `modules/job_search/workspace/CLAUDE.md` and `…/Recruiters/scripts/job_ui.py` exist (587 files, 7.9 MB copied); a grep of the workspace's `.py` files for `C:\Chang\Jobs\CV` finds nothing (the folder is named only in `job_paths.json`, read by `job_paths.py`, and in the prompt and skills as where your documents stay); `git status --porcelain` lists nothing under `workspace/`; pytest collects nothing from it (`norecursedirs`); `test_job_search_agent_works_from_its_module_workspace` passes; full suite 917 passed, 2 deselected; ruff clean. The apply-session skill's `CV_Module\applied` now names cv's `workspace\applied`. Nothing in `C:\Chang\Jobs\CV` was changed. **Needs an app restart.**
 
 - **What:** the job project's tools, prompt and state are copied from `C:\Chang\Jobs\CV` into `modules/job_search/workspace/`, their hard-coded paths go through one paths file, and the config and grant point there.
 - **Why:** the rule; the job agent's report (`C:\Chang\Jobs\CV\Recruiters\docs\job_workspace_move_plan_2026-11-13.md`, section 5) found the tools were never cloned.

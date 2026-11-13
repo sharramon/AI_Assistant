@@ -808,3 +808,30 @@ def test_cv_agent_works_from_its_module_workspace() -> None:
     assert items[0].target == str(workspace) and str(CV) in _writes(items)
     with pytest.raises(ValueError, match="own workspace"):  # elsewhere in the repo is still refused
         settings(tomllib.loads((CV / "module.toml").read_text(encoding="utf-8")) | {"work_dir": str(CV / "work")})
+
+
+# Item 18: job_search_agent works from modules/job_search/workspace/.
+
+
+def test_job_search_agent_works_from_its_module_workspace() -> None:
+    """Item 18's done-when: no committed job_search code or config names the old job project
+    folder; the workspace (and the job UI's default script) is the module's own, gitignored and
+    skipped by pytest; the grant asks for it first, with the module's own folder written."""
+    found = subprocess.run(["git", "grep", "-n", "-E", r"Chang[\\/]+Jobs[\\/]+CV", "--", "src/assistant/modules/job_search",
+                            ":!src/assistant/modules/job_search/docs"], cwd=REPO, capture_output=True, text=True).stdout  # fmt: skip
+    assert not found, found
+    from assistant.modules.job_search.module import job_config
+    from assistant.modules.job_search.ui import ui_settings
+    from assistant.testkit import module_config
+
+    checked = job_config(module_config("job_search"))
+    workspace = Path(checked["workspace"])
+    assert workspace == JOB_SEARCH / "workspace" and not checked.get("write_dirs")  # no documents shipped
+    script = ui_settings({}, checked["workspace"], checked["python"])["script"]
+    assert Path(script) == workspace / "Recruiters" / "scripts" / "job_ui.py"
+    ignored = subprocess.run(["git", "check-ignore", "-q", "src/assistant/modules/job_search/workspace/x"], cwd=REPO)
+    assert ignored.returncode == 0  # its files (your job state, the copied scripts) never reach git
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    assert "workspace" in pyproject["tool"]["pytest"]["ini_options"]["norecursedirs"]  # the job project's own tests
+    items = access_items(checked, "job_search")
+    assert items[0].target == str(workspace) and str(JOB_SEARCH) in _writes(items)

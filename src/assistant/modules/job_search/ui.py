@@ -1,5 +1,6 @@
-"""The job UI (the job project's `Recruiters/scripts/job_ui.py`, what `job_ui.cmd` runs): a local
-server at 127.0.0.1:8781 with the Tracker, Job stack, Live search and Keywords pages.
+"""The job UI (the job project's `Recruiters/scripts/job_ui.py` in the module's workspace, what the
+old project's `job_ui.cmd` ran): a local server at 127.0.0.1:8781 with the Tracker, Job stack,
+Live search and Keywords pages.
 
 `JobUi` launches it the way the cv module launches the CV Tool: `CompanionHandover` from
 `app_kit`, kept across a reload. The job UI isn't one of our companion apps (no JSON ping, no

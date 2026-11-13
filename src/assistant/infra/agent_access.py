@@ -34,6 +34,17 @@ def module_folder(module_id: str) -> Path | None:
     return folder if folder.is_dir() else None
 
 
+def in_module_folder(module_id: str, path: Any) -> Path:
+    """A configured folder of module `module_id`: `~` expanded, a relative one from that module's
+    own folder (`workspace` → `src/assistant/modules/<id>/workspace`, resolved), so no shipped
+    default names a personal absolute path. An absolute one is returned as given; with no such
+    module folder, a relative one is from the current folder."""
+    folder = Path(str(path)).expanduser()
+    if folder.is_absolute():
+        return folder
+    return ((module_folder(module_id) or Path.cwd()) / folder).resolve()
+
+
 def module_folder_of(path: Any) -> Path | None:
     """The module folder `path` is in, or is (`MODULES_FOLDER / <id>`); None for a path outside
     every module's folder, the modules folder itself included. For the Hub's folder check."""

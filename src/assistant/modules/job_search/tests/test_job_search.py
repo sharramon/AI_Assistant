@@ -117,6 +117,20 @@ async def test_open_the_ui_means_job_open_ui_for_the_agent_and_its_tabs_talker(t
         await app.stop()
 
 
+def test_job_config_resolves_its_workspace_and_writes_your_documents(tmp_path):
+    from assistant.modules.job_search.module import job_config
+
+    shipped = job_config({})
+    assert Path(shipped["workspace"]) == FOLDER / "workspace" and "write_dirs" not in shipped  # its own, no documents
+    docs = tmp_path / "docs"
+    mine = job_config({"workspace": str(tmp_path / "ws"), "documents": str(docs), "write_dirs": [str(tmp_path / "x")]})
+    assert mine["workspace"] == str(tmp_path / "ws") and "documents" not in mine
+    assert mine["write_dirs"] == [str(tmp_path / "x"), str(docs)]  # read and write (decision 5)
+    assert job_config({"documents": str(docs), "write_dirs": [str(docs)]})["write_dirs"] == [str(docs)]  # once
+    with pytest.raises(ValueError, match="documents"):
+        job_config({"documents": ["C:/x"]})
+
+
 def test_the_job_uis_settings_default_to_the_job_projects_script_and_python():
     settings = ui_settings({}, "C:/Jobs/CV", "C:/py/python.exe")
     assert Path(settings["script"]) == Path("C:/Jobs/CV/Recruiters/scripts/job_ui.py")

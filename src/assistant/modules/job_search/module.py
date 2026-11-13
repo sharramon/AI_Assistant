@@ -1,11 +1,15 @@
 """The job agent, bundled with its own module (the multi-agent note's decision).
 
 One `ProfileAgent` (agent id `job_search_agent` by default, the module id plus `_agent`, as for
-every module agent; `agent_id` in config) working in the job project
-(`C:\\Chang\\Jobs\\CV`, see its docs/job-project.md), provided as `ITaskAgent`, so the Agent Hub lists
+every module agent; `agent_id` in config) working in the job project, copied into this module's
+own `workspace/` (gitignored; see docs/job-project.md), provided as `ITaskAgent`, so the Agent Hub lists
 it, starts its tasks, holds its questions behind its tab's **!**, and feeds its `STATUS:` lines to
 the coordinator. Its config section takes `ProfileAgent`'s keys; `chrome = true` gives it the
 Claude in Chrome tools. It starts in Manual, like every agent.
+
+`job_config` reads the two folder keys: `workspace` (default `workspace`, a relative one from this
+module's folder) and `documents` (your CVs and cover letters, outside the repo; none by default,
+yours in `config/local.toml`), which becomes a write folder on the access list.
 
 Its access (workspace, folders, Python, commands, Chrome) is asked for when it's turned on, in one
 request (`request_access`, subject `job_search_agent`): from the saved grant when the list is
@@ -48,8 +52,35 @@ from assistant.contracts import (
     PermissionChanged,
     Result,
 )
-from assistant.infra import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_USES, AgentKit, ProfileAgent
+from assistant.infra import (
+    AGENT_LISTENS,
+    AGENT_PUBLISHES,
+    AGENT_SENDS,
+    AGENT_USES,
+    AgentKit,
+    ProfileAgent,
+    in_module_folder,
+)
 from assistant.modules.job_search.ui import JobUi, ui_settings
+
+MODULE_ID = "job_search"
+
+
+def job_config(config: dict[str, Any]) -> dict[str, Any]:
+    """The agent's config with its folders resolved: `workspace` (default `workspace`: this module's
+    own `workspace/`, gitignored) and `documents` (your CV folder, read and write; none by default)
+    added to `write_dirs`, both relative from this module's folder when relative. ValueError if
+    `documents` isn't a string."""
+    config = dict(config)
+    config["workspace"] = str(in_module_folder(MODULE_ID, config.get("workspace") or "workspace"))
+    documents = config.pop("documents", "") or ""
+    if not isinstance(documents, str):
+        raise ValueError(f"job_search: documents must be a folder, not {documents!r}")
+    if documents.strip():
+        folder = str(in_module_folder(MODULE_ID, documents.strip()))
+        writes = [str(d) for d in config.get("write_dirs", [])]
+        config["write_dirs"] = writes if folder in writes else [*writes, folder]
+    return config
 
 menu = Menu()
 
@@ -118,7 +149,7 @@ class JobSearchModule(ModuleProtocol):
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
-        config = dict(ctx.config)
+        config = job_config(ctx.config)
         self._agent_id = str(config.pop("agent_id", f"{self.manifest.id}_agent"))
         config.setdefault("description", "The job agent: applies to one job per session and runs job searches. "
                           + UI_SHORTCUT)  # fmt: skip

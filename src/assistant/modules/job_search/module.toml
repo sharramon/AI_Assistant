@@ -12,10 +12,14 @@ packages = []
 # The job agent (id "job_search_agent": the module id plus _agent), bundled with its module and its job.* menu; off at launch (modules.on job_search).
 # Takes the same keys as a task_agents profile. These keys are its access list, asked for in one
 # card when it's turned on (saved in config/permissions.toml; it asks again when the list changes):
-# read and write the job project, read the rest of C:\Chang\Jobs and JobRadar, run JobRadar's
-# Python, Chrome. Sessions always start in Manual. Anything else asks you with a card. It never
-# submits or sends anything.
-workspace = "C:/Chang/Jobs/CV"
+# read and write the job project (its workspace), read and write your documents, read the rest of
+# C:\Chang\Jobs and JobRadar, run JobRadar's Python, Chrome. Sessions always start in Manual.
+# Anything else asks you with a card. It never submits or sends anything.
+workspace = "workspace"   # its own folder, modules/job_search/workspace (gitignored); a relative path is from this module's folder
+# Your CVs and cover letters (read and write: it saves per-company CVs there), outside the repo. None by
+# default; yours goes in the gitignored config/local.toml ([modules.job_search] documents = "...").
+# The job project's scripts take it from workspace/job_paths.json.
+documents = ""
 read_dirs = ["C:/Chang/Jobs", "C:/Chang/Git_projects/Resume"]
 python = "C:/Chang/Git_projects/Resume/.venv/Scripts/python.exe"  # JobRadar's Python (sweep.py), any arguments
 tools = "default"

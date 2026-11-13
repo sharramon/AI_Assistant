@@ -12,7 +12,32 @@
 <nav data-root="../../" data-page="modules/job_search/job-project.html"></nav>
 <main>
 <h1 id="job-project">Job project</h1>
-<p>The job project lives in <code>C:\Chang\Jobs\CV</code>, outside this repo. It's a Claude Code project: a <code>CLAUDE.md</code>, six skills in its <code>.claude</code> folder, and files that hold all its state. It applies to jobs, one per Claude session, and runs job searches. This page describes how it's shaped today (read 2026-11-04).</p>
+<p>The job project is a Claude Code project: a <code>CLAUDE.md</code>, six skills in its <code>.claude</code> folder, scripts, and files that hold all its state. It applies to jobs, one per Claude session, and runs job searches. This page describes how it's shaped (read 2026-11-04; the move below 2026-11-13).</p>
+<h2 id="where-it-lives-since-2026-11-13">Where it lives (since 2026-11-13)</h2>
+<p>The job agent works in the module's own folder, <code>src/assistant/modules/job_search/workspace/</code> (gitignored, never committed; pytest skips it). It was <strong>copied</strong> there from <code>C:\Chang\Jobs\CV</code> (module folders item 18), and the old folder was left as it was:</p>
+<table>
+<thead>
+<tr>
+<th>In the workspace</th>
+<th>Left in your documents folder (<code>C:\Chang\Jobs\CV</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CLAUDE.md</code>, <code>.claude/skills/</code> (the six skills and their scripts), <code>Recruiters/scripts/</code> (the live scripts and their tests), <code>Recruiters/docs/</code> (all job state: the queue, applications, keywords, the company registry, the job UI's pages and state), <code>recruiters_tracker.csv</code>, <code>outreach_messages.md</code></td>
+<td>Your CVs (<code>.pdf</code>, <code>.odt</code>), <code>2025/</code>, <code>2026/</code>, <code>CoverLetter/</code>, <code>StartUp/</code>, <code>UnderRadar/</code>, <code>_upload/</code>, the old history (<code>Recruiters/docs/archive</code>, <code>backups</code>, <code>cv_drafts</code>), the one-off <code>tmp_*</code> scripts and <code>backups</code>, <code>handoff.ps1</code>, <code>next_job.ps1</code>, the launchers</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>One paths file.</strong> Every copied script reads the folders outside the workspace from <code>workspace/job_paths.json</code> through a small helper beside it, <code>job_paths.py</code> (<code>documents</code>: your CV folder; <code>jobs</code>; <code>jobradar</code> and <code>jobradar_python</code>: JobRadar and its Python; <code>cv_output</code>: the tailored CV PDFs the job UI shows). Paths inside the workspace (<code>Recruiters/docs</code>, the scripts) come from the helper's own place. Change a path there, never in a script.</li>
+<li><strong>Your documents</strong> stay outside the repo (decision 5): job_search's <code>documents</code> key names the folder, read and write, set in the gitignored <code>config/local.toml</code>.</li>
+<li><strong>JobRadar's Python</strong> still runs the scripts (decision 6); nothing new is installed.</li>
+<li><strong>The job UI:</strong> <code>job.open_ui</code> runs the workspace's <code>Recruiters/scripts/job_ui.py</code> (<code>ui.py</code>'s default).</li>
+<li><strong><code>cv.task</code>:</strong> the job descriptions saved by <code>save_jd.py</code> now sit in the workspace, which cv doesn't read, so the apply-session skill sends <code>jd_text</code> rather than <code>jd_file</code>.</li>
+<li><strong>Memory:</strong> the job agent's memory notes were copied to the workspace's own key (<code>~/.claude/projects/C--Chang-Git-projects-AI-Assistant-src-assistant-modules-job-search-workspace/memory</code>).</li>
+</ul>
+<p>The sections below describe the project as it ran from <code>C:\Chang\Jobs\CV</code>, before the module ran it; inside the app, the job prompt replaces <code>handoff.ps1</code> with a final report (or a <code>HANDOFF:</code> line).</p>
 <h2 id="the-project-in-one-picture">The project in one picture</h2>
 <pre><code class="language-mermaid">flowchart TD
     You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;double-click start_job.cmd&lt;br/&gt;or type in a Claude window&quot;])

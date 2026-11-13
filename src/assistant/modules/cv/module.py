@@ -50,7 +50,15 @@ from assistant.contracts import (
     StartTask,
     TaskUpdated,
 )
-from assistant.infra import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_USES, AgentKit, ProfileAgent
+from assistant.infra import (
+    AGENT_LISTENS,
+    AGENT_PUBLISHES,
+    AGENT_SENDS,
+    AGENT_USES,
+    AgentKit,
+    ProfileAgent,
+    in_module_folder,
+)
 from assistant.modules.cv.build import build_cv
 from assistant.modules.cv.compare import Comparison, FieldCompare
 from assistant.modules.cv.content import SECTIONS, CvContent
@@ -106,7 +114,7 @@ menu = CallerMenu()
 
 PAPERS = ("letter", "a4")
 REPO = Path(__file__).resolve().parents[4]  # src/assistant/modules/cv -> the repo: no token file in it
-HERE = Path(__file__).resolve().parent  # this module's folder: a relative workspace or output_dir is from here
+HERE = Path(__file__).resolve().parent  # this module's folder (a relative workspace or output_dir is from here: in_module_folder)
 #: cv_agent's own workspace (gitignored, `workspace/`): the one place in the repo its job folders may be.
 OWN_WORKSPACE = HERE / "workspace"
 
@@ -867,10 +875,10 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"cv: callback_port must be 1 to 65535, not {port!r}")
     section = config.get("agent", {"enabled": False})  # no table: the menu only
     if isinstance(section, dict) and section.get("workspace"):
-        section = {**section, "workspace": str(_from_here(section["workspace"]))}
+        section = {**section, "workspace": str(in_module_folder("cv", section["workspace"]))}
     workspace = str(section.get("workspace") or "") if isinstance(section, dict) else ""
     output_dir = config.get("output_dir")
-    output_dir = str(_from_here(output_dir)) if output_dir else str(Path(workspace) / "out") if workspace else ""
+    output_dir = str(in_module_folder("cv", output_dir)) if output_dir else str(Path(workspace) / "out") if workspace else ""
     cv_dir = str(config.get("cv_dir", ""))
     prefix = check_cv_prefix(config.get("cv_prefix", "CV_Test_"))
     agent = worker_config(section, output_dir)
@@ -899,13 +907,6 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
         "callback_port": port,
         "agent": agent,
     }
-
-
-def _from_here(path: Any) -> Path:
-    """A configured folder: `~` expanded, a relative one from this module's folder (`workspace` →
-    `modules/cv/workspace`), so no default names a personal absolute path."""
-    folder = Path(str(path)).expanduser()
-    return folder if folder.is_absolute() else (HERE / folder).resolve()
 
 
 def job_folders(config: dict[str, Any], agent: dict[str, Any], cv_dir: str) -> tuple[str, list[str]]:
