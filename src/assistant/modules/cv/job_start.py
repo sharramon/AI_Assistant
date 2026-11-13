@@ -2,9 +2,10 @@
 before the worker sees the task.
 
 `JobStart.prepare` turns a `CvRequest` into a `CvJob`. It makes `<work_dir>/<date>_<Company>_<Role>`,
-copies the base CV into it (sha256 checked, never overwriting), writes the JD as `jd.txt`, and
-reads each rule file in `job_skills`. It refuses a base CV outside `cv_dir`, a missing or empty base
-CV, and a missing or empty rule file. `start_block` is what the worker gets under its task: the
+copies the base CV into it as `base_<its name>` (sha256 checked, never overwriting; the prefix keeps
+anyone from taking it for a tailored CV), writes the JD as `jd.txt`, and
+reads each rule file in `job_skills`. It takes any .pdf base CV as given and refuses a missing or empty
+one, and a missing or empty rule file. `start_block` is what the worker gets under its task: the
 `CV_JOB:` line, one rule, and each rule file's full text.
 
 `JobStartAgent` is the `ITaskAgent` the module provides for its worker. It holds the worker's
@@ -35,6 +36,7 @@ COMPANY_WORDS = 3  # "Example Corp Inc" → ExampleCorpInc
 ROLE_WORDS = 4  # "Staff Engineer, Widget Design & Testing" → StaffEngineerWidgetDesign
 _PART_CHARS = 40  # one name part at most, so a long title can't make a too-long path
 _WORD = re.compile(r"[A-Za-z0-9]+")
+BASE_COPY_PREFIX = "base_"  # the job folder's copy of the base CV: base_CV_Test_ExampleCorp.pdf, never a tailored CV
 
 
 class JobStartError(ValueError):
@@ -99,12 +101,14 @@ class JobStart:
             loaded.append(Skill(path, text, _sha(data)))
         return loaded
 
+    def folder_for(self, company: str, role: str) -> Path:
+        """The job's folder, as its set-up today makes it: `work_dir/YYYY-MM-DD_Company_Role`."""
+        return self.work_dir / job_folder_name(company, role, self._today())
+
     def prepare(self, request: CvRequest) -> tuple[CvJob, str]:
         """Make the job's folder, copy the base CV and the JD into it, load the rules: the job and
         the block for the task. The base CV is only read. JobStartError with the reason."""
-        base = Path(request.base_cv)
-        if not (str(self.cv_dir) and base.resolve().is_relative_to(self.cv_dir.resolve())):
-            raise JobStartError(f"base_cv must be one of your CVs in {self.cv_dir}, not {base}")
+        base = Path(request.base_cv)  # any .pdf, used as given (CvRequest checks the .pdf)
         if not base.is_file():
             raise JobStartError(f"base_cv not found: {base}")
         source = base.read_bytes()  # read once: copied and hashed from the same bytes
@@ -112,10 +116,10 @@ class JobStart:
             raise JobStartError(f"base_cv is empty (0 bytes), so there's nothing to copy: {base}")
         skills = self.load_skills()  # before anything is made: a missing rule makes nothing
 
-        folder = self.work_dir / job_folder_name(request.company, request.role, self._today())
+        folder = self.folder_for(request.company, request.role)
         created = not folder.exists()
         folder.mkdir(parents=True, exist_ok=True)
-        copy = _place(folder, base.name, source)
+        copy = _place(folder, BASE_COPY_PREFIX + base.name, source)
         if _sha(copy.read_bytes()) != _sha(source):
             raise JobStartError(f"the copy of the base CV doesn't match it: {copy}")
         jd = _place(folder, "jd.txt", request.jd_text.encode("utf-8"))
@@ -174,7 +178,8 @@ def start_block(job: CvJob, skills: Sequence[Skill], cv_dir: str | Path) -> str:
     parts = [
         job_line(job),
         f"The cv module set up this job in code before you got it: its folder is {job.work_dir}, with a "
-        f"copy of the base CV ({job.base_cv_copy}) and the JD ({job.jd_file}). Work only in that folder: "
+        f"copy of the base CV ({job.base_cv_copy}; the {BASE_COPY_PREFIX} prefix marks it as the untouched base, "
+        f"never a tailored CV) and the JD ({job.jd_file}). Work only in that folder: "
         f"keep every draft there, and never run a script or command on a file in {cv_dir}. When the user "
         f"tells you to start, cv.open_tool with job_dir={job.work_dir} opens this job in the CV Tool; the "
         f"final PDF comes from the user's Submit there (cv.tool_result). "

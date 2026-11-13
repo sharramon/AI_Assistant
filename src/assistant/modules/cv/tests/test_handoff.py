@@ -1,5 +1,5 @@
 """Chunk 7: the job agent's hand-off to cv_agent through the Hub (cv.task, CV_REQUEST, CV_RESULT).
-The base CV goes in as a `CV_Test_*.pdf` (an `.odt` is refused) and the CV comes back as a PDF.
+The base CV goes in as any `.pdf` (an `.odt` is refused) and the CV comes back as a PDF.
 A fake `claude` that echoes its task: no session talks to Rezi."""
 
 import asyncio
@@ -144,6 +144,14 @@ async def test_the_job_agent_hands_one_job_to_cv_agent_and_reads_its_result(tmp_
         assert read.value["status"] == "approved" and read.value["score"]["last"] == 93
         assert read.value["rezi"]["resume"] == {"name": "Acme – Senior Engineer", "id": "r9"}
         assert (await use(app, "cv.read_result", text="no line")).status is Status.INVALID_ARGUMENTS
+        # by task id: cv reads the ended task's whole result itself
+        by_id = await use(app, "cv.read_result", task_id=again.value)
+        assert by_id.is_ok, by_id.error
+        assert by_id.value == read.value
+        assert (await use(app, "cv.read_result", task_id="nope")).status is Status.INVALID_ARGUMENTS
+        both = await use(app, "cv.read_result", task_id=again.value, text=echoed)
+        assert both.status is Status.INVALID_ARGUMENTS
+        assert (await use(app, "cv.read_result")).status is Status.INVALID_ARGUMENTS
     finally:
         await app.stop()
 
@@ -191,10 +199,10 @@ async def test_a_caller_reaches_the_worker_end_to_end_with_a_jd_file_and_a_cv_pa
         await app.stop()
 
 
-async def test_cv_task_refuses_a_bad_job_or_a_cv_outside_your_cv_folder(tmp_path):
+async def test_cv_task_takes_any_pdf_and_refuses_a_bad_job(tmp_path):
     order = SectionOrder.from_config(DEFAULTS).usual
     base = write_pdf(CV, order, tmp_path / "CV" / "CV_Test_Base.pdf")
-    stray = write_pdf(CV, order, tmp_path / "elsewhere" / "CV_Test_Base.pdf")
+    anywhere = write_pdf(CV, order, tmp_path / "elsewhere" / "My Resume.pdf")  # no prefix, outside cv_dir
     odt = OdtWriter().write(CV, order, tmp_path / "CV" / "CV_Test_Base.odt")  # in the CV folder, still refused
     app = app_with(tmp_path)
     await app.start()
@@ -210,14 +218,23 @@ async def test_cv_task_refuses_a_bad_job_or_a_cv_outside_your_cv_folder(tmp_path
         outside = tmp_path / "elsewhere" / "jd.md"
         outside.write_text("Python", encoding="utf-8")
         odt_refused = await use(app, "cv.task", **(good | {"base_cv": str(odt)}))
-        assert odt_refused.status is Status.INVALID_ARGUMENTS and "CV_Test_*.pdf" in odt_refused.error
-        for change in ({"base_cv": str(stray)}, {"base_cv": str(tmp_path / "CV" / "CV_Test_Missing.pdf")},
-                       {"base_cv": str(tmp_path / "CV" / "cv.pdf")}, {"target_score": 0}, {"company": ""},
+        assert odt_refused.status is Status.INVALID_ARGUMENTS and "must be a .pdf file" in odt_refused.error
+        missing = await use(app, "cv.task", **(good | {"base_cv": str(tmp_path / "nowhere" / "gone.pdf")}))
+        assert missing.status is Status.INVALID_ARGUMENTS and "base_cv not found" in missing.error
+        for change in ({"target_score": 0}, {"company": ""},
                        {"jd_file": str(jd)}, {"jd_text": "", "jd_file": str(outside)}, {"jd_text": " "}):  # fmt: skip
             refused = await use(app, "cv.task", **(good | change))
             assert refused.status is Status.INVALID_ARGUMENTS, change
     finally:
         await app.stop()
+    other = app_with(tmp_path / "any")  # a fresh worker: the PDF lies outside its cv_dir, with no prefix
+    await other.start()
+    try:
+        taken = await use(other, "cv.task", **(good | {"base_cv": str(anywhere)}))
+        assert taken.is_ok, taken.error
+        assert read_request(taken.value["text"]).base_cv == str(anywhere)  # used as given
+    finally:
+        await other.stop()
     off = app_with(tmp_path / "off", enabled=False)
     base_off = write_pdf(CV, order, tmp_path / "off" / "CV" / "CV_Test_Base.pdf")
     await off.start()

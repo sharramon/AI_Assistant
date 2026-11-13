@@ -1,5 +1,5 @@
 """The job start in code: a CV_REQUEST gets its own folder, a copy of the base CV and its rules
-before the worker sees the task. The base CV is a `CV_Test_*.pdf`. Everything is written in
+before the worker sees the task. The base CV is any `.pdf`. Everything is written in
 tmp_path."""
 
 import hashlib
@@ -73,7 +73,7 @@ def test_a_job_gets_its_folder_a_checked_copy_the_jd_and_its_rules(tmp_path):
     folder = tmp_path / "work" / "2026-11-09_ExampleCorp_StaffEngineerWidgetDesign"
     assert Path(job.work_dir) == folder and job.created
     copy = Path(job.base_cv_copy)
-    assert copy == folder / base.name and copy.read_bytes() == base.read_bytes()
+    assert copy == folder / "base_CV_Test_ExampleCorp.pdf" and copy.read_bytes() == base.read_bytes()
     assert job.base_cv_sha256 == hashlib.sha256(base.read_bytes()).hexdigest()
     assert Path(job.jd_file).read_text(encoding="utf-8") == "Isaac Sim, C#, Python\nSim-to-real"
     record = json.loads((folder / "job_start.json").read_text(encoding="utf-8"))
@@ -98,20 +98,25 @@ def test_a_second_start_reuses_the_folder_and_never_overwrites_a_copy(tmp_path):
 
     Path(first.base_cv_copy).write_bytes(b"edited by hand")  # the copy changed in the folder
     third, _ = start.prepare(request(base))
-    assert Path(third.base_cv_copy).name == "CV_Test_ExampleCorp_2.pdf"
+    assert Path(third.base_cv_copy).name == "base_CV_Test_ExampleCorp_2.pdf"
     assert Path(first.base_cv_copy).read_bytes() == b"edited by hand"  # kept
     assert sorted(p.name for p in Path(first.work_dir).glob("job_start*.json")) == ["job_start.json"]  # one per job
     record = json.loads((Path(first.work_dir) / "job_start.json").read_text(encoding="utf-8"))
     assert record["job"]["base_cv_copy"] == third.base_cv_copy and record["started"] <= record["set_up"]
 
 
-@pytest.mark.parametrize("problem", ["outside", "missing", "empty", "no_rule", "empty_rule"])
+def test_a_pdf_anywhere_with_any_name_is_taken_as_given(tmp_path):
+    base = base_cv(tmp_path, "My Resume.pdf", "elsewhere")  # no prefix, outside cv_dir
+    job, _ = starter(tmp_path).prepare(request(base))
+    assert job.base_cv == str(base) and Path(job.base_cv_copy).name == "base_My Resume.pdf"
+    assert Path(job.base_cv_copy).read_bytes() == base.read_bytes()
+
+
+@pytest.mark.parametrize("problem", ["missing", "empty", "no_rule", "empty_rule"])
 def test_a_job_that_cant_start_safely_makes_nothing(tmp_path, problem):
     base = base_cv(tmp_path)
     skills = rules(tmp_path)
-    if problem == "outside":
-        base = base_cv(tmp_path, base.name, "elsewhere")
-    elif problem == "missing":
+    if problem == "missing":
         base = tmp_path / "CV" / "CV_Test_Gone.pdf"
     elif problem == "empty":
         base.write_bytes(b"")  # the 2026-11-08 incident: a 0-byte CV
@@ -251,6 +256,7 @@ async def test_a_job_through_the_hub_gets_its_folder_before_the_worker_sees_it(t
         assert Path(made.work_dir) == (tmp_path / "cv_agent" / "work" /
                                        f"{today}_ExampleCorp_StaffEngineerWidgetDesign").resolve()
         assert Path(made.base_cv_copy).read_bytes() == base.read_bytes() and SKILL_TEXT in echoed
+        assert Path(made.base_cv_copy).name == "base_CV_Test_ExampleCorp.pdf"  # never taken for a tailored CV
         read = await use(app, "cv.read", caller="cv_agent", pdf=made.base_cv_copy)  # the copy is readable
         assert read.is_ok and read.value["complete"], read.error
         assert read.value["sections"]["experience"] == list(CV.lines("experience"))
@@ -258,7 +264,7 @@ async def test_a_job_through_the_hub_gets_its_folder_before_the_worker_sees_it(t
                           job_dir=made.work_dir)  # the PDF goes to the job's folder, never over its copy
         if built.is_ok:  # LibreOffice installed
             assert Path(built.value["pdf_path"]).parent == Path(made.work_dir)
-            assert Path(built.value["pdf_path"]).name == "CV_Test_ExampleCorp_tailored.pdf"
+            assert Path(built.value["pdf_path"]).name == "CV_Test_ExampleCorp.pdf"  # the copy is base_…: no clash
             assert Path(made.base_cv_copy).read_bytes() == base.read_bytes()
         else:
             assert built.status is Status.NOT_AVAILABLE, built.error

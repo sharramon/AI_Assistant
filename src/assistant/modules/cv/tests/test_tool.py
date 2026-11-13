@@ -232,7 +232,7 @@ async def test_the_submit_reaches_the_asking_agent_once_by_its_id(tmp_path):
         fake.result = {"ready": True, "work_dir": job.work_dir, "small_text": [],
                        "result": {"pdf_path": "A_final.pdf", "submitted_at": "t1", "company": "A", "role": "B"}}
         first = await call(app, "cv.tool_result", job_id="j1")
-        assert first.value["told"].startswith("job_search_agent (")  # message / task / pending (it isn't running here)
+        assert first.value["told"] == "job_search_agent (published cv.job_submitted)"  # cv messages no one
         record = json.loads((Path(job.work_dir) / "job_start.json").read_text(encoding="utf-8"))
         assert record["request"]["reply_to"] == "job_search_agent" and record["replied"]["submitted_at"] == "t1"
         assert "told" not in (await call(app, "cv.tool_result", job_id="j1")).value  # the same Submit: told once
@@ -303,7 +303,8 @@ async def test_the_submit_watch_delivers_live_submits_and_only_reminds_missed_on
         assert note.agent_id == module._agent_id and note.source == "cv"
         assert "Submit" in note.text and "B at A" in note.text and f"(job {Path(job.work_dir).name})" in note.text
         assert "at t1" in note.text
-        assert "delivered it to job_search_agent" in note.text and "1 text piece print under 10" in note.text
+        assert "passed it on for job_search_agent (cv.job_submitted)" in note.text
+        assert "1 text piece print under 10" in note.text
         told = await call(app, "cv.tool_result", job_id="j1")
         assert told.is_ok and "told" not in told.value  # cv_agent's look tells nobody twice
 

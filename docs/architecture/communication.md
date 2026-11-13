@@ -63,7 +63,7 @@ sequenceDiagram
     Bus->>UI: ResponseReady
 ```
 
-**Where message types live:** shared commands and events (`InputReceived`, `ResponseReady`, `InvokeTool`) are defined in Contracts. The AI calls tools through the single generic `InvokeTool(name, args)` command, using the name and argument schema each `IToolProvider` advertises, so the orchestrator needs no per-tool code. A typed command such as `CreateCalendarEvent` is added to Contracts only when one module needs to call another directly.
+**Where message types live:** shared commands and events (`InputReceived`, `ResponseReady`, `InvokeTool`) are defined in Contracts. A **module-owned** event, one only its module defines, is instead a [`ModuleEvent`](../api/messaging.md#moduleevent) matched by name: `ctx.publish_named` / `ctx.subscribe_named`, no new class and no restart, and either side reloads on its own (built 2026-11-12). The bus keeps nothing, so a listener that's off misses it. Modules talk to each other this way; a tool is only for a call out: the job agent calls `cv.task`, cv publishes `cv.job_finished` and `cv.job_submitted`, and job_search hears them and wakes its agent. The AI calls tools through the single generic `InvokeTool(name, args)` command, using the name and argument schema each `IToolProvider` advertises, so the orchestrator needs no per-tool code. A typed command such as `CreateCalendarEvent` is added to Contracts only when one module needs to call another directly.
 
 ## Chaining modules
 

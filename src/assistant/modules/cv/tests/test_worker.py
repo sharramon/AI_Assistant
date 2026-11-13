@@ -189,10 +189,10 @@ async def test_a_reload_brings_the_worker_back_and_keeps_the_guard(tmp_path):
 # --- cv.read -------------------------------------------------------------------------------------------
 
 
-async def test_cv_read_gives_the_sections_of_a_pdf_in_its_folders_only_and_refuses_an_odt(tmp_path):
+async def test_cv_read_gives_the_sections_of_any_pdf_and_refuses_an_odt_or_a_missing_file(tmp_path):
     order = SectionOrder.from_config(DEFAULTS).usual
     base = write_pdf(CV, order, tmp_path / "CV" / "CV_Test_Base.pdf")
-    elsewhere = write_pdf(CV, order, tmp_path / "other" / "CV_Test_Base.pdf")
+    elsewhere = write_pdf(CV, order, tmp_path / "other" / "My Resume.pdf")  # any folder, no prefix
     odt = OdtWriter().write(CV, order, tmp_path / "CV" / "CV_Test_Base.odt")  # a real .odt: still refused
     garbled = tmp_path / "CV" / "CV_Test_Garbled.pdf"
     garbled.write_bytes(b"not a pdf")
@@ -205,9 +205,12 @@ async def test_cv_read_gives_the_sections_of_a_pdf_in_its_folders_only_and_refus
         assert list(read.value["names"]) == ["contact", "skills", "experience"]
         assert read.value["complete"] is True and read.value["unplaced"] == [] and read.value["pages"] == 1
         assert "next" not in read.value
+        anywhere = await app.router.send(InvokeTool(name="cv.read", args={"pdf": str(elsewhere)}, caller="cv_agent"))
+        assert anywhere.is_ok, anywhere.error  # any existing .pdf, as given
+        assert anywhere.value["sections"]["experience"] == list(CV.lines("experience"))
         refused = await app.router.send(InvokeTool(name="cv.read", args={"pdf": str(odt)}, caller="cv_agent"))
         assert refused.status is Status.INVALID_ARGUMENTS and ".odt isn't read" in refused.error
-        for pdf in (str(elsewhere), str(tmp_path / "CV" / "missing.pdf"), str(tmp_path / "CV" / "notes.txt"), str(garbled)):
+        for pdf in (str(tmp_path / "CV" / "missing.pdf"), str(tmp_path / "CV" / "notes.txt"), str(garbled)):
             refused = await app.router.send(InvokeTool(name="cv.read", args={"pdf": pdf}, caller="cv_agent"))
             assert refused.status is Status.INVALID_ARGUMENTS, pdf
         old = await app.router.send(InvokeTool(name="cv.read", args={"odt": str(odt)}, caller="cv_agent"))

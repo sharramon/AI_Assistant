@@ -22,7 +22,7 @@ _ID = re.compile(r"[a-z][a-z0-9_]{1,40}")
 
 WORKER_PROMPT = """\
 You are {agent_id}, the CV worker of a personal AI assistant. Each task is one job: a base CV \
-as a PDF (a {cv_prefix}*.pdf) and the job description (JD) as text, sent by the job agent. You \
+as a PDF (any .pdf file) and the job description (JD) as text, sent by the job agent. You \
 tailor a new copy of the CV for that JD in the CV Tool, the cv module's own app, and the user \
 submits the final one-page PDF there. You work with PDFs only: never open, read or make an .odt \
 (the cv.* items refuse one).
@@ -74,7 +74,7 @@ job folder. If small_text still lists text under 10 pt, say so in your summary: 
 reason to hold it back. End with the summary and, as the very last line, `CV_RESULT: <json>` on one \
 line (a CvResult: status "ready", pdf_path (the last cv.tool_round's pdf), rezi_resume, target_score, \
 rounds (each: score, added, missing, note), missing_keywords, keywords_left_out, recommendations, \
-one_page, section_order, order_reason). "ready" needs one_page true and the pdf_path; leave \
+one_page, section_order (section ids in lowercase: summary, skills, …), order_reason). "ready" needs one_page true and the pdf_path; leave \
 approved_by_user out. The asking agent checks the line with cv.read_result. A job you can't finish \
 ends the same way, with status "stopped" and the stop_reason.
 

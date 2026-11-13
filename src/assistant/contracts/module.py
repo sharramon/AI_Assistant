@@ -2,18 +2,43 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
-from assistant.contracts.messages import Command, Event, Result
+from assistant.contracts.messages import Command, Event, ModuleEvent, Result
 
 if TYPE_CHECKING:
     from assistant.contracts.menu import Menu
     from assistant.contracts.permissions import AccessItem
+
+_EVENT_NAME = re.compile(r"[A-Za-z_]\w*(\.\w+)+")
+_EVENT_PATTERN = re.compile(r"[A-Za-z_]\w*(\.\w+)*\.\*")
+
+
+def event_name_ok(name: str, pattern: bool = False) -> bool:
+    """Whether `name` is a named event's name, `<module_id>.<what>` (`cv.job_finished`); with
+    `pattern`, a trailing `.*` (`cv.*`: every event of one module) is allowed too."""
+    if not isinstance(name, str):
+        return False
+    return bool(_EVENT_NAME.fullmatch(name) or (pattern and _EVENT_PATTERN.fullmatch(name)))
+
+
+class SubscriptionHandle:
+    """One subscription, as `ctx.subscribe` and `ctx.subscribe_named` return it: pass it to
+    `ctx.unsubscribe` to drop just that one. Opaque; `what` (the event's class or name) is for logs."""
+
+    __slots__ = ("what",)
+
+    def __init__(self, what: str) -> None:
+        self.what = what
+
+    def __repr__(self) -> str:
+        return f"SubscriptionHandle({self.what!r})"
 
 
 class Contract(ABC):
@@ -62,6 +87,10 @@ class Manifest:
     publishes: tuple[type[Event], ...] = ()
     #: Events this module subscribes to. Events in.
     listens: tuple[type[Event], ...] = ()
+    #: Named events (`ModuleEvent`) this module publishes, each `<its id>.<what>`.
+    publishes_named: tuple[str, ...] = ()
+    #: Named events this module listens to (`cv.job_finished`, or `cv.*` for all of one module).
+    listens_named: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or not self.id.isidentifier():
@@ -74,6 +103,13 @@ class Manifest:
             for item in getattr(self, field):
                 if not (isinstance(item, type) and issubclass(item, base)):
                     raise TypeError(f"{self.id}: manifest.{field} takes {base.__name__} types, got {item!r}")
+        for name in self.publishes_named:
+            if not (event_name_ok(name) and name.startswith(f"{self.id}.")):
+                raise ValueError(f"{self.id}: manifest.publishes_named takes '{self.id}.<what>' names, got {name!r}")
+        for name in self.listens_named:
+            if not event_name_ok(name, pattern=True):
+                raise ValueError(f"{self.id}: manifest.listens_named takes '<module>.<what>' or '<module>.*', "
+                                 f"got {name!r}")  # fmt: skip
 
 
 class ModulePermissions(ABC):
@@ -154,12 +190,32 @@ class ModuleContext(ABC):
     handover: Any = None
 
     @abstractmethod
-    def subscribe(self, event_type: type[E], handler: Callable[[E], Awaitable[None]]) -> None:
-        """Receive every published event that is an instance of `event_type`."""
+    def subscribe(self, event_type: type[E], handler: Callable[[E], Awaitable[None]]) -> SubscriptionHandle | None:
+        """Receive every published event that is an instance of `event_type`. Any time while the
+        module runs. Returns a handle for `unsubscribe` (the core's context always does)."""
 
     @abstractmethod
     def publish(self, event: Event) -> None:
         """Publish an event. Returns immediately; never waits on subscribers."""
+
+    def publish_named(self, name: str, data: Mapping[str, Any] | None = None) -> None:
+        """Publish a `ModuleEvent` named `name`, which must be `<this module's id>.<what>`, with
+        `data` (plain JSON values only); the core sets its `source`. Returns immediately.
+        Raises ValueError for another module's name or data that isn't JSON."""
+        raise NotImplementedError
+
+    def subscribe_named(self, name: str, handler: Callable[[ModuleEvent], Awaitable[None]]) -> SubscriptionHandle:
+        """Receive every `ModuleEvent` named `name` (`cv.job_finished`), or every one of a module
+        with a trailing `.*` (`cv.*`). Any time while the module runs; returns a handle for
+        `unsubscribe`. Matched by name, so either side reloads on its own; one published while
+        this module is off or reloading is missed (the bus keeps nothing)."""
+        raise NotImplementedError
+
+    def unsubscribe(self, handle: SubscriptionHandle) -> None:
+        """Drop one subscription, typed or named, without stopping the module. Events still
+        queued for it are dropped. Does nothing if it's already gone. Everything left is
+        dropped at the module's stop anyway."""
+        raise NotImplementedError
 
     @abstractmethod
     def handle(self, command_type: type[K], handler: Callable[[K], Awaitable[Result]]) -> None:

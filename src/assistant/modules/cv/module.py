@@ -7,10 +7,11 @@ checked and exported into the job's folder (`build.py`; its `.odt` stays in a te
 the config, which connects only when an item uses it, and the `rezi.*` items (`rezi.py`) with the
 resume guard (`guard.py`), `cv.read` (a CV PDF, `pdf_read.py`; the cv module takes PDFs only and
 refuses an `.odt`), the worker `cv_agent` (chunk 6, `worker.py`), and the
-job agent's hand-off (chunk 7, `handoff.py`; agent-talk-and-questions): `cv.task` starts cv_agent
-on one job itself, as a child of the caller's open task (no coordinator in between), and at the
-user's Submit the module delivers the result to the asker through the Hub's `DeliverMessage`;
-`cv.read_result` checks the `CV_RESULT` line the worker ends with.
+job agent's hand-off (chunk 7, `handoff.py`): `cv.task` starts cv_agent on one job itself, as a
+child of the caller's open task, with `tell_parent=False`. cv reports back only through named
+events: `cv.job_finished` when cv_agent's job task ends, `cv.job_submitted` at the user's Submit,
+each with the asker's id (`reply_to`); the asker's module hears them and wakes its agent. cv sends
+the asker no message itself. `cv.read_result` checks the `CV_RESULT` line the worker ends with.
 
 The worker is a `ProfileAgent` built the way `job_search` builds its agent: on start, one access
 request for `[agent]`'s list (`request_access`, subject the agent's id: a card unless the saved
@@ -43,9 +44,11 @@ from assistant.contracts import (
     ModuleContext,
     ModuleProtocol,
     PermissionChanged,
+    ReportKind,
     ResponseReady,
     Result,
     StartTask,
+    TaskUpdated,
 )
 from assistant.infra import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_USES, AgentKit, ProfileAgent
 from assistant.modules.cv.build import build_cv
@@ -53,13 +56,28 @@ from assistant.modules.cv.compare import Comparison, FieldCompare
 from assistant.modules.cv.content import SECTIONS, CvContent
 from assistant.modules.cv.data import TOOL_PICKS, CvRequest, CvResult, check_cv_prefix, cv_prefix, set_cv_prefix
 from assistant.modules.cv.guard import ResumeGuard
-from assistant.modules.cv.handoff import read_jd_file, read_request, read_result, result_view, task_text
-from assistant.modules.cv.job_start import COMPANY_WORDS, JobStart, JobStartAgent, job_notes, name_part
+from assistant.modules.cv.handoff import (
+    JOB_FINISHED,
+    job_finished,
+    read_jd_file,
+    read_request,
+    read_result,
+    result_view,
+    task_text,
+)
+from assistant.modules.cv.job_start import COMPANY_WORDS, JobStart, JobStartAgent, job_notes, name_part, read_record
 from assistant.modules.cv.mcp import CALLBACK_PORT, REZI_URL, McpClient, OpenBrowser, TokenStore, default_token_file
 from assistant.modules.cv.order import SectionOrder, wants_masters
 from assistant.modules.cv.pdf import ExportError, PdfExport
 from assistant.modules.cv.pdf_read import read_pdf
-from assistant.modules.cv.reply import mark_replied, pending_reply, reply_text, rezi_click_text, submit_notice
+from assistant.modules.cv.reply import (
+    JOB_SUBMITTED,
+    job_submitted,
+    mark_replied,
+    pending_reply,
+    rezi_click_text,
+    submit_notice,
+)
 from assistant.modules.cv.report import ReportWriter, Round
 from assistant.modules.cv.rezi import ReziTools, run
 from assistant.modules.cv.submit_watch import SubmitWatch
@@ -91,7 +109,7 @@ REPO = Path(__file__).resolve().parents[4]  # src/assistant/modules/cv -> the re
 
 _BUILD_ARGS = {
     "company": {"type": "string", "minLength": 1, "description": "The job's company; names the folder and the files"},
-    "base_cv": {"type": "string", "description": "A <cv_prefix>*.pdf to build from (read only; an .odt is refused); "
+    "base_cv": {"type": "string", "description": "Any .pdf to build from (read only; an .odt is refused); "
                 "or give `sections`"},
     "job_dir": {"type": "string", "description": "The job's folder (CV_JOB's work_dir): the final PDF is exported "
                 "there as <cv_prefix><Company>.pdf. Unset: <output_dir>/<date>_<Company>/"},
@@ -147,8 +165,8 @@ _TASK_ARGS = {
     "jd_text": {"type": "string", "description": "The job description as text; or give jd_file"},
     "jd_file": {"type": "string", "description": "The job description as a .txt, .md or .html file in cv_dir, output_dir or work_dir "
                 "(read into jd_text)"},
-    "base_cv": {"type": "string", "minLength": 1, "description": "The base CV: the <cv_prefix>*.pdf you recommend, in "
-                "cv_dir (read only; an .odt is refused)"},
+    "base_cv": {"type": "string", "minLength": 1, "description": "The base CV: any .pdf file, its path used as given "
+                "(read only; it must exist; a non-.pdf such as an .odt is refused)"},
     "jd_url": {"type": "string", "description": "The posting"},
     "degree_first": {"type": "boolean", "description": "Education under Skills (unset: the worker decides from the JD)"},
     "target_score": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Overrides the config's target"},
@@ -197,12 +215,16 @@ class CvModule(ModuleProtocol):
         description="Tailors a CV for one job with Rezi: one clean page, checked by Rezi, your yes; its worker cv_agent",
         provides=(ITaskAgent,),
         uses=AGENT_USES,
-        # cv.task starts cv_agent (the caller's open task as parent); the Submit's result is delivered
+        # cv.task starts cv_agent (the caller's open task as parent); DeliverMessage: only to cv_agent
+        # (the Rezi click)
         sends=(*AGENT_SENDS, StartTask, GetTaskStatus, DeliverMessage,),
         # ResponseReady: the one plain reminder of a Submit pressed while cv was down (submit_watch.py);
-        # AgentNotice: cv_agent's line, for its next turn, that the watch delivered a Submit
+        # AgentNotice: cv_agent's line, for its next turn, that the watch passed a Submit on
         publishes=(*AGENT_PUBLISHES, ResponseReady, AgentNotice,),
-        listens=(*AGENT_LISTENS, PermissionChanged,),
+        # the job's end and the user's Submit, for the asker's module (it wakes its agent)
+        publishes_named=(JOB_FINISHED, JOB_SUBMITTED),
+        # TaskUpdated: cv_agent's own end of a job task, published as cv.job_finished
+        listens=(*AGENT_LISTENS, PermissionChanged, TaskUpdated,),
         permissions=("agent.access",),
     )  # fmt: skip
     menu = menu
@@ -223,7 +245,8 @@ class CvModule(ModuleProtocol):
         self.guard = ResumeGuard.from_value(given.get("guard"))  # the resumes made before a reload
         self.tool = CvTool(given.get("tool"), self.settings["tool"], self.settings["work_dir"], ctx.log,
                            max_rounds=self.settings["max_rounds"])  # fmt: skip
-        self._telling = asyncio.Lock()  # the Submit watch and cv.tool_result: one telling at a time
+        self._telling = asyncio.Lock()  # the Submit watch and cv.tool_result: one Submit passed on at a time
+        ctx.subscribe(TaskUpdated, self._on_task)  # cv_agent's job ends -> cv.job_finished
         # delivers each live Submit; one missed while cv was down is only reminded (submit_watch.py);
         # each live Send JD and CV to Rezi click goes to cv_agent (_tell_worker_rezi)
         data_dir = self.settings["tool"]["data_dir"]
@@ -357,9 +380,9 @@ class CvModule(ModuleProtocol):
 
     # --- cv.task / cv.read_result: the job agent's hand-off ------------------------------------------------
 
-    @menu.item("cv.task", "Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv_agent "
-               "on it as your child task; at the user's Submit the one-page PDF and its score come back to you "
-               "as a message (the job agent's hand-off)",
+    @menu.item("cv.task", "Checks one job (the JD as text, the base CV as any .pdf) and starts cv_agent "
+               "on it as your child task; its end and the user's Submit go out as cv's events (cv.job_finished, "
+               "cv.job_submitted), which your module turns into messages for you (the job agent's hand-off)",
                _TASK_ARGS, required=["company", "role", "base_cv"])  # fmt: skip
     async def task(self, company: str, role: str, base_cv: str, jd_text: str = "", jd_file: str = "",
                    jd_url: str = "", degree_first: bool | None = None, target_score: int | None = None,
@@ -376,9 +399,6 @@ class CvModule(ModuleProtocol):
                                 notes=notes, tool=tool or None, reply_to=caller)  # fmt: skip
         except ValueError as exc:  # a ValidationError is one too
             return Result.invalid_arguments(f"cv.task: {exc}")
-        root = self.settings["cv_dir"]
-        if not (root and Path(base_cv).resolve().is_relative_to(Path(root).resolve())):
-            return Result.invalid_arguments(f"cv.task: base_cv must be one of your CVs in {root or 'cv_dir'}")
         if not Path(base_cv).is_file():
             return Result.invalid_arguments(f"cv.task: base_cv not found: {base_cv}")
         if self.worker is None:
@@ -387,7 +407,9 @@ class CvModule(ModuleProtocol):
         tasks = await self._ctx.send(GetTaskStatus())
         open_tasks = [t for t in (tasks.value or []) if not t.state.is_final] if tasks.is_ok else []
         parent = next((t.id for t in reversed(open_tasks) if t.agent_id == caller), None)
-        started = await self._ctx.send(StartTask(text=text, agent_id=self._agent_id, parent_task_id=parent))
+        # tell_parent=False: the end goes out only as cv.job_finished (_on_task), not as a Hub message too.
+        started = await self._ctx.send(StartTask(text=text, agent_id=self._agent_id, parent_task_id=parent,
+                                                 tell_parent=False))  # fmt: skip
         if not started.is_ok:
             self._ctx.log.info("cv.task from %s refused: %s", caller, started.error)
             return Result(status=started.status, error=f"cv.task: {self._agent_id} can't take this job now: "
@@ -395,12 +417,14 @@ class CvModule(ModuleProtocol):
                           "when it's free")  # fmt: skip
         self._ctx.log.info("cv.task from %s: task %s on %s", caller, started.value, self._agent_id)
         return Result.ok({"agent_id": self._agent_id, "task_id": started.value, "text": text,
-                          "next": f"Nothing more to call: {self._agent_id} has the job (task {started.value}, "
-                                  "your child task: hub.send to it if you need to). The user starts the work in "
-                                  "the CV Tool; at their Submit the PDF and the score come back to you as a "
-                                  "message, even if you or the worker were relaunched meanwhile: that message is "
-                                  "the user's yes. The worker's task ends before the Submit with a CV_RESULT line "
-                                  "(status \"ready\", or \"stopped\"): check it with cv.read_result"})  # fmt: skip
+                          "next": f"Nothing more to call, and don't wait: end your turn. {self._agent_id} has "
+                                  f"the job (task {started.value}, your child task: hub.send to it if you need "
+                                  "to). When its task ends (with a CV_RESULT line: status \"ready\", or "
+                                  "\"stopped\"), cv publishes cv.job_finished and your module wakes you with a "
+                                  "message naming the job and the result; the whole result: cv.read_result "
+                                  f"task_id={started.value}. The user then works in the CV Tool; at their Submit "
+                                  "cv publishes cv.job_submitted and your module sends you the PDF and the score "
+                                  "as a second message: that message is the user's yes"})  # fmt: skip
 
     def _on_job(self, open_tasks: list[Any]) -> str:
         """The job the worker's open task is on and who it's for, or "" (no open task, or no job in it)."""
@@ -418,10 +442,30 @@ class CvModule(ModuleProtocol):
         self._ctx.log.info("cv: %s", text)
         self._ctx.publish(ResponseReady(text=text))
 
+    async def _on_task(self, event: TaskUpdated) -> None:
+        """cv_agent's own end (done or failed) of a job task: publish `cv.job_finished` with the
+        job's asker (`reply_to`, from its `job_start.json`), so the asker's module wakes its agent.
+        A cancel, another agent's end or a task with no job folder publishes nothing."""
+        if event.agent_id != self._agent_id or event.kind not in (ReportKind.DONE, ReportKind.FAILED):
+            return
+        folder = self.gate.question_key(event.task_id) if self.gate is not None else ""
+        if not folder:
+            return
+        record = await asyncio.to_thread(read_record, Path(folder))
+        data = job_finished(self._agent_id, event.task_id, str(event.state), event.parent_task_id, folder, record,
+                            event.text)  # fmt: skip
+        if not data["reply_to"]:
+            self._ctx.log.info("cv: task %s ended %s; no reply_to in %s, so no %s", event.task_id, event.state,
+                               folder, JOB_FINISHED)  # fmt: skip
+            return
+        self._ctx.publish_named(JOB_FINISHED, data)
+        self._ctx.log.info("cv: task %s ended %s; published %s for %s", event.task_id, event.state, JOB_FINISHED,
+                           data["reply_to"])  # fmt: skip
+
     async def _deliver_submit(self, value: dict[str, Any]) -> str | None:
-        """The Submit watch's delivery: `_tell_asker`, and cv_agent gets one line about it for its
+        """The Submit watch's delivery: `_pass_submit`, and cv_agent gets one line about it for its
         next turn (an `AgentNotice`: never a wake). cv.tool_result needs none: its caller sees "told"."""
-        return await self._tell_asker(value, notice=True)
+        return await self._pass_submit(value, notice=True)
 
     async def _tell_worker_rezi(self, item: dict[str, Any]) -> str | None:
         """The user clicked Send JD and CV to Rezi: cv_agent gets one message (`DeliverMessage`, never
@@ -436,11 +480,12 @@ class CvModule(ModuleProtocol):
                            self._agent_id, how)  # fmt: skip
         return how
 
-    async def _tell_asker(self, value: dict[str, Any], notice: bool = False) -> str | None:
-        """The user submitted: tell the job's `reply_to` once per Submit (reply.py), never refused
-        (small text goes along as a warning). Called by the Submit watch and by cv.tool_result.
-        With `notice`, cv_agent is told it went out. Gives who and how, or None (no job folder,
-        nobody to tell, or told already)."""
+    async def _pass_submit(self, value: dict[str, Any], notice: bool = False) -> str | None:
+        """The user submitted: publish `cv.job_submitted` for the job's `reply_to` once per Submit
+        (reply.py), never refused (small text goes along as a warning). The asker's module wakes
+        its agent; cv messages no one. Called by the Submit watch and by cv.tool_result. With
+        `notice`, cv_agent is told it went out. Gives who and how, or None (no job folder, nobody
+        asked, or passed on already)."""
         result = dict(value.get("result") or {})
         result.setdefault("small_text", value.get("small_text") or [])
         submitted = str(result.get("submitted_at") or "")
@@ -452,19 +497,32 @@ class CvModule(ModuleProtocol):
             to = await asyncio.to_thread(pending_reply, folder, submitted)
             if to is None:
                 return None
-            sent = await self._ctx.send(DeliverMessage(agent_id=to, text=reply_text(result), sender="cv"))
-            how = str(sent.value) if sent.is_ok else f"failed: {sent.error}"
             job_id = str(value.get("job_id") or result.get("job_id") or Path(folder).name)
+            self._ctx.publish_named(JOB_SUBMITTED, job_submitted(to, job_id, folder, result))
+            how = f"published {JOB_SUBMITTED}"
             self._ctx.log.info("cv: the Submit of %s for %s: %s", job_id, to, how)
             await asyncio.to_thread(mark_replied, folder, submitted, to, how)
             if notice:
                 self._ctx.publish(AgentNotice(agent_id=self._agent_id, source="cv",
-                                              text=submit_notice(result, job_id, to, how, sent.is_ok)))  # fmt: skip
+                                              text=submit_notice(result, job_id, to)))  # fmt: skip
         return f"{to} ({how})"
 
-    @menu.item("cv.read_result", "Reads and checks the CV_RESULT line at the end of a cv_agent task's result",
-               {"text": {"type": "string", "minLength": 1, "description": "The task's result text"}}, required=["text"])  # fmt: skip
-    async def read_result_item(self, text: str) -> Result:
+    @menu.item("cv.read_result", "Reads and checks the CV_RESULT line at the end of a cv_agent task's result: give "
+               "task_id (cv reads the ended task's whole result) or the result's text, one of them",
+               {"task_id": {"type": "string", "minLength": 1, "description": "The cv_agent task's id (your child task)"},
+                "text": {"type": "string", "minLength": 1, "description": "The task's result text"}})  # fmt: skip
+    async def read_result_item(self, text: str = "", task_id: str = "") -> Result:
+        if bool(text) == bool(task_id):
+            return Result.invalid_arguments("cv.read_result: give task_id or text, one of them")
+        if task_id:
+            status = await self._ctx.send(GetTaskStatus(task_id=task_id))
+            task = status.value[0] if status.is_ok and status.value else None
+            if task is None or task.agent_id != self._agent_id:
+                return Result.invalid_arguments(f"cv.read_result: no {self._agent_id} task {task_id!r}")
+            if not task.state.is_final or not task.result:
+                return Result.not_available(f"cv.read_result: task {task_id} hasn't ended with a result yet "
+                                            f"({task.state})")  # fmt: skip
+            text = task.result
         try:
             result = read_result(text)
         except ValueError as exc:
@@ -521,12 +579,12 @@ class CvModule(ModuleProtocol):
         return await self._tool_call("cv.check_fonts", self.tool.fonts(job_id))
 
     @menu.item("cv.tool_result", "The user's Submit in the CV Tool: result.json once they submitted (ready), never "
-               "refused; small_text (text under 10 pt) is a warning only. The module already told the asking "
-               "agent when the user submitted", _JOB_ID, required=["job_id"])  # fmt: skip
+               "refused; small_text (text under 10 pt) is a warning only. The module already passed the Submit "
+               "on (cv.job_submitted) when the user submitted", _JOB_ID, required=["job_id"])  # fmt: skip
     async def tool_result(self, job_id: str) -> Result:
         result = await self._tool_call("cv.tool_result", self.tool.result(job_id))
-        if result.is_ok and result.value.get("ready") and (told := await self._tell_asker(result.value)):
-            result.value["told"] = told  # the asking agent has the PDF now
+        if result.is_ok and result.value.get("ready") and (told := await self._pass_submit(result.value)):
+            result.value["told"] = told  # passed on for the asking agent now
         return result
 
     async def _tool_call(self, name: str, work: Any) -> Result:
@@ -556,22 +614,20 @@ class CvModule(ModuleProtocol):
         return f"{name} is only for: {', '.join(allowed)}"
 
     def _readable(self, path: str) -> bool:
-        """`path` is in the CV folder, the output folder or the jobs' work folder (what cv.read and
-        cv.task may read: the work folder holds each job's copy of its base CV)."""
+        """`path` is in the CV folder, the output folder or the jobs' work folder (what cv.task's
+        jd_file and cv.compare's edited_pdf may read; cv.read and base_cv take any .pdf)."""
         roots = [Path(r).resolve() for r in (self.settings["cv_dir"], self.settings["output_dir"],
                                              self.settings["work_dir"]) if r]  # fmt: skip
         return any(Path(path).resolve().is_relative_to(r) for r in roots)
 
     # --- cv.*: the one page --------------------------------------------------------------------------------
 
-    @menu.item("cv.read", "Reads a CV PDF (the base CV's copy in the job's folder) as its sections, with the read "
-               "check: every word placed, or the unplaced text to ask you about",
-               {"pdf": {"type": "string", "minLength": 1, "description": "A <cv_prefix>*.pdf in work_dir, cv_dir or "
-                        "output_dir (an .odt is refused)"}},
+    @menu.item("cv.read", "Reads a CV PDF (the base CV's copy in the job's folder, a draft or another of your CVs) "
+               "as its sections, with the read check: every word placed, or the unplaced text to ask you about",
+               {"pdf": {"type": "string", "minLength": 1, "description": "The path of any existing .pdf, used as "
+                        "given (a non-.pdf, an .odt too, is refused)"}},
                required=["pdf"])  # fmt: skip
     async def read(self, pdf: str) -> Result:
-        if not self._readable(pdf):
-            return Result.invalid_arguments(f"cv.read: {pdf} isn't in the CV, output or work folder")
         try:
             _check_pdf(pdf, "pdf")
             read = await asyncio.to_thread(read_pdf, pdf)
@@ -637,7 +693,8 @@ class CvModule(ModuleProtocol):
     def _pdf_target(self, company: str, job_dir: str) -> Path | None:
         """Where cv.build saves the PDF: `<job_dir>/<cv_prefix><Company>.pdf` (job_dir must be a job's
         folder in work_dir), else `output_path`; None with neither. Never over the job's copy of
-        its base CV (that name gets `_tailored`). ValueError if job_dir isn't allowed."""
+        its base CV: the copy is `base_…` now, but a job folder made before that holds it under the
+        base CV's own name, and then the PDF's name gets `_tailored`. ValueError if job_dir isn't allowed."""
         if not job_dir:
             return output_path(self.settings["output_dir"], company) if self.settings["output_dir"] else None
         folder = self._job_folder(job_dir)
@@ -729,7 +786,7 @@ def _check_pdf(path: str, arg: str) -> None:
     """ValueError unless `path` is a PDF that exists (an `.odt` is refused: the cv module takes PDFs only)."""
     suffix = Path(path).suffix.lower()
     if suffix == ".odt":
-        raise ValueError(f"{arg}: an .odt isn't read; give the {cv_prefix()}*.pdf")
+        raise ValueError(f"{arg}: an .odt isn't read; give a .pdf")
     if suffix != ".pdf":
         raise ValueError(f"{arg} must be a .pdf, not {Path(path).name}")
     if not Path(path).is_file():
@@ -820,7 +877,7 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
         "hand_off": {"callers": tuple(callers)},
         "rules_dir": rules_dir,  # the cv module's general rules (SKILL.md + rules/*.md), loaded at every job
         "tool": tool_settings(config.get("tool", {}), cv_dir, rules_dir, workspace, prefix),
-        "cv_prefix": prefix,  # the user's CV file names: base CVs and the PDFs made
+        "cv_prefix": prefix,  # the start of the PDFs made (and of the CVs the CV Tool lists); not a rule for base_cv
         "order": SectionOrder.from_config(config),
         "paper": paper,
         "target_score": target,

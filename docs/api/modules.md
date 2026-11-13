@@ -106,7 +106,7 @@ A module's menu: the actions an assistant or another module may call. Plain data
 
 **Reusable** · Used by: every module
 
-`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = ())`
+`Manifest(id: str, provides: tuple = (), requires: tuple = (), optional: tuple = (), uses: tuple = (), permissions: tuple[str, ...] = (), optional_permissions: tuple[str, ...] = (), description: str = "", handles: tuple = (), sends: tuple = (), publishes: tuple = (), listens: tuple = (), publishes_named: tuple[str, ...] = (), listens_named: tuple[str, ...] = ())`
 
 Frozen dataclass describing a module: who it is, what it needs, and its inputs and outputs. Plain data on the class, read without starting the module (for the dependency graph, and next for the directory and the generated [module library](../architecture/module-library.md)). Dependencies are on contracts, never on other modules. `permissions` and `optional_permissions` are declarations: single names aren't checked yet ([`ctx.permissions`](#modulecontextpermissions) allows and logs them). `agent.access` says the module asks for its config's access list with `request_set` when turned on.
 
@@ -125,10 +125,12 @@ Frozen dataclass describing a module: who it is, what it needs, and its inputs a
 | `sends` | `tuple[type[Command], ...]` | no | Commands it sends (commands out) |
 | `publishes` | `tuple[type[Event], ...]` | no | Events it publishes (events out) |
 | `listens` | `tuple[type[Event], ...]` | no | Events it subscribes to (events in) |
+| `publishes_named` | `tuple[str, ...]` | no | [Named events](messaging.md#moduleevent) it publishes, each `<its id>.<what>` (built 2026-11-12; no module declares one now) |
+| `listens_named` | `tuple[str, ...]` | no | Named events it listens to: `<module>.<what>`, or `<module>.*` for all of one module |
 
-Every type in `provides`, `requires`, `optional` and `uses` must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails. A subscription or lookup the manifest doesn't declare is logged once ([`ScopedContext`](core.md#scopedcontext)).
+Every type in `provides`, `requires`, `optional` and `uses` must be a [`Contract`](#contract) from `assistant.contracts`, or startup fails. A subscription, lookup or named event the manifest doesn't declare is logged once ([`ScopedContext`](core.md#scopedcontext)).
 
-**Raises** (when the manifest is made): `ValueError` if `id` isn't a Python identifier or `description` has a line break; `TypeError` if `handles` / `sends` hold anything but `Command` types, or `publishes` / `listens` anything but `Event` types.
+**Raises** (when the manifest is made): `ValueError` if `id` isn't a Python identifier, `description` has a line break, a `publishes_named` name isn't `<id>.<what>`, or a `listens_named` name isn't `<module>.<what>` or `<module>.*`; `TypeError` if `handles` / `sends` hold anything but `Command` types, or `publishes` / `listens` anything but `Event` types.
 
 **Defined in:** `src/assistant/contracts/module.py`
 
@@ -189,15 +191,45 @@ The caller's id is filled in by the core; a module never passes it. Every module
 
 ### `ModuleContext.subscribe`
 
-`subscribe(event_type: type[E], handler: Callable[[E], Awaitable[None]]) -> None`
+`subscribe(event_type: type[E], handler: Callable[[E], Awaitable[None]]) -> SubscriptionHandle`
 
-Receive every published event that is an instance of `event_type` (subclasses included). The handler runs on this subscription's own worker, one event at a time, in order. It is cancelled after `core.event_handler_timeout`; exceptions are logged.
+Receive every published event that is an instance of `event_type` (subclasses included). The handler runs on this subscription's own worker, one event at a time, in order. It is cancelled after `core.event_handler_timeout`; exceptions are logged. Any time while the module runs. Returns a `SubscriptionHandle` for [`unsubscribe`](#modulecontextunsubscribe) (it returned `None` before 2026-11-12, so old callers are unaffected).
 
 ### `ModuleContext.publish`
 
 `publish(event: Event) -> None`
 
 Publish an event. Returns immediately and never waits on subscribers. Events are dropped for a subscriber whose queue is full.
+
+### `ModuleContext.publish_named`
+
+**Reusable** · Used by: cv (`cv.job_finished`, `cv.job_submitted`) · built 2026-11-12
+
+`publish_named(name: str, data: Mapping[str, Any] | None = None) -> None`
+
+Publish a [`ModuleEvent`](messaging.md#moduleevent) named `name`, which must be `<this module's id>.<what>`; the core sets its `source`. `data` is copied through JSON, so it holds plain values only and the listener never shares the publisher's objects. Returns immediately, like `publish`. A name not in `publishes_named` still goes out and is logged once.
+
+**Raises:** `ValueError` for another module's name (or not a name), or data that isn't plain JSON (objects, NaN).
+
+    self._ctx.publish_named("cv.job_finished", {"reply_to": "job_search_agent", "job_dir": "...", "state": "done"})
+
+### `ModuleContext.subscribe_named`
+
+**Reusable** · Used by: job_search (`cv.job_finished`, `cv.job_submitted`) · built 2026-11-12
+
+`subscribe_named(name: str, handler: Callable[[ModuleEvent], Awaitable[None]]) -> SubscriptionHandle`
+
+Receive every `ModuleEvent` named `name`, or every one of a module with a trailing `.*` (`cv.*`). A filter over one bus subscription to `ModuleEvent`, so delivery works as for `subscribe`. Matched by name, not class, so publisher and listener each reload on their own; an event published while this module is off or reloading is missed (the bus keeps nothing). A name not in `listens_named` still works and is logged once.
+
+**Raises:** `ValueError` if `name` isn't `<module>.<what>` or `<module>.*`.
+
+### `ModuleContext.unsubscribe`
+
+**Reusable** · built 2026-11-12
+
+`unsubscribe(handle: SubscriptionHandle) -> None`
+
+Drop one subscription, typed or named, without stopping the module; events still queued for it are dropped. Does nothing if it's already gone. Everything left is dropped at the module's stop anyway.
 
 ### `ModuleContext.handle`
 

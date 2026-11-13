@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Takes a CV as a PDF (`CV_Test_*.pdf`) and a job description (JD) as text. Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the one-page PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through `cv.task`.
+Takes a CV as a PDF (any `.pdf`) and a job description (JD) as text. Rezi edits and scores a new copy for that JD. The module's worker reformats it to one clean page (US Letter by default), has Rezi check that page, and returns the one-page PDF you approved, with the scores, keywords and checks that led to it. One module with its worker inside; it stands alone, and other modules (the job agent) connect to it later through `cv.task`.
 
 **Status (2026-11-07):** built and tested, chunks 1 to 8. That covers the menu (`rezi.*`, `cv.*`), the Rezi connection with its resume guard, the one-page build and checks, the worker `cv_agent`, and the in-and-out contract below. Everything is tested against a fake Rezi and a fake `claude`. Chunk 9, the real run, is under way: the real Rezi sign-in, live tool list and reads work, and the module now reads and writes Rezi's real resume format. Off by default; turning it on asks for the worker's access on one card.
 
-**PDF in, PDF out (2026-11-09, built, waiting on a `cv` reload):** the base CV comes in as a `CV_Test_*.pdf` and an `.odt` is refused everywhere; the JD stays text; `cv.build` exports the final PDF into the job's folder, and no `.odt` comes out (`odt_path` is gone from the result). The plan: `docs/next-steps/cv-pdf-only.md`. Left out at your request: cutting the worker's read access to `C:\Chang\Jobs\CV`.
+**PDF in, PDF out (2026-11-09, built, waiting on a `cv` reload):** the base CV comes in as a `.pdf` and an `.odt` is refused everywhere; the JD stays text; `cv.build` exports the final PDF into the job's folder, and no `.odt` comes out (`odt_path` is gone from the result). The plan: `docs/next-steps/cv-pdf-only.md`. Left out at your request: cutting the worker's read access to `C:\Chang\Jobs\CV`.
 
 **The CV Tool build (2026-11-09, building):** the module side is built and tested, but not live yet: `cv.open_tool`, `cv.tool_status`, `cv.tool_round`, `cv.check_fonts` and `cv.tool_result`, the CV Tool launched through `CompanionHandover` (`tool.py`), the rules folder loaded at every job, `CvRequest.tool`, and the 5-step prompt. They go live with a `cv` reload. The app itself (`src/cv_tool/`) runs and is tested; `pymupdf` 1.28.2 is in the repo's `.venv` (installed 2026-11-09 with your yes). The plan: `docs/next-steps/cv-uses-cv-tool.md`.
 
@@ -14,7 +14,7 @@ How it works inside: [Architecture](architecture.md). Its menu, and what a job s
 
 ## In and out
 
-- **In** (`cv.task`): the job's company and role, the job description as text or as a `.txt`, `.md` or `.html` file, and the CV file (`CV_Test_*.pdf` in `C:\Chang\Jobs\CV`; an `.odt` is refused). Optional: the posting's URL, Education first, a target score, notes.
+- **In** (`cv.task`): the job's company and role, the job description as text or as a `.txt`, `.md` or `.html` file, and the CV file: the path of any existing `.pdf`, in any folder and with any name, used as given (a non-`.pdf`, an `.odt` too, is refused, and so is a missing or 0-byte file; since 2026-11-13 there's no `cv_dir` or `<cv_prefix>` rule for it). Optional: the posting's URL, Education first, a target score, notes.
 - **Out** (`cv.read_result` on the task's result): the new one-page PDF and `report.md` (in the job's folder), and with them the Rezi Score after each round against the target, the keywords still missing and those left out because you don't have them, recommendations, the one-page check, and the compare of what Rezi read. Also the new Rezi resume and its check copy, and whether you approved it.
 
 The calls and every field: [Tools](tools.md#the-hand-off-cvtask-and-cvread_result).
@@ -290,9 +290,9 @@ Defaults in `module.toml` in this module's folder; `[modules.cv]` in the app's c
 | `max_rounds` | 5 | ATS Loop rounds before it stops and reports |
 | `paper` | `letter` | US Letter; `a4` later |
 | `output_dir` | `C:\Chang\Jobs\rezi\rezi\out` | Where each job's folder goes |
-| `cv_dir` | `C:\Chang\Jobs\CV` | Your CVs, read only: `cv.read` reads `<cv_prefix>*.pdf` files here, in `output_dir` and in `work_dir`; never an `.odt` |
-| `cv_prefix` | `CV_Test_` | The start of your CV file names: base CVs are found by it (`<cv_prefix>*.pdf`) and the PDFs made are named with it (`<cv_prefix><Company>.pdf`). Letters, digits, `_`, `-`. Your real prefix goes in the gitignored `config/local.toml` (`[modules.cv]`) and `src/cv_tool/cv_tool.local.toml`; the module passes it to the CV Tool (`--cv-prefix`). This page's examples use `CV_Test_` |
-| `work_dir` | `""`: `<agent.workspace>\work` | Where each job's folder is made, `<date>_<Company>_<Role>` (folder-safe), with its copy of the base CV, `jd.txt` and `job_start.json`. Must be in the workspace, never in `cv_dir` or the repo |
+| `cv_dir` | `C:\Chang\Jobs\CV` | Your CVs, read only. The CV Tool lists the `<cv_prefix>*` CVs here, and the worker never runs a command on a file here. Not a rule for `cv.task`'s `base_cv` or `cv.read`: both take any existing `.pdf` (since 2026-11-13); an `.odt` is refused |
+| `cv_prefix` | `CV_Test_` | The start of the PDFs the module makes (`<cv_prefix><Company>.pdf`) and of the CVs the CV Tool lists. It is not a rule for `cv.task`'s `base_cv`, which takes any `.pdf`. Letters, digits, `_`, `-`. Your real prefix goes in the gitignored `config/local.toml` (`[modules.cv]`) and `src/cv_tool/cv_tool.local.toml`; the module passes it to the CV Tool (`--cv-prefix`). This page's examples use `CV_Test_` |
+| `work_dir` | `""`: `<agent.workspace>\work` | Where each job's folder is made, `<date>_<Company>_<Role>` (folder-safe), with its copy of the base CV (`base_<its name>.pdf`, so it's never taken for a tailored CV), `jd.txt` and `job_start.json`. Must be in the workspace, never in `cv_dir` or the repo |
 | `rules_dir` | `.claude/skills/cv-writing` (in the workspace) | The cv module's general rules: `SKILL.md`, then every `rules/*.md`, read in full into every job's task. Listed at each job, so a new rule file needs no reload. No `SKILL.md` refuses the job; `""` loads none |
 | `job_skills` | `data/confirmed_facts.json` | More files read in full into every job, after the rules: your confirmed facts, kept as data. A missing or empty one refuses the job. Relative paths are from the workspace; `~` is your home folder |
 | `[tool]` | `host` 127.0.0.1, `port` 8771, `data_dir` `<workspace>\cv_tool`, `facts` `<workspace>\data\confirmed_facts.json` | The CV Tool: where it listens (this machine only) and the folders it's given at launch. It also gets `cv_dir`, `rules_dir` and `work_dir` |
@@ -333,7 +333,7 @@ _As of 2026-11-09; update this table as parts go live._
 | Main tab: Talker and Main Assistant | Built, live | `talker` and `main_assistant` are on; `hub.agents` lists `main_assistant`. It no longer starts cv_agent: `cv.task` starts it itself, as the caller's child task, and the result goes back at Submit with `DeliverMessage` (built 2026-11-10, live after the app restart) |
 | Each agent's own Talker (job search agent, cv agent) | Built, live | Every agent tab is a pair, its own Talker and its own worker (`talker`: "one Talker per agent tab"). A tab's Talker starts the first time you use the tab |
 | Job search agent | Built, live | `job_search` is on; `hub.agents` lists `job_search_agent`. Its `save_jd.py` names the base CV as a `.pdf` |
-| Inputs (cv.task) | Built, live | `cv.task` takes the JD as text and a `CV_Test_*.pdf`; `cv` is on |
+| Inputs (cv.task) | Built, live | `cv.task` takes the JD as text and any `.pdf` as the base CV (name and folder rules removed 2026-11-13, live after a `cv` reload) |
 | Job-start gate | Built, live (old rules); new rules built, not live | Live: loads `job_skills` from the old folders. Built: `rules_dir` (`SKILL.md` + `rules/*.md`) and the facts, live with the `cv` reload |
 | Rules folder | Built, not live | Copied into `C:\Chang\Jobs\CV_Module\.claude\skills\cv-writing\` (the originals stay); loaded by the gate after the reload |
 | confirmed_facts.json | Built, not live | A copy in `C:\Chang\Jobs\CV_Module\data\`, in `job_skills`; loaded after the reload |

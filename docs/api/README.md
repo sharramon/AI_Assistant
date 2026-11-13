@@ -46,6 +46,7 @@ Commands, events, and results. `from assistant.contracts import ...`
 | [`ResponseReady`](messaging.md#responseready) | event | ♻ A reply to present, correlated to its input |
 | [`ShutdownRequested`](messaging.md#shutdownrequested) | event | Asks the host to shut down |
 | [`SessionTheme`](messaging.md#sessiontheme) | event | A few words about the session, for its log folder name |
+| [`ModuleEvent`](messaging.md#moduleevent) | event | ♻ A module-owned event matched by name (cv → job_search: `cv.job_finished`, `cv.job_submitted`): `ctx.publish_named` / `subscribe_named` / `unsubscribe`, no restart for a new one |
 | [`ViewerTabsChanged`](messaging.md#viewertabschanged) | event | The HTML viewer's open tabs or highlights changed |
 | [`ViewerClip`](messaging.md#viewerclip) | event | You snipped part of a page in the HTML viewer: an image for the Talker |
 | [`ViewerClipDropped`](messaging.md#viewerclipdropped) | event | You dropped a snip before sending it |
@@ -101,7 +102,7 @@ Task agents and the Agent Hub. `from assistant.contracts import ...`
 | [`AgentState`](agents.md#agentstate) | enum | ♻ `active` (in a turn) or `idle` (takes work, whatever questions it has open) |
 | [`AgentInfo`](agents.md#agentinfo) | data | An agent's id, description, capabilities, `state` (`AgentState`; `.active`), `permission_mode` |
 | [`TaskInfo`](agents.md#taskinfo) | data | A task as the Hub knows it, with its recent activity and its question's kind |
-| [`QuestionKind`](agents.md#questionkind) | enum | ♻ What a task's open question is: `permission`, `risky`, `need` or none; set by the Hub, so nobody parses the text |
+| [`QuestionKind`](agents.md#questionkind) | enum | ♻ What a task's open question is: `permission`, `risky`, `need`, `wait` (it ended waiting) or none; set by the Hub, so nobody parses the text |
 | [`TaskState`](agents.md#taskstate) | enum | `active`, `idle` (stopped, or holding its agent's question), `done`, `failed`, `cancelled` |
 | [`PermissionMode`](agents.md#permissionmode) | enum | ♻ `manual` (asks outside its rules; every launch) or `auto` (no prompts, `git push` blocked) |
 | [`ListAgents`](agents.md#listagents) | command | Every agent and whether it's active or idle |
@@ -112,7 +113,7 @@ Task agents and the Agent Hub. `from assistant.contracts import ...`
 | [`CancelTask`](agents.md#canceltask) | command | Stop a task, like Esc |
 | [`AnswerPermission`](agents.md#answerpermission) | command | Allow or deny a task's open permission request, once |
 | [`SetPermissionMode`](agents.md#setpermissionmode) | command | ♻ Switch a task agent between Manual and Auto (only you switch to Auto) |
-| [`ReportTask`](agents.md#reporttask) | command | Agent → Hub: `progress`, `milestone`, `reply`, `need`, `permission`, `done`, `failed` |
+| [`ReportTask`](agents.md#reporttask) | command | Agent → Hub: `progress`, `milestone`, `reply`, `need`, `permission`, `turn_end` (the Hub answers wait or done), `done`, `failed` |
 | [`TaskUpdated`](agents.md#taskupdated) | event | A task's report or state changed (for the Talker); `held` when its question waits behind the **!** |
 | [`SetFocus`](agents.md#setfocus) | command | ♻ Move the focus (the agent you talk to); releases its held questions |
 | [`FocusChanged`](agents.md#focuschanged) | event | ♻ The focus moved, with the questions it released |

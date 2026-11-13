@@ -86,7 +86,7 @@ One job's full details from rezi.search_jobs
 
 ## `cv.task`
 
-Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv_agent on it as your child task; at the user's Submit the one-page PDF and its score come back to you as a message (the job agent's hand-off)
+Checks one job (the JD as text, the base CV as any .pdf) and starts cv_agent on it as your child task; its end and the user's Submit go out as cv's events (cv.job_finished, cv.job_submitted), which your module turns into messages for you (the job agent's hand-off)
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|
@@ -94,7 +94,7 @@ Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv
 | `role` | string | yes | The job's title |
 | `jd_text` | string | no | The job description as text; or give jd_file |
 | `jd_file` | string | no | The job description as a .txt, .md or .html file in cv_dir, output_dir or work_dir (read into jd_text) |
-| `base_cv` | string | yes | The base CV: the <cv_prefix>*.pdf you recommend, in cv_dir (read only; an .odt is refused) |
+| `base_cv` | string | yes | The base CV: any .pdf file, its path used as given (read only; it must exist; a non-.pdf such as an .odt is refused) |
 | `jd_url` | string | no | The posting |
 | `degree_first` | boolean | no | Education under Skills (unset: the worker decides from the JD) |
 | `target_score` | integer | no | Overrides the config's target |
@@ -103,11 +103,12 @@ Checks one job (the JD as text, the base CV as a <cv_prefix>*.pdf) and starts cv
 
 ## `cv.read_result`
 
-Reads and checks the CV_RESULT line at the end of a cv_agent task's result
+Reads and checks the CV_RESULT line at the end of a cv_agent task's result: give task_id (cv reads the ended task's whole result) or the result's text, one of them
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|
-| `text` | string | yes | The task's result text |
+| `task_id` | string | no | The cv_agent task's id (your child task) |
+| `text` | string | no | The task's result text |
 
 ## `cv.open_tool`
 
@@ -173,7 +174,7 @@ The CV Tool job's current PDF: any text under 10 pt (measured from the PDF; a wa
 
 ## `cv.tool_result`
 
-The user's Submit in the CV Tool: result.json once they submitted (ready), never refused; small_text (text under 10 pt) is a warning only. The module already told the asking agent when the user submitted
+The user's Submit in the CV Tool: result.json once they submitted (ready), never refused; small_text (text under 10 pt) is a warning only. The module already passed the Submit on (cv.job_submitted) when the user submitted
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|
@@ -181,11 +182,11 @@ The user's Submit in the CV Tool: result.json once they submitted (ready), never
 
 ## `cv.read`
 
-Reads a CV PDF (the base CV's copy in the job's folder) as its sections, with the read check: every word placed, or the unplaced text to ask you about
+Reads a CV PDF (the base CV's copy in the job's folder, a draft or another of your CVs) as its sections, with the read check: every word placed, or the unplaced text to ask you about
 
 | Argument | Type | Required | What it is |
 |---|---|---|---|
-| `pdf` | string | yes | A <cv_prefix>*.pdf in work_dir, cv_dir or output_dir (an .odt is refused) |
+| `pdf` | string | yes | The path of any existing .pdf, used as given (a non-.pdf, an .odt too, is refused) |
 
 ## `cv.build`
 
@@ -194,7 +195,7 @@ Builds and exports the one-page PDF of a CV into the job's folder (job_dir), fit
 | Argument | Type | Required | What it is |
 |---|---|---|---|
 | `company` | string | yes | The job's company; names the folder and the files |
-| `base_cv` | string | no | A <cv_prefix>*.pdf to build from (read only; an .odt is refused); or give `sections` |
+| `base_cv` | string | no | Any .pdf to build from (read only; an .odt is refused); or give `sections` |
 | `job_dir` | string | no | The job's folder (CV_JOB's work_dir): the final PDF is exported there as <cv_prefix><Company>.pdf. Unset: <output_dir>/<date>_<Company>/ |
 | `sections` | object | no | The CV as section -> list of lines (contact, summary, skills, experience, projects, education, awards, publications); `• ` starts a bullet, `left \| dates` an entry line; the first contact line is the name |
 | `jd_text` | string | no | The job description: a master's in it puts Education under Skills |
@@ -236,7 +237,7 @@ Writes report.md next to the job's PDF: result, score rounds, keywords left out,
 
 Everything above is built: the hand-off (`cv.task`, `cv.read_result`), the nine `rezi.*` items over the Rezi connection (`mcp.py`), and `cv.read`, `cv.build`, `cv.compare` and `cv.report`. The worker `cv_agent` uses them through the door, like any caller. They're tested against a fake Rezi and a fake `claude`; the sign-in, the live tool list and the reads have also run against the real Rezi (chunk 9). How the connection and the guard work: [Architecture](architecture.md#the-rezi-connection-mcppy).
 
-**The interface is PDF in, PDF out** (since 2026-11-09): the job description comes in as text (`jd_text`, or a `.txt`, `.md` or `.html` file), the base CV as a `CV_Test_*.pdf`, and the tailored CV goes out as a one-page PDF in the job's folder. Every `cv.*` item refuses an `.odt`. The module still writes an `.odt` on the way to the PDF, but only in a temporary folder that's removed after the build.
+**The interface is PDF in, PDF out** (since 2026-11-09): the job description comes in as text (`jd_text`, or a `.txt`, `.md` or `.html` file), the base CV as any `.pdf`, and the tailored CV goes out as a one-page PDF in the job's folder. Every `cv.*` item refuses an `.odt`. The module still writes an `.odt` on the way to the PDF, but only in a temporary folder that's removed after the build.
 
 Keyword Targeting, the Rezi Score and the PDF import aren't items: the worker does them in Chrome. A job isn't an item either: it's a task on `cv_agent` that `cv.task` starts through the Hub (`StartTask`, as the caller's child task), and `cv.read_result` checks its answer.
 
@@ -244,11 +245,11 @@ Keyword Targeting, the Rezi Score and the PDF import aren't items: the worker do
 
 The module stands alone: a caller in `hand_off.callers` (the job agent, the Main Assistant) hands a job to the worker with one call, and the result comes back to it as a message at your Submit. Nothing else in the app has to change.
 
-1. **`cv.task`** with the job: `company`, `role`, the CV file `base_cv` (an existing `CV_Test_*.pdf` in `cv_dir`), and the job description as **either** `jd_text` (text) **or** `jd_file` (a `.txt`, `.md` or `.html` file in `cv_dir`, `output_dir` or `work_dir`; HTML is read as its visible text). Optional: `jd_url`, `degree_first`, `target_score` (1 to 100) and `notes`, as in `CvRequest` below.
-   - It starts `cv_agent` on the job itself (`StartTask`, with the caller's newest open task as parent, so the caller may `hub.send` to it as its child) and returns `agent_id` (`cv_agent`), `task_id`, `text` and `next` (nothing more to call). The text is a first line saying what to do, then `CV_REQUEST: <json>` on one line, with the JD text read from the file and `jd_file` naming it, and the caller as `reply_to`.
-   - Refused (`invalid_arguments`): both or neither of `jd_text` and `jd_file`, a JD file of another kind, missing, empty or outside those folders, a `base_cv` that isn't an existing `CV_Test_*.pdf` in `cv_dir` (an `.odt` gets "base_cv must be a CV_Test_*.pdf"), or a bad field. With the worker off: `not_available`. With `cv_agent` busy on another job: the Hub's refusal, naming that job and who it's for ("it's on the CV for <role> at <company> (task <id>, for <asker>)"), and "Nothing was queued; try again when it's free".
+1. **`cv.task`** with the job: `company`, `role`, the CV file `base_cv` (the path of any existing `.pdf`, used as given: no name or folder rule since 2026-11-13), and the job description as **either** `jd_text` (text) **or** `jd_file` (a `.txt`, `.md` or `.html` file in `cv_dir`, `output_dir` or `work_dir`; HTML is read as its visible text). Optional: `jd_url`, `degree_first`, `target_score` (1 to 100) and `notes`, as in `CvRequest` below.
+   - It starts `cv_agent` on the job itself (`StartTask`, with the caller's newest open task as parent, so the caller may `hub.send` to it as its child) and returns `agent_id` (`cv_agent`), `task_id`, `text` and `next` (nothing more to call: end your turn; when the task ends cv publishes `cv.job_finished` and your module wakes you; the whole result: `cv.read_result task_id=…`). The `StartTask` has `tell_parent=False`, so the Hub sends no second message about the end. At the user's Submit cv publishes `cv.job_submitted`, and your module wakes you again with the PDF and the score. The text is a first line saying what to do, then `CV_REQUEST: <json>` on one line, with the JD text read from the file and `jd_file` naming it, and the caller as `reply_to`.
+   - Refused (`invalid_arguments`): both or neither of `jd_text` and `jd_file`, a JD file of another kind, missing, empty or outside those folders, a `base_cv` that isn't a `.pdf` ("base_cv must be a .pdf file, not <name>", an `.odt` too) or isn't there ("base_cv not found: <path>"), or a bad field. With the worker off: `not_available`. With `cv_agent` busy on another job: the Hub's refusal, naming that job and who it's for ("it's on the CV for <role> at <company> (task <id>, for <asker>)"), and "Nothing was queued; try again when it's free".
 2. **The work.** The worker runs the CV Tool's steps and ends its task before your Submit with the line `CV_RESULT: <json>`, a `CvResult` with status `ready` (or `stopped`). At your Submit in the CV Tool, the module sends the result to the caller (`reply_to`) with [`DeliverMessage`](../../../../../docs/api/agents.md#delivermessage): into its open task, or a new task, never into a turn ([Architecture](architecture.md#the-hand-off-handoffpy)).
-3. **`cv.read_result`** with the task's result text (from `hub.status`). It returns the new CV and PDF with their metadata:
+3. **`cv.read_result`** with the task's id, `task_id` (cv fetches the ended task's whole result itself), or its result text, `text`: one of them. A `task_id` it can't find, or not a `cv_agent` task, is refused (`invalid_arguments`); a task with no result yet is `not_available`. It returns the new CV and PDF with their metadata:
 
 | Part | What's in it |
 |------|--------------|
@@ -288,7 +289,7 @@ The module stands alone: a caller in `hand_off.callers` (the job agent, the Main
 
 ### `cv.read`: a CV PDF as sections, with the read check
 
-- **Input:** `pdf`, a `CV_Test_*.pdf` in `work_dir` (the job's copy of its base CV), `cv_dir` (your CVs) or `output_dir`; any other folder is refused. This is how the worker reads the base CV (step 1) and checks the facts on your other CVs (the truth gate).
+- **Input:** `pdf`, the path of any existing `.pdf`, used as given (since 2026-11-13; before, only a `CV_Test_*.pdf` in `work_dir`, `cv_dir` or `output_dir`). A non-`.pdf`, an `.odt` too, and a missing file are refused. This is how the worker reads the base CV's copy (step 1) and checks the facts on your other CVs (the truth gate).
 - **How** (`pdf_read.py`): pypdf's layout reader gives each piece of text with its place and size. Pieces on one baseline make a line (a wide gap is the entry's ` | ` before the dates), a bullet glyph makes a `• ` line, small caps are lower-cased, and a wrapped line joins the one above. The headings map to the eight sections as before ("Introduction" is Summary, "Additional Experience" joins Experience, "Accomplishments & Publications" is Awards).
 - **The read check:** every word of the PDF's plain text must be in what was read. A big heading it doesn't know, the text under it, and any word not placed are listed in `unplaced`.
 - **Returns:** `pdf`, `sections` (section → lines, in the `cv.build` form), `names`, `pages`, `complete` and `unplaced`. When `complete` is false it adds `next`: stop and ask you with NEED:, naming the unplaced text.
@@ -296,7 +297,7 @@ The module stands alone: a caller in `hand_off.callers` (the job agent, the Main
 
 ### `cv.build`: what it does and returns
 
-- **Input:** the base `CV_Test_*.pdf` (read only, never changed; refused unless every word is placed) or the CV as `sections`, and `job_dir`, the job's folder (CV_JOB's `work_dir`).
+- **Input:** the base CV as any `.pdf` (read only, never changed; refused unless every word is placed) or the CV as `sections`, and `job_dir`, the job's folder (CV_JOB's `work_dir`).
 - **Output:** the PDF only, exported with headless LibreOffice. With `job_dir` (a folder inside `work_dir` that exists): `<job_dir>\CV_Test_<Company>.pdf`, or `…_tailored.pdf` when that name is the job's copy of its base CV (from `job_start.json`), so the copy is never overwritten. Without `job_dir`: `<output_dir>\<date>_<Company>\CV_Test_<Company>.pdf`. The `.odt` and LibreOffice's export are made in a temporary folder outside the agent's folders and removed; only the checked PDF is copied out. A second build the same day replaces the PDF.
 - **The fit:** the roomiest layout that gives one page (10.5 pt and 0.6 in margins, down to 9.5 pt and 0.45 in), then, unless `auto_drop` is false, Publications and then Awards are left out. If it's still over a page, the tightest try comes back with `one_page: false`, and the worker tightens older bullets and builds again.
 - **Returns:** `pdf_path`, `pages`, `one_page`, `problems` (wrong page size, no text, unreadable characters, a heading or the name not found in the PDF's text), `paper`, `layout`, `tries`, `section_order`, `order_reason`, `dropped`, and `text` (the PDF's text, for the compare later).
@@ -342,7 +343,7 @@ The module's link to its UI half, the CV Tool app (`src/cv_tool`, `python -m cv_
 | `company`, `role` | The job |
 | `jd_text` | The job description (from `cv.task`'s `jd_text`, or read from its `jd_file`) |
 | `jd_file` | Optional: the file the JD was read from |
-| `base_cv` | Path to the `CV_Test_*.pdf` to start from, in `cv_dir` (read only; any other name, an `.odt` too, is refused) |
+| `base_cv` | Path to any `.pdf` to start from, used as given, in any folder and with any name (read only; a non-`.pdf`, an `.odt` too, is refused; `cv.task` and the job start also refuse a missing or 0-byte file) |
 | `jd_url` | Optional: the posting |
 | `degree_first` | Optional: put Education under Skills. Unset: a first guess from the JD (`order.wants_masters`), which the worker may change |
 | `target_score` | Optional, 1 to 100: overrides the config's 90 |

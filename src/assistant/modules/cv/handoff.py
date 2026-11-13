@@ -2,12 +2,14 @@
 
 A Hub task is plain text, so each side is one marked line of JSON:
 - **In:** the job agent calls `cv.task` with the job's fields; it checks them (`CvRequest`, the
-  base CV in `cv_dir`) and starts `cv_agent` on the task's `text` itself (a `StartTask`, the
+  base CV: any .pdf that exists) and starts `cv_agent` on the task's `text` itself (a `StartTask`, the
   caller's open task as its parent). The text holds a line `CV_REQUEST: <json>` that the worker reads. On the way
   in, the module (`job_start.JobStartAgent`) makes the job's folder and adds a `CV_JOB: <json>`
   line (a `CvJob`) with the job's rules under it.
-- **Out:** the worker ends its task with a line `CV_RESULT: <json>` (a `CvResult`), which the job
-  agent reads from the task's result with `cv.read_result` (`read_result`, then `result_view`:
+- **Out:** the worker ends its task with a line `CV_RESULT: <json>` (a `CvResult`). The module
+  then publishes the named event `cv.job_finished` (`job_finished` builds its data); the asker's
+  module hears it and wakes its agent. The agent can read the whole result with
+  `cv.read_result task_id=…` (`read_result`, then `result_view`:
   the new CV's PDF and report, the score per round against the target, the keywords, the recommendations,
   the one-page check and the compare).
 Each JSON is on one line (newlines in the JD are escaped), and the last marked line counts.
@@ -63,6 +65,34 @@ def read_job(text: str) -> CvJob:
 def read_result(text: str) -> CvResult:
     """The result in a task's result text. ValueError if there's none or it isn't a valid `CvResult`."""
     return CvResult.model_validate(_last(text, RESULT))
+
+
+JOB_FINISHED = "cv.job_finished"  # the named event cv publishes when cv_agent's job task ends
+
+
+def job_finished(agent_id: str, task_id: str, state: str, parent_task_id: str | None, folder: str, record: dict,
+                 text: str) -> dict[str, Any]:  # fmt: skip
+    """The data of `cv.job_finished`: who asked (`reply_to`, from the job's `job_start.json`
+    `record`), the task, the job, the parsed `CV_RESULT` (None if the text has no valid one) and a
+    one-line `summary` of it."""
+    request = record.get("request") or {}
+    try:
+        result: CvResult | None = read_result(text)
+    except ValueError:
+        result = None
+    return {"reply_to": str(request.get("reply_to") or ""), "agent_id": agent_id, "task_id": task_id,
+            "parent_task_id": parent_task_id, "state": state, "job_dir": folder,
+            "company": request.get("company") or "", "role": request.get("role") or "",
+            "cv_result": result.model_dump(mode="json") if result else None, "summary": finish_summary(result)}  # fmt: skip
+
+
+def finish_summary(result: CvResult | None) -> str:
+    """One line on a job's result: its status (and why it stopped), the PDF and the last score."""
+    if result is None:
+        return f"No valid {RESULT} line in its last message."
+    why = f" ({result.stop_reason})" if result.stop_reason else ""
+    score = result.score if result.score is not None else "(none)"
+    return f"{RESULT} status {result.status}{why}; PDF: {result.pdf_path or '(none)'}; last score: {score}."
 
 
 JD_SUFFIXES = (".txt", ".md", ".html", ".htm")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from logging import Logger
 from typing import Any
 
@@ -14,9 +15,12 @@ from assistant.contracts import (
     IToolProvider,
     Manifest,
     ModuleContext,
+    ModuleEvent,
     ModuleLogs,
     ModulePermissions,
     Result,
+    SubscriptionHandle,
+    event_name_ok,
 )
 from assistant.core.bus import EventBus, Subscription
 from assistant.core.container import Container
@@ -48,17 +52,53 @@ class ScopedContext(ModuleContext):
         self._router = router
         self._bus = bus
         self._container = container
-        self._subscriptions: list[Subscription] = []
+        self._subscriptions: dict[SubscriptionHandle, Subscription] = {}  # insertion order
         self._handlers: list[tuple[type[Command], CommandHandler]] = []
         self._closed = False
         m = manifest
         self._contracts = frozenset((*m.provides, *m.requires, *m.optional, *m.uses))
-        self._undeclared: set[type] = set()  # logged once each
+        self._undeclared: set[type | str] = set()  # logged once each
 
-    def subscribe(self, event_type, handler) -> None:
+    def subscribe(self, event_type, handler) -> SubscriptionHandle:
         self._check_open()
         self._check_declared(event_type, self._manifest.listens, "listens")
-        self._subscriptions.append(self._bus.subscribe(event_type, handler, owner=self.module_id))
+        return self._keep(self._bus.subscribe(event_type, handler, owner=self.module_id), event_type.__name__)
+
+    def publish_named(self, name: str, data=None) -> None:
+        if not (event_name_ok(name) and name.startswith(f"{self.module_id}.")):
+            raise ValueError(f"{self.module_id!r} may publish only '{self.module_id}.<what>' named events, "
+                             f"got {name!r}")  # fmt: skip
+        try:  # a JSON copy: plain values only, and the listener never shares the publisher's objects
+            plain = json.loads(json.dumps(dict(data or {}), allow_nan=False))
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"{name}: data must be plain JSON values ({error})") from None
+        self._check_declared(name, self._manifest.publishes_named, "publishes_named")
+        self.publish(ModuleEvent(name=name, source=self.module_id, data=plain))
+
+    def subscribe_named(self, name: str, handler) -> SubscriptionHandle:
+        self._check_open()
+        if not event_name_ok(name, pattern=True):
+            raise ValueError(f"Not an event name: {name!r} ('<module>.<what>' or '<module>.*')")
+        declared = self._manifest.listens_named
+        if not (name in declared or any(d.endswith(".*") and name.startswith(d[:-1]) for d in declared)):
+            self._check_declared(name, declared, "listens_named")
+        prefix = name[:-1] if name.endswith(".*") else None  # "cv." for "cv.*"
+
+        async def only_named(event: ModuleEvent) -> None:
+            if event.name == name or (prefix is not None and event.name.startswith(prefix)):
+                await handler(event)
+
+        return self._keep(self._bus.subscribe(ModuleEvent, only_named, owner=self.module_id), name)
+
+    def unsubscribe(self, handle: SubscriptionHandle) -> None:
+        sub = self._subscriptions.pop(handle, None)
+        if sub is not None:
+            self._bus.unsubscribe(sub)
+
+    def _keep(self, sub: Subscription, what: str) -> SubscriptionHandle:
+        handle = SubscriptionHandle(what)
+        self._subscriptions[handle] = sub
+        return handle
 
     def publish(self, event: Event) -> None:
         # Dropped after close, so leftovers of a deactivated module (a thread, a
@@ -114,18 +154,19 @@ class ScopedContext(ModuleContext):
         self._check_declared(contract, self._contracts, "requires / optional / uses")
         return self._container.get_one(contract)
 
-    def _check_declared(self, kind: type, declared, field: str) -> None:
+    def _check_declared(self, kind: type | str, declared, field: str) -> None:
         """Principle 17: a module's manifest declares everything it uses. An undeclared
-        subscription or lookup still works; it's logged once, so the manifest gets fixed."""
+        subscription, lookup or named event still works; it's logged once, so the manifest gets fixed."""
         if kind in declared or kind in self._undeclared:
             return
         self._undeclared.add(kind)
-        self.log.warning("%s uses %s without declaring it in its manifest (%s)", self.module_id, kind.__name__, field)
+        self.log.warning("%s uses %s without declaring it in its manifest (%s)", self.module_id,
+                         getattr(kind, "__name__", kind), field)  # fmt: skip
 
     def close(self) -> None:
         """Remove everything this module registered. Afterwards publish is dropped and send is refused."""
         self._closed = True
-        for sub in self._subscriptions:
+        for sub in self._subscriptions.values():
             self._bus.unsubscribe(sub)
         for command_type, handler in self._handlers:
             self._router.unregister(command_type, handler)

@@ -119,11 +119,14 @@ def test_a_request_needs_the_job_and_a_pdf_base_cv():
     req = CvRequest(**request(target_score=95))
     assert req.degree_first is None and CvRequest.model_validate_json(req.model_dump_json()) == req
     assert CvRequest(**request(base_cv=r"C:\Chang\Jobs\CV\CV_Test_Acme.PDF")).base_cv.endswith(".PDF")
-    for bad in (request(base_cv="cv.pdf"), request(company=""), request(target_score=101), request(extra=1)):
+    for any_pdf in ("cv.pdf", r"D:\elsewhere\My Resume.pdf", "/tmp/resume.PDF"):  # any name, any folder, as given
+        assert CvRequest(**request(base_cv=any_pdf)).base_cv == any_pdf
+    for bad in (request(company=""), request(target_score=101), request(extra=1)):
         with pytest.raises(ValidationError):
             CvRequest(**bad)
-    with pytest.raises(ValidationError, match=r"base_cv must be a CV_Test_\*\.pdf, not CV_Test_Acme\.odt"):
-        CvRequest(**request(base_cv=r"C:\Chang\Jobs\CV\CV_Test_Acme.odt"))
+    for not_pdf in (r"C:\Chang\Jobs\CV\CV_Test_Acme.odt", "resume.docx", "resume", "resume.pdf.txt"):
+        with pytest.raises(ValidationError, match=r"base_cv must be a \.pdf file"):
+            CvRequest(**request(base_cv=not_pdf))
 
 
 def test_a_result_is_approved_only_with_your_yes_one_page_and_rezis_match():
@@ -143,6 +146,14 @@ def test_a_result_is_approved_only_with_your_yes_one_page_and_rezis_match():
     with pytest.raises(ValidationError, match="unknown sections"):
         CvResult(status="stopped", stop_reason="x", section_order=["hobbies"])
     assert CvResult(status="stopped", stop_reason="rounds used up").score is None
+
+
+def test_a_results_section_order_ignores_case_as_the_worker_may_write_it():
+    """Fake job 3: cv_agent wrote "Summary", "Skills" …; the result must still read."""
+    result = CvResult(status="stopped", stop_reason="x", section_order=["Summary", " Skills ", "EXPERIENCE"])
+    assert result.section_order == ["summary", "skills", "experience"]
+    with pytest.raises(ValidationError, match="listed twice"):
+        CvResult(status="stopped", stop_reason="x", section_order=["summary", "Summary"])
 
 
 def test_a_ready_result_is_everything_but_the_submit_and_the_job_agent_is_told_so():

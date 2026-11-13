@@ -19,6 +19,13 @@ yet: today the notice says so, and the job agent runs the project's `company-swe
 `job.open_ui` starts the job project's job UI if needed and opens its window on the Tracker
 (`ui.py`: `JobUi`, through `CompanionHandover`, kept across a reload like the CV Tool).
 
+cv's results reach the agent through cv's named events, never a direct message: the agent hands a
+job to cv with the `cv.task` tool; cv publishes `cv.job_finished` when its worker's task ends and
+`cv.job_submitted` at the user's Submit. This module subscribes to both, keeps the ones whose
+`reply_to` is its agent, and wakes the agent with a `DeliverMessage` (`cv_finished_text`,
+`cv_submitted_text`), never into a running turn. The agent then updates the job's tracker row as
+its project's skills say; the module writes nothing into the job project.
+
 The project's `handoff.ps1` is replaced by the agent's `HANDOFF:` line (a fresh session for the
 same job only; a finished job ends with a plain report, so the task ends as done), and the
 project never submits or sends anything: the prompt says both.
@@ -31,10 +38,12 @@ from typing import Any
 
 from assistant.contracts import (
     AgentNotice,
+    DeliverMessage,
     ITaskAgent,
     Manifest,
     Menu,
     ModuleContext,
+    ModuleEvent,
     ModuleProtocol,
     PermissionChanged,
     Result,
@@ -68,6 +77,30 @@ submits.
 SEARCH_STUB = ("job.search: the search runner isn't built yet, so nothing ran ({days} days asked). "
                "Ask the job agent to run the company-sweep skill instead.")  # fmt: skip
 
+CV_FINISHED = "cv.job_finished"  # cv's worker ended a job's task (cv's handoff.job_finished has the data)
+CV_SUBMITTED = "cv.job_submitted"  # the user pressed Submit in the CV Tool (cv's reply.job_submitted)
+
+
+def cv_finished_text(data: dict[str, Any]) -> str:
+    """The job agent's message when cv's worker ends a job: the job, the folder, the result in one
+    line, and what next."""
+    task = data.get("task_id") or "?"
+    return (f"cv's worker {data.get('agent_id') or 'cv_agent'} ended {data.get('state') or '?'} on the CV for "
+            f"{data.get('role') or '?'} at {data.get('company') or '?'} (task {task}, job folder "
+            f"{data.get('job_dir') or '?'}).\n{data.get('summary') or ''}\n"
+            "Next: update this job's row in the tracker as your project's skills say. The whole result: "
+            f"cv.read_result task_id={task}. The user's Submit in the CV Tool, if any, comes later as its own "
+            "message.")  # fmt: skip
+
+
+def cv_submitted_text(data: dict[str, Any]) -> str:
+    """The job agent's message at the user's Submit: cv's summary (the PDF, the score, the user's
+    yes), the folder, and what next."""
+    return (f"{data.get('summary') or 'The user submitted the CV in the CV Tool.'}\n"
+            f"Job folder: {data.get('job_dir') or '?'} (CV Tool job {data.get('job_id') or '?'}).\n"
+            "Next: update this job's row in the tracker as your project's skills say, then carry on with the "
+            "application.")  # fmt: skip
+
 
 class JobSearchModule(ModuleProtocol):
     manifest = Manifest(
@@ -75,9 +108,10 @@ class JobSearchModule(ModuleProtocol):
         description="The job agent (applies to jobs, runs searches in the job project), with its job.* menu",
         provides=(ITaskAgent,),
         uses=AGENT_USES,
-        sends=AGENT_SENDS,
+        sends=(*AGENT_SENDS, DeliverMessage,),  # DeliverMessage: wakes its agent with cv's events
         publishes=(*AGENT_PUBLISHES, AgentNotice,),
         listens=(*AGENT_LISTENS, PermissionChanged,),
+        listens_named=(CV_FINISHED, CV_SUBMITTED),
         permissions=("agent.access",),
     )
     menu = menu
@@ -96,6 +130,18 @@ class JobSearchModule(ModuleProtocol):
         self._work: set[asyncio.Task] = set()
         self._kit = AgentKit(ctx)  # resets it; a changed grant reaches it live
         self._kit.follow_grant(self._agent_id, config)
+        ctx.subscribe_named(CV_FINISHED, self._on_cv)
+        ctx.subscribe_named(CV_SUBMITTED, self._on_cv)
+
+    async def _on_cv(self, event: ModuleEvent) -> None:
+        """One of cv's events for this module's agent (`reply_to`): wake it with one message."""
+        data = event.data
+        if data.get("reply_to") != self._agent_id:
+            return
+        text = cv_finished_text(data) if event.name == CV_FINISHED else cv_submitted_text(data)
+        sent = await self._ctx.send(DeliverMessage(agent_id=self._agent_id, text=text, sender="job_search"))
+        self._ctx.log.info("job_search: %s for %s -> %s", event.name, self._agent_id,
+                           sent.value if sent.is_ok else f"failed: {sent.error}")  # fmt: skip
 
     async def start(self) -> None:
         """Ask for its access list (a card unless the saved grant still matches; AccessPending

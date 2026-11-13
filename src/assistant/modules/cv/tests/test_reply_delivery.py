@@ -1,6 +1,7 @@
-"""agent-talk-and-questions, step 1: cv.task makes cv_agent's task a child of the asker's open task, and
-the user's Submit reaches the asker through the Hub's `DeliverMessage`: at its turn's end, into its
-open task (which answers a question it waits on). No coordinator and no notice."""
+"""cv.task makes cv_agent's task a child of the asker's open task, and cv reports back only through
+its named events: `cv.job_finished` when cv_agent's task ends, `cv.job_submitted` at the user's
+Submit, each with `reply_to`. The Hub sends the asker no child-result message (`tell_parent=False`),
+and cv sends the asker no message of its own."""
 
 import asyncio
 import json
@@ -14,6 +15,7 @@ from assistant.contracts import (
     ITaskAgent,
     Manifest,
     ModuleContext,
+    ModuleEvent,
     ModuleProtocol,
     Result,
     StartTask,
@@ -28,19 +30,19 @@ JOB_AGENT = "job_search_agent"
 
 
 class JobAgent(ITaskAgent):
-    """The job agent's stand-in: one task at a time; `working` says it's in a turn."""
+    """The job agent's stand-in: one task at a time; it records any message it gets."""
 
     def __init__(self) -> None:
         self.current: str | None = None
-        self.working = False
         self.messages: list[tuple[str, str]] = []
+        self.assigned: list[str] = []
 
     def info(self) -> AgentInfo:
-        state = AgentState.ACTIVE if self.working else AgentState.IDLE
-        return AgentInfo(agent_id=JOB_AGENT, description="job agent", state=state)
+        return AgentInfo(agent_id=JOB_AGENT, description="job agent", state=AgentState.IDLE)
 
     async def assign(self, task) -> Result:
         self.current = task.id
+        self.assigned.append(task.text)
         return Result.ok()
 
     async def message(self, task_id: str, text: str, resume: bool = True) -> Result:
@@ -67,24 +69,30 @@ AGENT = JobAgent()
 
 
 class JobModule(ModuleProtocol):
+    """The job module's stand-in: provides the agent and keeps cv's named events."""
+
     manifest = Manifest(id="job_fake", description="The job agent's stand-in", provides=(ITaskAgent,),
-                        publishes=(AgentStateChanged,))  # fmt: skip
+                        publishes=(AgentStateChanged,), listens_named=("cv.job_finished", "cv.job_submitted"))  # fmt: skip
 
     async def init(self, ctx: ModuleContext) -> None:
         self.ctx = ctx
+        self.events: asyncio.Queue[ModuleEvent] = asyncio.Queue()
         ctx.provide(ITaskAgent, AGENT)
+        ctx.subscribe_named("cv.job_finished", self.events.put)
+        ctx.subscribe_named("cv.job_submitted", self.events.put)
 
     async def start(self) -> None: ...
 
     async def stop(self) -> None: ...
 
 
-async def test_the_job_is_the_askers_child_and_the_submit_reaches_it_at_its_turns_end(tmp_path):
+async def test_cv_reports_the_end_and_the_submit_as_events_and_messages_no_one(tmp_path):
     AGENT.__init__()
     base = write_pdf(CV, SectionOrder.from_config(DEFAULTS).usual, tmp_path / "CV" / "CV_Test_Base.pdf")
     app = app_with(tmp_path, extra=(JobModule,))
     await app.start()
     try:
+        job_module = app._lifecycle._active["job_fake"][0]
         parent = (await app.router.send(StartTask(text="apply to Acme", agent_id=JOB_AGENT))).value
         made = await use(app, "cv.task", caller=JOB_AGENT, company="Acme", role="Senior Engineer", jd_text=JD,
                          base_cv=str(base))  # fmt: skip
@@ -93,20 +101,29 @@ async def test_the_job_is_the_askers_child_and_the_submit_reaches_it_at_its_turn
         assert child.agent_id == "cv_agent" and child.parent_task_id == parent  # the job agent may hub.send to it
         folder = read_job((await finished(app, made.value["task_id"])).result).work_dir
 
-        AGENT.working = True  # the job agent is in a turn: the Submit waits for its end
+        async with asyncio.timeout(5):
+            ended = await job_module.events.get()
+        assert ended.name == "cv.job_finished" and ended.source == "cv"
+        data = ended.data
+        assert (data["reply_to"], data["task_id"], data["parent_task_id"], data["job_dir"]) == (
+            JOB_AGENT, child.id, parent, folder)
+        assert (data["company"], data["role"], data["state"]) == ("Acme", "Senior Engineer", "done")
+        assert data["cv_result"] is None and "No valid CV_RESULT" in data["summary"]  # the fake worker has none
+        await asyncio.sleep(0.2)
+        assert AGENT.messages == [] and AGENT.assigned == ["apply to Acme"]  # no Hub child-result message
+
         submit = {"work_dir": folder, "result": {"submitted_at": "t1", "company": "Acme", "role": "Senior Engineer",
                                                  "pdf_path": "CV_Test_Acme.pdf", "final_score": 92}}  # fmt: skip
-        assert await cv_module(app)._tell_asker(submit) == f"{JOB_AGENT} (pending)"
-        assert AGENT.messages == []
-        AGENT.working = False
-        app._lifecycle._active["job_fake"][0].ctx.publish(AgentStateChanged(agent_id=JOB_AGENT, state=AgentState.IDLE))
+        assert await cv_module(app)._pass_submit(submit) == f"{JOB_AGENT} (published cv.job_submitted)"
         async with asyncio.timeout(5):
-            while not AGENT.messages:
-                await asyncio.sleep(0.02)
-        (task, text), = AGENT.messages
-        assert task == parent and text.startswith("[Message from cv] From the cv module: the CV for Senior Engineer")
+            submitted = await job_module.events.get()
+        assert submitted.name == "cv.job_submitted" and submitted.data["reply_to"] == JOB_AGENT
+        assert submitted.data["job_dir"] == folder and submitted.data["final_score"] == 92
+        assert submitted.data["summary"].startswith("From the cv module: the CV for Senior Engineer at Acme")
         record = json.loads((Path(folder) / "job_start.json").read_text(encoding="utf-8"))
-        assert record["replied"] == {"submitted_at": "t1", "to": JOB_AGENT, "how": "pending"}
-        assert await cv_module(app)._tell_asker(submit) is None  # the same Submit: told once
+        assert record["replied"] == {"submitted_at": "t1", "to": JOB_AGENT, "how": "published cv.job_submitted"}
+        assert await cv_module(app)._pass_submit(submit) is None  # the same Submit: passed on once
+        await asyncio.sleep(0.1)
+        assert job_module.events.empty() and AGENT.messages == [] and AGENT.assigned == ["apply to Acme"]
     finally:
         await app.stop()

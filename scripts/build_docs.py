@@ -435,7 +435,9 @@ def library_block() -> str:
         menu = names(cls.menu.names()) if cls.menu else "none"
         return (f"| [`{m.id}`](../../src/assistant/modules/{m.id}/{DOCS_DIR}/README.md) | "
                 f"{m.description or '(no description)'} | {'yes' if m.id in enabled else 'no'} | {menu} | "
-                f"{contracts or 'none'} | {names(m.handles)} | {names(m.sends)} | {names(m.publishes)} | {names(m.listens)} |")
+                f"{contracts or 'none'} | {names(m.handles)} | {names(m.sends)} | "
+                # Named events (ModuleEvent) are listed by name beside the typed ones.
+                f"{names((*m.publishes, *m.publishes_named))} | {names((*m.listens, *m.listens_named))} |")
 
     lines = [LIBRARY_START, ""]
     classes = module_classes()

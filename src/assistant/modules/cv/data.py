@@ -18,11 +18,10 @@ from assistant.modules.cv.content import check_sections
 
 CV_PREFIX = "CV_Test_"  # the repo default; the real one is `cv_prefix` in the gitignored local config
 _PREFIX = re.compile(r"[A-Za-z0-9_-]{1,40}")
-BASE_CV_NAME = re.compile(re.escape(CV_PREFIX) + r".+\.pdf", re.IGNORECASE)  # the base CV: a PDF, never an .odt
 
 
 def cv_prefix() -> str:
-    """The prefix of the user's CV file names (`cv_prefix` in the config): base CVs and the PDFs made."""
+    """The prefix of the PDFs the module makes (`cv_prefix` in the config). Not a rule for base_cv."""
     return CV_PREFIX
 
 
@@ -35,9 +34,8 @@ def check_cv_prefix(value: Any) -> str:
 
 def set_cv_prefix(value: str) -> None:
     """Use `value` as the prefix from now on (the module's init, from its config)."""
-    global CV_PREFIX, BASE_CV_NAME
+    global CV_PREFIX
     CV_PREFIX = check_cv_prefix(value)
-    BASE_CV_NAME = re.compile(re.escape(CV_PREFIX) + r".+\.pdf", re.IGNORECASE)
 
 
 ToolPick = Literal["Internal", "Rezi"]  # the CV Tool's pick (its tab 2): who drafts and scores
@@ -65,7 +63,7 @@ class CvRequest(BaseModel):
     company: str = Field(min_length=1)
     role: str = Field(min_length=1)
     jd_text: str = Field(min_length=1)
-    base_cv: str = Field(min_length=1, description="Path to the <cv_prefix>*.pdf (read only)")
+    base_cv: str = Field(min_length=1, description="Path to any .pdf file, used as given (read only)")
     jd_file: str | None = None
     jd_url: str | None = None
     degree_first: bool | None = None  # None: decided from the JD (order.wants_masters), the worker may set it
@@ -77,8 +75,8 @@ class CvRequest(BaseModel):
     @field_validator("base_cv")
     @classmethod
     def _pdf(cls, value: str) -> str:
-        if not BASE_CV_NAME.fullmatch(PureWindowsPath(value).name):
-            raise ValueError(f"base_cv must be a {CV_PREFIX}*.pdf, not {PureWindowsPath(value).name}")
+        if PureWindowsPath(value).suffix.lower() != ".pdf":
+            raise ValueError(f"base_cv must be a .pdf file, not {PureWindowsPath(value).name}")
         return value
 
 
@@ -99,7 +97,7 @@ class CvJob(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     work_dir: str = Field(min_length=1)
-    base_cv: str = Field(min_length=1)  # the original in cv_dir: read only, never opened by a script
+    base_cv: str = Field(min_length=1)  # the original, wherever it is: read only, never opened by a script
     base_cv_copy: str = Field(min_length=1)
     base_cv_sha256: str = Field(min_length=64, max_length=64)  # the original's and the copy's (checked equal)
     jd_file: str = Field(min_length=1)  # jd.txt in work_dir

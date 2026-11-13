@@ -119,6 +119,31 @@ A few words about what this app session is about, from your first question. The 
 
 **Defined in:** `src/assistant/contracts/messages.py`
 
+## `ModuleEvent`
+
+**Reusable** · Used by: cv (publishes `cv.job_finished`, `cv.job_submitted`), job_search (listens to both) · built 2026-11-12
+
+`ModuleEvent(name: str, source: str, data: dict[str, Any] = {})` (event)
+
+A **module-owned** event, matched by its name rather than its class, so a new one needs no restart and either side reloads on its own. Never built by hand: published with [`ctx.publish_named`](modules.md#modulecontextpublish_named) (the core sets `source` and copies `data` through JSON) and heard with [`ctx.subscribe_named`](modules.md#modulecontextsubscribe_named). Declared in the manifest's `publishes_named` / `listens_named`.
+
+| Field | Description |
+|-------|-------------|
+| `name` | `<module_id>.<what>`, e.g. `cv.job_ready`; only that module may publish it |
+| `source` | The publishing module's id |
+| `data` | Plain JSON values only |
+
+**Named or typed:** shared events (the core's, the Hub's, ones several modules agree on: `TaskUpdated`, `VoiceTranscript`, …) stay typed classes here, with their fields checked. A named event that becomes widely used, or whose payload needs checking, gets a typed class at the next planned restart ([decisions](../architecture/decisions.md#decided)). Helpers: `event_name_ok(name, pattern=False)` (is it `<module>.<what>`, or with `pattern` also `<module>.*`) and `SubscriptionHandle` (from `subscribe` and `subscribe_named`, for `unsubscribe`), both in `assistant.contracts`.
+
+**Named events today** (modules talk to each other through named events; a tool is only for a call out, [decisions](../architecture/decisions.md#decided)):
+
+| Name | Published by | When | Data | Heard by |
+|------|--------------|------|------|----------|
+| `cv.job_finished` | cv | cv_agent's job task ends (`done` or `failed`) | `reply_to`, `agent_id`, `task_id`, `parent_task_id`, `state`, `job_dir`, `company`, `role`, `cv_result` (the `CV_RESULT` as JSON, or null), `summary` | job_search: wakes its agent if `reply_to` is it |
+| `cv.job_submitted` | cv | the user's Submit in the CV Tool, once per Submit | `reply_to`, `job_id`, `job_dir`, `company`, `role`, `submitted_at`, `pdf_path`, `final_score`, `target_score`, `result` (result.json), `summary` | job_search: wakes its agent if `reply_to` is it |
+
+**Defined in:** `src/assistant/contracts/messages.py`
+
 ## `ViewerTabsChanged`
 
 `ViewerTabsChanged(tabs: tuple[str, ...] = (), active: str | None = None, highlights: tuple[tuple[str, str], ...] = ())` (event)

@@ -20,8 +20,9 @@ SECTIONS: tuple[str, ...] = (
 
 
 def check_sections(names: Iterable[str], what: str) -> list[str]:
-    """`names` as a list, if each is a known section and none repeats; else ValueError naming `what`."""
-    names = list(names)
+    """`names` as a list of section ids (case and spaces ignored: "Summary" is `summary`), if each
+    is a known section and none repeats; else ValueError naming `what`."""
+    names = [n.strip().lower() if isinstance(n, str) else n for n in names]
     unknown = [n for n in names if n not in SECTIONS]
     if unknown:
         raise ValueError(f"{what}: unknown sections {unknown}; known: {list(SECTIONS)}")

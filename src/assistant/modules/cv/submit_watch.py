@@ -1,7 +1,8 @@
-"""The Submit watch: the user's Submit in the CV Tool reaches the asking agent with no agent in between.
+"""The Submit watch: the user's Submit in the CV Tool reaches the cv module with no agent in between.
 
 While the CV Tool runs, the module reads its event stream (`CvTool.events`); each live `submitted`
-event gets the job's result (`CvTool.result`) and hands it to `deliver` (the module's `_tell_asker`).
+event gets the job's result (`CvTool.result`) and hands it to `deliver` (the module's `_pass_submit`,
+which publishes `cv.job_submitted`).
 A Submit is never refused (2026-11-10).
 
 Submits pressed while the module was down are never delivered by themselves (the user's rule,
