@@ -87,7 +87,9 @@ class AccessPending(Exception):
 class PermissionRequested(Event):
     """A card for you. `action`: `access` (a module's list), `grant` / `revoke` (an agent's
     call, `caller`, waiting for your yes), or `message` (agent `caller` wants to message the
-    agent in its one item; answered Allow once, Always allow or Deny). `items`: the lines offered, each with a tick box when
+    agent in its one item; answered Allow once, Always allow or Deny), or `confirm` (a risky step
+    `caller` asks for: a reload, an add, a remove, a restart; `reason` says what; no items; Allow
+    or Deny, and Auto never skips it). `items`: the lines offered, each with a tick box when
     `trimmable`. `notes`: refused items, rule warnings, then the review's notes. `reviewed`:
     True or False for an access list (False shows "not reviewed"), None for no review step.
     `rules`: the fixed rules, one line each."""
@@ -95,7 +97,7 @@ class PermissionRequested(Event):
     request_id: str
     module_id: str
     subject: str = ""
-    action: Literal["access", "grant", "revoke", "message"] = "access"
+    action: Literal["access", "grant", "revoke", "message", "confirm"] = "access"
     reason: str = ""
     items: tuple[AccessItem, ...] = ()
     notes: tuple[AccessNote, ...] = ()
@@ -125,3 +127,30 @@ class PermissionChanged(Event):
     granted: tuple[AccessItem, ...] = ()
     request_id: str = ""
     text: str = ""
+
+
+class ReviewAccessList(Command):
+    """The core asks for a review of an access list before its card shows (D6: the reviewer is a
+    listener; the core never starts a task). Handled by the module that runs reviews (the Agent
+    Hub, on agent `reviewer`). Its result says only whether a review started (`not_available`:
+    no reviewer, or it's busy); the notes come back as `AddCardNotes` within `timeout` seconds,
+    else the card shows "not reviewed". `who`: how the card names the list; `warnings`: the
+    notes already on the card."""
+
+    request_id: str
+    reviewer: str
+    who: str
+    reason: str = ""
+    items: tuple[str, ...] = ()  # the items' labels
+    warnings: tuple[str, ...] = ()
+    timeout: float = 90.0
+
+
+class AddCardNotes(Command):
+    """A review's outcome for a card waiting on `ReviewAccessList` (handled by the core).
+    `notes`: one line per risk (the core keeps at most a few); `reviewed=False`: the review
+    didn't finish (the card says "not reviewed"). `invalid_arguments` if no review waits."""
+
+    request_id: str
+    notes: tuple[str, ...] = ()
+    reviewed: bool = True

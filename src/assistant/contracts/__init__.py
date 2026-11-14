@@ -80,9 +80,11 @@ from assistant.contracts.permissions import (
     AccessKind,
     AccessNote,
     AccessPending,
+    AddCardNotes,
     AnswerPermissionRequest,
     PermissionChanged,
     PermissionRequested,
+    ReviewAccessList,
 )
 from assistant.contracts.tools import InvokeTool, IToolProvider, ToolSpec
 from assistant.contracts.voice import (
@@ -102,8 +104,10 @@ __all__ = [
     "AccessNote",
     "AccessPending",
     "AnswerPermissionRequest",
+    "AddCardNotes",
     "PermissionChanged",
     "PermissionRequested",
+    "ReviewAccessList",
     "ActivateModule",
     "AddModule",
     "AgentActivity",
