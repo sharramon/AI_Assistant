@@ -12,7 +12,7 @@ import pytest
 
 from assistant.contracts import PermissionMode
 from assistant.infra import AgentProfile, repo_claude_md_files
-from assistant.modules.job_search.module import copy_job_data, fix_copied_paths, job_config
+from assistant.modules.job_search.module import copy_job_data, fix_copied_paths, is_absolute_anywhere, job_config
 from assistant.testkit import module_config
 
 FOLDER = Path(__file__).resolve().parents[1]  # job_search's own module folder
@@ -57,3 +57,9 @@ def test_the_first_use_copies_and_keeps_the_paths_file_true(tmp_path) -> None:
     assert json.loads((old / "job_paths.json").read_text(encoding="utf-8")) == paths  # the old one untouched
     assert not copy_job_data(config)  # once
     fix_copied_paths(old, tmp_path / "nowhere")  # no paths file: left alone
+
+
+def test_windows_drive_paths_count_as_absolute_on_any_system() -> None:
+    assert is_absolute_anywhere("C:/Jobs/CV") and is_absolute_anywhere("D:\\cv") and is_absolute_anywhere("~/Jobs")
+    assert is_absolute_anywhere("//server/share/cv") and is_absolute_anywhere(str(Path.cwd()))
+    assert not is_absolute_anywhere("../../cv/workspace/out") and not is_absolute_anywhere("C:relative")

@@ -49,7 +49,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from assistant.contracts import (
@@ -130,9 +130,15 @@ def fix_copied_paths(old: Path, new: Path) -> None:
     if not isinstance(paths, dict):
         return
     for key, value in paths.items():
-        if isinstance(value, str) and value and not Path(os.path.expanduser(value)).is_absolute():
+        if isinstance(value, str) and value and not is_absolute_anywhere(value):
             paths[key] = Path(os.path.normpath(old / value)).as_posix()
     file.write_text(json.dumps(paths, indent=2) + "\n", encoding="utf-8")
+
+
+def is_absolute_anywhere(value: str) -> bool:
+    """True for a path that's absolute here, after `~`, or a Windows drive or UNC path (`C:/Jobs`) on
+    any system, so a paths file written on Windows keeps its drive paths when copied elsewhere."""
+    return Path(os.path.expanduser(value)).is_absolute() or PureWindowsPath(value).is_absolute()
 
 
 menu = Menu()
