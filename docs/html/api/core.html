@@ -15,7 +15,7 @@
 <p>The stable host in <code>assistant.core</code>. Modules never use these directly; they go through <a href="modules.html#modulecontext"><code>ModuleContext</code></a>. Listed here so nothing gets rebuilt elsewhere. Back to the <a href="index.html">API index</a>. Design and behavior: <a href="../architecture/core.html">core architecture</a>.</p>
 <h2 id="app"><code>App</code></h2>
 <p><code>App(available: Sequence[type[ModuleProtocol]], config: dict[str, Any], config_loader: Callable[[], dict] | None = None, logs: LogSession | None = None, config_dir: str | Path | None = None)</code></p>
-<p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> and the <a href="control.html">module control</a> commands, including <code>ReloadModule</code>, <code>AddModule</code> and <code>RemoveModule</code>. A module's <code>ctx.config</code> is its own <code>module.toml</code> defaults with its <code>[modules.&lt;id&gt;]</code> section merged over them (<a href="#loader"><code>loader.module_defaults</code></a>, <a href="app_kit.html#merge"><code>merge</code></a>); <code>modules.docs</code> reads its own <code>docs/</code> folder.</p>
+<p>Wires the core together and runs the enabled modules. Construction validates the module selection. Handles <code>InvokeTool</code> (through <a href="tools.html#the-ask-first-gate">the ask-first gate</a>), <code>ListModules</code>, <code>GetMenu</code>, <code>StartProvider</code>, the <a href="control.html">module control</a> commands (including <code>ReloadModule</code>, <code>AddModule</code> and <code>RemoveModule</code>), <code>AnswerPermissionRequest</code> and <code>AddCardNotes</code> (the permissions handler's), <code>SetPermissionMode</code> (<code>_set_mode</code>) and <code>ShutdownRequested</code> (<code>_on_shutdown_requested</code>). A module's <code>ctx.config</code> is its own <code>module.toml</code> defaults with its <code>[modules.&lt;id&gt;]</code> section merged over them (<a href="#loader"><code>loader.module_defaults</code></a>, <a href="app_kit.html#merge"><code>merge</code></a>); <code>modules.docs</code> reads its own <code>docs/</code> folder.</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>
@@ -49,7 +49,7 @@
 <td><code>config_dir</code></td>
 <td><code>str</code>, <code>Path</code></td>
 <td>no</td>
-<td>Where your choices files are, for <code>RemoveModule</code>'s purge (<a href="infra.html#load_config"><code>config_folder</code></a>: else <code>ASSISTANT_CONFIG_DIR</code>, else <code>config/</code>); tests pass a tmp folder</td>
+<td>Where your choices files are, for <code>RemoveModule</code>'s purge (<a href="infra.html#load_config"><code>config_folder</code></a>: else <code>ASSISTANT_CONFIG_DIR</code>, else <code>config/</code>); the permissions handler protects it like <code>config/</code> (writes refused, reads allowed); tests pass a tmp folder</td>
 </tr>
 <tr>
 <td><code>logs</code></td>
@@ -60,7 +60,8 @@
 </tbody>
 </table>
 <p><strong>Raises:</strong> <a href="#startuperror"><code>StartupError</code></a> if the enabled modules can't run together.</p>
-<p><strong>Attributes:</strong> <code>router: CommandRouter</code>, <code>bus: EventBus</code>, <code>container: Container</code>, <code>generated: GeneratedFiles</code> (writes <a href="#generatedfiles"><code>generated/</code></a> after <code>start()</code> and on every module state change).</p>
+<p><strong>Class attribute:</strong> <code>PUBLISHES</code> (the events the core publishes: <code>ModuleStateChanged</code> and <a href="#permissionshandler"><code>PermissionsHandler.PUBLISHES</code></a>, the card events <code>PermissionRequested</code>, <code>PermissionChanged</code>; <code>tests/test_module_docs.py</code> checks every <code>publish(X(...))</code> in the core is named).</p>
+<p><strong>Attributes:</strong> <code>router: CommandRouter</code>, <code>bus: EventBus</code>, <code>container: Container</code>, <code>menus: MenuTable</code> (the linked menus, core-private: <a href="#menutable"><code>MenuTable</code></a>), <code>callers: Callers</code> (the <a href="#callers">Callers port</a>, provided as <code>IAgentNames</code>), <code>door: CoreDoor</code> (the <a href="#coredoor-moduledoor">module door</a>, provided as <code>IModuleDoor</code>), <code>permissions: PermissionsHandler</code>, <code>generated: GeneratedFiles</code> (writes <a href="#generatedfiles"><code>generated/</code></a> after <code>start()</code> and on every module state change), <code>restart_requested: bool</code> (a <code>ShutdownRequested</code> asked for a restart).</p>
 <table>
 <thead>
 <tr>
@@ -75,19 +76,125 @@
 </tr>
 <tr>
 <td><code>async start()</code></td>
-<td>Register the <code>InvokeTool</code> handler, subscribe to <code>ShutdownRequested</code>, init and start modules. May raise <code>StartupError</code></td>
+<td>Register the core's handlers, add the core's menus to <code>menus</code>, provide <code>IAgentNames</code> (<code>callers</code>) and <code>IModuleDoor</code> (<code>door</code>) as <code>core</code>, open the door's server (<code>[core.door]</code>, <strong>before any module</strong>, so every agent's first session has it; a taken port is logged and the agents go without), then init and start modules. May raise <code>StartupError</code></td>
 </tr>
 <tr>
 <td><code>async stop()</code></td>
-<td>Cancel in-flight commands, stop modules in reverse order, close the bus</td>
+<td>Cancel in-flight commands, close the permissions handler, stop modules in reverse order, stop the door's server, unregister the handlers, close the bus</td>
 </tr>
 <tr>
 <td><code>request_shutdown()</code></td>
 <td>Make <code>run()</code> proceed to <code>stop()</code></td>
 </tr>
+<tr>
+<td><code>core_specs() -&gt; list[ToolSpec]</code></td>
+<td>Static: the core's own menu (<code>modules.*</code>, then <code>permissions.*</code>), what <code>GetMenu</code> answers for <code>core</code> and <code>generated/directory.json</code> lists</td>
+</tr>
+<tr>
+<td><code>offers() -&gt; dict[str, list[str]]</code></td>
+<td>What the core offers, by name, from the tables <code>start</code> registers: <code>handles</code>, <code>provides</code>, <code>menu</code>, <code>publishes</code>. <code>scripts/build_docs.py</code> generates the <a href="../architecture/module-library.html">module library</a>'s core row from it (<code>core_offers</code>, <code>core_line</code>)</td>
+</tr>
 </tbody>
 </table>
+<p><strong>Inside</strong> (the handlers, listed so nothing duplicates them):</p>
+<table>
+<thead>
+<tr>
+<th>Handler</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_set_mode(command: SetPermissionMode) -&gt; Result</code></td>
+<td>Auto only when <code>command.sent_by</code> may set it (<code>Callers.may_set_auto</code>: the core or a <code>you</code> caller), else <code>not_available</code>; Manual from anyone. Finds the agent among the <code>ITaskAgent</code> providers (<code>invalid_arguments</code> if none), records the mode in <code>callers</code> first, calls <code>set_permission_mode</code>, and puts the old mode back if the agent refuses. Decision D2</td>
+</tr>
+<tr>
+<td><code>_on_shutdown_requested(command: ShutdownRequested) -&gt; Result</code></td>
+<td>Logs <code>sent_by</code> and the reason, sets <code>restart_requested</code> with <code>restart</code>, calls <code>request_shutdown()</code>; <code>ok</code>. Decision D5: a command, so it has one handler and a known sender</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Config:</strong> <code>[core.door]</code> <code>enabled</code> (true), <code>host</code> (<code>127.0.0.1</code>), <code>port</code> (0: any free); <code>[core.permissions]</code> <code>you</code> (<code>["temp_ui"]</code>), <code>relays</code> (<code>["talker"]</code>), and the handler's keys (<a href="#permissionshandler"><code>PermissionsHandler</code></a>).</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/app.py</code></p>
+<h2 id="callers"><code>Callers</code></h2>
+<p><strong>♻ Reusable · Used by:</strong> <code>App</code> (provided as <a href="agents.html#iagentnames"><code>IAgentNames</code></a>, owner <code>core</code>); every module through <code>IAgentNames</code> (<code>ProfileAgent</code>, <code>task_agents</code>, <code>talker</code>, <code>agent_hub</code>, <code>SessionTaskAgent</code>); <code>ScopedContext</code> (<code>you</code>, <code>relays</code>); <code>PermissionsHandler</code> (<code>mode_of=callers.mode</code>); <code>CoreDoor</code> (<code>claims</code>) · decision D2</p>
+<p><code>Callers(module_ids: Callable[[], Iterable[str]], you: Iterable[str] = (), relays: Iterable[str] = (), reserved: frozenset[str] = RESERVED_AGENT_IDS)</code> (an <code>IAgentNames</code>)</p>
+<p>The Callers port: who calls, as the core knows them, in one list. <code>module_ids()</code>: the ids of every known module, on or off (refused as agent ids). <code>RESERVED_AGENT_IDS = {"core", "hub", "talker"}</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>claims: dict[str, str]</code></td>
+<td>Agent id → owning module. In the core, so a Hub reload keeps them</td>
+</tr>
+<tr>
+<td><code>async check(agent_id, owner)</code>, <code>async claim(agent_id, owner)</code>, <code>release(agent_id, owner)</code>, <code>taken()</code></td>
+<td><code>IAgentNames</code>' names: <a href="infra.html#agent_names"><code>check_agent_id</code></a>, then who holds the id; a taken id names a free one (<a href="infra.html#agent_names"><code>free_agent_id</code></a>). <code>release</code> also resets the agent's mode to Manual</td>
+</tr>
+<tr>
+<td><code>mode(agent_id) -&gt; PermissionMode</code></td>
+<td>The agent's mode, Manual unless set</td>
+</tr>
+<tr>
+<td><code>set_mode(agent_id, mode)</code></td>
+<td>Core only (<code>App._set_mode</code>): only non-Manual modes are kept</td>
+</tr>
+<tr>
+<td><code>you</code>, <code>relays</code></td>
+<td><code>[core.permissions] you</code> (you clicking in a UI) and <code>relays</code> (modules that pass your answer to a card; never Auto, G17)</td>
+</tr>
+<tr>
+<td><code>is_you(caller) -&gt; bool</code></td>
+<td><code>caller in you</code>. Trusted by module id, not by the folder the code came from</td>
+</tr>
+<tr>
+<td><code>may_set_auto(sender) -&gt; bool</code></td>
+<td>Auto comes only from <code>"core"</code> or a <code>you</code> caller; never from a relay</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/callers.py</code> · <strong>Tests:</strong> <code>tests/test_callers.py</code>, <code>tests/test_agent_names.py</code></p>
+<h2 id="coredoor-moduledoor"><code>CoreDoor</code>, <code>ModuleDoor</code></h2>
+<p><strong>♻ Reusable · Used by:</strong> <code>App</code> (<code>app.door</code>, provided as <a href="tools.html#imoduledoor"><code>IModuleDoor</code></a>); every module that asks for a door config (<code>ProfileAgent</code>, <code>talker</code>), each through its own <code>ModuleDoor</code> · decision D1</p>
+<p><code>CoreDoor(server: DoorServer, claims: Callable[[], dict[str, str]])</code> · <code>ModuleDoor(door: CoreDoor, module_id: str)</code> · <code>CORE_LINE</code></p>
+<p>The module door, hosted by the core as part of the Tools port. <code>CoreDoor</code> holds the <a href="infra.html#mcp_door"><code>DoorServer</code></a> (its calls go to the router as the core's own sends: <code>ListModules</code>, <code>GetMenu</code>, <code>InvokeTool</code> with the caller its token proved, so a door call goes router → gate like a module's own) and who may ask for whose config.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CoreDoor.mcp_config(caller)</code></td>
+<td>The core's own call, unchecked (the core and tests: <code>app.container.get_one(IModuleDoor)</code>)</td>
+</tr>
+<tr>
+<td><code>CoreDoor.may_ask(module_id, caller) -&gt; bool</code></td>
+<td>Whether <code>module_id</code> may get a config for <code>caller</code>: the module itself, or an agent id it claimed in the Callers port (G11)</td>
+</tr>
+<tr>
+<td><code>CoreDoor.for_module(module_id) -&gt; ModuleDoor</code></td>
+<td>The door as one module sees it. <code>ScopedContext.get_one</code> / <code>get_all</code> hand it out instead of the core's door</td>
+</tr>
+<tr>
+<td><code>ModuleDoor.mcp_config(caller)</code></td>
+<td><code>may_ask</code>, then the core's config; for anyone else a warning ("… isn't it or an agent it claimed: refused") and <code>{}</code></td>
+</tr>
+<tr>
+<td><code>CORE_LINE</code></td>
+<td>The directory line for the core's own menu (<code>{"id": "core", ...}</code>: "Module control and permissions: list, menu, docs, on, off, reload, add, remove; permissions.*"), added to <code>list_modules</code>; a test checks it names every core menu item</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/door.py</code> · <strong>Tests:</strong> <code>tests/test_mcp_door.py</code></p>
 <h2 id="startuperror"><code>StartupError</code></h2>
 <p><code>class StartupError(Exception)</code></p>
 <p>The configured modules can't run together: raised by <a href="#resolve_modules"><code>resolve_modules</code></a> or by <a href="#lifecyclemanager"><code>LifecycleManager.start</code></a> when a required provider fails.</p>
@@ -126,7 +233,7 @@
 </tr>
 <tr>
 <td><code>async deactivate(module_id, with_dependents=False) -&gt; Result</code></td>
-<td>Runtime deactivation; see <a href="control.html#deactivatemodule"><code>DeactivateModule</code></a></td>
+<td>Runtime deactivation, never refused (the value names the modules left on that need it); see <a href="control.html#deactivatemodule"><code>DeactivateModule</code></a></td>
 </tr>
 <tr>
 <td><code>async reload(module_id) -&gt; Result</code></td>
@@ -134,11 +241,11 @@
 </tr>
 <tr>
 <td><code>async add(package, activate=True) -&gt; Result</code></td>
-<td>Load a new module; see <a href="control.html#addmodule"><code>AddModule</code></a></td>
+<td>Load a new module; see <a href="control.html#addmodule"><code>AddModule</code></a>. It doesn't check for the same id in another module folder (that check runs only at startup)</td>
 </tr>
 <tr>
-<td><code>async remove(module_id, enabled=()) -&gt; Result</code></td>
-<td>Off, then out of the module list for this run; refused while an active module, or one of <code>enabled</code>, needs it. <code>App</code> adds the settings purge; see <a href="control.html#removemodule"><code>RemoveModule</code></a></td>
+<td><code>async remove(module_id) -&gt; Result</code></td>
+<td>Off, then out of the module list for this run; never refused: the value lists the active modules that need it and stay on. <code>App</code> adds the settings purge; see <a href="control.html#removemodule"><code>RemoveModule</code></a></td>
 </tr>
 <tr>
 <td><code>module_class(module_id) -&gt; type</code></td>
@@ -158,8 +265,16 @@
 </thead>
 <tbody>
 <tr>
-<td><code>find_modules(root="assistant.modules") -&gt; list[type[ModuleProtocol]]</code></td>
-<td>Every module under <code>root</code>, sorted by folder: one per sub-package whose one <code>ModuleProtocol</code> class has the folder's name as its id. A bad folder is skipped with a warning; <code>_</code> folders are ignored. Puts the modules' <code>app/</code> folders on the import path first (<code>add_app_folders</code>). Also exported as <code>assistant.core.find_modules</code></td>
+<td><code>find_modules(root="assistant.modules", folders=()) -&gt; list[type[ModuleProtocol]]</code></td>
+<td>Every module under <code>root</code>, sorted by folder: one per sub-package whose one <code>ModuleProtocol</code> class has the folder's name as its id. A bad folder is skipped with a warning; <code>_</code> folders are ignored. <code>folders</code> (the outside module folders, <code>configured_module_folders</code>) go on <code>root</code>'s path first (<code>add_module_folders</code>); then the modules' <code>app/</code> folders on the import path (<code>add_app_folders</code>). Also exported as <code>assistant.core.find_modules</code>; <code>__main__</code> passes the configured folders</td>
+</tr>
+<tr>
+<td><code>configured_module_folders(config) -&gt; list[Path]</code></td>
+<td><code>[core] module_folders</code> (<code>MODULE_FOLDERS_KEY</code>): the folders holding module folders outside the repo, <code>~</code> expanded and resolved; <code>[]</code> when unset. <code>LoadError</code> unless it's a list of absolute paths. Also exported as <code>assistant.core.configured_module_folders</code></td>
+</tr>
+<tr>
+<td><code>add_module_folders(folders, root="assistant.modules") -&gt; list[Path]</code></td>
+<td>♻ <strong>Reusable</strong> · Used by: <code>find_modules</code> (startup), the root <code>conftest.py</code>, <code>scripts/build_docs.py</code> (<code>module_dirs</code>). Appends each folder to <code>root</code>'s package path once, after the repo's, so its modules import as <code>&lt;root&gt;.&lt;id&gt;</code> and every lookup by folder (<code>app_folders</code>, <code>module_folder</code>, reload, <code>AddModule</code>, <code>infra.module_roots</code>) sees them; returns the folders added now. <code>LoadError</code> for a folder that doesn't exist, or one holding a module id another folder of <code>root</code> already has (refused, never shadowed). Runs at startup only</td>
 </tr>
 <tr>
 <td><code>app_folders(root="assistant.modules") -&gt; list[Path]</code></td>
@@ -167,7 +282,7 @@
 </tr>
 <tr>
 <td><code>add_app_folders(root="assistant.modules") -&gt; list[Path]</code></td>
-<td>♻ <strong>Reusable</strong> · Used by: <code>find_modules</code> (startup), <code>import_fresh</code> (a reload or <code>AddModule</code>), the root <code>conftest.py</code> (the test setup); built 2026-11-13. Appends each <code>app/</code> folder to <code>sys.path</code> once, so an app's package imports by its own name; returns the folders added now. Also exported as <code>assistant.core.add_app_folders</code>. A launch passes the folder on with <a href="app_kit.html#companionapp"><code>launch_env</code></a></td>
+<td>♻ <strong>Reusable</strong> · Used by: <code>find_modules</code> (startup), <code>import_fresh</code> (a reload or <code>AddModule</code>), the root <code>conftest.py</code> (the test setup). Appends each <code>app/</code> folder to <code>sys.path</code> once, so an app's package imports by its own name; returns the folders added now. Also exported as <code>assistant.core.add_app_folders</code>. A launch passes the folder on with <a href="app_kit.html#companionapp"><code>launch_env</code></a></td>
 </tr>
 <tr>
 <td><code>check_folder(cls, package, root="assistant.modules")</code></td>
@@ -187,7 +302,7 @@
 </tr>
 <tr>
 <td><code>apply_module_toml(cls) -&gt; type</code></td>
-<td>Puts the manifest keys of the module's <code>module.toml</code> (<code>MANIFEST_KEYS</code>: <code>needs</code>, <code>packages</code>, each a list of strings) on its manifest; a key the file doesn't have leaves that field as it is. <code>LoadError</code> for a value that isn't a list of strings, or one the manifest refuses. Used by <code>find_module_class</code> and <code>resolve_modules</code> (built 2026-11-13; it replaced <code>apply_needs</code>, which read <code>needs</code> only)</td>
+<td>Puts the manifest keys of the module's <code>module.toml</code> (<code>MANIFEST_KEYS</code>: <code>needs</code>, <code>packages</code>, each a list of strings) on its manifest; a key the file doesn't have leaves that field as it is. <code>LoadError</code> for a value that isn't a list of strings, or one the manifest refuses. Used by <code>find_module_class</code> and <code>resolve_modules</code></td>
 </tr>
 <tr>
 <td><code>check_reloadable(package)</code></td>
@@ -213,8 +328,8 @@
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/loader.py</code></p>
 <h2 id="scopedcontext"><code>ScopedContext</code></h2>
-<p><code>ScopedContext(manifest, router, bus, container, config, log, handover=None, logs=None, permissions=None)</code></p>
-<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, and provided contract made through it. Sets the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> to <code>permissions</code>: <code>App</code> passes a <a href="#permissionsport"><code>PermissionsPort</code></a> bound to the module's id and the app's handler (without one, a bare <code>PermissionsPort(module_id)</code>). Sets its <a href="modules.html#modulecontextlogs"><code>ctx.logs</code></a> to the app's <code>SessionLogs</code> (a default one if none is given).</p>
+<p><code>ScopedContext(manifest, router, bus, container, config, log, handover=None, logs=None, permissions=None, you=(), relays=(), menus=None)</code></p>
+<p>The <a href="modules.html#modulecontext"><code>ModuleContext</code></a> implementation. Records every subscription, handler, provided contract and linked menu made through it. Sets the module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> to <code>permissions</code>: <code>App</code> passes a <a href="#permissionsport"><code>PermissionsPort</code></a> bound to the module's id and the app's handler (without one, a bare <code>PermissionsPort(module_id)</code>). Sets its <a href="modules.html#modulecontextlogs"><code>ctx.logs</code></a> to the app's <code>SessionLogs</code> (a default one if none is given). <code>you</code> and <code>relays</code>: the Callers port's (<code>App</code> passes <code>callers.you</code> / <code>callers.relays</code>), for the control-command check. <code>menus</code>: the app's <a href="#menutable"><code>MenuTable</code></a> (a fresh one if none).</p>
 <table>
 <thead>
 <tr>
@@ -224,24 +339,41 @@
 </thead>
 <tbody>
 <tr>
+<td><code>send(command, timeout=None)</code></td>
+<td>Strict and stamped (decision D3): a type not in <code>manifest.sends</code> → <code>invalid_arguments</code> and an error log; a control command (<code>CONTROL</code>) from a caller it doesn't allow → <code>failed</code>; then <code>sent_by</code> (and an <code>InvokeTool</code>'s <code>caller</code>) set to the module's id. These checks run here, before the router. The table: <a href="modules.html#modulecontextsend"><code>ModuleContext.send</code></a></td>
+</tr>
+<tr>
+<td><code>publish(event)</code></td>
+<td>Strict: a type not in <code>manifest.publishes</code> is dropped with an error log; a <code>ModuleEvent</code> raises <code>ValueError</code> (only <code>publish_named</code>, G15)</td>
+</tr>
+<tr>
+<td><code>link_menu(module)</code></td>
+<td>Core only: add the module's menu to the <code>MenuTable</code> (never the container, G16), until close</td>
+</tr>
+<tr>
+<td><code>get_one(contract)</code>, <code>get_all(contract)</code></td>
+<td>The container's providers; the core's <code>CoreDoor</code> comes back as this module's <code>ModuleDoor</code> (<code>_scoped</code>)</td>
+</tr>
+<tr>
 <td><code>withdraw(contract, impl)</code></td>
 <td>Take back one provider this module gave (<a href="#container"><code>Container.remove</code></a>); nothing once closed</td>
 </tr>
 <tr>
 <td><code>close()</code></td>
-<td>Remove everything this module registered</td>
+<td>Remove everything this module registered, its own menus from the table among them (safe across a reload)</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Undeclared uses are logged</strong> (principle 17, built 2026-11-08). A <code>subscribe</code> to an event not in the manifest's <code>listens</code>, or a <code>get_one</code> / <code>get_all</code> of a contract not in <code>provides</code>, <code>requires</code>, <code>optional</code> or <code>uses</code>, still works but logs one warning per type (<code>&lt;id&gt; uses &lt;Type&gt; without declaring it in its manifest (...)</code>), so the manifest gets fixed. <code>handle</code> and <code>provide</code> stay strict (they raise).</p>
-<p><strong>Defined in:</strong> <code>src/assistant/core/context.py</code> · <strong>Tests:</strong> <code>tests/test_honest_manifests.py</code></p>
+<p><strong><code>CONTROL</code></strong> (module constant): control command type → who else may send it besides <code>you</code> (<code>RELAY</code>: a <code>relays</code> module; <code>AGENT</code>: a module that provides <code>ITaskAgent</code>). <code>DeactivateModule</code>, <code>RemoveModule</code>: nobody else; <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>: relays; <code>ReloadModule</code>, <code>AddModule</code>: a task agent's module. <code>ActivateModule</code>, <code>CancelTask</code>, <code>SetPermissionMode</code> and <code>ShutdownRequested</code> are left out on purpose (the reasons are in the module's comment and <a href="modules.html#modulecontextsend"><code>ModuleContext.send</code></a>).</p>
+<p><strong>Undeclared uses are logged</strong> (principle 17). A <code>subscribe</code>, <code>subscribe_named</code> or <code>publish_named</code> not in the manifest's <code>listens</code>, <code>listens_named</code> or <code>publishes_named</code>, or a <code>get_one</code> / <code>get_all</code> of a contract not in <code>provides</code>, <code>requires</code>, <code>optional</code> or <code>uses</code>, still works but logs one warning per type (<code>&lt;id&gt; uses &lt;Type&gt; without declaring it in its manifest (...)</code>), so the manifest gets fixed. <code>handle</code> and <code>provide</code> are strict (they raise), and so are <code>send</code> and the typed <code>publish</code> (above).</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/context.py</code> · <strong>Tests:</strong> <code>tests/test_honest_manifests.py</code>, <code>tests/test_sender_checks.py</code></p>
 <h2 id="sessionlogs"><code>SessionLogs</code></h2>
 <p><code>SessionLogs(session: LogSession | None = None, root: str | Path = "logs")</code> (a <code>ModuleLogs</code>)</p>
 <p>The <code>ctx.logs</code> port. With a <code>LogSession</code>, <code>folder()</code> and <code>sink(name)</code> are the session's; without one (tests), <code>folder()</code> is <code>root</code> and <code>sink(name)</code> is <code>root / name</code>. <code>App</code> builds one for every module from its <code>logs</code> argument and <code>logging.dir</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/logs.py</code></p>
 <h2 id="generatedfiles"><code>GeneratedFiles</code></h2>
 <p><code>GeneratedFiles(folder: Path | None, lifecycle: LifecycleManager, core_specs: Callable[[], list[ToolSpec]])</code></p>
-<p>Writes the core's <a href="../architecture/core.html#generated-files">generated files</a>: <code>modules.json</code>, <code>directory.json</code> and <code>dependencies.json</code>, each with a <code>_generated</code> note key. <code>App</code> builds one from <code>[core] generated_dir</code> (<code>app.generated</code>) and calls <code>write()</code> after startup and on every module state change. Built 2026-11-13 (module folders item 14).</p>
+<p>Writes the core's <a href="../architecture/core.html#generated-files">generated files</a>: <code>modules.json</code>, <code>directory.json</code> and <code>dependencies.json</code>, each with a <code>_generated</code> note key. <code>App</code> builds one from <code>[core] generated_dir</code> (<code>app.generated</code>) and calls <code>write()</code> after startup and on every module state change.</p>
 <table>
 <thead>
 <tr>
@@ -266,8 +398,8 @@
 </table>
 <p><strong>Defined in:</strong> <code>src/assistant/core/generated.py</code> · <strong>Tests:</strong> <code>tests/test_generated.py</code></p>
 <h2 id="permissionshandler"><code>PermissionsHandler</code></h2>
-<p><code>PermissionsHandler(send, publish, find, grants_file=GRANTS_FILE, reviewer=REVIEWER, review_timeout=90.0, answer_timeout=600.0, you=YOU, log=None)</code> (<code>REVIEWER = ""</code>, <code>YOU = ()</code>: the core names no module, principle 21; <code>config/default.toml</code> sets <code>reviewer = "main_assistant"</code> and <code>you = ["temp_ui"]</code> under <code>[core.permissions]</code>) · <code>PermissionsHandler.from_config(config, send, publish, find)</code></p>
-<p>The <a href="../architecture/permissions.html#part-of-the-core">permissions handler</a>, part of the core and always on (its first piece: access lists). <code>send</code>, <code>publish</code>, <code>find</code>: the router's <code>send</code>, the bus's <code>publish</code> and the container's <code>get_one</code>; it uses nothing else of the app and imports no module. <code>App</code> builds it from <code>[core.permissions]</code> (every key optional: <code>grants_file</code>, <code>reviewer</code>, <code>review_timeout</code>, <code>answer_timeout</code>, <code>you</code>) as <code>app.permissions</code>, handles <code>AnswerPermissionRequest</code> with <code>answer</code>, subscribes <code>on_task_updated</code> to <code>TaskUpdated</code>, and calls <code>close()</code> in <code>stop()</code>.</p>
+<p><code>PermissionsHandler(send, publish, find, grants_file=GRANTS_FILE, reviewer=REVIEWER, review_timeout=90.0, answer_timeout=600.0, you=YOU, log=None, mode_of=None)</code> (<code>REVIEWER = ""</code>, <code>YOU = ()</code>: the core names no module, principle 21; <code>config/default.toml</code> sets <code>reviewer = "main_assistant"</code> and <code>you = ["temp_ui"]</code> under <code>[core.permissions]</code>) · <code>PermissionsHandler.from_config(config, send, publish, find, mode_of=None)</code></p>
+<p>The <a href="../architecture/permissions.html#part-of-the-core">permissions handler</a>, part of the core and always on. <code>send</code>, <code>publish</code>, <code>find</code>: the router's <code>send</code>, the bus's <code>publish</code> and the container's <code>get_one</code>; it uses nothing else of the app and imports no module. <code>mode_of</code>: each agent's mode, from the <a href="#callers">Callers port</a> (<code>App</code> passes <code>callers.mode</code>; none given: everyone is in Manual). <code>_in_auto(caller)</code> reads it, never <code>ListAgents</code>, so it works with the Hub off. <code>App</code> builds it from <code>[core.permissions]</code> (every key optional: <code>grants_file</code>, <code>reviewer</code>, <code>review_timeout</code>, <code>answer_timeout</code>, <code>you</code>) as <code>app.permissions</code>, handles <code>AnswerPermissionRequest</code> with <code>answer</code> and <code>AddCardNotes</code> with <code>add_notes</code>, passes <code>confirm</code> to <code>dispatch_tool</code>, and calls <code>close()</code> in <code>stop()</code>.</p>
 <table>
 <thead>
 <tr>
@@ -285,8 +417,12 @@
 <td>Your answer to an open card. <code>invalid_arguments</code> for no such card, or a <code>keep</code> key not on it</td>
 </tr>
 <tr>
-<td><code>async on_task_updated(event)</code></td>
-<td>Takes the reviewer's final <code>TaskUpdated</code></td>
+<td><code>async confirm(module_id, caller, what, step, reason="", wait=False, risky=False) -&gt; Result</code></td>
+<td>A <code>confirm</code> card before a risky step (<code>step</code>: a <code>Command</code> it sends itself, so its sender is the core, or an async callable returning a <code>Result</code>). A <code>you</code> caller runs at once; <code>risky</code> also for a caller in Auto; otherwise a card, which <strong>Auto never skips</strong>. <code>wait=False</code>: <code>ok("Asked the user on a card (&lt;id&gt;) to confirm &lt;what&gt;; the answer reaches you as a note")</code> at once, and the outcome goes to <code>caller</code> as an <code>AgentNotice</code>. <code>wait=True</code>: the step's <code>Result</code>, or <code>failed</code> on Deny / no answer; cancelling closes the card</td>
+</tr>
+<tr>
+<td><code>async add_notes(cmd: AddCardNotes) -&gt; Result</code></td>
+<td>A review's outcome for a card waiting on it; <code>invalid_arguments</code> when none waits. Decision D6</td>
 </tr>
 <tr>
 <td><code>grants() -&gt; list[dict]</code></td>
@@ -310,7 +446,7 @@
 </tr>
 <tr>
 <td><code>async ask(module_id, agent_id, item, reason="") -&gt; bool</code></td>
-<td>A one-item <code>message</code> card (Allow once · Always allow · Deny), awaited; True at once if granted. Allow once saves nothing; Always adds the item to the grant for the agent's kind. Cancelling the call closes the card. Built 2026-11-10 for the Agent Hub's message gate</td>
+<td>A one-item <code>message</code> card (Allow once · Always allow · Deny), awaited; True at once if granted. Allow once saves nothing; Always adds the item to the grant for the agent's kind. Cancelling the call closes the card. Used by the Agent Hub's message gate</td>
 </tr>
 <tr>
 <td><code>open_cards() -&gt; int</code></td>
@@ -322,16 +458,17 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Card actions</strong> (built 2026-11-08). A card's action is a <code>CardAction</code> (<code>ACCESS</code>, <code>GRANT</code>, <code>REVOKE</code>, <code>MESSAGE</code>; a <code>StrEnum</code> inside the core whose values are <code>PermissionRequested.action</code>'s). An answered card is applied by its action's handler from a table (principle 20): <code>access</code> saves the list (and turns the module on); <code>grant</code> and <code>revoke</code> carry out an agent's call and tell it with an <code>AgentNotice</code>; <code>message</code> settles the waiting <code>ask</code> (<code>_apply_message</code>, with <code>Card.remember</code> from the answer). Every <code>PermissionChanged</code> is built in one place.</p>
+<p><strong>Card actions.</strong> A card's action is a <code>CardAction</code> (<code>ACCESS</code>, <code>GRANT</code>, <code>REVOKE</code>, <code>MESSAGE</code>, <code>CONFIRM</code>; a <code>StrEnum</code> inside the core whose values are <code>PermissionRequested.action</code>'s). An answered card is applied by its action's handler from a table (principle 20): <code>access</code> saves the list (and turns the module on); <code>grant</code> and <code>revoke</code> carry out an agent's call and tell it with an <code>AgentNotice</code>; <code>message</code> settles the waiting <code>ask</code> (<code>_apply_message</code>, with <code>Card.remember</code> from the answer); <code>confirm</code> runs the step on Allow, nothing on Deny, and tells you and the caller (<code>_apply_confirm</code>, <code>_run_step</code>). Every <code>PermissionChanged</code> is built in one place. Notices go through <code>_notify</code>: an <code>AgentNotice</code> command (<code>source="permissions"</code>); with no Hub it only logs.</p>
+<p><strong>The review is a listener's job</strong> (decision D6). <code>_review</code> sends <a href="messaging.html#reviewaccesslist"><code>ReviewAccessList</code></a> (sender: the core) with the card's labels and warnings, and waits up to <code>review_timeout</code> + <code>REVIEW_GRACE</code> (5 s) for <a href="messaging.html#addcardnotes"><code>AddCardNotes</code></a>; it keeps at most <code>MAX_REVIEW_LINES</code> (8) notes, <code>source="review"</code>. <code>not_available</code> (no Hub, or the reviewer is busy) shows the card "not reviewed" at once. <strong>The core never starts a task.</strong> It does cancel one: <code>_stop_tasks</code> sends <code>GetTaskStatus</code> / <code>CancelTask</code> when a revoke turns a module off.</p>
 <p>Saved grants: <code>GrantStore</code> and <code>Grant</code> (<code>store.py</code>), one section per module and subject in <code>config/permissions.toml</code> (<code>GRANTS_FILE</code>; gitignored), written whole and atomically; <code>copy_old_grants(new, old)</code> copies the old <code>data/permissions.toml</code> (<code>OLD_GRANTS</code>) across once at startup when the new file is missing, leaving the old one in place; <code>fingerprint(items)</code> hashes a list's keys. Guardrails: <code>PROTECTED</code>, <code>refusals</code>, <code>rule_warnings</code> and <code>FIXED_RULES</code> (<code>rules.py</code>).</p>
-<p><strong>Defined in:</strong> <code>src/assistant/core/permissions/handler.py</code> (<code>store.py</code>, <code>rules.py</code>) · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_permissions.py</code></p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/permissions/handler.py</code> (<code>store.py</code>, <code>rules.py</code>) · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_permissions.py</code>, <code>tests/test_risky_steps_ask.py</code>, <code>tests/test_review_listener.py</code>, <code>tests/test_auto_skips_cards.py</code></p>
 <h2 id="permissionsport"><code>PermissionsPort</code></h2>
 <p><code>PermissionsPort(module_id: str, handler: PermissionsHandler | None = None)</code> (a <code>ModulePermissions</code>)</p>
-<p>Each module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a>, bound to its id, so no module asks in another's name. <code>request_set</code> forwards to the handler with the module id (and <code>subject</code>, default the module id). <code>has</code> and <code>request</code> aren't checked yet: they return <code>True</code>, and the first use of each name logs a warning on <code>assistant.core.permissions</code> ("not checked yet: allowing voice_in microphone (You clicked the mic)"), later ones at debug. <code>granted</code> and <code>ask</code> forward with the module id too. Without a handler (a bare context in a test), <code>request_set</code> allows the whole list the same way, and <code>granted</code> / <code>ask</code> allow and log. <code>CoreMenu</code> gets <code>PermissionsPort("core", handler)</code>.</p>
+<p>Each module's <a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a>, bound to its id, so no module asks in another's name. <code>request_set</code> forwards to the handler with the module id (and <code>subject</code>, default the module id). <code>has</code> and <code>request</code> aren't checked: they return <code>True</code>, and the first use of each name logs a warning on <code>assistant.core.permissions</code> ("not checked yet: allowing voice_in microphone (You clicked the mic)"), later ones at debug. <code>granted</code>, <code>ask</code> and <code>confirm(what, action, caller="", reason="", wait=False, risky=False)</code> forward with the module id too (<code>confirm</code>'s <code>caller</code> defaults to the module). Without a handler (a bare context in a test), <code>request_set</code> allows the whole list the same way, <code>granted</code> / <code>ask</code> allow and log, and <code>confirm</code> logs and runs the step (a callable; a <code>Command</code> gives <code>not_available</code>, there's no router). <code>CoreMenu</code> gets <code>PermissionsPort("core", handler)</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/permissions/port.py</code></p>
 <h2 id="permissionsmenu"><code>PermissionsMenu</code></h2>
 <p><code>PermissionsMenu(handler: PermissionsHandler)</code></p>
-<p>The grant calls as menu items: <code>permissions.grants</code>, <code>permissions.grant(module_id, items, subject="")</code>, <code>permissions.request(read, write, commands, python, chrome, reason)</code> (an agent asking for itself), <code>permissions.revoke(module_id, subject="", items=None)</code>, each knowing its caller (<a href="control.html#the-cores-menu">the core's menu</a>). <code>App</code> provides it through a <code>MenuTools</code> (<code>app.permissions_menu_tools</code>) under the id <code>core</code>, and <code>GetMenu("core")</code> lists its items after <code>modules.*</code>.</p>
+<p>The grant calls as menu items: <code>permissions.grants</code>, <code>permissions.grant(module_id, items, subject="")</code>, <code>permissions.request(read, write, commands, python, chrome, reason)</code> (an agent asking for itself), <code>permissions.revoke(module_id, subject="", items=None)</code>, each knowing its caller (<a href="control.html#the-cores-menu">the core's menu</a>). Their cards are their own code's (not <code>ask</code> marks). <code>App</code> adds it to the <code>MenuTable</code> through a <code>MenuTools</code> (<code>app.permissions_menu_tools</code>) under the id <code>core</code>, and <code>GetMenu("core")</code> lists its items after <code>modules.*</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/permissions/menu.py</code></p>
 <h2 id="commandrouter"><code>CommandRouter</code></h2>
 <p><code>CommandRouter(default_timeout: float = 30.0, timeouts: dict[str, float] | None = None)</code></p>
@@ -354,7 +491,7 @@
 </tr>
 <tr>
 <td><code>async send(command, timeout=None) -&gt; Result</code></td>
-<td>Run the handler as a task; map every outcome to a <code>Result</code> (see <a href="../architecture/core.html#communication-internals">internals</a>)</td>
+<td>Run the handler as a task; map every outcome to a <code>Result</code> (see <a href="../architecture/communication.html#commands">commands</a>). A command whose <code>sent_by</code> is empty is stamped <code>"core"</code> (the core's own sends, the door's, tests' <code>app.router.send</code>). The <code>sends</code> and control checks are the module's context's, not the router's</td>
 </tr>
 <tr>
 <td><code>cancel(correlation_id) -&gt; int</code></td>
@@ -433,7 +570,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>allows_another(contract, current) -&gt; bool</code>: the single-provider rule, in one place: whether one more module may provide <code>contract</code> given what provides it now (<code>contract.multiple</code>, or nothing yet). Used by <code>Container.provide</code>, <code>resolve_modules</code> and <code>LifecycleManager</code> (built 2026-11-08). The lifecycle's startup and runtime activation also share one init path (context, instance, <code>init</code>, menu linked; the context closed on failure).</p>
+<p><code>allows_another(contract, current) -&gt; bool</code>: the single-provider rule, in one place: whether one more module may provide <code>contract</code> given what provides it now (<code>contract.multiple</code>, or nothing yet). Used by <code>Container.provide</code>, <code>resolve_modules</code> and <code>LifecycleManager</code>. The lifecycle's startup and runtime activation also share one init path (context, instance, <code>init</code>, menu linked; the context closed on failure). Menus are not in the container: they are in the <a href="#menutable"><code>MenuTable</code></a>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/container.py</code> · <strong>Tests:</strong> <code>tests/test_core_tidy.py</code></p>
 <h2 id="is_shared_contract"><code>is_shared_contract</code></h2>
 <p><code>is_shared_contract(t: object) -&gt; bool</code></p>
@@ -441,17 +578,45 @@
 <p><strong>Defined in:</strong> <code>src/assistant/core/container.py</code></p>
 <h2 id="menutools"><code>MenuTools</code></h2>
 <p><code>MenuTools(menu: Menu, module: ModuleProtocol)</code> (an <code>IToolProvider</code>)</p>
-<p>The core's adapter from a module's <a href="modules.html#menu"><code>Menu</code></a> to <code>IToolProvider</code>, linked to one running copy. The lifecycle calls <code>ScopedContext.link_menu(module)</code> right after a module's <code>init</code> (at startup, on activate, on reload); it provides a <code>MenuTools</code> in the module's name, so closing the context removes it. <code>invoke</code> runs <code>menu.call</code>, which checks the arguments first.</p>
+<p>The core's adapter from a module's <a href="modules.html#menu"><code>Menu</code></a> to <code>IToolProvider</code>, linked to one running copy. The lifecycle calls <code>ScopedContext.link_menu(module)</code> right after a module's <code>init</code> (at startup, on activate, on reload); it adds a <code>MenuTools</code> to the app's <a href="#menutable"><code>MenuTable</code></a>, and closing the context removes exactly that one. <code>invoke</code> / <code>invoke_as</code> run <code>menu.call</code>, which checks the caller and the arguments first. <code>item(name) -&gt; MenuItem | None</code>: one item, for the gate's <code>ask</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code></p>
+<h2 id="menutable"><code>MenuTable</code></h2>
+<p><strong>♻ Reusable · Used by:</strong> <code>App</code> (<code>app.menus</code>, with the core's two menus), <code>ScopedContext</code> (<code>link_menu</code>, <code>close</code>), <code>dispatch_tool</code> · G16</p>
+<p><code>MenuTable()</code></p>
+<p>The core-private table of linked menus: <code>InvokeTool</code> reaches them, nothing else does. Menus are never in the container, so no module can call one as a plain <code>IToolProvider</code> with a caller of its choosing. Each context removes exactly what it added, so a reload's old copy never takes the new copy's menu with it.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add(tools: MenuTools)</code></td>
+<td>Link one menu</td>
+</tr>
+<tr>
+<td><code>remove(tools: MenuTools)</code></td>
+<td>Unlink it; nothing if it isn't there</td>
+</tr>
+<tr>
+<td><code>all() -&gt; list[MenuTools]</code></td>
+<td>Every linked menu, in the order added</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code> · <strong>Tests:</strong> <code>tests/test_menu.py</code>, <code>tests/test_mcp_door.py</code></p>
 <h2 id="dispatch_tool"><code>dispatch_tool</code></h2>
-<p><code>async dispatch_tool(container: Container, command: InvokeTool, start_on_use: Callable[[str], Awaitable[Result | None]] | None = None) -&gt; Result</code></p>
-<p>The <code>InvokeTool</code> handler. Looks up providers at call time; returns <code>not_available</code> for an unknown tool, <code>failed</code> for a name offered twice, else the provider's result.</p>
-<p><strong>♻ Reusable · Used by:</strong> every <code>InvokeTool</code> caller: <code>talker</code> (the Hub's menu), <code>temp_ui</code> (its menu calls), the agents' door (<code>use_item</code>) · start on use built 2026-11-05. Pages (SHOW, Open in viewer) no longer come this way: they go through <a href="modules.html#ipageopener"><code>IPageOpener</code></a>, and their start on use is <a href="control.html#startprovider"><code>StartProvider</code></a> (by contract, the same <code>App._start_on_use</code>).</p>
-<p><strong>Start on use:</strong> when nobody offers the tool, <code>App</code> passes <code>start_on_use=App._start_for_tool</code>. It finds the module that is off, has the tool on its menu, and has <code>start_on_use = true</code> in its <code>[modules.&lt;id&gt;]</code> config, and turns it on the same way as <a href="control.html#activatemodule"><code>ActivateModule</code></a> (<code>LifecycleManager.activate</code>, with what it requires); then the call goes ahead. A failed start answers <code>failed</code> with "The <id> module couldn't start: …" (retryable; the next call tries again). Calls that arrive while it's starting wait on the lifecycle's lock and find it on, so it starts once. A module you turned off is started again too. Today only <code>html_viewer</code> sets it. <code>StartProvider</code> uses the same search (<code>App._start_on_use</code>), matching a contract in <code>manifest.provides</code> instead of a tool on the menu.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code></p>
+<p><code>async dispatch_tool(container: Container, menus: MenuTable, command: InvokeTool, start_on_use: Callable[[str], Awaitable[Result | None]] | None = None, off_owner: Callable[[str], str | None] | None = None, confirm: Confirm | None = None) -&gt; Result</code></p>
+<p>The <code>InvokeTool</code> handler. Looks up providers at call time, in <code>menus</code> and among the container's <code>IToolProvider</code>s (modules that provide it themselves still count); returns <code>not_available</code> for an unknown tool, <code>failed</code> for a name offered twice, else the provider's result. <code>off_owner</code>: the id of a module that is off and has the tool on its menu, so the answer is "The <id> module isn't on …" (<code>module_off_text</code>).</p>
+<p><strong><code>confirm</code></strong> (decision D4): the one <a href="tools.html#the-ask-first-gate">ask-first gate</a>. <code>Confirm = Callable[[caller, what, run, risky], Awaitable[Result]]</code>. For an item whose <code>MenuItem.asks(args)</code> is true, the arguments and <code>callers</code> are checked first (a bad call never reaches a card), then <code>confirm(caller, "&lt;name&gt; (&lt;k&gt;: &lt;v&gt;, …)", run, item.ask == "risky")</code>. For any other menu item, <code>Menu.call</code> makes the same checks. Start on use (below) runs before these checks, so a caller the item's <code>callers</code> refuses can still switch an off <code>start_on_use</code> module on. <code>App</code> passes <code>lambda caller, what, run, risky: app.permissions.confirm("core", caller, what, run, risky=risky)</code>.</p>
+<p><strong>♻ Reusable · Used by:</strong> every <code>InvokeTool</code> caller: <code>talker</code> (the Hub's menu), <code>temp_ui</code> (its menu calls), the agents' door (<code>use_item</code>). Pages (SHOW, Open in viewer) go through <a href="modules.html#ipageopener"><code>IPageOpener</code></a> instead, and their start on use is <a href="control.html#startprovider"><code>StartProvider</code></a> (by contract, the same <code>App._start_on_use</code>).</p>
+<p><strong>Start on use:</strong> when nobody offers the tool, <code>App</code> passes <code>start_on_use=App._start_for_tool</code>. It finds the module that is off, has the tool on its menu, and has <code>start_on_use = true</code> in its <code>[modules.&lt;id&gt;]</code> config, and turns it on the same way as <a href="control.html#activatemodule"><code>ActivateModule</code></a> (<code>LifecycleManager.activate</code>, with what it requires); then the call goes ahead. A failed start answers <code>failed</code> with "The <id> module couldn't start: …" (retryable; the next call tries again). Calls that arrive while it's starting wait on the lifecycle's lock and find it on, so it starts once. A module you turned off is started again too. Only <code>html_viewer</code> sets it. <code>StartProvider</code> uses the same search (<code>App._start_on_use</code>), matching a contract in <code>manifest.provides</code> instead of a tool on the menu.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code> · <strong>Tests:</strong> <code>tests/test_risky_steps_ask.py</code>, <code>tests/test_start_on_use.py</code></p>
 <h2 id="coremenu"><code>CoreMenu</code></h2>
-<p><code>CoreMenu(send, permissions: ModulePermissions)</code></p>
-<p>The core's own <a href="control.html#the-cores-menu">menu</a> (<code>modules.*</code>), id <code>core</code> (<code>CORE_ID</code>; no module may use it). <code>App</code> builds one with the router's <code>send</code> and <code>PermissionsPort("core", app.permissions)</code> (as <code>app.core_menu</code>), and provides it through a <code>MenuTools</code> (<code>app.core_menu_tools</code>) in the name <code>core</code> from <code>start</code> to <code>stop</code>. <code>App</code> also handles <code>GetMenu</code>. Tests swap <code>app.core_menu.permissions</code> for one that refuses.</p>
+<p><code>CoreMenu(send, permissions: ModulePermissions, docs=None)</code></p>
+<p>The core's own <a href="control.html#the-cores-menu">menu</a> (<code>modules.*</code>), id <code>core</code> (<code>CORE_ID</code>; no module may use it). <code>App</code> builds one with the router's <code>send</code>, <code>PermissionsPort("core", app.permissions)</code> and its module-docs reader (as <code>app.core_menu</code>), and adds it to the <code>MenuTable</code> through a <code>MenuTools</code> (<code>app.core_menu_tools</code>) in the name <code>core</code> from <code>start</code> to <code>stop</code>. <code>App</code> also handles <code>GetMenu</code>. <code>modules.add</code>, <code>modules.remove</code>, <code>modules.reload</code> are marked <code>ask="always"</code> and <code>modules.off</code> <code>ask="always", ask_when="with_dependents"</code>: the gate asks, and the items' own code asks nothing. Each item sends its control command as <code>core</code>, so the gate's card, not the control-command check, is what stands between an agent and the command; <code>modules.off</code> without dependents shows no card.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code></p>
 <footer>Generated from <code>docs/api/core.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

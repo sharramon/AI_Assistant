@@ -31,12 +31,13 @@ tools = "Read,Write,Edit,Glob,Grep"
 transcript = "helper.jsonl"
 
 [agents.rezi]
-# The Rezi helper (docs/next-steps/rezi-module.md): tailors resumes in Rezi for postings the job
-# agent hands it. Its folder is outside this repo (a helper folder inside would clash with the Main
+# The Rezi helper: tailors resumes in Rezi for postings the job agent hands it, through the cv
+# module's rezi.* items (src/assistant/modules/cv/docs/tools.md). The prompt finds them on the door
+# without naming cv: a core module's settings name no add-on (tests/test_boundaries.py, rule 2). Its folder is outside this repo (a helper folder inside would clash with the Main
 # Assistant). Point `workspace` at your own folder, and add your job documents' folder to
 # `read_dirs`, in [modules.task_agents.agents.rezi] in config/local.toml.
-description = "Rezi helper: tailors a resume in Rezi for one job posting, through the rezi module's menu"
-prompt = "You tailor resumes in Rezi, one job posting per task. You reach Rezi only through the rezi.* items on the module door's rezi menu, never any other way; until that module exists, read docs/next-steps/rezi-module.md and research. Never change the base resume: each job gets a new resume. Report the new resume's name."
+description = "Rezi helper: tailors a resume in Rezi for one job posting, through the rezi.* items on the module door"
+prompt = "You tailor resumes in Rezi, one job posting per task. You reach Rezi only through the rezi.* items on the module door, never any other way: find the module whose menu has them (list_modules, then show_menu), and to learn them read that module's tools page (modules.docs with its id gives the path), which lists every rezi.* item. Never change the base resume: each job gets a new resume. Report the new resume's name."
 workspace = "../assistant-rezi"
 read_dirs = ["docs"]
 tools = "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,PowerShell"

@@ -20,8 +20,9 @@ Its sidebar lists the active notes and one Archive link: next-steps/archive/ (fi
 notes) builds as a section of that output with its own index, and its notes aren't listed
 in the sidebar.
 
-Every module carries its own docs folder (src/assistant/modules/<id>/docs/), found by folder,
-not listed here: see module_doc_folders() and module_tabs(). The main docs folders hold only
+Every module carries its own docs folder (src/assistant/modules/<id>/docs/, or <id>/docs/ in a
+folder `[core] module_folders` names, outside the repo), found by folder, not listed here: see
+module_dirs(), module_doc_folders() and module_tabs(). The main docs folders hold only
 the app-wide pages (architecture, agents, api).
 
 The Markdown files are the source of truth; never edit the generated HTML by hand.
@@ -77,7 +78,7 @@ GENERATED = ROOT / "generated"  # the core's generated/ folder; the build adds t
 # tools generated from its menu, then its other pages), then Related (its modules' `related` links)
 # and App-wide. A module's HTML pages open inside the standard frame.
 GROUPS = {"core": "Core modules", "add-on": "Add-ons"}
-MODULES_DIR = ROOT / "src" / "assistant" / "modules"
+MODULES_DIR = ROOT / "src" / "assistant" / "modules"  # the repo's modules folder; module_dirs() adds the outside ones
 FRAME = "frame.html"  # opens a module's own HTML page inside the docs' tabs and sidebar: frame.html?src=<page>
 
 
@@ -87,10 +88,30 @@ def tab_modules(name: str, spec: dict) -> list[str]:
 
 
 @functools.cache
+def module_dirs() -> tuple[Path, ...]:
+    """The folders holding module folders, as the app finds them: the repo's `MODULES_DIR`, then the
+    ones `[core] module_folders` names (outside the repo, module layout step 2), added through the
+    loader (an id in two folders stops the build, as it stops the app)."""
+    from assistant.core.loader import LoadError, add_module_folders, configured_module_folders
+    from assistant.infra import load_config, module_roots
+
+    try:
+        add_module_folders(configured_module_folders(load_config()))
+    except LoadError as exc:
+        raise SystemExit(f"[core] module_folders: {exc}") from exc
+    return tuple(module_roots())
+
+
+def module_paths() -> list[Path]:
+    """Every module folder in every `module_dirs` folder (with an `__init__.py` or a `docs/`), by name."""
+    return sorted((p for d in module_dirs() for p in d.iterdir() if p.is_dir() and not p.name.startswith(("_", "."))
+                   and ((p / "__init__.py").is_file() or (p / DOCS_DIR).is_dir())), key=lambda p: p.name)  # fmt: skip
+
+
+@functools.cache
 def module_doc_folders() -> dict[str, Path]:
     """Every module folder's own docs/ by module id, a docs-only folder with no code yet too."""
-    return {p.name: (p / DOCS_DIR).resolve() for p in sorted(MODULES_DIR.iterdir())
-            if p.is_dir() and not p.name.startswith(("_", ".")) and (p / DOCS_DIR).is_dir()}
+    return {p.name: (p / DOCS_DIR).resolve() for p in module_paths() if (p / DOCS_DIR).is_dir()}
 
 
 def module_of(path: Path) -> str | None:
@@ -99,9 +120,28 @@ def module_of(path: Path) -> str | None:
     return next((m for m, folder in module_doc_folders().items() if p.is_relative_to(folder)), None)
 
 
+def rel_path(path: Path, start: Path) -> str:
+    """`path` relative to `start`, forward slashes; its absolute path when there is none (another drive)."""
+    try:
+        return Path(os.path.relpath(path, start)).as_posix()
+    except ValueError:
+        return Path(path).resolve().as_posix()
+
+
+def shown(path: Path) -> str:
+    """A path for a message: from the repo when it's in it, else absolute."""
+    path = Path(path).resolve()
+    return path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
+
+
 def docs_rel(path: Path) -> str:
     """A page as a path relative to docs/ (`../src/assistant/modules/<id>/docs/README.md` for a module's own)."""
-    return Path(os.path.relpath(path, DOCS)).as_posix()
+    return rel_path(path, DOCS)
+
+
+def readme_link(module_id: str) -> str:
+    """The module library's link to a module's own docs README, from docs/architecture/."""
+    return rel_path(module_doc_folders()[module_id] / "README.md", DOCS / "architecture")
 
 
 def module_pages(module_id: str) -> list[str]:
@@ -207,11 +247,11 @@ def check_module_tabs() -> None:
     """Every module has its own docs folder, and each is valid: known docs.toml keys, a group from
     GROUPS, the standard pages, its listed pages and related links there; no tab mixes groups."""
     own = module_doc_folders()
-    code = {p.name for p in MODULES_DIR.iterdir() if (p / "__init__.py").is_file()}
-    problems = [f"src/assistant/modules/{m} has no {DOCS_DIR}/ folder (every module keeps its docs there)"
-                for m in sorted(code - set(own))]
-    for m, folder in own.items():
-        where = f"src/assistant/modules/{m}/{DOCS_DIR}"
+    code = {p.name: p for p in module_paths() if (p / "__init__.py").is_file()}
+    problems = [f"{shown(code[m])} has no {DOCS_DIR}/ folder (every module keeps its docs there)"
+                for m in sorted(set(code) - set(own))]
+    for folder in own.values():
+        where = shown(folder)
         try:
             settings = docs_settings(folder)
         except tomllib.TOMLDecodeError as exc:
@@ -388,11 +428,31 @@ def write_module_pages() -> int:
 
 LIBRARY_START = "<!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->"
 LIBRARY_END = "<!-- library:end -->"
-CORE_LINE = (
-    "The core itself handles the [module control](../api/control.md) commands (`ListModules`, `ActivateModule`, "
-    "`DeactivateModule`, `ReloadModule`, `AddModule`, `RemoveModule`), routes `InvokeTool` to the module whose menu has the item, "
-    "and publishes `ModuleStateChanged`."
-)
+
+
+def core_offers() -> dict[str, list[str]]:
+    """What the core itself offers (`App.offers`: the tables `start` registers and `GetMenu core`
+    answers from), read from a bare App: no modules, the door off, and the grants file in a
+    temporary folder, so nothing in the repo is touched and nothing is opened."""
+    import tempfile
+
+    from assistant.core.app import App
+
+    with tempfile.TemporaryDirectory() as tmp:
+        config = {"core": {"door": {"enabled": False},
+                           "permissions": {"grants_file": str(Path(tmp) / "permissions.toml")}}}
+        return App([], config, config_dir=tmp).offers()
+
+
+def core_line(offers: dict[str, list[str]]) -> str:
+    """The module library's core row, generated from `core_offers()` so it can't drift."""
+    def names(items) -> str:
+        return ", ".join(f"`{i}`" for i in items) or "none"
+
+    return (f"**The core** (the host, not a module) handles {names(offers['handles'])} (the "
+            "[module control](../api/control.md) commands among them; `InvokeTool` goes to the module whose "
+            f"menu has the item). It provides {names(offers['provides'])}, offers its own menu as `core` "
+            f"({names(offers['menu'])}), and publishes {names(offers['publishes'])}.")
 
 
 def module_classes() -> list[type]:
@@ -404,10 +464,10 @@ def module_classes() -> list[type]:
     from assistant.contracts import ModuleProtocol
     from assistant.core.loader import add_app_folders
 
+    module_dirs()  # the outside module folders on the package path first, as the core does at startup
     add_app_folders()  # as the core does: a module may import its own app's package (voice_in: voice_service.protocol)
-    folder = ROOT / "src" / "assistant" / "modules"
     found = {}
-    for package in sorted(p.name for p in folder.iterdir() if (p / "__init__.py").is_file()):
+    for package in [p.name for p in module_paths() if (p / "__init__.py").is_file()]:
         mod = importlib.import_module(f"assistant.modules.{package}")
         classes = [c for c in vars(mod).values() if isinstance(c, type) and issubclass(c, ModuleProtocol)
                    and c is not ModuleProtocol and getattr(c, "manifest", None) and c.manifest.id == package]
@@ -436,7 +496,7 @@ def library_block() -> str:
                               (("provides", m.provides), ("requires", m.requires), ("optional", m.optional),
                                ("uses", m.uses)) if group)
         menu = names(cls.menu.names()) if cls.menu else "none"
-        return (f"| [`{m.id}`](../../src/assistant/modules/{m.id}/{DOCS_DIR}/README.md) | "
+        return (f"| [`{m.id}`]({readme_link(m.id)}) | "
                 f"{m.description or '(no description)'} | {'yes' if m.id in enabled else 'no'} | {menu} | "
                 f"{contracts or 'none'} | {names(m.handles)} | {names(m.sends)} | "
                 # Named events (ModuleEvent) are listed by name beside the typed ones.
@@ -450,7 +510,7 @@ def library_block() -> str:
                   "| Module | What it does | On | Menu | Contracts | Handles | Calls | Publishes | Listens to |",
                   "|--------|--------------|----|------|-----------|---------|-------|-----------|------------|",
                   *map(row, members), ""]
-    return "\n".join([*lines, CORE_LINE, "", LIBRARY_END])
+    return "\n".join([*lines, core_line(core_offers()), "", LIBRARY_END])
 
 
 def write_library() -> bool:

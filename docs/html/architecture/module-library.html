@@ -12,12 +12,12 @@
 <nav data-root="../" data-page="architecture/module-library.html"></nav>
 <main>
 <h1 id="module-library">Module library</h1>
-<p>Every module in one place: what it does and its interface (the tools on its menu, the commands it handles and calls, the events it publishes and listens to). Each name links to the module's own docs. The data types are listed below the tables, with links to their API entries. Back to the <a href="index.html">overview</a>.</p>
+<p>This page lists every module, what it does and its interface: the tools on its menu, the commands it handles and sends, and the events it publishes and listens to. Each name links to the module's own docs. The data types are listed below the tables, with links to their API entries. What a module is, and how it is found and reached, is on <a href="modules.html">modules</a>. Back to the <a href="index.html">overview</a>.</p>
 <blockquote>
-<p><strong>Generated</strong> (since 2026-11-05): <code>scripts/build_docs.py</code> rewrites the tables between the <code>library:start</code> and <code>library:end</code> markers from each module's <code>Manifest</code> (description, contracts, <code>handles</code>, <code>sends</code>, <code>publishes</code>, <code>listens</code>) and its <code>Menu</code>, read without starting the module, and its group from its <code>docs.toml</code>. "On" is the default config's <code>modules.enabled</code>. Change a module's manifest or menu, not these tables; a test (<code>tests/test_module_docs.py</code>) fails when they are stale or a module has no docs. The data types below are still hand-written.</p>
+<p><strong>Generated:</strong> <code>scripts/build_docs.py</code> rewrites the tables between the <code>library:start</code> and <code>library:end</code> markers. It reads each module's <code>Manifest</code> (description, contracts, <code>handles</code>, <code>sends</code>, <code>publishes</code>, <code>listens</code>) and its <code>Menu</code> without starting the module, and takes the group from the module's <code>docs.toml</code>. "On" is the default on-list in <code>config/modules.toml</code>. To change a row, change the module's manifest or menu, not the table. <code>tests/test_module_docs.py</code> fails when the tables are stale or a module has no docs. The data types below are written by hand.</p>
 </blockquote>
 <h2 id="module-pages">Module pages</h2>
-<p>Every module keeps its docs in its own folder, <code>src/assistant/modules/&lt;id&gt;/docs/</code>, next to its code and tests (decided 2026-11-12; it replaces the 2026-11-06 rule that kept eight modules' pages in the main docs). The main docs hold only the app-wide pages: this architecture, the agents docs, the API reference and the principles.</p>
+<p>Every module keeps its docs in its own folder, <code>src/assistant/modules/&lt;id&gt;/docs/</code>, next to its code and tests, so a module's docs move with it. The main docs hold only the app-wide pages: this architecture, the agents docs, the API reference (the core only) and the principles.</p>
 <p>Each module's folder has three standard pages, first and in this order, and a <code>docs.toml</code> (<a href="../api/app_kit.html#module_docs"><code>module_docs</code></a>):</p>
 <table>
 <thead>
@@ -29,11 +29,11 @@
 <tbody>
 <tr>
 <td><code>README.md</code>, its overview</td>
-<td>Purpose (and its status: on by default, off by default, or planned), Wrapper (its manifest), Config (its <code>[modules.&lt;id&gt;]</code> section), Code and tests (paths only)</td>
+<td>Purpose (and its status: on by default, off by default, or planned), Wrapper (its manifest), Config (its settings: the defaults in its <code>module.toml</code>, which your <code>config/&lt;id&gt;.toml</code> overrides; <a href="core.html#configuration">configuration</a>), Code and tests (paths only)</td>
 </tr>
 <tr>
 <td><code>architecture.md</code></td>
-<td>Interface (tools, commands it handles and calls, events it publishes and listens to), Owns and launches (processes, windows, ports, files, companion apps), Inner workings (one diagram and a few lines), Planned</td>
+<td>Interface (tools, commands it handles and sends, events it publishes and listens to), Owns and launches (processes, windows, ports, files, companion apps), Inner workings (one diagram and a few lines), Planned</td>
 </tr>
 <tr>
 <td><code>tools.md</code></td>
@@ -41,8 +41,8 @@
 </tr>
 </tbody>
 </table>
-<p>Other pages are optional: a module that launches its own app keeps that app's full design there (<a href="../modules/voice_in/voice-service.html">the voice service</a> in <code>voice_in</code>, <a href="../modules/html_viewer/viewer-app.html">the HTML viewer app</a> in <code>html_viewer</code>, and <a href="../modules/job_search/job-project.html">the job project</a> in <code>job_search</code>).</p>
-<p><strong>Groups.</strong> <code>docs.toml</code>'s <code>group</code> places a module in the docs, never its files. <strong>Core modules</strong> are part of the main app and its window: <code>agent_hub</code>, <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code>, <code>usage</code>, <code>voice_in</code>, <code>temp_ui</code>, <code>console_io</code> and <code>assistant_view</code> (for now). <strong>Add-ons</strong> are features on top: <code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>voice_notes</code>, and the <code>echo_orchestrator</code> stand-in. The core modules' tabs come first in the docs, then the add-ons', and the tables below follow the same split.</p>
+<p>Other pages are optional. A module that launches its own app keeps that app's full design in its folder: <a href="../modules/voice_in/voice-service.html">the voice service</a> in <code>voice_in</code>, <a href="../modules/html_viewer/viewer-app.html">the HTML viewer app</a> in <code>html_viewer</code>, and <a href="../modules/job_search/job-project.html">the job project</a> in <code>job_search</code>.</p>
+<p><strong>Groups.</strong> The <code>group</code> in <code>docs.toml</code> decides whether a module is core or an add-on (<a href="modules.html#the-three-rules">the core line</a>). <strong>Core modules</strong> are what the app can't start without: <code>agent_hub</code>, <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code>, <code>usage</code>, <code>voice_in</code>, <code>temp_ui</code>, <code>console_io</code> and <code>assistant_view</code>. <strong>Add-ons</strong> are every other module: <code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>voice_notes</code>, and the <code>echo_orchestrator</code> stand-in. The docs list the core modules' tabs first, then the add-ons', and the tables below use the same split.</p>
 <h2 id="modules">Modules</h2>
 <!-- library:start (generated from the manifests and menus by scripts/build_docs.py; don't edit) -->
 
@@ -69,20 +69,20 @@
 <td>none</td>
 <td>none</td>
 <td>none</td>
-<td>none</td>
-<td><code>InputReceived</code>, <code>ShutdownRequested</code></td>
+<td><code>ShutdownRequested</code></td>
+<td><code>InputReceived</code></td>
 <td><code>ResponseReady</code></td>
 </tr>
 <tr>
 <td><a href="../modules/agent_hub/index.html"><code>agent_hub</code></a></td>
-<td>Task state and routing between the agents, and who you're talking to; hosts the agents' door to the module menus</td>
+<td>Task state and routing between the agents, and who you're talking to</td>
 <td>yes</td>
 <td><code>hub.agents</code>, <code>hub.status</code>, <code>hub.start</code>, <code>hub.send</code>, <code>hub.cancel</code>, <code>hub.answer</code>, <code>hub.mode</code>, <code>hub.focus</code>, <code>hub.suggest_focus</code></td>
-<td>provides <code>IModuleDoor</code>, <code>IAgentNames</code>; optional <code>ITaskAgent</code></td>
-<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, <code>SetFocus</code>, <code>DeliverMessage</code></td>
-<td><code>ListModules</code>, <code>GetMenu</code>, <code>InvokeTool</code></td>
+<td>optional <code>ITaskAgent</code>; uses <code>IAgentNames</code></td>
+<td><code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetFocus</code>, <code>DeliverMessage</code>, <code>AgentNotice</code>, <code>ResetRequested</code>, <code>ReviewAccessList</code></td>
+<td><code>SetPermissionMode</code>, <code>AddCardNotes</code></td>
 <td><code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code></td>
-<td><code>AgentActivity</code>, <code>AgentNotice</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code>, <code>PermissionModeChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/main_assistant/index.html"><code>main_assistant</code></a></td>
@@ -91,20 +91,20 @@
 <td>none</td>
 <td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>StartProvider</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>ReloadModule</code>, <code>AddModule</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
-<td><code>ResetRequested</code>, <code>ModuleStateChanged</code></td>
+<td><code>ModuleStateChanged</code></td>
 </tr>
 <tr>
 <td><a href="../modules/talker/index.html"><code>talker</code></a></td>
 <td>Talks with you, one Talker per agent tab; hands work to the Agent Hub</td>
 <td>yes</td>
+<td><code>talker.reset</code></td>
+<td>optional <code>IModuleDoor</code>; uses <code>IPageOpener</code>, <code>IAgentNames</code></td>
 <td>none</td>
-<td>optional <code>IModuleDoor</code>; uses <code>IPageOpener</code></td>
-<td>none</td>
-<td><code>InvokeTool</code>, <code>AnswerPermissionRequest</code>, <code>ListAgents</code>, <code>StartProvider</code></td>
-<td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
-<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>ResetRequested</code>, <code>PermissionModeChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code>, <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
+<td><code>InvokeTool</code>, <code>AnswerPermissionRequest</code>, <code>ListAgents</code>, <code>StartProvider</code>, <code>ResetRequested</code>, <code>ShutdownRequested</code></td>
+<td><code>ResponseReady</code>, <code>SessionUsage</code>, <code>SessionTheme</code></td>
+<td><code>InputReceived</code>, <code>TaskUpdated</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>AgentStateChanged</code>, <code>ModuleStateChanged</code>, <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
 </tr>
 <tr>
 <td><a href="../modules/temp_ui/index.html"><code>temp_ui</code></a></td>
@@ -113,8 +113,8 @@
 <td>none</td>
 <td>optional <code>IAgentNames</code>; uses <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ListModules</code>, <code>ListAgents</code>, <code>SetFocus</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>StartProvider</code>, <code>GetTaskStatus</code>, <code>CancelTask</code></td>
-<td><code>InputReceived</code>, <code>ResetRequested</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
+<td><code>ListModules</code>, <code>ListAgents</code>, <code>SetFocus</code>, <code>StartListening</code>, <code>StopListening</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>StartProvider</code>, <code>GetTaskStatus</code>, <code>CancelTask</code>, <code>ResetRequested</code></td>
+<td><code>InputReceived</code>, <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code></td>
 <td><code>InputReceived</code>, <code>ResponseReady</code>, <code>TaskUpdated</code>, <code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>FocusChanged</code>, <code>PermissionModeChanged</code>, <code>SessionUsage</code>, <code>VoiceState</code>, <code>VoiceTranscript</code>, <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>html_viewer.clip</code>, <code>temp_ui.clip</code></td>
 </tr>
 <tr>
@@ -157,9 +157,9 @@
 <td><code>agents.kinds</code>, <code>agents.launch</code>, <code>agents.close</code></td>
 <td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code>, <code>ITaskAgent</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>StartProvider</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>ReloadModule</code>, <code>AddModule</code>, <code>StartTask</code>, <code>GetTaskStatus</code></td>
 <td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
-<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
+<td><code>ModuleStateChanged</code>, <code>PermissionChanged</code></td>
 </tr>
 </tbody>
 </table>
@@ -186,9 +186,9 @@
 <td><code>rezi.sign_in</code>, <code>rezi.status</code>, <code>rezi.list_resumes</code>, <code>rezi.read_resume</code>, <code>rezi.get_resume_format</code>, <code>rezi.write_resume</code>, <code>rezi.generate_keywords</code>, <code>rezi.search_jobs</code>, <code>rezi.get_job_details</code>, <code>cv.task</code>, <code>cv.read_result</code>, <code>cv.open_tool</code>, <code>cv.tool_status</code>, <code>cv.tool_round</code>, <code>cv.tool_draft</code>, <code>cv.tool_internal_round</code>, <code>cv.check_fonts</code>, <code>cv.tool_result</code>, <code>cv.read</code>, <code>cv.build</code>, <code>cv.compare</code>, <code>cv.report</code></td>
 <td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>StartProvider</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>DeliverMessage</code></td>
-<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>ResponseReady</code>, <code>AgentNotice</code>, <code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
-<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code>, <code>TaskUpdated</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>ReloadModule</code>, <code>AddModule</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>DeliverMessage</code>, <code>AgentNotice</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>ResponseReady</code>, <code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
+<td><code>ModuleStateChanged</code>, <code>PermissionChanged</code>, <code>TaskUpdated</code></td>
 </tr>
 <tr>
 <td><a href="../modules/echo_orchestrator/index.html"><code>echo_orchestrator</code></a></td>
@@ -197,7 +197,7 @@
 <td><code>echo.say</code></td>
 <td>optional <code>IToolProvider</code></td>
 <td>none</td>
-<td>none</td>
+<td><code>ListModules</code>, <code>GetMenu</code></td>
 <td><code>ResponseReady</code></td>
 <td><code>InputReceived</code></td>
 </tr>
@@ -216,12 +216,12 @@
 <td><a href="../modules/job_search/index.html"><code>job_search</code></a></td>
 <td>The job agent (applies to jobs, runs searches in the job project), with its job.* menu</td>
 <td>no</td>
-<td><code>job.open_ui</code>, <code>job.search</code></td>
+<td><code>job.open_ui</code>, <code>job.search</code>, <code>job.tailor_cv</code></td>
 <td>provides <code>ITaskAgent</code>; uses <code>IModuleDoor</code>, <code>IAgentNames</code>, <code>IPageOpener</code></td>
 <td>none</td>
-<td><code>ReportTask</code>, <code>StartProvider</code>, <code>DeliverMessage</code></td>
-<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code>, <code>AgentNotice</code></td>
-<td><code>ResetRequested</code>, <code>ModuleStateChanged</code>, <code>PermissionChanged</code>, <code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
+<td><code>ReportTask</code>, <code>StartProvider</code>, <code>ReloadModule</code>, <code>AddModule</code>, <code>DeliverMessage</code>, <code>ActivateModule</code>, <code>InvokeTool</code>, <code>AgentNotice</code></td>
+<td><code>AgentActivity</code>, <code>AgentStateChanged</code>, <code>SessionUsage</code>, <code>PermissionModeChanged</code></td>
+<td><code>ModuleStateChanged</code>, <code>PermissionChanged</code>, <code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
 </tr>
 <tr>
 <td><a href="../modules/voice_notes/index.html"><code>voice_notes</code></a></td>
@@ -236,11 +236,16 @@
 </tr>
 </tbody>
 </table>
-<p>The core itself handles the <a href="../api/control.html">module control</a> commands (<code>ListModules</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code>, <code>RemoveModule</code>), routes <code>InvokeTool</code> to the module whose menu has the item, and publishes <code>ModuleStateChanged</code>.</p>
+<p><strong>The core</strong> (the host, not a module) handles <code>AnswerPermissionRequest</code>, <code>AddCardNotes</code>, <code>SetPermissionMode</code>, <code>InvokeTool</code>, <code>ListModules</code>, <code>GetMenu</code>, <code>ActivateModule</code>, <code>StartProvider</code>, <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code>, <code>RemoveModule</code>, <code>ShutdownRequested</code> (the <a href="../api/control.html">module control</a> commands among them; <code>InvokeTool</code> goes to the module whose menu has the item). It provides <code>IAgentNames</code>, <code>IModuleDoor</code>, offers its own menu as <code>core</code> (<code>modules.list</code>, <code>modules.menu</code>, <code>modules.docs</code>, <code>modules.on</code>, <code>modules.off</code>, <code>modules.reload</code>, <code>modules.add</code>, <code>modules.remove</code>, <code>permissions.grants</code>, <code>permissions.grant</code>, <code>permissions.request</code>, <code>permissions.revoke</code>), and publishes <code>ModuleStateChanged</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>.</p>
 <!-- library:end -->
 
+<p><strong>What the generated tables don't show yet:</strong></p>
+<ul>
+<li><strong>The core's own side.</strong> Besides the line above, the core handles <code>GetMenu</code>, <code>StartProvider</code>, <code>ShutdownRequested</code>, <code>SetPermissionMode</code>, <code>AnswerPermissionRequest</code> and <code>AddCardNotes</code>. Its menu, under the id <code>core</code>, holds <code>modules.list</code>, <code>modules.menu</code>, <code>modules.docs</code>, <code>modules.on</code>, <code>modules.off</code>, <code>modules.reload</code>, <code>modules.add</code> and <code>modules.remove</code>, plus <code>permissions.grants</code>, <code>permissions.grant</code>, <code>permissions.request</code> and <code>permissions.revoke</code>. It also publishes the cards, <code>PermissionRequested</code> and <code>PermissionChanged</code> (<a href="core.html">core</a>, <a href="modules.html#the-cores-menu">modules</a>). The generator doesn't write this yet.</li>
+<li><strong>job_search listens to <code>ModuleStateChanged</code> once.</strong> Its manifest lists the event twice (once through the agents' shared list), so the row shows it twice.</li>
+</ul>
 <h2 id="data-types">Data types</h2>
-<p>What travels between modules. Fields are the main ones; the API entry has them all.</p>
+<p>These are the types that travel between modules. The table gives the main fields; the API entry has them all.</p>
 <table>
 <thead>
 <tr>
@@ -265,7 +270,7 @@
 </tr>
 <tr>
 <td><code>ShutdownRequested</code></td>
-<td>event</td>
+<td>command (the core handles it)</td>
 <td><code>reason</code>, <code>restart</code></td>
 <td><a href="../api/messaging.html#shutdownrequested">messaging</a></td>
 </tr>
@@ -300,6 +305,12 @@
 <td><a href="../api/messaging.html#voicetranscript">messaging</a></td>
 </tr>
 <tr>
+<td><code>ModuleEvent</code></td>
+<td>event (a named event)</td>
+<td><code>name</code> (<code>&lt;module&gt;.&lt;what&gt;</code>), <code>source</code> (stamped by the core), <code>data</code> (plain JSON)</td>
+<td><a href="../api/messaging.html#moduleevent">messaging</a></td>
+</tr>
+<tr>
 <td><code>html_viewer.tabs_changed</code></td>
 <td>named event</td>
 <td><code>tabs</code>, <code>active</code>, <code>highlights</code></td>
@@ -318,9 +329,15 @@
 <td><a href="../api/messaging.html#moduleevent">messaging</a></td>
 </tr>
 <tr>
+<td><code>cv.job_finished</code>, <code>cv.job_submitted</code></td>
+<td>named events</td>
+<td>the job's folder, its state, who to tell (<code>reply_to</code>)</td>
+<td><a href="../modules/cv/architecture.html">cv</a></td>
+</tr>
+<tr>
 <td><code>InvokeTool</code></td>
 <td>command</td>
-<td><code>name</code>, <code>args</code></td>
+<td><code>name</code>, <code>args</code>, <code>caller</code> (stamped)</td>
 <td><a href="../api/tools.html#invoketool">tools</a></td>
 </tr>
 <tr>
@@ -355,13 +372,13 @@
 </tr>
 <tr>
 <td><code>AnswerPermission</code></td>
-<td>command</td>
+<td>command (a control command: only you or a relay)</td>
 <td><code>task_id</code>, <code>allow</code></td>
 <td><a href="../api/agents.html#answerpermission">agents</a></td>
 </tr>
 <tr>
 <td><code>SetPermissionMode</code></td>
-<td>command</td>
+<td>command (the core handles it; Auto only from you)</td>
 <td><code>agent_id</code>, <code>mode</code> (<code>PermissionMode</code>)</td>
 <td><a href="../api/agents.html#setpermissionmode">agents</a></td>
 </tr>
@@ -408,16 +425,112 @@
 <td><a href="../api/agents.html#sessionusage">agents</a></td>
 </tr>
 <tr>
-<td><code>ResetRequested</code></td>
-<td>event</td>
+<td><code>SetFocus</code></td>
+<td>command (the Hub handles it)</td>
 <td><code>agent_id</code></td>
+<td><a href="../api/agents.html#setfocus">agents</a></td>
+</tr>
+<tr>
+<td><code>FocusChanged</code></td>
+<td>event</td>
+<td><code>agent_id</code>, <code>previous</code>, <code>released</code></td>
+<td><a href="../api/agents.html#focuschanged">agents</a></td>
+</tr>
+<tr>
+<td><code>FocusSuggested</code></td>
+<td>event</td>
+<td><code>agent_id</code>, <code>reason</code>, <code>by</code></td>
+<td><a href="../api/agents.html#focussuggested">agents</a></td>
+</tr>
+<tr>
+<td><code>ResetRequested</code></td>
+<td>command (the Hub handles it)</td>
+<td><code>agent_id</code> (a task agent; a Talker session is reset by <code>talker.reset</code>)</td>
 <td><a href="../api/agents.html#resetrequested">agents</a></td>
+</tr>
+<tr>
+<td><code>AgentNotice</code></td>
+<td>command (the Hub handles it)</td>
+<td><code>agent_id</code>, <code>text</code>; labelled with the sending module</td>
+<td><a href="../api/agents.html#agentnotice">agents</a></td>
+</tr>
+<tr>
+<td><code>PermissionRequested</code></td>
+<td>event (the card)</td>
+<td><code>request_id</code>, <code>module_id</code>, <code>subject</code>, <code>action</code> (access, grant, revoke, message, confirm), <code>reason</code>, <code>items</code></td>
+<td><a href="../api/messaging.html#permissionrequested">messaging</a></td>
+</tr>
+<tr>
+<td><code>AnswerPermissionRequest</code></td>
+<td>command (the core handles it; only you or a relay)</td>
+<td><code>request_id</code>, <code>allow</code>, <code>keep</code>, <code>remember</code></td>
+<td><a href="../api/messaging.html#answerpermissionrequest">messaging</a></td>
+</tr>
+<tr>
+<td><code>PermissionChanged</code></td>
+<td>event (closes the card)</td>
+<td><code>module_id</code>, <code>subject</code>, <code>granted</code>, <code>request_id</code>, <code>text</code></td>
+<td><a href="../api/messaging.html#permissionchanged">messaging</a></td>
+</tr>
+<tr>
+<td><code>ReviewAccessList</code></td>
+<td>command (the Hub handles it)</td>
+<td><code>request_id</code>, <code>reviewer</code>, <code>who</code>, <code>reason</code>, <code>items</code>, <code>warnings</code>, <code>timeout</code></td>
+<td><a href="../api/messaging.html#reviewaccesslist">messaging</a></td>
+</tr>
+<tr>
+<td><code>AddCardNotes</code></td>
+<td>command (the core handles it)</td>
+<td><code>request_id</code>, <code>notes</code>, <code>reviewed</code></td>
+<td><a href="../api/messaging.html#addcardnotes">messaging</a></td>
 </tr>
 <tr>
 <td><code>ListModules</code></td>
 <td>command</td>
 <td>none; the result lists <code>ModuleInfo</code></td>
 <td><a href="../api/control.html#listmodules">control</a></td>
+</tr>
+<tr>
+<td><code>GetMenu</code></td>
+<td>command</td>
+<td><code>module_id</code>; the result lists its <code>ToolSpec</code>s</td>
+<td><a href="../api/control.html#getmenu">control</a></td>
+</tr>
+<tr>
+<td><code>ActivateModule</code></td>
+<td>command</td>
+<td><code>module_id</code></td>
+<td><a href="../api/control.html#activatemodule">control</a></td>
+</tr>
+<tr>
+<td><code>StartProvider</code></td>
+<td>command</td>
+<td><code>contract</code> (by name, such as <code>"IPageOpener"</code>)</td>
+<td><a href="../api/control.html#startprovider">control</a></td>
+</tr>
+<tr>
+<td><code>DeactivateModule</code></td>
+<td>command (a control command)</td>
+<td><code>module_id</code>, <code>with_dependents</code></td>
+<td><a href="../api/control.html#deactivatemodule">control</a></td>
+</tr>
+<tr>
+<td><code>ReloadModule</code></td>
+<td>command (a control command)</td>
+<td><code>module_id</code>, <code>now</code></td>
+<td><a href="../api/control.html#reloadmodule">control</a></td>
+</tr>
+<tr>
+<td><code>AddModule</code></td>
+<td>command (a control command)</td>
+<td><code>package</code>, <code>activate</code></td>
+<td><a href="../api/control.html#addmodule">control</a></td>
+</tr>
+<tr>
+<td><code>RemoveModule</code></td>
+<td>command (a control command)</td>
+<td><code>module_id</code>, <code>purge</code></td>
+<td><a href="../api/control.html#removemodule">control</a></td>
 </tr>
 <tr>
 <td><code>ModuleStateChanged</code></td>
@@ -427,7 +540,7 @@
 </tr>
 </tbody>
 </table>
-<p>The data types table could be generated from <code>assistant.contracts</code> the same way, linking each type to its API anchor (not done yet).</p>
+<p>The data types table could be generated from <code>assistant.contracts</code> the same way as the module tables, with each type linked to its API anchor. That isn't built.</p>
 <footer>Generated from <code>docs/architecture/module-library.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

@@ -8,6 +8,8 @@ import importlib.util
 import re
 from pathlib import Path
 
+from assistant.infra import module_folder, module_roots
+
 ROOT = Path(__file__).resolve().parent.parent
 MODULES = ROOT / "src" / "assistant" / "modules"
 LIBRARY = ROOT / "docs" / "architecture" / "module-library.md"
@@ -17,7 +19,8 @@ ADD_ONS = {"cv", "job_search", "html_viewer", "voice_notes", "echo_orchestrator"
 
 
 def module_ids() -> list[str]:
-    return sorted(p.name for p in MODULES.iterdir() if (p / "__init__.py").is_file())
+    """Every module, in the repo and in the outside folders `[core] module_folders` names (the conftest adds them)."""
+    return sorted(p.name for root in module_roots() for p in root.iterdir() if (p / "__init__.py").is_file())
 
 
 def build_docs():
@@ -65,9 +68,28 @@ def test_main_docs_never_link_into_next_steps():
     pages += [md for folder in docs.module_doc_folders().values() for md in folder.rglob("*.md")]
     # The one allowed link (the user's call, 2026-11-12): the overview's "Currently fixing" plan.
     allowed = {("docs/architecture/README.md", "../../html-next-steps/module-folders.html")}
+    # The user allowed these for the Restructuring (2026-11-13; built the same day): only inside the
+    # overview's "## Restructuring" section and the Pages list's one "- Restructuring (built ...)" bullet,
+    # nowhere else in that file or any other page.
+    restructuring = {"../../html-next-steps/core-and-hub-definition.html", "../next-steps/core-and-hub-definition.md",
+                     "../../html-next-steps/piping.html", "../../html-next-steps/core-and-hub-proposal.html",
+                     "../../html-next-steps/module-layouts.html", "../../html-next-steps/agent-claude-md-options.html",
+                     "../next-steps/agent-claude-md-options.md"}
+    link = re.compile(r"\]\(([^)\s]*next-steps/[^)\s]*)\)")
     for md in pages:
-        links = re.findall(r"\]\(([^)\s]*next-steps/[^)\s]*)\)", md.read_text(encoding="utf-8"))
-        links = [h for h in links if (md.relative_to(ROOT).as_posix(), h) not in allowed]
+        name = md.relative_to(ROOT).as_posix()
+        text = md.read_text(encoding="utf-8")
+        links = []
+        if name == "docs/architecture/README.md":
+            section = re.search(r"^## Restructuring\n.*?(?=^## )", text, re.S | re.M)
+            assert section, "the overview has no Restructuring section"
+            links += [h for h in link.findall(section.group()) if h not in restructuring]
+            text = text[:section.start()] + text[section.end():]
+            bullet = re.search(r"^- Restructuring \(built [^)]*\):.*$", text, re.M)
+            assert bullet, "the overview's Pages list has no Restructuring bullet"
+            links += [h for h in link.findall(bullet.group()) if h not in restructuring]
+            text = text[:bullet.start()] + text[bullet.end():]
+        links += [h for h in link.findall(text) if (name, h) not in allowed]
         assert not links, f"{md.relative_to(ROOT)} links into docs/next-steps/: {links}"
 
 
@@ -130,9 +152,12 @@ def test_every_module_has_a_library_row():
     library = LIBRARY.read_text(encoding="utf-8")
     table = library.split("<!-- library:start", 1)[1].split("<!-- library:end", 1)[0]
     core, add_ons = table.split("### Add-ons", 1)
+    docs = build_docs()
     for module_id in module_ids():
-        assert (MODULES / module_id / "docs" / "README.md").is_file(), f"{module_id}/docs/README.md is missing"
-        row = f"| [`{module_id}`](../../src/assistant/modules/{module_id}/docs/README.md) |"
+        assert (module_folder(module_id) / "docs" / "README.md").is_file(), f"{module_id}/docs/README.md is missing"
+        if module_folder(module_id).is_relative_to(MODULES):
+            assert docs.readme_link(module_id) == f"../../src/assistant/modules/{module_id}/docs/README.md"
+        row = f"| [`{module_id}`]({docs.readme_link(module_id)}) |"
         assert row in (core if module_id in CORE else add_ons), f"no library row for {module_id} in its group"
 
 
@@ -143,3 +168,45 @@ def test_the_library_table_is_generated_from_the_manifests_and_menus():
     )
     assert [c.manifest.id for c in docs.module_classes()][:1] == ["console_io"]
     assert "`viewer.open`, `viewer.highlight`, `viewer.tabs`" in docs.library_block()
+
+
+def test_the_library_core_row_names_everything_the_core_offers():
+    """The core row is generated from `App.offers()`; every command, contract, menu item and
+    event the core offers is on the page as built (a stale page or a hand-written row fails)."""
+    docs = build_docs()
+    offers = docs.core_offers()
+    assert all(offers.values()), offers
+    assert {"InvokeTool", "GetMenu", "StartProvider", "ShutdownRequested", "SetPermissionMode",
+            "AnswerPermissionRequest", "AddCardNotes", "RemoveModule"} <= set(offers["handles"])
+    assert {"modules.docs", "modules.remove", "permissions.grant"} <= set(offers["menu"])
+    assert {"PermissionRequested", "PermissionChanged", "ModuleStateChanged"} <= set(offers["publishes"])
+    page = LIBRARY.read_text(encoding="utf-8")
+    row = next(line for line in page.splitlines() if line.startswith("**The core**"))
+    missing = [n for names in offers.values() for n in names if f"`{n}`" not in row]
+    assert not missing, f"the module library's core row misses {missing}: run scripts/build_docs.py"
+
+
+CORE_SRC = ROOT / "src" / "assistant" / "core"
+PUBLISH = re.compile(r"\.\_?publish\((\w+)\(")
+
+
+def test_the_core_names_every_event_it_publishes():
+    """Every literal `publish(X(...))` in the core is in `App.PUBLISHES`, so the core row lists it.
+    `context.py` is left out: there a module's own events go out for it."""
+    from assistant.core.app import App
+
+    declared = {e.__name__ for e in App.PUBLISHES}
+    found = {(py.name, name) for py in CORE_SRC.rglob("*.py") if py.name != "context.py"
+             for name in PUBLISH.findall(py.read_text(encoding="utf-8"))}
+    assert {n for _, n in found} >= {"ModuleStateChanged", "PermissionChanged", "PermissionRequested"}
+    assert not [f for f in found if f[1] not in declared], "add these to App.PUBLISHES"
+
+
+def test_the_core_line_names_every_core_menu_item():
+    from assistant.core.app import App
+    from assistant.core.door import CORE_LINE
+
+    words = CORE_LINE["description"]
+    for spec in App.core_specs():
+        group, _, item = spec.name.partition(".")
+        assert (item if group == "modules" else f"{group}.*") in words, f"core/door.py CORE_LINE misses {spec.name}"

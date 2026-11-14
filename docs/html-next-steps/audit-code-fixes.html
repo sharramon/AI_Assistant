@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Small code fixes from the architecture docs audit</title>
+<!-- Generated from docs/next-steps/audit-code-fixes.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="audit-code-fixes.html"></nav>
+<main>
+<h1 id="small-code-fixes-from-the-architecture-docs-audit">Small code fixes from the architecture docs audit</h1>
+<p>Status: <strong>built, waiting for the restart</strong> (2026-11-13; batched with <a href="outside-config-protected.html">the outside config folder</a>; a <code>job_search</code> and a <code>task_agents</code> reload too). Decisions: 1 cv's tools page, 2 the core row generated, 3 the batched restart (the user, 2026-11-13). See <a href="#build-status">Build status</a>. 2026-11-13. Audit question 5 (<a href="architecture-docs-audit.html#code-points-found-not-changed-this-is-a-docs-only-job">architecture docs audit</a>), plus the leftover <code>rezi-module</code> path in <code>task_agents</code>.</p>
+<p>Each item was checked against the code today. Line numbers are as of this note.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>File:line</th>
+<th>What's wrong</th>
+<th>The exact fix</th>
+<th>Risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>The core's one-line summary</td>
+<td><code>src/assistant/core/door.py:25</code> (<code>CORE_LINE</code>)</td>
+<td>Says "list, menu, on, off, reload, add". The core menu also has <code>modules.docs</code>, <code>modules.remove</code> (<code>core/directory.py:61,95</code>) and <code>permissions.grants / grant / request / revoke</code> (<code>core/permissions/menu.py</code>)</td>
+<td><code>"Module control and permissions: list, menu, docs, on, off, reload, add, remove; permissions.*"</code></td>
+<td>Low: agents read it in <code>list_modules</code>; a test that pins the text would need the new one</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Auto comment in the handler</td>
+<td><code>src/assistant/core/permissions/handler.py:21-23</code> (and <code>_in_auto</code>, <code>:434-436</code>)</td>
+<td>Says each Talker shares its pair's mode (<code>talker:&lt;id&gt;</code> is <code>&lt;id&gt;</code>'s). True for a helper tab's Talker, but the main tab's plain <code>talker</code> isn't mapped to any pair (<code>_in_auto</code> only strips <code>talker:</code>), so it gets the card every time, Auto or not (permissions.md, "The card still shows")</td>
+<td>Add: "The main tab's plain <code>talker</code> has no pair here, so it always gets the card." in both places</td>
+<td>None (comments)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Agent names docstring</td>
+<td><code>src/assistant/infra/agent_names.py:3-4</code></td>
+<td>"The Agent Hub applies them … the Hub owns them". The core's Callers port applies them (<code>core/callers.py:42</code>) and holds the reserved ids (<code>RESERVED_AGENT_IDS</code>, <code>callers.py:23</code>)</td>
+<td>"The core's Callers port applies them for <code>IAgentNames</code>, with the ids it reserves (<code>RESERVED_AGENT_IDS</code>); anything naming an agent can check a name's form early with the same rules."</td>
+<td>None</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Agent Hub docstring</td>
+<td><code>src/assistant/modules/agent_hub/module.py:3-4</code></td>
+<td>"A small coordinator over three parts" lists two. There are five: the task board, the focus, delivery, the message gate and the reviewer</td>
+<td>"A small coordinator over five parts: the task board (<code>tasks.py</code>), the focus (<code>focus.py</code>), message delivery, the message gate (<code>gate.py</code>) and the access-list reviewer (<code>review.py</code>)." Check the delivery part's file name while editing</td>
+<td>None</td>
+</tr>
+<tr>
+<td>5</td>
+<td>An event listed twice</td>
+<td><code>src/assistant/modules/job_search/module.py:244</code></td>
+<td><code>listens=(*AGENT_LISTENS, PermissionChanged, ModuleStateChanged)</code>; <code>AGENT_LISTENS</code> is already <code>(ModuleStateChanged,)</code> (<code>infra/agent_kit.py:48</code>), so the module library shows it twice</td>
+<td><code>listens=(*AGENT_LISTENS, PermissionChanged),  # ModuleStateChanged (in AGENT_LISTENS) and PermissionChanged: job.tailor_cv's wait for cv</code>; then the docs build</td>
+<td>Low: a duplicate subscription type only; the manifest check may want the import kept or dropped (ruff)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>The module library's core row</td>
+<td><code>scripts/build_docs.py:431-435</code> (<code>CORE_LINE</code>, used by <code>library_block</code>, <code>:493</code>)</td>
+<td>Hand-written, between the generated markers, so a hand edit to the page is overwritten. It leaves out commands the core handles (<code>GetMenu</code>, <code>StartProvider</code>, <code>ShutdownRequested</code>, <code>SetPermissionMode</code>, <code>AnswerPermissionRequest</code>, <code>AddCardNotes</code>: <code>core/app.py:106-123</code>), the core menu (<code>modules.*</code>, <code>permissions.*</code>) and the card events (<code>PermissionRequested</code>, <code>PermissionChanged</code>)</td>
+<td>Make the menu part generated: <code>names(directory.menu.names())</code> plus the permissions menu's names. Complete the command and event lists by hand, and add a test in <code>tests/test_module_docs.py</code> that fails when <code>App(...)._handlers</code> has a command the line doesn't name. Not generated from <code>App</code>: building one in the docs script runs <code>PermissionsHandler.from_config</code>, which can copy the grants file</td>
+<td>Low: docs build only; the module library page changes</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Rezi helper comment</td>
+<td><code>src/assistant/modules/task_agents/module.toml:34</code></td>
+<td>Names the deleted <code>docs/next-steps/rezi-module.md</code></td>
+<td><code># The Rezi helper: tailors resumes in Rezi for postings the job agent hands it, through the cv module's rezi.* items (src/assistant/modules/cv/docs/).</code> The rest of the comment stays</td>
+<td>None</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Rezi helper prompt</td>
+<td><code>src/assistant/modules/task_agents/module.toml:39</code></td>
+<td>"rezi.* items on the module door's rezi menu … until that module exists, read docs/next-steps/rezi-module.md". There's no rezi module: the <code>rezi.*</code> items are on <strong>cv</strong>'s menu (<code>cv/mcp.py</code>), and the note is deleted</td>
+<td><code>"… You reach Rezi only through the rezi.* items on the cv module's menu (module door: show_menu cv), never any other way; to learn them, read src/assistant/modules/cv/docs/tools.md. …"</code>, the rest unchanged. It points at cv's tools page, not modules.md: that page lists the exact items. The helper's <code>read_dirs = ["docs"]</code> doesn't reach <code>src/</code>; it can still read the page with <code>modules.docs cv</code> on the door</td>
+<td>Low: changes what new rezi helpers read; a running one keeps its prompt until relaunched</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Agent names in the core</td>
+<td><code>core/callers.py:22-23</code>, <code>core/permissions/handler.py:85</code> (<code>TALKER_PREFIX</code>), <code>core/context.py:53-54,187</code></td>
+<td>The core names agents (<code>hub</code>, <code>talker</code>, a <code>talker:</code> prefix, any <code>ITaskAgent</code> provider may send <code>ReloadModule</code> / <code>AddModule</code>)</td>
+<td><strong>Not in this note:</strong> these are the restructuring checklist's open should-fix items (step 7, a design change). Listed so it isn't lost</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table>
+<h2 id="build-status">Build status</h2>
+<p>Built 2026-11-13. Nothing restarted or reloaded; not committed.</p>
+<ul>
+<li><strong>Items 1-5:</strong> as in the table. Item 1 also gets a test (<code>test_the_core_line_names_every_core_menu_item</code>) so <code>CORE_LINE</code> can't miss a <code>modules.*</code> item again.</li>
+<li><strong>Item 6, generated, not hand-completed (the user's decision 2):</strong> <code>App.offers()</code> names what the core offers from the tables <code>start</code> registers: <code>_handlers</code> (its commands), <code>_provides</code> (its contracts, new: <code>IAgentNames</code>, <code>IModuleDoor</code>, now one table <code>start</code> loops over), <code>core_specs()</code> (the <code>core</code> menu <code>GetMenu</code> answers; was <code>_core_specs</code>) and <code>App.PUBLISHES</code> (<code>ModuleStateChanged</code> plus <code>PermissionsHandler.PUBLISHES</code>, the card events). <code>scripts/build_docs.py</code> builds a bare <code>App</code> (no modules, door off, grants file in a temp folder) and renders the row with <code>core_line(core_offers())</code>; the hand-written <code>CORE_LINE</code> there is gone. Tripwires in <code>tests/test_module_docs.py</code>: the page's core row names everything <code>offers()</code> returns, and every literal <code>publish(X(...))</code> in the core (but <code>context.py</code>, a module's own events) is in <code>App.PUBLISHES</code>.</li>
+<li><strong>Items 7-8, changed from decision 1:</strong> <code>task_agents</code> is a core module, and a core module's settings never name an add-on (<code>tests/test_boundaries.py</code>, rule 2: values, not comments). So the prompt can't name cv. It now says to find the module whose menu has the <code>rezi.*</code> items (<code>list_modules</code>, <code>show_menu</code>) and read that module's tools page (<code>modules.docs</code>), which is cv's tools page. The comment names <code>cv/docs/tools.md</code> and says why. The description says "the rezi.* items on the module door".</li>
+<li><strong>Item 9:</strong> unchanged, a pointer to restructuring step 7.</li>
+<li><strong>Checks:</strong> 1002 tests passed (2 deselected, the usual 4 unclosed-pipe warnings); ruff clean; docs rebuilt (the core row generated, <code>ModuleStateChanged</code> once in job_search's row).</li>
+</ul>
+<h2 id="reload-or-restart">Reload or restart</h2>
+<ul>
+<li><strong>App restart:</strong> items 1, 2, 3 (core and infra). Items 2 and 3 are comments only, so they can wait for the next restart; item 1 shows in <code>list_modules</code> only after one.</li>
+<li><strong><code>job_search</code> reload:</strong> item 5. The docs build reads the manifest from disk, so the library's fix shows without it.</li>
+<li><strong><code>task_agents</code> reload:</strong> items 7 and 8. New rezi helpers get the new prompt only after it.</li>
+<li><strong>Nothing:</strong> item 4 (a docstring in agent_hub; it takes effect at its next reload or restart) and item 6 (the docs script).</li>
+<li>The app asks you before any reload or restart (<code>RELOAD:</code> and <code>confirm</code> cards, shown in Auto too).</li>
+</ul>
+<p><strong>Checks after the change:</strong> <code>pytest</code>, <code>ruff check</code>, the docs build (the module library loses the doubled <code>ModuleStateChanged</code> and gets the full core row), and <code>list_modules</code> after the restart shows the new core line.</p>
+<h2 id="decisions-for-the-user">Decisions for the user</h2>
+<ol>
+<li>The rezi helper's prompt: point it at cv's tools page (<code>src/assistant/modules/cv/docs/tools.md</code>), or at <code>docs/architecture/modules.md</code>? <strong>Recommended: cv's tools page</strong>, which lists the exact <code>rezi.*</code> items.</li>
+<li>The library's core row: generate the menu part and keep a tested hand list for the commands and events, or keep it all hand-written and just complete it? <strong>Recommended: generate the menu part, plus the tripwire test.</strong></li>
+<li>Load items 1-3 with the next batched app restart instead of a restart of their own? <strong>Recommended: yes, with the next batched restart.</strong></li>
+</ol>
+<footer>Generated from <code>docs/next-steps/audit-code-fixes.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

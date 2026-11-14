@@ -1,8 +1,8 @@
 """The rules for agent ids, in one place: their form, the reserved ones, and a free variant.
 
-The Agent Hub applies them for `IAgentNames`, with the ids it reserves (they name modules, so
-the Hub owns them, not this shared code: principle 21); anything naming an agent (a helper
-launch) can check a name's form early with the same rules.
+The core's Callers port applies them for `IAgentNames`, with the ids it reserves
+(`RESERVED_AGENT_IDS`); anything naming an agent (a helper launch) can check a name's form early
+with the same rules.
 """
 
 from __future__ import annotations

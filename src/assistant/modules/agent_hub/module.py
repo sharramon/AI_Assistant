@@ -1,10 +1,16 @@
 """The Agent Hub: who is doing what. Holds the authoritative task state; not an AI, launches nothing.
 
-A small coordinator over three parts: the task board (`tasks.py`: every task and its state
+A small coordinator over five parts: the task board (`tasks.py`: every task and its state
 machine), the focus (`focus.py`: who you're talking to, and what waits behind each tab's !),
-and the agent names (`names.py`: `IAgentNames`). It wires them to the commands, the events
-and its menu, finds agents through `ITaskAgent` and never imports an agent module. It also
-routes `SetPermissionMode` to the agent, until the permissions handler takes that over.
+message delivery (`delivery.py`), the message gate (`gate.py`) and the access-list reviewer
+(`review.py`).
+It wires them to the commands, the events and its menu, finds agents through `ITaskAgent` and
+never imports an agent module. The agent names and modes are the core's (its Callers port,
+`IAgentNames`); `SetPermissionMode` is the core's too, and the Hub only closes a card that a
+switch to Auto answered (`PermissionModeChanged.answered`). The agents' module door is the
+core's as well (`IModuleDoor`, decision D1). The access-list review is the Hub's (`review.py`,
+D6): the core sends `ReviewAccessList`, the Hub runs it on the reviewer agent and answers with
+`AddCardNotes`.
 
 Several agents may run at once, one task each: the coordinator plus at most `max_extra_agents`
 others (3 by default, from config), and never two whose agents write the same folder. The
@@ -21,6 +27,7 @@ you once per direction on a permission card and never interrupts a turn. The Tal
 from __future__ import annotations
 
 from assistant.contracts import (
+    AddCardNotes,
     AgentActivity,
     AgentNotice,
     AgentStateChanged,
@@ -29,22 +36,21 @@ from assistant.contracts import (
     DeliverMessage,
     FocusChanged,
     FocusSuggested,
-    GetMenu,
     GetTaskStatus,
     IAgentNames,
-    IModuleDoor,
-    InvokeTool,
     ITaskAgent,
     ListAgents,
-    ListModules,
     Manifest,
     Menu,
     ModuleContext,
     ModuleProtocol,
     ModuleStateChanged,
     PermissionMode,
+    PermissionModeChanged,
     ReportTask,
+    ResetRequested,
     Result,
+    ReviewAccessList,
     SendToTask,
     SetFocus,
     SetPermissionMode,
@@ -52,28 +58,16 @@ from assistant.contracts import (
     Status,
     TaskUpdated,
 )
-from assistant.infra.mcp_door import DoorServer
 
 from .delivery import Delivery
 from .focus import Focus
 from .gate import MessageGate
-from .names import RESERVED_AGENT_IDS, AgentNames
+from .review import Reviewer
 from .tasks import TaskBoard
 
-__all__ = ["RESERVED_AGENT_IDS", "AgentHubModule"]
+__all__ = ["AgentHubModule"]
 
 TALKER = "talker"  # the caller that speaks for you on the menu
-CORE_LINE = {"id": "core", "description": "Module control: list, menu, on, off, reload, add", "state": "active"}
-
-
-class _Door(IModuleDoor):
-    """The hub's `IModuleDoor` part: the MCP config for the relay in front of its `DoorServer`."""
-
-    def __init__(self, server: DoorServer) -> None:
-        self._server = server
-
-    def mcp_config(self, caller: str) -> dict:
-        return self._server.mcp_config(caller)
 
 
 menu = Menu()
@@ -82,39 +76,26 @@ menu = Menu()
 class AgentHubModule(ModuleProtocol):
     manifest = Manifest(
         id="agent_hub",
-        description="Task state and routing between the agents, and who you're talking to; "
-        "hosts the agents' door to the module menus",
-        provides=(IModuleDoor, IAgentNames,),
+        description="Task state and routing between the agents, and who you're talking to",
         optional=(ITaskAgent,),
+        uses=(IAgentNames,),
         handles=(ListAgents, StartTask, GetTaskStatus, SendToTask, CancelTask, ReportTask, AnswerPermission,
-                 SetPermissionMode, SetFocus, DeliverMessage,),  # fmt: skip
-        sends=(ListModules, GetMenu, InvokeTool,),
+                 SetFocus, DeliverMessage, AgentNotice, ResetRequested, ReviewAccessList,),  # fmt: skip
+        sends=(SetPermissionMode, AddCardNotes,),
         publishes=(TaskUpdated, FocusChanged, FocusSuggested,),
-        listens=(AgentActivity, AgentNotice, AgentStateChanged, ModuleStateChanged,),
+        listens=(AgentActivity, AgentStateChanged, ModuleStateChanged, PermissionModeChanged,),
     )
     menu = menu
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         self._coordinator = str(ctx.config.get("coordinator", "main_assistant"))
-        # The door's port and token survive a reload, so a running session's relay keeps working.
         handover = ctx.handover if isinstance(ctx.handover, dict) else {}
-        self._door = DoorServer(
-            ctx.send,
-            {"list": ListModules, "menu": GetMenu, "call": InvokeTool},
-            host=ctx.config.get("door_host", "127.0.0.1"),
-            port=int(handover.get("door_port", ctx.config.get("door_port", 0))),
-            token=handover.get("door_token"),
-            core_line=CORE_LINE,
-        )
-        ctx.provide(IModuleDoor, _Door(self._door))
-        self._names = AgentNames(ctx, dict(handover.get("claims") or {}), RESERVED_AGENT_IDS | {self._coordinator})
-        ctx.provide(IAgentNames, self._names)
         self._clashes_logged: set[str] = set()
         self._start_only_by = start_only_by(ctx.config.get("start_only_by", {}))
         named = agent_ids(ctx.config.get("named_only", []), "named_only")
         self._tasks = TaskBoard(
-            publish=ctx.publish, log=ctx.log, agents=self._agents, agent=self._agent,
+            publish=self._publish_task, log=ctx.log, agents=self._agents, agent=self._agent,
             focused=lambda: self._focus.focused(), feed=self._feed, coordinator=self._coordinator,
             # Big agents besides the coordinator that may have an open task at once.
             max_extra=int(ctx.config.get("max_extra_agents", 3)),
@@ -132,6 +113,9 @@ class AgentHubModule(ModuleProtocol):
             release=self._tasks.release, feed=self._feed,
         )  # fmt: skip
         tasks = self._tasks
+        # The access-list review (D6): the core asks, the Hub runs it as a task and sends the notes back.
+        self._reviewer = Reviewer(tasks.start, tasks.cancel, ctx.send, ctx.log)
+        ctx.handle(ReviewAccessList, self._reviewer.review)
         ctx.handle(ListAgents, self._list_agents)
         ctx.handle(StartTask, tasks.start)
         ctx.handle(GetTaskStatus, tasks.status)
@@ -139,34 +123,27 @@ class AgentHubModule(ModuleProtocol):
         ctx.handle(CancelTask, tasks.cancel)
         ctx.handle(ReportTask, self._report)
         ctx.handle(AnswerPermission, tasks.answer)
-        ctx.handle(SetPermissionMode, tasks.set_mode)
         ctx.handle(SetFocus, self._focus.set)
         ctx.handle(DeliverMessage, self._delivery.deliver)
+        ctx.handle(AgentNotice, self._on_notice)
+        ctx.handle(ResetRequested, self._on_reset)
         ctx.subscribe(AgentActivity, tasks.on_activity)
-        ctx.subscribe(AgentNotice, self._on_notice)
         ctx.subscribe(AgentStateChanged, self._on_state)
         ctx.subscribe(ModuleStateChanged, self._on_state)
+        ctx.subscribe(PermissionModeChanged, tasks.on_mode_changed)
 
     async def start(self) -> None:
-        if self._ctx.config.get("door", True):
-            try:
-                await self._door.start()
-                self._ctx.log.info("The agents' module door is at %s", self._door.url)
-            except OSError as exc:  # its port is taken: the agents just go without the door
-                self._ctx.log.warning("Couldn't open the agents' module door: %s", exc)
+        pass
 
     async def stop(self) -> None:
         await self._gate.close()
-        await self._door.stop()
+        await self._reviewer.close()
 
     def export_state(self) -> dict | None:
-        """For a reload: the focus, the claimed agent ids, the messages still waiting, the questions
-        waiting on you, and the door's port and token, so the new copy opens the same door."""
-        state: dict = {"focus": self._focus.stored, "claims": self._names.taken(), "waiting": self._delivery.export(),
-                       "questions": self._tasks.export_questions()}  # fmt: skip
-        if self._door.url:
-            state |= {"door_port": int(self._door.url.rsplit(":", 1)[1]), "door_token": self._door.token}
-        return state
+        """For a reload: the focus, the messages still waiting and the questions waiting on you.
+        The claimed agent ids and the module door are the core's, so they outlive a reload anyway."""
+        return {"focus": self._focus.stored, "waiting": self._delivery.export(),
+                "questions": self._tasks.export_questions()}  # fmt: skip
 
     def busy(self) -> str | None:
         """A reload waits while agents hold tasks (their records would be lost: no handover) and
@@ -228,7 +205,8 @@ class AgentHubModule(ModuleProtocol):
                 return Result.not_available("Name agent_id (the agent to message), or task_id for your own child task")
             if agent_id == caller:
                 return Result.invalid_arguments("That's you; name another agent")
-            if self._agent(agent_id) is None and agent_id not in self._names.taken():
+            names = self._ctx.get_one(IAgentNames)
+            if self._agent(agent_id) is None and agent_id not in (names.taken() if names else {}):
                 return Result.invalid_arguments(f"No agent {agent_id!r}")
             record = tasks.open_task_of(agent_id)
             if record is None or tasks.may_steer(record.id, caller) is not None:
@@ -269,7 +247,7 @@ class AgentHubModule(ModuleProtocol):
     async def mode_item(self, agent_id: str, mode: str) -> Result:
         if mode != PermissionMode.MANUAL:
             return Result.not_available("Only the user switches an agent to Auto, with the app's button")
-        return await self._tasks.set_mode(SetPermissionMode(agent_id=agent_id, mode=PermissionMode.MANUAL))
+        return await self._ctx.send(SetPermissionMode(agent_id=agent_id, mode=PermissionMode.MANUAL))
 
     @menu.item("hub.focus", "Move the focus to an agent, after the user said so (empty: back to the main one)",
                {"agent_id": {"type": "string"}}, required=["agent_id"], callers=(TALKER,))  # fmt: skip
@@ -289,6 +267,11 @@ class AgentHubModule(ModuleProtocol):
         return Result.ok()
 
     # --- events and commands of its own ---
+
+    def _publish_task(self, event: TaskUpdated) -> None:
+        """The board's `TaskUpdated`, seen by the reviewer first (a review's end), then published."""
+        self._reviewer.on_task_updated(event)
+        self._ctx.publish(event)
 
     async def _send(self, command: SendToTask) -> Result:
         """`SendToTask`: an answer to a question whose agent is in a turn (or not running) waits
@@ -312,12 +295,27 @@ class AgentHubModule(ModuleProtocol):
         await self._focus.check(event)
         await self._delivery.flush()
 
-    async def _on_notice(self, event: AgentNotice) -> None:
-        agent = self._agent(event.agent_id)
+    async def _on_notice(self, command: AgentNotice) -> Result:
+        """`AgentNotice` (a command, D5): one line for the agent's next turn, labelled with the
+        stamped sender, so no module speaks as another; the core's own keep their `source`."""
+        agent = self._agent(command.agent_id)
         if agent is None:
-            self._ctx.log.info("Dropped a notice for %s (not running): %s", event.agent_id, event.text)
-            return
-        agent.note(f"[{event.source or 'notice'}] {event.text}")
+            self._ctx.log.info("Dropped a notice for %s (not running): %s", command.agent_id, command.text)
+            return Result.not_available(f"No agent {command.agent_id!r} is running")
+        label = (command.source or "core") if command.sent_by in ("", "core") else command.sent_by
+        agent.note(f"[{label}] {command.text}")
+        return Result.ok("noted")
+
+    async def _on_reset(self, command: ResetRequested) -> Result:
+        """`ResetRequested` (a command, D5): the agent's own `reset` (at once when idle, a handoff
+        with a task)."""
+        agent = self._agent(command.agent_id)
+        if agent is None:
+            return Result.not_available(f"No agent {command.agent_id!r} is running")
+        result = await agent.reset()
+        if not result.is_ok:
+            self._ctx.log.warning("Couldn't reset %s: %s", command.agent_id, result.error)
+        return result
 
     async def _list_agents(self, command: ListAgents) -> Result:
         return Result.ok([agent.info() for agent in self._agents()])

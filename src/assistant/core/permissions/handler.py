@@ -2,9 +2,10 @@
 card, the review, and the grant calls. Always on: no module or agent can turn it off or reload it.
 
 It uses only the core's generic parts, handed in by the App: the router's `send`, the bus's
-`publish`, and the container's `find` (for `IAgentNames` at revoke time). The Main Assistant's
-review is a normal task through the Agent Hub's contracts (`StartTask`, `TaskUpdated`,
-`CancelTask`); no module is imported.
+`publish`, and the container's `find` (for `IAgentNames` at revoke time). The review (D6) is a
+listener's job: the handler sends `ReviewAccessList` and waits for `AddCardNotes`; the module
+that handles it (the Agent Hub) runs the review task. The core never starts a task, and no
+module is imported.
 
 A module's start can't wait on a card (`ActivateModule` times out), so `request_set(wait=False)`
 answers from the saved grant when the list is unchanged, and otherwise opens a card and raises
@@ -18,12 +19,20 @@ allow (saved under the module and the agent's kind) or Deny. Taking back only `m
 items never turns the module off.
 
 **Auto skips the card.** Before any card, `_in_auto(caller)` reads the calling agent's own
-permission mode (each worker and Talker pair has its own; `talker:<id>` is `<id>`'s pair) with
-`ListAgents`. In Auto the card isn't shown: a grant, request or revoke is carried out at once, a
+permission mode (each worker and Talker pair has its own; `talker:<id>` is `<id>`'s pair) from
+the core's Callers port (`mode_of`). The main tab's plain `talker` has no pair here, so it always
+gets the card. In Auto the card isn't shown: a grant, request or revoke is carried out at once, a
 message is Allow once, and an access list is allowed for this launch, nothing saved. The caller
 of an access list is whoever turned the module on (`ACTING_FOR`, set by `modules.on`). An unknown
 caller, a failed lookup or Manual: the card shows. `git push` and the risky-step stop are never
 cards, so this check doesn't touch them.
+
+**Confirm cards: Auto never skips them.** `confirm` asks yes or no before a risky step (the core
+menu's `modules.add`, `modules.remove`, `modules.reload`, `modules.off` with dependents; the
+Talker's restart). An agent's `RELOAD:` / `ADD_MODULE:` line asks on the agent's own card
+instead (`PermissionGate.ask(always=True)`), shown in Auto too. Only a caller that is you clicking
+(`you`) runs at once; a step marked `risky` (lesser) also runs at once for a caller in Auto. On
+Allow the handler runs the step itself (a command it sends, so its sender is the core).
 """
 
 from __future__ import annotations
@@ -31,7 +40,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
@@ -46,6 +54,7 @@ from assistant.contracts import (
     AccessNote,
     AccessPending,
     ActivateModule,
+    AddCardNotes,
     AgentNotice,
     AnswerPermissionRequest,
     CancelTask,
@@ -54,16 +63,13 @@ from assistant.contracts import (
     Event,
     GetTaskStatus,
     IAgentNames,
-    ListAgents,
     ListModules,
     ModuleState,
     PermissionChanged,
     PermissionMode,
     PermissionRequested,
     Result,
-    StartTask,
-    TaskState,
-    TaskUpdated,
+    ReviewAccessList,
 )
 from assistant.core.permissions.rules import FIXED_RULES, REPO, protected_paths, refusals, rule_warnings
 from assistant.core.permissions.store import OLD_GRANTS, Grant, GrantStore, copy_old_grants, fingerprint
@@ -84,20 +90,8 @@ TALKER_PREFIX = "talker:"  # a helper tab's Talker, `talker:<agent id>`: its pai
 # `request_set` reads it (requires turned on with it too). Empty: nobody known, the card shows.
 ACTING_FOR: ContextVar[str] = ContextVar("permissions_acting_for", default="")
 
-REVIEW_PROMPT = """\
-Review an access list before the user answers it on a card. Use no tools and ask no questions.
-Reply with one short line per risk the warnings below don't already cover (what it could do, and \
-with which items), or exactly `No further warnings.` Nothing else.
-
-Who asks: {who}{reason}
-The list:
-{items}
-Warnings already on the card:
-{warnings}"""
-
-NO_FURTHER = "no further warnings"
 MAX_REVIEW_LINES = 8
-FINALS_KEPT = 32
+REVIEW_GRACE = 5.0  # seconds past the review's own timeout before the card shows without it
 
 
 class CardAction(StrEnum):
@@ -108,6 +102,10 @@ class CardAction(StrEnum):
     GRANT = "grant"
     REVOKE = "revoke"
     MESSAGE = "message"
+    CONFIRM = "confirm"
+
+
+Step = Command | Callable[[], Awaitable[Result]]  # what a confirm card runs on Allow
 
 
 def messages_only(keys: Iterable[str]) -> bool:
@@ -134,6 +132,9 @@ class Card:
     adds: bool = False  # grant: an agent's own request, whose items join the grant's added ones
     remember: bool = True  # message: Always allow (False: Allow once), from the answer
     notes: tuple[AccessNote, ...] = ()
+    step: Step | None = None  # confirm: what runs on Allow
+    result: Result | None = None  # confirm: the step's outcome (or the refusal)
+    tell: bool = True  # confirm: tell the caller by a note (False: it awaits the result itself)
     reviewed: bool | None = None
     shown: bool = False
     task: asyncio.Task | None = None
@@ -158,16 +159,25 @@ class PermissionsHandler:
     """The core's permissions handler. `send`, `publish`, `find`: the router's, the bus's and the
     container's (`get_one`). Config (`[core.permissions]`, every key optional): `from_config`."""
 
+    #: The events it publishes (the card events), part of what the core offers (`App.PUBLISHES`).
+    PUBLISHES = (PermissionRequested, PermissionChanged)
+
     def __init__(self, send: Callable[[Command], Awaitable[Result]], publish: Callable[[Event], None],
                  find: Callable[[type], Any], grants_file: Path = GRANTS_FILE, reviewer: str = REVIEWER,
                  review_timeout: float = REVIEW_TIMEOUT, answer_timeout: float = ANSWER_TIMEOUT,
-                 you: Iterable[str] = YOU, log: logging.Logger | None = None) -> None:  # fmt: skip
+                 you: Iterable[str] = YOU, log: logging.Logger | None = None,
+                 mode_of: Callable[[str], PermissionMode] | None = None,
+                 config_dir: Path | None = None) -> None:  # fmt: skip
+        """`config_dir`: the app's config folder in use; it joins the protected zone (writes
+        refused on every list, reads allowed), so an outside ASSISTANT_CONFIG_DIR is protected too."""
         self._send = send
+        # Each agent's mode, from the core's Callers port (D2); none given: everyone is in Manual.
+        self._mode_of = mode_of or (lambda _agent_id: PermissionMode.MANUAL)
         self._publish = publish
         self._find = find
         self._log = log or logging.getLogger(__name__)
         self.store = GrantStore(grants_file, self._log)
-        self._protected = protected_paths(grants_file)
+        self._protected = protected_paths(grants_file, config_dir)
         self._reviewer = reviewer
         self._review_timeout = review_timeout
         self._answer_timeout = answer_timeout
@@ -175,8 +185,7 @@ class PermissionsHandler:
         self._cards: dict[str, Card] = {}
         self._asking: dict[tuple[str, str], Card] = {}
         self._last: dict[tuple[str, str], str] = {}  # the fingerprint asked this launch
-        self._reviews: dict[str, asyncio.Future] = {}
-        self._finals: OrderedDict[str, tuple[TaskState, str]] = OrderedDict()
+        self._reviews: dict[str, asyncio.Future] = {}  # card id -> its review's (notes, reviewed)
         self._work: set[asyncio.Task] = set()
         self._agents: dict[str, tuple[str, str]] = {}  # agent id -> (its module, the subject of its grant)
         # An answered card's handler, by its action (principle 20).
@@ -185,13 +194,16 @@ class PermissionsHandler:
             CardAction.GRANT: self._apply_grant,
             CardAction.REVOKE: self._apply_revoke,
             CardAction.MESSAGE: self._apply_message,
+            CardAction.CONFIRM: self._apply_confirm,
         }
 
     @classmethod
-    def from_config(cls, config: dict[str, Any], send, publish, find) -> PermissionsHandler:
-        """From `[core.permissions]`: `grants_file` (default `config/permissions.toml` in the repo,
+    def from_config(cls, config: dict[str, Any], send, publish, find, mode_of=None,
+                    config_dir: Path | None = None) -> PermissionsHandler:  # fmt: skip
+        """`config_dir`: the app's config folder, protected like `config/` (passed on to the handler).
+        From `[core.permissions]`: `grants_file` (default `config/permissions.toml` in the repo,
         the protected zone; relative to the repo), `reviewer` (the agent that reviews a list before the
-        card shows; empty for none), `review_timeout`, `answer_timeout`, and `you` (the callers that
+        card shows, named in `ReviewAccessList`; empty for none), `review_timeout`, `answer_timeout`, and `you` (the callers that
         are you clicking in a UI; anyone else's grant or revoke shows you a card). At startup, a
         missing grants file is copied once from the old one (`copy_old_grants`), which stays."""
         grants_file = Path(config.get("grants_file") or GRANTS_FILE)
@@ -201,7 +213,7 @@ class PermissionsHandler:
         return cls(send, publish, find, grants_file, reviewer=str(config.get("reviewer", REVIEWER)),
                    review_timeout=float(config.get("review_timeout", REVIEW_TIMEOUT)),
                    answer_timeout=float(config.get("answer_timeout", ANSWER_TIMEOUT)),
-                   you=tuple(config.get("you", YOU)))  # fmt: skip
+                   you=tuple(config.get("you", YOU)), mode_of=mode_of, config_dir=config_dir)  # fmt: skip
 
     # --- what ctx.permissions forwards ---
 
@@ -267,6 +279,29 @@ class PermissionsHandler:
             self._drop(card, f"{agent_id}'s request to {item.label} was withdrawn")
             raise
 
+    async def confirm(self, module_id: str, caller: str, what: str, step: Step, reason: str = "",
+                      wait: bool = False, risky: bool = False) -> Result:  # fmt: skip
+        """Ask you yes or no before `step` (`what`: "modules.add (package: x)"); see the module
+        notes. `you` callers run at once; `risky` steps also for a caller in Auto. `wait=False`
+        returns "Asked the user on a card" (the router's timeout would cut a waiting call); the
+        outcome reaches `caller` as a notice. `wait=True` returns the step's `Result`."""
+        if caller in self._you or (risky and await self._in_auto(caller)):
+            return await self._run_step(step)
+        text = what + (f": {reason}" if reason else "")
+        card = Card(module_id, module_id, CardAction.CONFIRM, (), text, caller, step=step, tell=not wait)
+        self._open(card)
+        self._log.info("%s asks the user to confirm: %s (card %s)", caller or module_id, what, card.id)
+        if not wait:
+            return Result.ok(f"Asked the user on a card ({card.id}) to confirm {what}; the answer reaches you as a note")
+        try:
+            await asyncio.shield(card.outcome)
+        except AccessDenied as exc:
+            return Result.failed(str(exc))
+        except asyncio.CancelledError:
+            self._drop(card, f"{caller or module_id}'s request to {what} was withdrawn")
+            raise
+        return card.result or Result.failed(f"{what}: no outcome")
+
     def open_cards(self) -> int:
         return len(self._cards)
 
@@ -286,16 +321,13 @@ class PermissionsHandler:
         card.reply.set_result(tuple(offered if cmd.keep is None else cmd.keep))
         return Result.ok("allowed")
 
-    async def on_task_updated(self, event: TaskUpdated) -> None:
-        if not event.state.is_final:
-            return
-        future = self._reviews.get(event.task_id)
-        if future is not None and not future.done():
-            future.set_result((event.state, event.text))
-            return
-        self._finals[event.task_id] = (event.state, event.text)
-        while len(self._finals) > FINALS_KEPT:
-            self._finals.popitem(last=False)
+    async def add_notes(self, cmd: AddCardNotes) -> Result:
+        """`AddCardNotes`: a review's outcome for a card waiting on it (D6)."""
+        future = self._reviews.get(cmd.request_id)
+        if future is None or future.done():
+            return Result.invalid_arguments(f"No card {cmd.request_id!r} waits for a review")
+        future.set_result((cmd.notes, cmd.reviewed))
+        return Result.ok("noted")
 
     # --- the grant calls ---
 
@@ -409,18 +441,12 @@ class PermissionsHandler:
 
     async def _in_auto(self, caller: str) -> bool:
         """Whether `caller`'s worker and Talker pair is in Auto: the one place the handler reads a
-        mode. `talker:<id>` is `<id>`'s pair. You, nobody, an unknown agent or a failed lookup: no."""
+        mode. `talker:<id>` is `<id>`'s pair; the main tab's plain `talker` has no pair here, so it
+        always gets the card. You, nobody or an unknown agent: no. The mode is the
+        core's Callers port's (only you set Auto there), never what an agent says of itself."""
         if not caller or caller in self._you:
             return False
-        agent_id = caller.removeprefix(TALKER_PREFIX)
-        try:
-            result = await self._send(ListAgents())
-        except Exception as exc:
-            self._log.warning("Couldn't read %s's permission mode: %s", agent_id, exc)
-            return False
-        infos = result.value if result.is_ok and result.value else []
-        mode = next((getattr(i, "permission_mode", None) for i in infos if getattr(i, "agent_id", None) == agent_id), None)
-        return mode is PermissionMode.AUTO
+        return self._mode_of(caller.removeprefix(TALKER_PREFIX)) is PermissionMode.AUTO
 
     def _changed(self, module_id: str, subject: str, text: str, request_id: str = "",
                  granted: tuple[AccessItem, ...] = ()) -> None:  # fmt: skip
@@ -529,6 +555,30 @@ class PermissionsHandler:
         self._changed(card.module_id, card.subject, text, card.id, saved.granted_items() if saved else ())
         self._settle(card, (item,))
 
+    async def _apply_confirm(self, card: Card, keep: tuple[str, ...] | None, late: str) -> None:
+        """A confirm card: Allow runs the step; Deny (or no answer) runs nothing. You and the
+        caller (by a note, unless it awaits the result) are told the outcome."""
+        if keep is None:
+            card.result = Result.failed(f"The user said no to {card.reason}{late}; nothing ran.")
+        else:
+            card.result = await self._run_step(card.step)
+        result = card.result
+        text = (f"The user allowed {card.reason}: " + (str(result.value) if result.value else "done.")) if result.is_ok \
+            else (result.error if keep is None else f"The user allowed {card.reason}, but it failed: {result.error}")
+        self._changed(card.module_id, card.subject, text, card.id)
+        if card.caller and card.tell:
+            await self._notify(card.caller, text)
+        self._settle(card, ())
+
+    async def _run_step(self, step: Step | None) -> Result:
+        if step is None:
+            return Result.failed("nothing to run")
+        try:
+            return await (self._send(step) if isinstance(step, Command) else step())
+        except Exception as exc:
+            self._log.exception("A confirmed step failed")
+            return Result.failed(f"it failed: {exc}")
+
     async def _close_agent_card(self, card: Card, keep: tuple[str, ...] | None, late: str,
                                 act: Callable[[], Awaitable[str]]) -> None:  # fmt: skip
         """An agent's grant or revoke card was answered: carry it out on Allow, then tell you and the agent."""
@@ -538,8 +588,15 @@ class PermissionsHandler:
             text = await act()
         self._changed(card.module_id, card.subject, text, card.id)
         if card.caller:
-            self._publish(AgentNotice(agent_id=card.caller, text=text, source="permissions"))
+            await self._notify(card.caller, text)
         self._settle(card, ())
+
+    async def _notify(self, agent_id: str, text: str) -> None:
+        """A note for `agent_id`'s next turn: `AgentNotice`, a command the Hub handles (D5). No
+        Hub (a bare test app): logged only."""
+        result = await self._send(AgentNotice(agent_id=agent_id, text=text, source="permissions"))
+        if not result.is_ok:
+            self._log.info("No note reached %s (%s): %s", agent_id, result.error, text)
 
     async def _apply_access(self, card: Card, keep: tuple[str, ...] | None, late: str) -> None:
         # Items its agent asked for itself stay granted when its config list asks again.
@@ -566,35 +623,29 @@ class PermissionsHandler:
                 self._log.warning("%s was allowed but didn't turn on: %s", card.module_id, result.error)
 
     async def _review(self, card: Card, notes: Sequence[AccessNote]) -> list[AccessNote] | None:
-        """The reviewer's extra notes, or None when it's busy or didn't answer in time."""
-        prompt = REVIEW_PROMPT.format(
-            who=card.who, reason=f" ({card.reason})" if card.reason else "",
-            items="\n".join(f"- {i.label}" for i in card.items) or "- (nothing)",
-            warnings="\n".join(f"- {n.text}" for n in notes) or "- (none)",
-        )  # fmt: skip
-        started = await self._send(StartTask(text=prompt, agent_id=self._reviewer))
-        if not started.is_ok:
-            self._log.info("%s's list is not reviewed: %s", card.who, started.error)
-            return None
-        task_id = str(started.value)
+        """The reviewer's extra notes, or None when there's no reviewer, it's busy, or it didn't
+        answer in time. The core only asks (`ReviewAccessList`) and waits for `AddCardNotes`."""
         future = asyncio.get_running_loop().create_future()
-        self._reviews[task_id] = future
+        self._reviews[card.id] = future
         try:
-            if task_id in self._finals:
-                state, text = self._finals.pop(task_id)
-            else:
-                state, text = await asyncio.wait_for(future, self._review_timeout)
-        except TimeoutError:
-            await self._send(CancelTask(task_id=task_id))
-            self._log.info("%s's list is not reviewed: no answer in %gs", card.who, self._review_timeout)
-            return None
+            asked = await self._send(ReviewAccessList(
+                request_id=card.id, reviewer=self._reviewer, who=card.who, reason=card.reason,
+                items=tuple(i.label for i in card.items), warnings=tuple(n.text for n in notes),
+                timeout=self._review_timeout,
+            ))  # fmt: skip
+            if not asked.is_ok and not future.done():
+                self._log.info("%s's list is not reviewed: %s", card.who, asked.error)
+                return None
+            try:
+                lines, reviewed = await asyncio.wait_for(future, self._review_timeout + REVIEW_GRACE)
+            except TimeoutError:
+                self._log.info("%s's list is not reviewed: no answer in %gs", card.who, self._review_timeout)
+                return None
         finally:
-            self._reviews.pop(task_id, None)
-        if state is not TaskState.DONE:
+            self._reviews.pop(card.id, None)
+        if not reviewed:
             return None
-        lines = [line.strip().lstrip("-* ").strip() for line in (text or "").splitlines()]
-        lines = [line[:300] for line in lines if line and NO_FURTHER not in line.lower()]
-        return [AccessNote(text=line, source="review") for line in lines[:MAX_REVIEW_LINES]]
+        return [AccessNote(text=line[:300], source="review") for line in lines[:MAX_REVIEW_LINES] if line.strip()]
 
     def _one_grant(self, module_id: str, subject: str) -> Grant | Result:
         grants = self.store.of(module_id)
@@ -645,7 +696,7 @@ class PermissionsHandler:
         if await self._state(module_id) is not ModuleState.ACTIVE:
             return f"{module_id}'s grant was taken back; it was off, and it asks again when turned on."
         stopped = await self._stop_tasks(module_id)
-        result = await self._send(DeactivateModule(module_id=module_id, with_dependents=True))
+        result = await self._send(DeactivateModule(module_id=module_id))  # only it: its dependents stay on
         if not result.is_ok:
             return f"{module_id}'s grant was taken back, but it didn't turn off: {result.error}"
         tail = "; its running task was stopped." if stopped == 1 else f"; {stopped} running tasks were stopped." if stopped else "."

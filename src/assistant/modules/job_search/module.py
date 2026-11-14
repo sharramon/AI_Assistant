@@ -23,12 +23,21 @@ yet: today the notice says so, and the job agent runs the project's `company-swe
 `job.open_ui` starts the job project's job UI if needed and opens its window on the Tracker
 (`ui.py`: `JobUi`, through `CompanionHandover`, kept across a reload like the CV Tool).
 
-cv's results reach the agent through cv's named events, never a direct message: the agent hands a
-job to cv with the `cv.task` tool; cv publishes `cv.job_finished` when its worker's task ends and
-`cv.job_submitted` at the user's Submit. This module subscribes to both, keeps the ones whose
-`reply_to` is its agent, and wakes the agent with a `DeliverMessage` (`cv_finished_text`,
-`cv_submitted_text`), never into a running turn. The agent then updates the job's tracker row as
-its project's skills say; the module writes nothing into the job project.
+cv stays off until the agent needs a CV (job_search's `needs` is empty: turning it on turns on only
+job_search). Then the agent calls `job.tailor_cv` (only it may), which answers at once; in the
+background this module turns cv on (`ActivateModule`: in Manual the user gets cv_agent's access card
+now, and the module waits for cv to be on, up to `cv_wait` seconds, or stops at a Deny), then sends
+`cv.task` for its agent (`for_agent`, allowed by cv's `[hand_off] modules`) and tells the agent the
+outcome with a `DeliverMessage`. If cv can't come on or refuses the job, that message asks the agent
+to ask the user whether to go on with the base PDF untailored.
+
+cv's results reach the agent through cv's named events, never a direct message: cv publishes
+`cv.job_finished` when its worker's task ends and `cv.job_submitted` at the user's Submit, with
+`reply_to` the job agent. This module subscribes to both from its start (a named event is matched by
+name, so cv may be off then), keeps the ones whose `reply_to` is its agent, and wakes the agent with
+a `DeliverMessage` (`cv_finished_text`, `cv_submitted_text`), never into a running turn. The agent
+then updates the job's tracker row as its project's skills say; the module writes nothing into the
+job project.
 
 The project's `handoff.ps1` is replaced by the agent's `HANDOFF:` line (a fresh session for the
 same job only; a finished job ends with a plain report, so the task ends as done), and the
@@ -38,17 +47,24 @@ project never submits or sends anything: the prompt says both.
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+from pathlib import Path
 from typing import Any
 
 from assistant.contracts import (
+    ActivateModule,
     AgentNotice,
     DeliverMessage,
+    InvokeTool,
     ITaskAgent,
     Manifest,
     Menu,
     ModuleContext,
     ModuleEvent,
     ModuleProtocol,
+    ModuleState,
+    ModuleStateChanged,
     PermissionChanged,
     Result,
 )
@@ -59,6 +75,8 @@ from assistant.infra import (
     AGENT_USES,
     AgentKit,
     ProfileAgent,
+    copy_data_once,
+    data_folder,
     in_module_folder,
 )
 from assistant.modules.job_search.ui import JobUi, ui_settings
@@ -67,12 +85,14 @@ MODULE_ID = "job_search"
 
 
 def job_config(config: dict[str, Any]) -> dict[str, Any]:
-    """The agent's config with its folders resolved: `workspace` (default `workspace`: this module's
-    own `workspace/`, gitignored) and `documents` (your CV folder, read and write; none by default)
-    added to `write_dirs`, both relative from this module's folder when relative. ValueError if
-    `documents` isn't a string."""
+    """The agent's config with its folders resolved: `workspace` (your `data_folder` when set, outside
+    the repo; else `workspace`, default this module's own `workspace/`, gitignored) and `documents`
+    (your CV folder, read and write; none by default) added to `write_dirs`, both relative from this
+    module's folder when relative. ValueError if `documents` isn't a string or `data_folder` is wrong."""
     config = dict(config)
-    config["workspace"] = str(in_module_folder(MODULE_ID, config.get("workspace") or "workspace"))
+    data = data_folder(MODULE_ID, config)
+    config.pop("data_folder", None)
+    config["workspace"] = str(data or own_workspace(config))
     documents = config.pop("documents", "") or ""
     if not isinstance(documents, str):
         raise ValueError(f"job_search: documents must be a folder, not {documents!r}")
@@ -81,6 +101,39 @@ def job_config(config: dict[str, Any]) -> dict[str, Any]:
         writes = [str(d) for d in config.get("write_dirs", [])]
         config["write_dirs"] = writes if folder in writes else [*writes, folder]
     return config
+
+def own_workspace(config: dict[str, Any]) -> Path:
+    """The workspace a data folder replaces (`workspace`, default this module's own `workspace/`)."""
+    return in_module_folder(MODULE_ID, config.get("workspace") or "workspace")
+
+
+def copy_job_data(config: dict[str, Any]) -> bool:
+    """Your data folder's first use (`data_folder` set, the folder missing or empty): the old
+    workspace copied in (`copy_data_once`, never moved or deleted), then the copy's `job_paths.json`
+    made to still point where it did: each relative path (the `cv_output` link into cv's workspace)
+    written absolute, from the old workspace. True when it copied."""
+    data = data_folder(MODULE_ID, config)
+    if data is None or not copy_data_once(own_workspace(config), data):
+        return False
+    fix_copied_paths(own_workspace(config), data)
+    return True
+
+
+def fix_copied_paths(old: Path, new: Path) -> None:
+    """Rewrite the relative paths of `new/job_paths.json` (a copy of `old`'s) as absolute ones from
+    `old`, so the copied scripts find the same folders. A missing or unreadable file is left alone."""
+    file = new / "job_paths.json"
+    try:
+        paths = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(paths, dict):
+        return
+    for key, value in paths.items():
+        if isinstance(value, str) and value and not Path(os.path.expanduser(value)).is_absolute():
+            paths[key] = Path(os.path.normpath(old / value)).as_posix()
+    file.write_text(json.dumps(paths, indent=2) + "\n", encoding="utf-8")
+
 
 menu = Menu()
 
@@ -110,6 +163,51 @@ SEARCH_STUB = ("job.search: the search runner isn't built yet, so nothing ran ({
 
 CV_FINISHED = "cv.job_finished"  # cv's worker ended a job's task (cv's handoff.job_finished has the data)
 CV_SUBMITTED = "cv.job_submitted"  # the user pressed Submit in the CV Tool (cv's reply.job_submitted)
+CV = "cv"  # the module job.tailor_cv turns on and hands the job to
+CV_WAIT = 600.0  # seconds job.tailor_cv waits for cv to come on (your answer on cv_agent's card); `cv_wait`
+PENDING_CARD = "access card"  # in the error of a start that waits on its card (the core's AccessPending text)
+
+_TAILOR_ARGS = {
+    "company": {"type": "string", "minLength": 1, "description": "The job's company"},
+    "role": {"type": "string", "minLength": 1, "description": "The job's title"},
+    "base_cv": {"type": "string", "minLength": 1, "description": "The chosen base CV, a .pdf (its path)"},
+    "jd_text": {"type": "string", "description": "The job description as text; or give jd_file"},
+    "jd_file": {"type": "string", "description": "The job description as a file cv may read"},
+    "jd_url": {"type": "string", "description": "The posting"},
+    "degree_first": {"type": "boolean", "description": "Education under Skills (unset: cv's worker decides)"},
+    "target_score": {"type": "integer", "minimum": 1, "maximum": 100, "description": "The ATS score to reach"},
+    "notes": {"type": "string", "description": "Anything else for cv's worker"},
+}  # fmt: skip
+
+TAILOR_STARTED = ("The job module is turning cv on (in Manual the user gets cv_agent's access card now) and hands "
+                  "it the CV job for {role} at {company}; the outcome reaches you as a message. Nothing more to "
+                  "call: carry on with the form, or end your turn.")  # fmt: skip
+
+
+def cv_taken_text(args: dict[str, Any], value: Any) -> str:
+    """The agent's message when cv took the job: who has it, its task, and what comes next."""
+    value = value if isinstance(value, dict) else {}
+    task = value.get("task_id") or "?"
+    return (f"cv has the CV job for {args['role']} at {args['company']}: {value.get('agent_id') or 'cv_agent'} is "
+            f"on it (task {task}, your child task). Its end (cv.job_finished) and the user's Submit in the CV Tool "
+            f"(cv.job_submitted) reach you as messages; the whole result: cv.read_result task_id={task}. "
+            "Don't call cv.task for this job.")  # fmt: skip
+
+
+def cv_untailored_text(args: dict[str, Any], why: str) -> str:
+    """The agent's message when cv couldn't take the job: why, and the question for the user."""
+    return (f"cv couldn't take the CV job for {args['role']} at {args['company']}: {why}. Ask the user (a NEED: "
+            f"line) whether to go on with the chosen base PDF untailored ({args['base_cv']}).")  # fmt: skip
+
+
+class _CvWait:
+    """One job.tailor_cv waiting for cv to come on: what cv's state events and grants said."""
+
+    def __init__(self) -> None:
+        self.changed = asyncio.Event()
+        self.state: ModuleState | None = None  # cv's last state seen
+        self.starts = 0  # cv's STARTING events seen: the first is our own try, a second the start after Allow
+        self.denied = ""  # the text of a PermissionChanged for cv with nothing granted (Deny, or the card closed)
 
 
 def cv_finished_text(data: dict[str, Any]) -> str:
@@ -139,9 +237,11 @@ class JobSearchModule(ModuleProtocol):
         description="The job agent (applies to jobs, runs searches in the job project), with its job.* menu",
         provides=(ITaskAgent,),
         uses=AGENT_USES,
-        sends=(*AGENT_SENDS, DeliverMessage,),  # DeliverMessage: wakes its agent with cv's events
-        publishes=(*AGENT_PUBLISHES, AgentNotice,),
-        listens=(*AGENT_LISTENS, PermissionChanged,),
+        # DeliverMessage: wakes its agent with cv's events; ActivateModule, InvokeTool: job.tailor_cv turns cv on and sends cv.task
+        # AgentNotice: job.search's result for its caller's next turn
+        sends=(*AGENT_SENDS, DeliverMessage, ActivateModule, InvokeTool, AgentNotice),
+        publishes=AGENT_PUBLISHES,
+        listens=(*AGENT_LISTENS, PermissionChanged),  # ModuleStateChanged (in AGENT_LISTENS) and PermissionChanged: job.tailor_cv's wait for cv
         listens_named=(CV_FINISHED, CV_SUBMITTED),
         permissions=("agent.access",),
     )
@@ -149,8 +249,11 @@ class JobSearchModule(ModuleProtocol):
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
-        config = job_config(ctx.config)
+        config = job_config(ctx.config)  # a bad config stops the module here, with the reason
+        await asyncio.to_thread(copy_job_data, ctx.config)  # your data folder's first use (never a move)
         self._agent_id = str(config.pop("agent_id", f"{self.manifest.id}_agent"))
+        self._cv_wait = float(config.pop("cv_wait", CV_WAIT))
+        self._cv_waits: set[_CvWait] = set()
         config.setdefault("description", "The job agent: applies to one job per session and runs job searches. "
                           + UI_SHORTCUT)  # fmt: skip
         ui = ui_settings(config.pop("ui", {}), str(config.get("workspace", "")), str(config.get("python", "")))
@@ -163,6 +266,23 @@ class JobSearchModule(ModuleProtocol):
         self._kit.follow_grant(self._agent_id, config)
         ctx.subscribe_named(CV_FINISHED, self._on_cv)
         ctx.subscribe_named(CV_SUBMITTED, self._on_cv)
+        ctx.subscribe(ModuleStateChanged, self._on_cv_state)
+        ctx.subscribe(PermissionChanged, self._on_cv_grant)
+
+    async def _on_cv_state(self, event: ModuleStateChanged) -> None:
+        if event.module_id != CV:
+            return
+        for wait in self._cv_waits:
+            wait.state = event.state
+            wait.starts += event.state is ModuleState.STARTING
+            wait.changed.set()
+
+    async def _on_cv_grant(self, event: PermissionChanged) -> None:
+        if event.module_id != CV or event.granted:
+            return
+        for wait in self._cv_waits:
+            wait.denied = event.text or "the user denied cv_agent's access card"
+            wait.changed.set()
 
     async def _on_cv(self, event: ModuleEvent) -> None:
         """One of cv's events for this module's agent (`reply_to`): wake it with one message."""
@@ -190,7 +310,7 @@ class JobSearchModule(ModuleProtocol):
 
     def busy(self) -> str | None:
         """A reload restarts the agent, so it waits while it has a task or a search runs."""
-        return self._kit.busy() or ("a job search is running" if self._work else None)
+        return self._kit.busy() or ("a job search or a CV hand-off is running" if self._work else None)
 
     def export_state(self) -> Any:
         """The running job UI, for the new copy (kept: its window stays)."""
@@ -219,4 +339,61 @@ class JobSearchModule(ModuleProtocol):
 
     async def _search(self, days: int, caller: str) -> None:
         # The real runner (sweep.py with JobRadar's Python) goes here; see the job-agent note.
-        self._ctx.publish(AgentNotice(agent_id=caller, text=SEARCH_STUB.format(days=days), source="job.search"))
+        await self._ctx.send(AgentNotice(agent_id=caller, text=SEARCH_STUB.format(days=days), source="job.search"))
+
+    @menu.item("job.tailor_cv", "Hands one job's CV to cv (only the job agent): answers at once; the job module "
+               "turns cv on (cv_agent's access card is asked then), sends it the base PDF and the JD, and tells you "
+               "the outcome as a message. cv's end and the user's Submit come later as messages too",
+               _TAILOR_ARGS, required=["company", "role", "base_cv"])  # fmt: skip
+    async def tailor_cv(self, company: str, role: str, base_cv: str, caller: str = "", **rest: Any) -> Result:
+        if caller != self._agent_id:
+            return Result.not_available(f"job.tailor_cv is only for {self._agent_id}")
+        args = {"company": company, "role": role, "base_cv": base_cv, **rest}
+        task = asyncio.create_task(self._tailor(args))
+        self._work.add(task)
+        task.add_done_callback(self._work.discard)
+        return Result.ok(TAILOR_STARTED.format(role=role, company=company))
+
+    async def _tailor(self, args: dict[str, Any]) -> None:
+        """Turn cv on, send it `cv.task` for the agent, and tell the agent the outcome."""
+        why = await self._cv_on()
+        if why is None:
+            sent = await self._ctx.send(InvokeTool(name="cv.task", args={**args, "for_agent": self._agent_id}))
+            text = cv_taken_text(args, sent.value) if sent.is_ok else cv_untailored_text(args, sent.error or "refused")
+        else:
+            text = cv_untailored_text(args, why)
+        told = await self._ctx.send(DeliverMessage(agent_id=self._agent_id, text=text, sender="job_search"))
+        self._ctx.log.info("job.tailor_cv for %s at %s: %s -> %s", args["role"], args["company"],
+                           "taken" if text.startswith("cv has") else "untailored",
+                           told.value if told.is_ok else f"failed: {told.error}")  # fmt: skip
+
+    async def _cv_on(self) -> str | None:
+        """Turn cv on; None once it's on, else why not. A start that waits on cv_agent's access card
+        waits for your answer (cv on: done; a Deny or a closed card: why), up to `cv_wait` seconds."""
+        wait = _CvWait()
+        self._cv_waits.add(wait)
+        try:
+            started = await self._ctx.send(ActivateModule(module_id=CV))
+            if started.is_ok:
+                return None
+            if PENDING_CARD not in (started.error or ""):
+                return f"cv didn't turn on: {started.error}"
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self._cv_wait
+            while True:
+                if wait.state is ModuleState.ACTIVE:
+                    return None
+                if wait.denied:
+                    return f"cv_agent's access card wasn't allowed: {wait.denied}"
+                if wait.starts >= 2 and wait.state is ModuleState.FAILED:  # the start after your Allow failed
+                    return "cv was allowed but didn't start (see the log)"
+                left = deadline - loop.time()
+                if left <= 0:
+                    return f"no answer on cv_agent's access card in {self._cv_wait:g} seconds"
+                wait.changed.clear()
+                try:
+                    await asyncio.wait_for(wait.changed.wait(), left)
+                except TimeoutError:
+                    pass
+        finally:
+            self._cv_waits.discard(wait)
