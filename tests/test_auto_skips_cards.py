@@ -1,6 +1,6 @@
 """Rule 1 of auto-skips-cards: an agent in Auto gets no permission cards. The handler reads each
 worker and Talker pair's own mode (`_in_auto`, with `ListAgents`); the agent's gate runs an
-approval at once in Auto. Manual, unknown callers and a failed lookup still get the card."""
+approval at once in Auto. Manual and unknown callers still get the card."""
 
 import asyncio
 import logging
@@ -13,7 +13,6 @@ from assistant.contracts import (
     AccessPending,
     ActivateModule,
     AgentInfo,
-    ListAgents,
     PermissionMode,
     PermissionRequested,
     ReportKind,
@@ -29,19 +28,18 @@ AGENTS = [AgentInfo(agent_id="job", description="", permission_mode=PermissionMo
           AgentInfo(agent_id="mgr", description="", permission_mode=PermissionMode.MANUAL)]  # fmt: skip
 
 
-def handler_of(tmp_path, broken: bool = False):
+def handler_of(tmp_path):
     published, sent = [], []
 
     async def send(command):
         sent.append(command)
-        if isinstance(command, ListAgents):
-            if broken:
-                raise RuntimeError("no hub")
-            return Result.ok(AGENTS)
         return Result.ok([])
 
+    def mode_of(agent_id: str) -> PermissionMode:  # the core's Callers port, stood in for
+        return next((a.permission_mode for a in AGENTS if a.agent_id == agent_id), PermissionMode.MANUAL)
+
     handler = PermissionsHandler(send, published.append, lambda t: None, tmp_path / "permissions.toml",
-                                 reviewer="", you=("ui",))  # fmt: skip
+                                 reviewer="", you=("ui",), mode_of=mode_of)  # fmt: skip
     return handler, published, sent
 
 
@@ -70,13 +68,6 @@ async def test_manual_unknown_or_you_still_get_the_card(tmp_path, caller):
     asking.cancel()
     await handler.close()
 
-
-async def test_a_failed_mode_lookup_shows_the_card(tmp_path):
-    handler, published, _ = handler_of(tmp_path, broken=True)
-    asking = asyncio.create_task(handler.ask("agent_hub", "job", chrome()))
-    await wait_until(lambda: cards(published))
-    asking.cancel()
-    await handler.close()
 
 
 async def test_an_access_list_turned_on_by_an_auto_agent_has_no_card_and_saves_nothing(tmp_path):

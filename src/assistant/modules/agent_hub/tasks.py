@@ -29,12 +29,12 @@ from assistant.contracts import (
     CancelTask,
     GetTaskStatus,
     ITaskAgent,
+    PermissionModeChanged,
     QuestionKind,
     ReportKind,
     ReportTask,
     Result,
     SendToTask,
-    SetPermissionMode,
     StartTask,
     Status,
     Task,
@@ -399,18 +399,17 @@ class TaskBoard:
             self._updated(record, None, "permission allowed" if command.allow else "permission denied")
         return result
 
-    async def set_mode(self, command: SetPermissionMode) -> Result:
-        agent = self._agent(command.agent_id)
-        if agent is None:
-            return Result.invalid_arguments(f"No agent {command.agent_id!r}")
-        result = await agent.set_permission_mode(command.mode)
-        record = next((r for r in self.open_records() if r.agent_id == command.agent_id
+    async def on_mode_changed(self, event: PermissionModeChanged) -> None:
+        """A switch to Auto (the core's `SetPermissionMode`) answered the agent's open card: the
+        task is active again and its card closes."""
+        if not event.answered:
+            return
+        record = next((r for r in self.open_records() if r.agent_id == event.agent_id
                        and r.question_kind is QuestionKind.PERMISSION), None)  # fmt: skip
-        if result.is_ok and result.value is True and record is not None:  # Auto answered its open card
+        if record is not None:
             record.state = TaskState.ACTIVE
             record.answered()
             self._updated(record, None, "permission allowed (Auto)")
-        return result
 
     # --- inside ---
 

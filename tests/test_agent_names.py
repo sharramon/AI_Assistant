@@ -26,12 +26,12 @@ from assistant.contracts import (
     Status,
 )
 from assistant.core import App
+from assistant.core.callers import RESERVED_AGENT_IDS
 from assistant.infra import check_agent_id, free_agent_id
 from assistant.modules.agent_hub import AgentHubModule
-from assistant.modules.agent_hub.module import RESERVED_AGENT_IDS
 from assistant.modules.job_search import JobSearchModule
 from assistant.modules.task_agents.tests.test_task_agents import agent, start_app
-from assistant.testkit import FAKE, FakeAgent, module_config, next_matching, pre_grant, report, stand_in, wait_until
+from assistant.testkit import FAKE, FakeAgent, module_config, next_matching, pre_grant, report, wait_until
 
 # --- the rules ---
 
@@ -40,7 +40,7 @@ def test_check_agent_id_form_reserved_and_module_ids():
     assert check_agent_id("flight_search") is None
     for bad in ("Flight", "flight-search", "2nd", "", "a" * 33):
         assert "isn't a valid agent id" in check_agent_id(bad)
-    assert RESERVED_AGENT_IDS == {"talker", "core", "hub"}  # the Hub's; it adds its coordinator
+    assert RESERVED_AGENT_IDS == {"talker", "core", "hub"}  # the core's
     assert check_agent_id("talker") is None  # the shared rules reserve nothing themselves
     assert "reserved" in check_agent_id("talker", reserved=RESERVED_AGENT_IDS)
     assert check_agent_id("main_assistant", owner="main_assistant") is None  # its own module's agent
@@ -59,8 +59,7 @@ def test_free_agent_id_counts_up_with_underscores():
 
 async def start_hub(*modules, config: dict | None = None) -> App:
     ids = ["agent_hub", *(m.manifest.id for m in modules)]
-    needed = [stand_in("cv")] if JobSearchModule in modules else []  # job_search needs cv
-    app = App([AgentHubModule, *needed, *modules],
+    app = App([AgentHubModule, *modules],
               {"modules": {"enabled": ids, "agent_hub": {"door": False}, **(config or {})}, "core": {}})  # fmt: skip
     if job := (config or {}).get("job_search"):
         pre_grant(app, "job_search", "job_search_agent", module_config("job_search", job))
@@ -110,7 +109,7 @@ async def test_the_job_agent_claims_its_default_name_and_frees_it(tmp_path):
 
 
 async def test_a_module_id_as_agent_id_stops_the_module(tmp_path):
-    app = App([AgentHubModule, stand_in("cv"), JobSearchModule],
+    app = App([AgentHubModule, JobSearchModule],
               {"modules": {"enabled": ["agent_hub", "job_search"], "agent_hub": {"door": False},
                            **job_config(tmp_path, agent_id="agent_hub")}, "core": {}})  # fmt: skip
     pre_grant(app, "job_search", "agent_hub", module_config("job_search", job_config(tmp_path)["job_search"]))

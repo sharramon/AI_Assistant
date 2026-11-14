@@ -1,4 +1,4 @@
-"""Chunk 13: the Agent Hub's parts on their own (`TaskBoard`, `Focus`, `AgentNames`) and the
+﻿"""Chunk 13: the Agent Hub's parts on their own (`TaskBoard`, `Focus`) and the
 Talker's two menu items (`hub.answer`, `hub.mode`), with their caller checks."""
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ from assistant.contracts import (
     TaskState,
     TaskUpdated,
 )
+from assistant.core.callers import RESERVED_AGENT_IDS, Callers
 from assistant.modules.agent_hub.focus import Focus
 from assistant.modules.agent_hub.module import AgentHubModule, menu
-from assistant.modules.agent_hub.names import RESERVED_AGENT_IDS, AgentNames
 from assistant.modules.agent_hub.tasks import TaskBoard
 
 LOG = logging.getLogger("hub-parts")
@@ -133,10 +133,7 @@ async def test_the_focus_falls_back_to_the_coordinator_when_its_agent_is_gone() 
 
 
 async def test_agent_names_claims_once_and_offers_a_free_id() -> None:
-    async def send(command) -> Result:
-        return Result.ok([SimpleNamespace(id="agent_hub")])
-
-    names = AgentNames(SimpleNamespace(send=send, log=LOG), {}, RESERVED_AGENT_IDS | {"main"})
+    names = Callers(lambda: ["agent_hub"], reserved=RESERVED_AGENT_IDS | {"main"})
     assert (await names.claim("scout", "task_agents")).is_ok
     assert (await names.claim("scout", "task_agents")).is_ok  # a repeat claim by its holder
     taken = await names.claim("scout", "job_search")
@@ -153,6 +150,14 @@ async def test_the_talkers_answer_and_mode_items_check_their_caller() -> None:
     rig = Rig(FakeAgent("main"), helper)
     hub = AgentHubModule.__new__(AgentHubModule)
     hub._tasks = rig.board
+    sent: list = []
+
+    async def send(command) -> Result:  # the core's handler, stood in for
+        sent.append(command)
+        await helper.set_permission_mode(command.mode)
+        return Result.ok()
+
+    hub._ctx = SimpleNamespace(send=send)
     task_id = (await rig.board.start(StartTask(text="x", agent_id="helper"))).value
     await rig.board.report(ReportTask(task_id=task_id, kind=ReportKind.PERMISSION, text="Bash: ls"))
 

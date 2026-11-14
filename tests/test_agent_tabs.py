@@ -22,7 +22,7 @@ from assistant.modules.job_search import JobSearchModule
 from assistant.modules.task_agents import TaskAgentsModule
 from assistant.modules.task_agents.module import kind_configs
 from assistant.modules.temp_ui import TempUIModule
-from assistant.testkit import FAKE, agent_module, module_config, post, pre_grant, request, stand_in, ui_port, wait_until
+from assistant.testkit import FAKE, agent_module, module_config, post, pre_grant, request, ui_port, wait_until
 
 
 async def start(tmp_path, grant_helper: bool = True, helpers_on: bool = True) -> App:
@@ -34,8 +34,9 @@ async def start(tmp_path, grant_helper: bool = True, helpers_on: bool = True) ->
     job = {"program": FAKE, "workspace": str(tmp_path / "CV")}
     enabled = ["agent_hub", "main_assistant", "job_search", "temp_ui", *(["task_agents"] if helpers_on else [])]
     config = {"modules": {"enabled": enabled, "agent_hub": {"door": False}, "task_agents": {"agents": kinds},
-                          "job_search": job, "temp_ui": {"port": 0, "window": "none"}}, "core": {}}  # fmt: skip
-    app = App([AgentHubModule, main_module, TaskAgentsModule, stand_in("cv"), JobSearchModule, TempUIModule], config)
+                          "job_search": job, "temp_ui": {"port": 0, "window": "none"}},
+              "core": {"permissions": {"you": ["temp_ui"]}}}  # as config/default.toml sets it; fmt: skip
+    app = App([AgentHubModule, main_module, TaskAgentsModule, JobSearchModule, TempUIModule], config)
     seen = kind_configs(module_config("task_agents", {"agents": kinds}))  # over its module.toml kinds
     pre_grant(app, "task_agents", "scout", seen["scout"])
     if grant_helper:

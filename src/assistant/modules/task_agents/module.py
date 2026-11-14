@@ -78,12 +78,10 @@ unchanged. You never talk with the user in the main chat.
 TALKER = "talker"
 NO_TASK = ("agents.launch needs the caller's open task to ask the user on; "
            "hand it to the Main Assistant, which asks them with a card")  # fmt: skip
-# The callers that are you clicking. For now the same list as the permissions handler's `you`;
-# later `ctx.permissions.is_you(caller)`, so the rule lives in one place (plus-agent-tab note).
-YOU = ("temp_ui",)
-# Callers this menu trusts more than an agent: no helper may take their names (it would get
-# their rights here). The Hub's `IAgentNames` reserves more when it's on.
-TRUSTED_CALLERS = frozenset({TALKER, *YOU})
+# Who is you clicking is the core's Callers port's (`IAgentNames.is_you`), one list for the app.
+# With no core (a bare context) nobody is you and only the Talker's name is kept from helpers;
+# the core's Callers reserves more, and refuses every module id (`temp_ui` among them).
+TRUSTED_CALLERS = frozenset({TALKER})
 
 # The module's own keys at its config's top level that every kind doesn't get: its kinds, and the
 # manifest keys from its `module.toml`.
@@ -181,7 +179,7 @@ class TaskAgentsModule(ModuleProtocol):
                   else check_agent_id(name, reserved=TRUSTED_CALLERS))  # fmt: skip
         if reason:
             return Result.invalid_arguments(reason)
-        if caller in YOU:
+        if names is not None and names.is_you(caller):
             return self._open_for_you(name, kind, task.strip())
         if not task.strip():
             return Result.invalid_arguments("agents.launch needs the helper's task")

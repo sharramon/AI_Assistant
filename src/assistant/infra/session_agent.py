@@ -16,6 +16,7 @@ from assistant.contracts import (
     AgentState,
     AgentStateChanged,
     Command,
+    IAgentNames,
     ITaskAgent,
     ModuleContext,
     PermissionMode,
@@ -355,8 +356,14 @@ class SessionTaskAgent(ITaskAgent):
         if that fails); the agent stops answering requests itself, so cards come back. To
         Auto: an open tool request is answered (allowed, or refused for `git push`) and later
         ones too; mid-turn the session is interrupted to read the Auto rules, then carries on.
-        The value is True when an open tool request was answered, so the Hub closes its card."""
+        The value is True when an open tool request was answered, so the Hub closes its card.
+        Auto only when the core's Callers port already holds Auto for this agent (the core's
+        `SetPermissionMode` from you sets it first), so no module switches it by calling this (G12)."""
         mode = PermissionMode(mode)
+        if mode is PermissionMode.AUTO and (names := self._names()) is not None \
+                and names.mode(self._agent_id) is not PermissionMode.AUTO:  # fmt: skip
+            self._ctx.log.warning("%s refused a switch to Auto that didn't come through the core", self._agent_id)
+            return Result.not_available("Only the user switches an agent to Auto, with the app's button")
         self._permission_mode = mode
         applies, answered = "now", False
         live = self._task is not None and self._session.running
@@ -374,8 +381,15 @@ class SessionTaskAgent(ITaskAgent):
             if mode is PermissionMode.AUTO:  # before the interrupt, so the tool's turn ends cleanly
                 answered = await self._gate.answer_open_in_auto()
             await self._tell_mode(mode)
-        self._ctx.publish(PermissionModeChanged(agent_id=self._agent_id, mode=mode, applies=applies))
+        self._ctx.publish(PermissionModeChanged(agent_id=self._agent_id, mode=mode, applies=applies, answered=answered))
         return Result.ok(answered)
+
+    def _names(self) -> IAgentNames | None:
+        """The core's Callers port, or None (no core: a bare test context)."""
+        try:
+            return self._ctx.get_one(IAgentNames)
+        except Exception:
+            return None
 
     async def _tell_mode(self, mode: PermissionMode) -> None:
         """Give the running session `mode`'s rules with its next message; to Auto mid-turn,
@@ -761,8 +775,9 @@ class SessionTaskAgent(ITaskAgent):
         self._spawn(self._send(_task_text(HANDED_OFF_COMPACTED, task, note=note) + held))
 
     def _ask_to_load(self, command: Command, action: str) -> bool:
-        """Run a reload or add the agent asked for: at once in Auto, after the user allows it in
-        Manual (the same permission card as a tool). The outcome goes back as the next message."""
+        """Run a reload or add the agent asked for, after the user allows it on the permission
+        card (the same card as a tool), in Manual and Auto alike: Auto never skips it. The
+        outcome goes back as the next message."""
         if isinstance(command, ReloadModule) and command.module_id == self._agent_id:
             self._spawn(self._send(CODE_LOADED.format(
                 action=action, outcome="refused: you can't reload yourself during a task. Tell the user it's needed.",
@@ -772,7 +787,7 @@ class SessionTaskAgent(ITaskAgent):
         def run() -> Awaitable[Result]:
             return self._ctx.send(command)
 
-        self._gate.ask(action, run)  # in Auto it runs at once (the gate's one check)
+        self._gate.ask(action, run, always=True)  # a card in Auto too
         return True
 
     async def _continue_fresh(self, note: str, held: str = "") -> None:
