@@ -12,7 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from assistant.contracts import IAgentNames, IModuleDoor, ModuleContext, ModuleState, ModuleStateChanged
+from assistant.contracts import IAgentNames, IModuleDoor, ModuleContext
+from assistant.infra.agent_access import module_folder
 from assistant.infra.agent_profile import HELPER_BLOCK, AgentProfile, hook_env
 from assistant.infra.claude_session import ClaudeSession
 from assistant.infra.session_agent import SessionTaskAgent
@@ -63,7 +64,6 @@ class ProfileAgent:
         self._start_session = start_session
         self.subject = subject
         self._claimed = False  # start claimed our id
-        self._door_pending = False  # the session started before the door was up
         self._regrant: asyncio.Task | None = None  # the idle restart after a live grant
         self.workspace = Path(config.get("workspace", "workspace")).resolve()
         self.profile = self._profile(config)
@@ -95,13 +95,17 @@ class ProfileAgent:
         )
 
     def _profile(self, config: dict[str, Any]) -> AgentProfile:
-        """The profile from `config`, in the workspace it started with."""
+        """The profile from `config`, in the workspace it started with, with its module's own
+        folder (named in the developer rules when it skips the repo's CLAUDE.md)."""
         own = {**config, "workspace": str(self.workspace), "permission_requests": self.subject is not None}
+        folder = module_folder(str(getattr(self._ctx, "module_id", "") or ""))
+        if folder is not None and not own.get("module_folder"):
+            own["module_folder"] = str(folder)
         return AgentProfile.from_config(self.agent_id, own, self._role_block)
 
     def door(self) -> dict:
-        """The module door's MCP config under this agent's name, read at each session start (the
-        Hub may have been reloaded), or {} if the door is off or not there yet."""
+        """The module door's MCP config under this agent's name (the core's door: only for an id
+        this module claimed), read at each session start, or {} if the door is off."""
         if not self._config.get("door", True):
             return {}
         door = self._ctx.get_one(IModuleDoor)
@@ -152,32 +156,8 @@ class ProfileAgent:
             self._ctx.permissions.own_agent(self.agent_id, self.subject)
         self.workspace.mkdir(parents=True, exist_ok=True)
         if self._start_session:
-            # At launch this agent starts before the Hub, whose door has no address until the
-            # Hub's own start: wait for a module to turn on, then restart once with the door.
-            self._door_pending = self._config.get("door", True) and not self.door()
-            if self._door_pending:
-                self._ctx.log.warning("%s starts without the module door; it restarts when the door is up", self.agent_id)
-                self._ctx.subscribe(ModuleStateChanged, self._on_module_state)
+            # The core opens the door before any module starts, so the first session has it.
             await self.session.start()
-
-    async def _on_module_state(self, event: ModuleStateChanged) -> None:
-        """The door is up: an idle session restarts once to pick it up; a busy one is left alone
-        (its next session start reads the door anyway)."""
-        if not self._door_pending or event.state is not ModuleState.ACTIVE or not self.door():
-            return
-        self._door_pending = False
-        if self.agent.has_task:
-            self._ctx.log.info("%s is busy; it picks up the module door at its next session", self.agent_id)
-            return
-        try:
-            restarted = await self.agent.restart_session()
-        except Exception:
-            self._ctx.log.exception("%s couldn't restart its session with the module door", self.agent_id)
-            return
-        if not restarted:  # a task got in first
-            self._ctx.log.info("%s is busy; it picks up the module door at its next session", self.agent_id)
-            return
-        self._ctx.log.info("%s restarted its session with the module door", self.agent_id)
 
     async def stop(self) -> None:
         if self._regrant is not None:

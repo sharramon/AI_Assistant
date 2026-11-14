@@ -1,7 +1,7 @@
 # cv's own defaults. `[modules.cv]` in the app's config only overrides them (merged key by key).
 
-# The modules cv can't run without, by id (Manifest.needs; the core turns them on first and
-# refuses to turn one off while cv is on). None: cv talks to the others only through contracts.
+# The modules cv uses, by id (Manifest.needs; start order only: the core turns them on first, and
+# turning one off later leaves cv on). None: cv talks to the others only through contracts.
 needs = []
 
 # The pip packages cv needs beyond the app's own (Manifest.packages): pymupdf for the CV Tool app's
@@ -22,6 +22,10 @@ target_score = 90   # the ATS score to reach in the CV Tool's ATS Loop (aim 100)
 max_rounds = 5      # ATS Loop rounds before it stops and reports
 paper = "letter"    # US Letter; "a4" later
 
+# Your data folder (CVs made, jobs, the CV Tool's data, facts), outside the repo: set it in the gitignored
+# config/cv.toml (data_folder = "C:/Data/cv"). Set, it is the worker's workspace, and at its first use the
+# old workspace (modules/cv/workspace) is copied into it, never moved or deleted. Unset: the workspace below.
+# data_folder = ""
 # output_dir = ""  # unset: <agent.workspace>/out (cv.build's PDFs); a relative path is from this module's folder
 cv_dir = "C:/Jobs/CV"   # an example; yours goes in the gitignored config/local.toml. The user's CVs, read only (the CV Tool lists the <cv_prefix>* ones); not a rule for base_cv or cv.read
 # The start of your CV file names: the PDFs made are named with it and the CV Tool lists your CVs by it.
@@ -45,10 +49,13 @@ token_file = ""        # "" = %LOCALAPPDATA%/assistant/cv/rezi_token.json; never
 callback_port = 33418  # the sign-in's redirect comes back to http://127.0.0.1:<port>/callback
 
 # Who may use cv's menu, checked on every call (the core sets the caller; it can't be faked).
-# cv.task and cv.read_result: only `callers`. rezi.status: anyone. Every other item (cv.open_tool,
+# cv.task and cv.read_result: only `callers` and `modules`. rezi.status: anyone. Every other item (cv.open_tool,
 # cv.tool_*, cv.build, cv.read, rezi.write_resume, ...): only the worker, agent.agent_id.
 [hand_off]
 callers = ["job_search_agent", "main_assistant"]  # cv.task starts the worker itself, as the caller's child task
+# Modules that send cv.task for one of their agents (its `for_agent`: the asker, reply_to and parent task).
+# job_search's job.tailor_cv turns cv on when its agent needs a CV, then sends cv.task for it.
+modules = ["job_search"]
 
 # The CV Tool (tool.py, the app in app/cv_tool): launched by cv.open_tool through CompanionApp.
 [tool]
@@ -73,6 +80,9 @@ chrome = true                 # Claude in Chrome, only for app.rezi.ai (its prom
 permission_mode = "acceptEdits"
 permission_timeout = 600.0
 transcript = "cv_agent.jsonl"
+# cv's own agent skips the repo's CLAUDE.md (claudeMdExcludes) and gets the short developer rules in
+# its prompt instead, with this module's folder and docs named (docs/next-steps/agent-claude-md-options.md).
+repo_claude_md = false
 # A free pick (hub.start with no agent_id) never lands on cv_agent: its jobs come from cv.task,
 # which starts it itself. Anyone may still name it.
 named_only = true

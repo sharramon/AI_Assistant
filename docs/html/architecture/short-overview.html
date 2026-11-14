@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Short overview</title>
+<!-- Generated from docs/architecture/short-overview.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="../" data-page="architecture/short-overview.html"></nav>
+<main>
+<h1 id="short-overview">Short overview</h1>
+<p>The project in one page, for every session that works in the repo (the repo's <code>CLAUDE.md</code> loads only this page). The whole picture is the <a href="index.html">architecture overview</a>; the public interface is the <a href="../api/index.html">API reference</a>.</p>
+<h2 id="what-it-is">What it is</h2>
+<p>A modular personal AI assistant, built as a long-term experimental platform: a small, stable <strong>core</strong> hosts a changing set of independent <strong>modules</strong> (inputs, outputs, views, tools, background workers, and the AI agents themselves) that can be added, replaced or discarded with little change elsewhere. It's a modular monolith with ports and adapters: the modules run in one process, and a module's code is reloaded in place without a restart (<a href="core.html">core</a>).</p>
+<h2 id="the-core-line">The core line</h2>
+<ul>
+<li><strong>The core</strong> is what the app can't start without: the host (<code>src/assistant/core/</code>), the core modules (each module's <code>docs/docs.toml</code> says <code>group = "core"</code>), the one module door with its one gate (<code>dispatch_tool</code>), and seven ports (lifecycle, commands, events, contracts, directory, permissions, callers).</li>
+<li><strong>Add-ons</strong> are every other module. Each is one folder, <code>src/assistant/modules/&lt;id&gt;/</code> or in an outside folder named in <code>[core] module_folders</code>: its code, <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>), <code>app/</code> (a companion app, if any), <code>tests/</code>, <code>docs/</code>, and an agent's <code>workspace/</code> (gitignored).</li>
+<li><strong>Modules talk only through tools, events and contracts</strong> (<code>assistant.contracts</code>), never by importing each other's code. Shared helpers are <code>assistant.infra</code> and <code>app_kit</code>; tests use <code>assistant.testkit</code>.</li>
+<li><strong>Arrows point one way:</strong> an add-on may need the core or another add-on; the core never names an add-on. <code>tests/test_boundaries.py</code>, <code>tests/test_module_folders.py</code> and <code>tests/test_module_layout.py</code> check it.</li>
+<li><strong>Your choices</strong> are in <code>config/</code> (<code>config/&lt;id&gt;.toml</code> for one module, gitignored). An agent works in its module's <code>workspace/</code>, unless its config names a data folder outside the repo.</li>
+</ul>
+<h2 id="the-agents">The agents</h2>
+<p>The Talker talks with you; the Main Assistant does the work and coordinates; helpers and module agents do jobs. The Agent Hub (a core module) does coordination only: the focus, tasks and messages. The door, the agent names and each agent's permission mode are the core's (its Callers port). Agents reach every module through one MCP door with three tools (list modules, show a menu, use an item), so one line per module is all they load until they need a menu (<a href="agents.html">agents</a>, <a href="modules.html">modules</a>). A module's own agent skips this file and loads the short developer rules instead.</p>
+<h2 id="where-to-read-next">Where to read next</h2>
+<ul>
+<li>A part of the core: its page under <code>docs/architecture/</code> (the <a href="index.html#pages">Pages list</a>), then its group in the <a href="../api/index.html">API reference</a>, which covers the core only.</li>
+<li>A module: its own <code>docs/</code> folder, <code>src/assistant/modules/&lt;id&gt;/docs/README.md</code> (its tools page is built from its menu). The <a href="module-library.html">module library</a> lists every module and links its page.</li>
+<li>Before writing a helper: the <a href="../api/reusable.html">reusable parts index</a>.</li>
+<li>What we're working on now: <code>docs/next-steps/README.md</code>.</li>
+</ul>
+<footer>Generated from <code>docs/architecture/short-overview.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="../nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="../site.js"></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module layout step 1: checklist</title>
+<!-- Generated from docs/next-steps/module-layout-step1-checklist.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-layout-step1-checklist.html"></nav>
+<main>
+<h1 id="module-layout-step-1-checklist">Module layout step 1: checklist</h1>
+<p><strong>Status:</strong> built unattended 2026-11-13 (Auto), item by item, each ticked when its tests passed. <strong>Waits for an app restart and your hand checks</strong> (infra changed); nothing is committed.</p>
+<p>Step 1 of the <a href="module-layouts.html">module layouts</a> page ("add-ons stay in the repo, the line made hard"), with the CLAUDE.md part from <a href="agent-claude-md-options.html">agents and CLAUDE.md</a> (option C, recommended). The order of fixing: this is item 4.</p>
+<p>Where the pages leave a choice open, the option taken is marked <strong>Chosen:</strong> with why.</p>
+<h2 id="items">Items</h2>
+<h3 id="1-the-line-made-hard-the-checks-beyond-r1s-three-rules">1. The line made hard: the checks beyond R1's three rules ☑</h3>
+<p>R1 (<code>tests/test_boundaries.py</code>) already checks appendix B's three rules for module code, core settings and needs. Two holes are left:</p>
+<ul>
+<li><strong>1a. The shared code imports no module.</strong> <code>assistant.core</code>, <code>assistant.contracts</code>, <code>assistant.infra</code> and <code>app_kit</code> never import <code>assistant.modules.&lt;id&gt;</code> (any module, core group too): the core finds modules by folder, so the arrow from the core to a module is never code. Today item 15 checks only that they don't <em>name an add-on</em>.</li>
+<li><strong>1b. The core starts without any add-on</strong> (rule 1: "the core is what the app can't start without"). The core group alone resolves (<code>resolve_modules</code>: needs, required contracts, single providers), both with the shipped on-list and with every core module on; and the shipped on-list (<code>config/modules.toml</code>) turns on no add-on.</li>
+<li>Files: <code>tests/test_boundaries.py</code> (each check a function over a folder, with a planted bad tree, as R1's).</li>
+<li>Done when: both pass on the real tree and each catches its planted break.</li>
+</ul>
+<h3 id="2-the-repos-claudemd-imports-only-a-short-overview">2. The repo's CLAUDE.md imports only a short overview ☑</h3>
+<ul>
+<li><strong>Chosen:</strong> a new page <code>docs/architecture/short-overview.md</code> (≈ 1k tokens: what the app is, the core line, where things live, where to read next), because the overview (<code>README.md</code>, ≈ 4.7k tokens, with the parts table) is the docs' front page and stays whole. CLAUDE.md drops both <code>@</code> imports (overview ≈ 4.7k, API index ≈ 6.1k tokens) for that one, and links the full overview and the API index instead. Its other instructions stay.</li>
+<li><strong>The API index covers the core only:</strong> the five rows of <code>docs/api/README.md</code> that named an add-on (<code>IPageOpener</code>, <code>ModuleEvent</code>, the snip constants, <code>IVoice</code>, "Tools offered today") say it without the add-on; each module's tools stay on its own docs page (the module library links them).</li>
+<li>Files: <code>CLAUDE.md</code>, <code>docs/architecture/short-overview.md</code> (new), <code>docs/api/README.md</code>, <code>docs/architecture/README.md</code> (Pages list).</li>
+<li>Tests (<code>tests/test_module_layout.py</code>, new): CLAUDE.md's only <code>@</code> import is the short overview; the short overview stays short (under 6,000 characters) and names no add-on; the API index names no add-on id and no add-on menu item.</li>
+<li>Done when: the tests pass, and every link of the new page resolves (<code>test_module_docs</code>).</li>
+</ul>
+<h3 id="3-module-agents-skip-the-repos-claudemd-claudemdexcludes">3. Module agents skip the repo's CLAUDE.md (<code>claudeMdExcludes</code>) ☑</h3>
+<ul>
+<li><code>claude_command</code> gets <code>settings</code> (a dict), passed as <code>--settings &lt;json&gt;</code>. <code>AgentProfile</code> gets <code>repo_claude_md</code> (default true) and <code>module_docs</code>; with <code>repo_claude_md = false</code> its command passes <code>{"claudeMdExcludes": [the repo's CLAUDE.md files]}</code> and appends the short developer-rules file to the prompt, with its module's docs page named (option C's README pointer).</li>
+<li><strong>Chosen:</strong> the developer rules live in <code>src/assistant/infra/developer_rules.md</code> (beside the code that reads it, not in <code>docs/</code>, so the docs build and a step-2 move don't change what a running agent loads); <code>ProfileAgent</code> names the module's own <code>docs/README.md</code> from its module id.</li>
+<li><strong>Chosen:</strong> the switch is a config key, <code>repo_claude_md = false</code>, set in cv's <code>[agent]</code> and job_search's module.toml, so which agents skip it is visible in their defaults; the Main Assistant, the Talker and the <code>task_agents</code> helpers keep loading it (they work on the whole repo).</li>
+<li><strong>Tried once in a live session (2026-11-13, claude 2.1.325):</strong> from <code>modules/cv/workspace</code>, a session without the setting said its context held CLAUDE.md's "Read the docs before searching the code"; with <code>--settings '{"claudeMdExcludes":["C:/…/AI_Assistant/CLAUDE.md"]}'</code> it said no, in both the forward-slash and the backslash form. The app uses the forward-slash form.</li>
+<li>Files: <code>src/assistant/infra/claude_session.py</code>, <code>agent_profile.py</code>, <code>profile_agent.py</code>, <code>agent_access.py</code> (<code>REPO_FOLDER</code>, <code>repo_claude_md_files</code>), <code>developer_rules.md</code> (new); <code>modules/cv/module.toml</code>, <code>modules/job_search/module.toml</code>.</li>
+<li>Tests: <code>tests/test_module_layout.py</code> (the command line, the profile, the rules text); cv's and job_search's own tests (their agents' profiles skip it).</li>
+<li>Done when: those pass and the Main Assistant's command has no <code>--settings</code>.</li>
+</ul>
+<h3 id="4-agent-data-in-a-data-folder-named-by-configidtoml">4. Agent data in a data folder named by <code>config/&lt;id&gt;.toml</code> ☑</h3>
+<ul>
+<li>A <code>data_folder</code> key in a module's config: yours, in <code>config/&lt;id&gt;.toml</code> (gitignored). Set, the module's agent works there (its workspace, so everything kept under the workspace follows: cv's <code>work/</code>, <code>out/</code>, <code>cv_tool/</code>, rules and facts; the job project's state, scripts and <code>job_paths.json</code>). <strong>Unset, nothing moves:</strong> the agent works in its module's <code>workspace/</code> as today.</li>
+<li>It must be outside the repo (<code>ValueError</code> otherwise): your data never sits in the repo tree once it's set.</li>
+<li><strong>Chosen (the migration):</strong> the first time a data folder is used and it's missing or empty, the module's old <code>workspace/</code> is <strong>copied</strong> into it (never moved, never deleted; <code>__pycache__</code> skipped). A data folder that already holds files is used as it is. job_search then rewrites the copy's relative <code>job_paths.json</code> paths (the <code>cv_output</code> link into cv's workspace) as absolute ones from the old place, so the copied scripts still find them. The old workspace stays until you delete it.</li>
+<li><strong>Chosen:</strong> no data folder is set for you: the folder is your choice, so this build sets none and nothing of yours moves until you write <code>data_folder = "…"</code> in <code>config/cv.toml</code> or <code>config/job_search.toml</code>. A new workspace target changes the access list, so the next turn-on asks with a new card.</li>
+<li>The code-versus-data split inside the workspaces (skills and scripts into the module folder, committed) is <strong>not</strong> done here: see Left open.</li>
+<li>Files: <code>src/assistant/infra/agent_access.py</code> (<code>data_folder</code>, <code>copy_data_once</code>), <code>infra/__init__.py</code>; <code>modules/cv/module.py</code>, <code>modules/job_search/module.py</code>, their module.toml comments.</li>
+<li>Tests: <code>tests/test_module_layout.py</code> (the key, the outside-the-repo rule, the copy once, never a delete); cv's and job_search's tests (the workspace and its derived folders follow; the paths file fixed).</li>
+<li>Done when: those pass and item 17's, 18's and 19's tripwires still pass unchanged (nothing set: today's place).</li>
+</ul>
+<h3 id="5-docs">5. Docs ☑</h3>
+<ul>
+<li><code>docs/api/infra.md</code> (<code>claude_command</code>'s <code>settings</code>, <code>AgentProfile</code>'s two fields, <code>data_folder</code>, <code>copy_data_once</code>, <code>repo_claude_md_files</code>), <code>docs/api/reusable.md</code>, <code>docs/architecture/agents.md</code> (which CLAUDE.md each agent loads), <code>docs/architecture/README.md</code> (the order's item 4, the Pages list), cv's and job_search's module docs (the data folder, the rules file).</li>
+<li>Done when: <code>test_module_docs</code> passes.</li>
+</ul>
+<h2 id="as-built">As built</h2>
+<ul>
+<li><strong>Item 1:</strong> <code>tests/test_boundaries.py</code> has two more checks, each with a planted break: <code>module_imports</code> (the shared code imports no <code>assistant.modules</code> package, relative imports resolved) and <code>core_alone</code> (the core group resolves alone, with the shipped on-list and with every core module on; the shipped on-list names no add-on). 10 tests there pass.</li>
+<li><strong>Item 2:</strong> <code>CLAUDE.md</code> imports only <code>docs/architecture/short-overview.md</code> (about 2.8k characters, names no add-on) and links the full overview and the API index. Five rows of <code>docs/api/README.md</code> no longer name an add-on.</li>
+<li><strong>Item 3:</strong> <code>claude_command(settings=...)</code> → <code>--settings &lt;json&gt;</code>; <code>AgentProfile.repo_claude_md</code> / <code>module_folder</code>; <code>repo_claude_md_files()</code> and <code>developer_rules()</code> in <code>agent_profile.py</code>; the rules in <code>infra/developer_rules.md</code>; <code>ProfileAgent</code> names its module's folder from <code>ctx.module_id</code>. <code>repo_claude_md = false</code> in cv's <code>[agent]</code> and job_search's module.toml. The Main Assistant, the Talker and the helpers are unchanged (no <code>--settings</code>).</li>
+<li><strong>Item 4:</strong> <code>data_folder(module_id, config)</code> and <code>copy_data_once(source, target)</code> in <code>infra/agent_access.py</code> (with <code>REPO_FOLDER</code>); cv's <code>settings</code> returns <code>data_folder</code> / <code>data_from</code> and its <code>init</code> copies once; job_search's <code>job_config</code> uses it and its <code>init</code> calls <code>copy_job_data</code> (copy, then <code>fix_copied_paths</code> on the copy's <code>job_paths.json</code>). No data folder is set.</li>
+<li><strong>Tests:</strong> <code>tests/test_module_layout.py</code> (9), <code>tests/test_boundaries.py</code> (10, 4 new), <code>modules/cv/tests/test_layout.py</code> (4), <code>modules/job_search/tests/test_layout.py</code> (4). With <code>test_module_folders</code>, <code>test_module_docs</code>, the agent tests and cv's, job_search's, main_assistant's and task_agents' own tests: 344 passed; ruff clean.</li>
+<li><strong>Files needing a restart:</strong> <code>src/assistant/infra/claude_session.py</code>, <code>agent_profile.py</code>, <code>profile_agent.py</code>, <code>agent_access.py</code>, <code>__init__.py</code>, <code>developer_rules.md</code> (new). No core or contracts file changed.</li>
+</ul>
+<h2 id="left-open">Left open</h2>
+<ul>
+<li><strong>Your data folder isn't set:</strong> pick a folder outside the repo and write <code>data_folder = "C:/…"</code> in <code>config/cv.toml</code> and <code>config/job_search.toml</code> (gitignored). At the next turn-on each module copies its workspace there once and asks with a new access card. The old <code>modules/&lt;id&gt;/workspace/</code> stays until you delete it.</li>
+<li><strong>The code in the workspaces</strong> (cv's <code>.claude/skills</code> and <code>scripts/</code>, the job project's skills, <code>Recruiters/scripts</code> and <code>job_paths.py</code>) still lives in the data, copied with it. Moving it into the module folder (committed) means deciding what in it is personal (the job project's <code>CLAUDE.md</code> holds your profile) and how the agent finds skills outside its working folder: a decision for you, not built.</li>
+<li><strong>The live check of the whole agent</strong> (a cv or job session started by the app after the restart): only the bare <code>claude -p</code> check was run. After the restart, ask cv_agent whether it sees the repo's CLAUDE.md, and whether the job agent still sees its project's CLAUDE.md.</li>
+<li><strong>Docs HTML</strong> not rebuilt here (the caller runs one build); the new page <code>docs/architecture/short-overview.md</code> needs it.</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/module-layout-step1-checklist.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

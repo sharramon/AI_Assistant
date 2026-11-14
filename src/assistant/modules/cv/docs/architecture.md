@@ -8,8 +8,8 @@ How the `cv` module works inside. What it is, the CV Tool flow and the 5 steps: 
 - **Its worker, `cv_agent`**, is a `ProfileAgent` (a Claude session with its own access card), the way `job_search` bundles its agent. It runs the CV Tool's 5 steps (the old 8 until the `cv` reload) and is the truth gate.
 - **Its UI half, the CV Tool**, is its own app in the module's folder, `cv/app/cv_tool/`, launched and called by the module through `CompanionHandover` (`tool.py`), the way `html_viewer` runs its viewer.
 - **Chrome only in the worker:** only this worker's session uses Chrome, only on app.rezi.ai, with your Rezi login. Keyword Targeting, the Rezi Score and the PDF import happen there, not as menu items.
-- **Jobs sent through the Hub:** the job agent calls `cv.task`, and cv starts `cv_agent` on the job itself (`StartTask`, the caller's open task as parent; no coordinator in between, changed 2026-11-10). If `cv_agent` is busy on another job, `cv.task` says which job and who it's for; nothing is queued. At your Submit the result goes back to the caller as a message (`DeliverMessage`). The task's own result is read with `cv.read_result`. There is no `rezi.tailor_cv` item.
-- **Who may call what** (`[hand_off]` in `module.toml`, checked by `CallerMenu` on every call; the core sets the caller, so it can't be faked): `cv.task` and `cv.read_result` only for `hand_off.callers` (the job agent and the Main Assistant); `rezi.status` for anyone; every other item (`cv.open_tool`, `cv.tool_*`, `cv.build`, `cv.read`, `rezi.*`) only for the worker. `named_only = true` in cv's own `[agent]` section keeps free picks (`hub.start` with no agent) off `cv_agent` (the Hub reads it from [`AgentInfo.named_only`](../../../../../docs/api/agents.md#agentinfo)); anyone may still name it.
+- **Jobs sent through the Hub:** the job module sends `cv.task` for its agent (its `job.tailor_cv`, which first turns cv on: [on-demand chaining](../../../../../docs/architecture/modules.md#dependencies), 2026-11-13), and cv starts `cv_agent` on the job itself (`StartTask`, the caller's open task as parent; no coordinator in between, changed 2026-11-10). If `cv_agent` is busy on another job, `cv.task` says which job and who it's for; nothing is queued. At your Submit the result goes back to the caller as a message (`DeliverMessage`). The task's own result is read with `cv.read_result`. There is no `rezi.tailor_cv` item.
+- **Who may call what** (`[hand_off]` in `module.toml`, checked by `CallerMenu` on every call; the core sets the caller, so it can't be faked): `cv.task` and `cv.read_result` only for `hand_off.callers` (the job agent and the Main Assistant) and `hand_off.modules` (`job_search`: a module sending for one of its agents; `for_agent` is then required and becomes the asker, `reply_to` and the parent task; anyone else passing `for_agent` gets `invalid_arguments`); `rezi.status` for anyone; every other item (`cv.open_tool`, `cv.tool_*`, `cv.build`, `cv.read`, `rezi.*`) only for the worker. `named_only = true` in cv's own `[agent]` section keeps free picks (`hub.start` with no agent) off `cv_agent` (the Hub reads it from [`AgentInfo.named_only`](../../../../../docs/api/agents.md#agentinfo)); anyone may still name it.
 - **It stands alone:** no other module is changed for it. The job agent (or any caller) reaches it through `cv.task` and `cv.read_result`, and the Hub's `StartTask` and `DeliverMessage` contracts.
 - **The worker uses its own module's menu through the door**, like any caller, so every call gets the one permission check and the resume guard stays in code.
 - **Each job starts in code** ([Job start](#job-start-job_startpy)): before the worker sees a job, the module makes the job's own folder, copies the base CV into it, and loads the job's rules into the task. The worker doesn't have to remember to do it.
@@ -22,9 +22,9 @@ How the `cv` module works inside. What it is, the CV Tool flow and the 5 steps: 
 | Its worker | `cv_agent`: one job per task through the Hub (`cv.task` starts it as the caller's child task); the task's result ends with a `CV_RESULT` line (`cv.read_result`) |
 | Provides | `ITaskAgent`: the worker behind `JobStartAgent`, so the Hub lists it and starts its tasks, each job set up first |
 | Handles | nothing beyond its menu |
-| Sends | `ReportTask` (the worker's task reports) and `InvokeTool` (its SHOW tags), as every `ProfileAgent` does; `GetTaskStatus` and `StartTask` (`cv.task`, with `tell_parent=False`); [`DeliverMessage`](../../../../../docs/api/agents.md#delivermessage) only to cv_agent (the Rezi click); never to the asker |
-| Publishes | the worker's agent events (`AGENT_PUBLISHES`): `AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged`; `ResponseReady`, the one plain reminder of a Submit pressed while cv was down; `AgentNotice` to cv_agent. Named events ([`ModuleEvent`](../../../../../docs/api/messaging.md#moduleevent)), cv's only way back to the asker: `cv.job_finished` when cv_agent's job task ends (`_on_task`, data from `handoff.job_finished`) and `cv.job_submitted` at the user's Submit (`_pass_submit`, data from `reply.job_submitted`), each with `reply_to` |
-| Listens to | `ResetRequested` (resets `cv_agent`), `PermissionChanged` (a new grant reaches the worker live), `TaskUpdated` (cv_agent's own `done` or `failed` → `cv.job_finished`) |
+| Sends | `ReportTask` (the worker's task reports), `StartProvider` (its SHOW tags), `ReloadModule` / `AddModule` (after your Allow on its card), as every `ProfileAgent` does (`AGENT_SENDS`); `GetTaskStatus` and `StartTask` (`cv.task`, with `tell_parent=False`); [`DeliverMessage`](../../../../../docs/api/agents.md#delivermessage) only to cv_agent (the Rezi click); never to the asker; [`AgentNotice`](../../../../../docs/api/agents.md#agentnotice) to cv_agent (a command the Hub handles; the line reads `[cv] …`, labelled with the sending module) |
+| Publishes | the worker's agent events (`AGENT_PUBLISHES`): `AgentActivity`, `AgentStateChanged`, `SessionUsage`, `PermissionModeChanged`; `ResponseReady`, the one plain reminder of a Submit pressed while cv was down. Named events ([`ModuleEvent`](../../../../../docs/api/messaging.md#moduleevent)), cv's only way back to the asker: `cv.job_finished` when cv_agent's job task ends (`_on_task`, data from `handoff.job_finished`) and `cv.job_submitted` at the user's Submit (`_pass_submit`, data from `reply.job_submitted`), each with `reply_to` |
+| Listens to | `ModuleStateChanged` (`AGENT_LISTENS`), `PermissionChanged` (a new grant reaches the worker live), `TaskUpdated` (cv_agent's own `done` or `failed` → `cv.job_finished`) |
 | Permissions | `agent.access`: the worker's access list on one card |
 
 ## Class chart
@@ -99,8 +99,8 @@ Everything on the chart is built (chunks 1 to 8) and tested against a fake Rezi 
 | `ITaskAgent`, the Hub (`hub.start`, `hub.status`) | A caller hands a job to `cv_agent` and reads its result | Reuse |
 | `request_access`, `granted_config`, `watch_grant` | The worker's access card, and grants taken live | Reuse |
 | `viewer.open` | Shows HTML at steps 3 and 7; it refuses a PDF, so the worker gives you the PDF's path | Reuse (HTML only) |
-| `handoff.py` | The contract: `task_text` / `read_request` (`CV_REQUEST`), `result_line` / `read_result` (`CV_RESULT`), `read_jd_file` (`.txt`, `.md`, `.html`), `result_view` (what `cv.read_result` returns) | New (standard library) |
-| `CvRequest`, `CvJob`, `SkillRef`, `CvResult`, `Round` (`data.py`) | One job in; what the job start set up (folder, copy, its sha256, the JD file, the rules loaded); its outcome out, with rounds, target, keywords, recommendations, compare and files; refuses a result that contradicts itself | New (pydantic) |
+| `handoff.py` | The contract: `task_text` / `read_request` (`CV_REQUEST`), `result_line` / `read_result` (`CV_RESULT`; the job's pick from `request_tool` when the line names none), `read_jd_file` (`.txt`, `.md`, `.html`), `result_view` (what `cv.read_result` returns) | New (standard library) |
+| `CvRequest`, `CvJob`, `SkillRef`, `CvResult`, `Round` (`data.py`) | One job in; what the job start set up (folder, copy, its sha256, the JD file, the rules loaded); its outcome out, with rounds, target, keywords, recommendations, compare and files; refuses a result that contradicts itself (a Rezi pick with no `rezi_resume` too; Internal needs none) | New (pydantic) |
 | `JobStart`, `start_block`, `name_part`, `job_folder_name` (`job_start.py`) | A job's folder `<date>_<Company>_<Role>`, the checked copy of the base CV, `jd.txt`, `job_start.json`, and its rule files read in full; refuses an unsafe start | New (standard library) |
 | `JobStartAgent` (`job_start.py`) | The worker as the Hub sees it: sets up each job before passing it on, refuses a job it can't set up, passes everything else through | New, composes the worker's `SessionTaskAgent` (principle 12) |
 | `McpClient` (`mcp.py`) | Rezi's MCP server: Streamable HTTP, OAuth with PKCE (the `mcp` package's `Client` and `OAuthClientProvider`), list and call tools, sign in | New, in this module only |
@@ -124,8 +124,8 @@ Everything on the chart is built (chunks 1 to 8) and tested against a fake Rezi 
 
 ```mermaid
 flowchart LR
-  subgraph JA["the job agent (any caller in hand_off.callers)"]
-    j_task["use_item cv.task"]
+  subgraph JA["the job agent (via job_search's job.tailor_cv: hand_off.modules, for_agent; or any caller in hand_off.callers)"]
+    j_task["cv.task<br/>(job_search turns cv on first)"]
     j_msg["woken by job_search with<br/>the end, then the Submit"]
     j_read["use_item cv.read_result<br/>on the task's result"]
   end
@@ -187,7 +187,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  t0["modules.on cv"]
+  t0["modules.on cv, or job.tailor_cv's ActivateModule"]
   t1{"agent.enabled?"}
   t2["the menu only<br/>(no card, no agent)"]
   t3["request_access: the [agent] list<br/>(workspace, read folders, Chrome)"]
@@ -202,7 +202,7 @@ flowchart TB
   t4 -- yes --> t6 --> t7
 ```
 
-- **Built like `job_search`'s agent.** One `ProfileAgent` with `subject` = its id, so it can ask for more access itself with `permissions.request`. `watch_grant` passes a widened grant to it live (`set_access`), and `ResetRequested` resets it.
+- **Built like `job_search`'s agent.** One `ProfileAgent` with `subject` = its id, so it can ask for more access itself with `permissions.request`. `watch_grant` passes a widened grant to it live (`set_access`). A reset is the `ResetRequested` command, which the Hub handles by calling its `ITaskAgent.reset`.
 - **A reload** waits while the worker has a task (`busy`; a question waiting on you doesn't count). The new copy claims the id again, and the guard's ids come over through the handover.
 - **Questions are messages** (2026-11-10): a `NEED:` ends the worker's turn and frees it for another job. The question's key is the job's folder (`JobStartAgent.question_key`, from `_jobs`: task id → job folder), set with `SessionTaskAgent.set_context(gate.question_key, job_notes)` in `cv/module.py`. When your answer comes and the session no longer has the question, `job_notes(key)` (`job_start.py`) adds the job's `job_start.json` in brief (company, role, folder, the base CV copy and JD, the files there, where the result went) and points it at the folder's `*handoff*.md` notes; a key that isn't a job folder gets the default (`default_context`: the handoff note).
 - **Its prompt** is `WORKER_PROMPT` with the config's target, rounds, paper and folders filled in. It names the items for each step: `cv.read` (step 1), `rezi.get_resume_format` and `rezi.write_resume` with `sections` and no id (step 2), `cv.build` (step 5), `rezi.read_resume` with `cv.compare` (`parsed_resume`, step 6), and `cv.report` (step 8). Steps 3 and 7 are `NEED:` questions to you. It also asks with `NEED:` before `rezi.sign_in` opens your browser.
@@ -495,7 +495,7 @@ The module's UI half, an independent app on the [companion app checklist](../../
 
 ## Owns and launches
 
-- **Its worker**, `cv_agent`: a Claude session with Chrome, started on its first task, working in its own workspace (`modules\cv\workspace\` by default, gitignored, inside the module folder its grant already lets it write; its job folders may be there and nowhere else in the repo). Its files were copied there from the old outside folder on 2026-11-13; the old folder is left for you to delete.
+- **Its worker**, `cv_agent`: a Claude session with Chrome, started on its first task, working in its own workspace (`modules\cv\workspace\` by default, gitignored, inside the module folder its grant already lets it write; its job folders may be there and nowhere else in the repo). Its files were copied there from the old outside folder on 2026-11-13; the old folder is left for you to delete. **Your data folder** (module layout step 1, 2026-11-13): set `data_folder = "C:/…"` (outside the repo) in the gitignored `config/cv.toml`, and it becomes the worker's workspace, so `work/`, `out/`, `cv_tool/`, the rules and the facts all follow it; at its first use the old workspace is copied in (never moved or deleted), and the new workspace asks with a new access card. Unset, nothing moves ([`data_folder`](../../../../../docs/api/infra.md#agent_access)). The worker skips the repo's CLAUDE.md (`repo_claude_md = false` in `[agent]`) and gets the short developer rules in its prompt, with this folder and this page named.
 - **The CV Tool** (`python -m cv_tool` on `127.0.0.1:8771`): started by the first `cv.open_tool` / `cv.tool_*` call, handed over on a reload, quit at the module's stop if it launched it. Its data is in `<workspace>\cv_tool`.
 - **The Rezi connection**: an MCP client of `https://api.rezi.ai/mcp` (OAuth with PKCE, a 30-day token kept outside the repo). It connects on each use and never on load. During a sign-in it listens briefly on `127.0.0.1:callback_port`.
 - **LibreOffice** runs headless for each `.odt` → PDF export, in a temporary folder that's removed after the build.

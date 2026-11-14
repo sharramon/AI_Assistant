@@ -35,6 +35,7 @@ def claude_command(
     program: Sequence[str] = ("claude",),
     mcp_config: dict | None = None,
     chrome: bool = False,
+    settings: dict | None = None,
 ) -> list[str]:
     """The command line for a stream-json `claude -p` session.
 
@@ -50,6 +51,8 @@ def claude_command(
     `ClaudeSession.answer_permission`. `program` is replaceable so tests can run a fake.
     `mcp_config` (e.g. the module door's, `IModuleDoor.mcp_config()`) becomes `--mcp-config`;
     with `--strict-mcp-config` it's the only MCP server the session sees.
+    `settings` (Claude Code settings, e.g. `{"claudeMdExcludes": [...]}` for a module's own agent,
+    `AgentProfile.repo_claude_md`) becomes `--settings <json>`, for this session only.
     """
     command = [
         *program, "-p",
@@ -63,6 +66,8 @@ def claude_command(
         command += ["--mcp-config", json.dumps(mcp_config)]
     if chrome:
         command += ["--chrome"]
+    if settings:
+        command += ["--settings", json.dumps(settings)]
     if model:
         command += ["--model", model]
     if permission_mode:

@@ -1,9 +1,10 @@
 # job_search's own defaults. `[modules.job_search]` in the app's config only overrides them (merged key by key).
 
-# The modules job_search can't run without, by id (Manifest.needs; the core turns them on first and
-# refuses to turn one off while job_search is on): cv, which tailors the CV for each job (cv.task)
-# and tells the job agent when it's done (cv's named events).
-needs = ["cv"]
+# The modules job_search can't run without, by id (Manifest.needs: the core turns them on first): none.
+# cv, which tailors the CV for each job, stays off until the job agent needs a CV: then job.tailor_cv
+# turns it on (its access card is asked then), sends it cv.task, and cv's named events tell the agent.
+needs = []
+cv_wait = 600.0  # seconds job.tailor_cv waits for cv to come on (your answer on cv_agent's access card)
 
 # The pip packages job_search needs beyond the app's own (Manifest.packages): none. Its job UI and
 # searches run with JobRadar's own Python (`python` below).
@@ -15,6 +16,11 @@ packages = []
 # read and write the job project (its workspace), read and write your documents, read the rest of
 # C:\Jobs and JobRadar, run JobRadar's Python, Chrome. Sessions always start in Manual.
 # Anything else asks you with a card. It never submits or sends anything.
+# Your data folder (the job project: its state, applications, scripts, job_paths.json), outside the repo:
+# set it in the gitignored config/job_search.toml (data_folder = "C:/Data/job_search"). Set, it is the
+# agent's workspace; at its first use the old workspace is copied into it (never moved or deleted) and the
+# copy's relative job_paths.json paths are written absolute. Unset: the workspace below.
+# data_folder = ""
 workspace = "workspace"   # its own folder, modules/job_search/workspace (gitignored); a relative path is from this module's folder
 # Your CVs and cover letters (read and write: it saves per-company CVs there), outside the repo. None by
 # default; yours goes in the gitignored config/local.toml ([modules.job_search] documents = "...").
@@ -27,6 +33,9 @@ chrome = true             # the Claude in Chrome tools: forms, LinkedIn, the She
 permission_mode = "acceptEdits"
 permission_timeout = 600.0
 transcript = "job_search_agent.jsonl"
+# The job agent skips the repo's CLAUDE.md (claudeMdExcludes): it loads its project's CLAUDE.md in its
+# workspace and gets the short developer rules in its prompt, with this module's folder and docs named.
+repo_claude_md = false
 
 # The job UI ([ui], optional, not part of the access list): script (default
 # <workspace>/Recruiters/scripts/job_ui.py), python (default the `python` above), port (8781), page ("/tracker").
