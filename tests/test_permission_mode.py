@@ -230,7 +230,7 @@ async def test_temp_ui_button_mode_and_risky_card(tmp_path):
             "main_assistant": {"program": FAKE, "workspace": str(tmp_path)},
             "temp_ui": {"port": 0, "window": "none"},
         },
-        "core": {},
+        "core": {"permissions": {"you": ["temp_ui"], "relays": ["talker"]}},
     }
     app = App([AgentHubModule, MainAssistantModule, TempUIModule], config)
     await app.start()

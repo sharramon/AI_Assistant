@@ -28,7 +28,11 @@ from assistant.contracts import (
 
 
 async def request(port: int, raw: bytes) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-    """Send `raw` to 127.0.0.1:`port`; the open reader and writer."""
+    """Send `raw` to 127.0.0.1:`port`; the open reader and writer. A request without a `Host` header
+    gets `Host: 127.0.0.1:<port>`, as a browser sends it (the pages refuse a request without one)."""
+    head, _, rest = raw.partition(b"\r\n")
+    if b"\r\nhost:" not in b"\r\n" + rest.lower().split(b"\r\n\r\n", 1)[0]:
+        raw = head + b"\r\nHost: 127.0.0.1:%d\r\n" % port + rest
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
     writer.write(raw)
     await writer.drain()
@@ -91,7 +95,8 @@ class _FakeVoice(IVoice):
 class FakeVoiceIn(ModuleProtocol):
     """Stands in for voice_in: answers the two commands and IVoice with the events voice_in publishes."""
 
-    manifest = Manifest(id="voice_in", provides=(IVoice,), handles=(StartListening, StopListening))
+    manifest = Manifest(id="voice_in", provides=(IVoice,), handles=(StartListening, StopListening),
+                        publishes=(VoiceState, VoiceTranscript, InputReceived))
 
     async def init(self, ctx: ModuleContext) -> None:
         self.ctx, self.session, self.commands = ctx, None, []

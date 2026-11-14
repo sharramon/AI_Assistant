@@ -191,7 +191,7 @@ async def test_temp_ui_shows_the_ledgers_total_and_rows():
         ui = app._lifecycle._active["temp_ui"][0]
         await wait_until(lambda: (ui._tally.get("total") or {}).get("used_tokens") == 1300, 3)
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
-        writer.write(b"GET /events HTTP/1.1\r\n\r\n")
+        writer.write(f"GET /events HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n".encode())
         await writer.drain()
         async with asyncio.timeout(3):
             while not (line := await reader.readline()).startswith(b'data: {"kind": "tally"'):
