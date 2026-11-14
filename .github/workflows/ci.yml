@@ -21,8 +21,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      # The voice extra too, so the voice service tests run. They never open a mic or load a model.
-      - run: python -m pip install -e ".[dev,voice]"
+      - run: python -m pip install -e ".[dev]"
+      # Every module's own packages (`packages` in its module.toml), so each module's tests can import
+      # what it needs. The voice service tests never open a mic or load a model.
+      - run: python scripts/install_module_packages.py
       - run: python -m pytest
 
   checks:

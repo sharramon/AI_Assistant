@@ -557,7 +557,7 @@
 <td>function</td>
 <td>Every folder holding module folders: the repo's, then the outside ones <code>[core] module_folders</code> names (read from the modules package's path the loader extends)</td>
 <td><code>infra/agent_access.py</code></td>
-<td><code>module_folder</code>, <code>module_folder_of</code>, <code>main_assistant</code> (<code>worker_prompt</code>), <code>scripts/build_docs.py</code> (<code>module_dirs</code>), <code>tests/test_module_folders.py</code>, <code>test_find_modules</code>, <code>test_module_docs</code></td>
+<td><code>module_folder</code>, <code>module_folder_of</code>, <code>main_assistant</code> (<code>worker_prompt</code>), <code>scripts/build_docs.py</code> (<code>module_dirs</code>), <code>scripts/install_module_packages.py</code> (<code>module_dirs</code>), <code>tests/test_module_folders.py</code>, <code>test_find_modules</code>, <code>test_module_docs</code></td>
 </tr>
 <tr>
 <td><a href="infra.html#agent_access"><code>in_module_folder</code></a></td>
@@ -740,7 +740,14 @@
 <td>functions</td>
 <td>The outside module folders (<code>[core] module_folders</code>, absolute) on the modules package's path once, after the repo's; an id in two folders refused</td>
 <td><code>core/loader.py</code></td>
-<td><code>find_modules</code> (startup, from <code>__main__</code>), root <code>conftest.py</code>, <code>scripts/build_docs.py</code> (<code>module_dirs</code>), <code>tests/test_outside_modules.py</code></td>
+<td><code>find_modules</code> (startup, from <code>__main__</code>), root <code>conftest.py</code>, <code>scripts/build_docs.py</code> (<code>module_dirs</code>), <code>scripts/install_module_packages.py</code> (<code>module_dirs</code>), <code>tests/test_outside_modules.py</code></td>
+</tr>
+<tr>
+<td><a href="../../.github/workflows/ci.yml">Install module packages</a></td>
+<td>script</td>
+<td><code>pip install</code> every module's own <code>packages</code> (<code>Manifest.packages</code>, from each <code>module.toml</code> in every module folder), each once; <code>--list</code> only prints them. Run after <code>pip install -e ".[dev]"</code>; it also sets up a fresh machine</td>
+<td><code>scripts/install_module_packages.py</code></td>
+<td>CI's test jobs (<code>.github/workflows/ci.yml</code>), <code>tests/test_install_module_packages.py</code></td>
 </tr>
 <tr>
 <td><a href="core.html#callers"><code>Callers</code></a></td>
