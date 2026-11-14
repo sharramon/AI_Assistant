@@ -13,7 +13,7 @@
 
 | Part | What it is | There today? |
 |---|---|---|
-| Module | `src/assistant/modules/job_agent/`, a wrapper like every module: `Manifest(id="job_agent")` providing `ITaskAgent`, with its permissions, and a menu of tools (apply to the next job, run a search) in the [module shape](module-shape-refactor.md) | No. The menus and the directory are planned in that change |
+| Module | `src/assistant/modules/job_agent/`, a wrapper like every module: `Manifest(id="job_agent")` providing `ITaskAgent`, with its permissions, and a menu of tools (apply to the next job, run a search) in the module shape (now the [Modules](../architecture/modules.md) page) | No. The menus and the directory are planned in that change |
 | The agent | An `ITaskAgent` backed by [`SessionTaskAgent`](../api/infra.md#sessiontaskagent) and `ClaudeSession`, working in `C:\Jobs\CV`. Claude picks up that folder's `CLAUDE.md` and skills by itself | Yes, both reused as they are |
 | One session per job | A fresh session per task, as the Main Assistant does; this replaces `handoff.ps1` | Yes |
 | Reports | `ReportTask` (progress, need, done, failed) to the Hub, which publishes `TaskUpdated` for the Talker. The Hub finds the agent through `get_all(ITaskAgent)` | Yes, no Hub change |

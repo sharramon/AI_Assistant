@@ -14,7 +14,7 @@
 <h1 id="agents">Agents</h1>
 <p>Task agents and the Agent Hub's commands and events. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>. How it works: <a href="../architecture/agents.html#task-agents">task agents</a>.</p>
 <h2 id="itaskagent"><code>ITaskAgent</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code> provide (through <code>SessionTaskAgent</code>); <code>agent_hub</code> calls; <code>task_agents</code> calls <code>request_approval</code> on the caller of <code>agents.launch</code></p>
+<p><strong>Reusable</strong> · Used by: <code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>, <code>cv</code> provide (through <code>SessionTaskAgent</code>); <code>agent_hub</code> calls; <code>task_agents</code> calls <code>request_approval</code> on the caller of <code>agents.launch</code></p>
 <p><code>class ITaskAgent(Contract)</code></p>
 <p>A contract for agents that take tasks: the Main Assistant, the helpers and module agents such as <code>job_search_agent</code>. Any number of modules may provide it (<code>multiple = True</code>). Declare it in <code>manifest.provides</code> and provide a composed object in <code>init</code>: <code>ctx.provide(ITaskAgent, self._agent)</code>. Only the Agent Hub calls these methods.</p>
 <p>In v1 an agent runs one task at a time.</p>
@@ -118,7 +118,11 @@
 <p><strong>Returns:</strong> <code>ok</code>; <code>invalid_arguments</code> if it's not this agent's current task or no request is open (already answered, timed out, or ended by an interrupt); <code>failed</code> if the session couldn't be written to.</p>
 <h3 id="itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></h3>
 <p><code>async set_permission_mode(self, mode: PermissionMode) -&gt; Result</code></p>
-<p>Not abstract. Switch what the agent may do (<a href="#permissionmode"><code>PermissionMode</code></a>) and publish <a href="#permissionmodechanged"><code>PermissionModeChanged</code></a>. The default refuses with <code>not_available</code>, for agents without modes. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it: every switch applies at once (<code>now</code>), to the running task too; mid-task to Auto, it answers permission requests itself (all but <code>git push</code>) and interrupts a running turn to give it the Auto rules (<a href="../agents/runtime.html#permission-mode">live switch</a>). Its <code>Result.value</code> is <code>True</code> when it answered an open permission request, so the Hub closes that card. Called by the Hub for <a href="#setpermissionmode"><code>SetPermissionMode</code></a>.</p>
+<p>Not abstract. Switch what the agent may do (<a href="#permissionmode"><code>PermissionMode</code></a>) and publish <a href="#permissionmodechanged"><code>PermissionModeChanged</code></a>. The default refuses with <code>not_available</code>, for agents without modes. <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it: every switch applies at once (<code>now</code>), to the running task too; mid-task to Auto, it answers permission requests itself (all but <code>git push</code>) and interrupts a running turn to give it the Auto rules (<a href="../agents/runtime.html#permission-mode">live switch</a>). Its <code>Result.value</code> is <code>True</code> when it answered an open permission request, so the Hub closes that card (<a href="#permissionmodechanged"><code>PermissionModeChanged.answered</code></a>). Called by the core for <a href="#setpermissionmode"><code>SetPermissionMode</code></a>. <strong>Auto only through the core</strong> (G12): <code>SessionTaskAgent</code> refuses a switch to Auto unless the core's <a href="core.html#callers">Callers port</a> already holds Auto for it (the core's handler records it first); with no core (a bare test context) it doesn't check.</p>
+<p><strong>Returns:</strong> <code>ok</code>, or <code>not_available</code> (the default, or a switch to Auto that didn't come through the core: "Only the user switches an agent to Auto, with the app's button").</p>
+<h3 id="itaskagentreset"><code>ITaskAgent.reset</code></h3>
+<p><code>async reset(self) -&gt; Result</code></p>
+<p>Not abstract. Start the agent's session fresh: at once when idle, a handoff when it has a task. Called by the Hub for the <a href="#resetrequested"><code>ResetRequested</code></a> command. The default refuses with <code>not_available</code> ("This agent can't be reset"). <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.reset</code></a> implements it.</p>
 <p><strong>Returns:</strong> <code>ok</code>, or <code>not_available</code> (the default).</p>
 <h3 id="itaskagentnote"><code>ITaskAgent.note</code></h3>
 <p><code>note(self, text: str) -&gt; None</code></p>
@@ -126,7 +130,7 @@
 <h3 id="itaskagentrequest_approval"><code>ITaskAgent.request_approval</code></h3>
 <p><code>async request_approval(self, action: str, run: Callable[[], Awaitable[Result]]) -&gt; Result</code></p>
 <p>Not abstract. Ask you to allow <code>action</code> on this agent's open task. It puts a <code>permission</code> report on the task, so you get the same card (the temp UI's Allow / Deny, the Talker's ALLOW / DENY) and answer it with <a href="#answerpermission"><code>AnswerPermission</code></a>. In Manual it asks; in Auto (the agent's own mode) there's no card and <code>run()</code> runs at once. On Allow, <code>run()</code> is called and its outcome reaches the agent as its next message (<code>[App] &lt;action&gt;: &lt;outcome&gt; Continue the task...</code>). On Deny or no answer, nothing runs. Returns once the question is open. The default refuses with <code>not_available</code>, for agents without tasks.</p>
-<p><a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it. Called by <code>task_agents</code>' <code>agents.launch</code> on its caller; <code>SessionTaskAgent</code>'s own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request uses the same path. Built 2026-11-05.</p>
+<p><a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> implements it. Called by <code>task_agents</code>' <code>agents.launch</code> on its caller. <code>SessionTaskAgent</code>'s own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request uses the same card, but <strong>in Auto too</strong> (2026-11-13: <a href="infra.html#permissiongate"><code>PermissionGate.ask(always=True)</code></a>); on Allow it sends <code>ReloadModule</code> / <code>AddModule</code>, which its module may send as a task agent's module (<a href="modules.html#modulecontextsend">control commands</a>). Built 2026-11-05.</p>
 <p><strong>Returns:</strong> <code>ok</code> once the question is open; <code>not_available</code> if there is no open task, a question is already open, or the agent keeps the default.</p>
 <p><strong>Example</strong></p>
 <pre><code>class MainAssistantModule(ModuleProtocol):
@@ -147,9 +151,9 @@
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/agents.py</code>. Implemented by <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a>.</p>
 <h2 id="iagentnames"><code>IAgentNames</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> provides; <a href="infra.html#profileagent"><code>ProfileAgent</code></a> claims and releases (<code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>); <code>task_agents</code> checks a name at <code>agents.launch</code> · built 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: the core provides (its <a href="core.html#callers">Callers port</a>, decision D2); <a href="infra.html#profileagent"><code>ProfileAgent</code></a> claims and releases (<code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>, <code>cv</code>); <code>task_agents</code> checks a name at <code>agents.launch</code> and <code>is_you</code> for its caller; <code>agent_hub</code> reads it (<code>uses</code>); <code>talker</code> reads <code>is_you</code> (<code>talker.reset</code>); <code>SessionTaskAgent</code> reads <code>mode</code> · built 2026-11-05</p>
 <p><code>class IAgentNames(Contract)</code></p>
-<p>The agent ids in use, so no two agents share one. One provider: the Agent Hub. <code>owner</code> is the id of the module that runs the agent. The rules are <a href="infra.html#agent_names"><code>check_agent_id</code></a>: the form, the reserved ids, and every module's id, except that a module's own agent may carry its module's id (<code>main_assistant</code>). Get it with <code>ctx.get_one(IAgentNames)</code>.</p>
+<p>The agent ids in use, so no two agents share one, and what the core knows of each caller. One provider: <strong>the core</strong> (<code>Callers</code>, <code>core/callers.py</code>), always there when the app runs; a module declares it in <code>uses</code>. <code>owner</code> is the id of the module that runs the agent. The rules are <a href="infra.html#agent_names"><code>check_agent_id</code></a>: the form, the reserved ids (<code>core</code>, <code>hub</code>, <code>talker</code>), and every module's id, except that a module's own agent may carry its module's id (<code>main_assistant</code>). Get it with <code>ctx.get_one(IAgentNames)</code>.</p>
 <table>
 <thead>
 <tr>
@@ -168,11 +172,19 @@
 </tr>
 <tr>
 <td><code>release(agent_id, owner) -&gt; None</code></td>
-<td>Free <code>agent_id</code> if <code>owner</code> holds it</td>
+<td>Free <code>agent_id</code> if <code>owner</code> holds it; its mode goes back to Manual</td>
 </tr>
 <tr>
 <td><code>taken() -&gt; dict[str, str]</code></td>
 <td>Every claimed id and the module that holds it</td>
+</tr>
+<tr>
+<td><code>mode(agent_id) -&gt; PermissionMode</code></td>
+<td>The agent's permission mode as the core set it: Manual unless you switched it to Auto. Read-only here: only the core's <a href="#setpermissionmode"><code>SetPermissionMode</code></a> handler sets one. Non-abstract (default Manual)</td>
+</tr>
+<tr>
+<td><code>is_you(caller) -&gt; bool</code></td>
+<td>Whether <code>caller</code> is you clicking in a UI (<code>[core.permissions] you</code>, today <code>temp_ui</code>). Non-abstract (default False)</td>
 </tr>
 </tbody>
 </table>
@@ -195,8 +207,13 @@
 </tr>
 </tbody>
 </table>
-<p>The claims survive a Hub reload (handed over as <code>claims</code>, and shown in its <code>export_state</code>). As a safety net, an agent that skipped the claim and shares an id with another is seen once: the Hub uses the first one everywhere (<code>hub.agents</code>, <a href="#listagents"><code>ListAgents</code></a>, routing) and logs the clash once.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/contracts/agents.py</code>. Provided by <code>agent_hub</code> (<code>AgentNames</code> in <code>src/assistant/modules/agent_hub/names.py</code>). Design: <a href="../architecture/agents.html#agent-names">agent names</a>.</p>
+<p>The claims live in the core, so they outlive a Hub reload with no handover. The module door uses them: a module may get a door config only for itself or an id it claimed (<a href="tools.html#imoduledoor"><code>IModuleDoor</code></a>). As a safety net, an agent that skipped the claim and shares an id with another is seen once: the Hub uses the first one everywhere (<code>hub.agents</code>, <a href="#listagents"><code>ListAgents</code></a>, routing) and logs the clash once.</p>
+<pre><code>names = ctx.get_one(IAgentNames)
+if not (await names.claim("flight_search", ctx.module_id)).is_ok: ...
+if names.is_you(caller): ...                      # a click of yours in a UI
+auto = names.mode("flight_search") is PermissionMode.AUTO
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/agents.py</code>. Provided by the core (<code>Callers</code> in <code>src/assistant/core/callers.py</code>). Design: <a href="../architecture/agents.html#agent-names">agent names</a>. <strong>Tests:</strong> <code>tests/test_callers.py</code>, <code>tests/test_agent_names.py</code></p>
 <h2 id="task"><code>Task</code></h2>
 <p><code>Task(id: str, text: str, context: str = "", question_key: str | None = None)</code></p>
 <p>A unit of work the Hub assigns. Frozen. The other data types and all commands and events below are defined in <code>src/assistant/contracts/agents.py</code> too.</p>
@@ -427,10 +444,10 @@ active = [a.agent_id for a in result.value if a.active]
 <p>Allow or deny the task's open permission request, once. Sent by a UI (the temp UI's buttons); the Talker (<code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code>) uses the Hub's <code>hub.answer</code> item, which does the same. The Hub calls <a href="#itaskagentanswer_permission"><code>ITaskAgent.answer_permission</code></a>, keeps the task <code>ACTIVE</code>, and publishes <code>TaskUpdated</code> with <code>kind=None</code> and <code>text</code> "permission allowed" or "permission denied".</p>
 <p><strong>Returns:</strong> the agent's <code>Result</code>, or <code>invalid_arguments</code> for an unknown or finished task.</p>
 <h2 id="setpermissionmode"><code>SetPermissionMode</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (the Manual | Auto button) sends; <code>agent_hub</code> handles (and its <code>hub.mode</code> item, for the Talker's <code>&lt;&lt;MODE: manual&gt;&gt;</code>, Manual only)</p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (the Manual | Auto button) and <code>agent_hub</code> (its <code>hub.mode</code> item, for the Talker's <code>&lt;&lt;MODE: manual&gt;&gt;</code>, Manual only) send; the core handles (<code>App._set_mode</code>)</p>
 <p><code>SetPermissionMode(agent_id: str, mode: PermissionMode)</code> (command)</p>
-<p>Switch a task agent between Manual and Auto. Handled by the Agent Hub, which calls <a href="#itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></a>; later the permissions handler takes it over, with no change for the senders. <strong>Only you switch to Auto</strong>, with the button; the Talker only ever asks for Manual (<code>hub.mode</code> refuses Auto), and the Main Assistant has no route to it.</p>
-<p><strong>Returns:</strong> the agent's <code>Result</code>; <code>invalid_arguments</code> for an unknown agent.</p>
+<p>Switch a task agent between Manual and Auto. <strong>Handled by the core</strong> (decision D2): Auto only when the stamped <a href="messaging.html#command"><code>sent_by</code></a> is the core or a caller that is you (<code>[core.permissions] you</code>, <code>Callers.may_set_auto</code>); Manual from anyone. The <a href="core.html#callers">Callers port</a> records the mode first, then the core calls <a href="#itaskagentset_permission_mode"><code>ITaskAgent.set_permission_mode</code></a> on the agent found among the <code>ITaskAgent</code> providers; if the agent refuses, the old mode is put back. <strong>Only you switch to Auto</strong>, with the button; the Talker only ever asks for Manual (<code>hub.mode</code> refuses Auto; a relay never sets Auto, G17), and the Main Assistant has no route to it. It isn't a <a href="modules.html#modulecontextsend">control command</a>: the handler checks the mode itself.</p>
+<p><strong>Returns:</strong> the agent's <code>Result</code>; <code>not_available</code> for Auto from anyone but you ("Only the user switches an agent to Auto, with the app's button"); <code>invalid_arguments</code> for an unknown agent.</p>
 <h2 id="reporttask"><code>ReportTask</code></h2>
 <p><code>ReportTask(task_id: str, kind: ReportKind, text: str, key: str = "", card_open: bool = False)</code> (command)</p>
 <p>Sent by an agent to the Hub. A command rather than an event so the Hub's state never misses it. <code>key</code>: with a <code>need</code> or a <code>turn_end</code>, the task's context key (the agent's module decides it, through <a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.set_context</code></a>; <code>""</code> for none). The Hub keeps it as <a href="#taskinfo"><code>TaskInfo.question_key</code></a>. <code>card_open</code>: with a <code>turn_end</code>, the agent's card is still open; without it, a <code>permission</code> question the Hub still lists is closed (a tool request that timed out).</p>
@@ -504,10 +521,14 @@ active = [a.agent_id for a in result.value if a.active]
 <p><code>FocusSuggested(agent_id: str, reason: str = "", by: str = "")</code> (event)</p>
 <p>The coordinator (<code>by</code>) suggests you talk to <code>agent_id</code> directly. Published by the Hub's <code>hub.suggest_focus</code>. The Talker asks you; the focus moves only if you say yes (then <code>hub.focus</code>).</p>
 <h3 id="agentnotice"><code>AgentNotice</code></h3>
-<p><code>AgentNotice(agent_id: str, text: str, source: str = "")</code> (event)</p>
-<p>A module's callback for an agent, e.g. a slow menu item's result: the item returns at once and, when the work ends, publishes this with <code>agent_id</code> = the item's caller. The Hub passes <code>[&lt;source&gt;] &lt;text&gt;</code> to that agent's <a href="#itaskagentnote"><code>note</code></a>, for its next turn. Dropped (and logged) if the agent isn't running.</p>
+<p><strong>Reusable</strong> · Used by: <code>cv</code>, <code>job_search</code> and the core's permissions handler (a confirm or grant card's outcome) send; <code>agent_hub</code> handles</p>
+<p><code>AgentNotice(agent_id: str, text: str, source: str = "")</code> (command)</p>
+<p>A module's callback for an agent, e.g. a slow menu item's result: the item returns at once and, when the work ends, sends this with <code>agent_id</code> = the item's caller (list it in <code>manifest.sends</code>). <strong>A command the Hub handles</strong> (decision D5): it passes <code>[&lt;label&gt;] &lt;text&gt;</code> to that agent's <a href="#itaskagentnote"><code>note</code></a>, for its next turn. The label is the stamped <a href="messaging.html#command"><code>sent_by</code></a> (so job.search's note reads <code>[job_search]</code>); only the core's own notices keep their <code>source</code> (<code>[permissions]</code>).</p>
+<pre><code>await ctx.send(AgentNotice(agent_id=caller, text="The search finished: 12 jobs"))
+</code></pre>
+<p><strong>Returns:</strong> <code>ok</code>; <code>not_available</code> when the agent isn't running (and with no Hub on, from the router). The permissions handler then only logs the note.</p>
 <h2 id="the-hubs-menu">The Hub's menu</h2>
-<p><strong>Reusable</strong> · Used by: <code>talker</code> and <code>main_assistant</code> through the <a href="tools.html#imoduledoor">module door</a> · built 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: the Talker and every agent with the <a href="tools.html#imoduledoor">module door</a></p>
 <p>The <code>agent_hub</code> module's <a href="modules.html#menu"><code>Menu</code></a>, id prefix <code>hub.</code>. Every item knows its caller (<a href="tools.html#invoketool"><code>InvokeTool.caller</code></a>), which a session can't fake.</p>
 <table>
 <thead>
@@ -565,18 +586,18 @@ active = [a.agent_id for a in result.value if a.active]
 </tr>
 </tbody>
 </table>
-<p>Refused callers get <code>not_available</code>. The UI's own buttons still send <code>AnswerPermission</code> and <code>SetPermissionMode</code> as commands. Code: <code>AgentHubModule</code> (<code>module.py</code>) wires a <code>TaskBoard</code> (<code>tasks.py</code>), a <code>Focus</code> (<code>focus.py</code>), <code>AgentNames</code> (<code>names.py</code>), a <code>Delivery</code> (<code>delivery.py</code>) and a <code>MessageGate</code> (<code>gate.py</code>); tests in <code>agent_hub/tests/</code> (<code>test_agent_hub_parts.py</code> for the parts).</p>
+<p>Refused callers get <code>not_available</code>. Every item also passes the core's <a href="tools.html#the-ask-first-gate">ask-first gate</a>; none is marked <code>ask</code> today (<code>hub.cancel</code> is your word through the Talker, or can be undone). The UI's own buttons send <code>AnswerPermission</code> and <code>SetPermissionMode</code> as commands. The module door and the agent names are the core's, not the Hub's; besides its menu it handles <code>ListAgents</code>, <code>StartTask</code>, <code>GetTaskStatus</code>, <code>ReportTask</code>, <code>DeliverMessage</code>, <code>SendToTask</code>, <code>CancelTask</code>, <code>AnswerPermission</code>, <code>SetFocus</code>, <code>AgentNotice</code>, <code>ResetRequested</code> and <a href="messaging.html#reviewaccesslist"><code>ReviewAccessList</code></a>. Code: <code>AgentHubModule</code> (<code>module.py</code>) wires a <code>TaskBoard</code> (<code>tasks.py</code>), a <code>Focus</code> (<code>focus.py</code>), a <code>Delivery</code> (<code>delivery.py</code>), a <code>MessageGate</code> (<code>gate.py</code>) and a <code>Reviewer</code> (<code>review.py</code>: runs an access list's review as a task on the named reviewer, answers with <code>AddCardNotes</code>, cancels it at the timeout); tests in <code>agent_hub/tests/</code> (<code>test_agent_hub_parts.py</code> for the parts, <code>test_review.py</code>).</p>
 <h2 id="agentstatechanged"><code>AgentStateChanged</code></h2>
 <p><code>AgentStateChanged(agent_id: str, state: AgentState = AgentState.IDLE, change: Literal["state", "opened", "closed"] = "state")</code> (event)</p>
-<p>Published by the agent module whenever its <a href="#agentstate"><code>state</code></a> changes (active or idle), so a UI can show it live without polling. <code>change</code> says what happened: <code>"state"</code> (the default), or <code>"opened"</code> / <code>"closed"</code> for an agent that isn't a module of its own (a helper inside <code>task_agents</code>), so UIs add or drop its tab (built 2026-11-08; it used to be a plain state event with both flags off). May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
+<p>Published by the agent module whenever its <a href="#agentstate"><code>state</code></a> changes (active or idle), so a UI can show it live without polling. <code>change</code> says what happened: <code>"state"</code> (the default), or <code>"opened"</code> / <code>"closed"</code> for an agent that isn't a module of its own (a helper inside <code>task_agents</code>), so UIs add or drop its tab. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
 <h2 id="permissionmodechanged"><code>PermissionModeChanged</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> publishes; <code>talker</code>, <code>temp_ui</code> subscribe</p>
-<p><code>PermissionModeChanged(agent_id: str, mode: PermissionMode, applies: Literal["now", "next_task"] = "now")</code> (event)</p>
-<p>A task agent's mode was set. <code>applies</code> is <code>now</code>, even mid-task (built 2026-11-08); <code>next_task</code> only when a live switch to Manual failed. The temp UI shows it (amber header in Auto) and logs it in both panes; the Talker hears it once, as a <code>[Mode] worker: …</code> line before your next message. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
+<p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> publishes; <code>talker</code>, <code>temp_ui</code>, <code>agent_hub</code> (closes the answered card, <code>TaskBoard.on_mode_changed</code>) subscribe</p>
+<p><code>PermissionModeChanged(agent_id: str, mode: PermissionMode, applies: Literal["now", "next_task"] = "now", answered: bool = False)</code> (event)</p>
+<p>A task agent's mode was set. <code>applies</code> is <code>now</code>, even mid-task; <code>next_task</code> only when a live switch to Manual failed. <code>answered</code>: the switch to Auto answered the agent's open permission request, so the Hub closes its card. The temp UI shows it (amber header in Auto) and logs it in both panes; the Talker hears it once, as a <code>[Mode] worker: …</code> line before your next message. May be dropped; <a href="#listagents"><code>ListAgents</code></a> is authoritative.</p>
 <h2 id="agentactivity"><code>AgentActivity</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code> publishes; <code>agent_hub</code>, <code>assistant_view</code>, <code>temp_ui</code>, <code>html_viewer</code> subscribe</p>
 <p><code>AgentActivity(agent_id: str, task_id: str | None, text: str)</code> (event)</p>
-<p>An agent's raw activity (its text and tool calls), published by the agent module itself for viewers such as terminal 2. High-volume and view-only. The Hub keeps each task's latest lines in <a href="#taskinfo"><code>TaskInfo.activity</code></a>.</p>
+<p>An agent's raw activity (its text and tool calls), published by the agent module itself for viewers such as the temp UI and terminal 2 (<code>assistant_view</code>, off by default). High-volume and view-only. The Hub keeps each task's latest lines in <a href="#taskinfo"><code>TaskInfo.activity</code></a>.</p>
 <h2 id="sessionusage"><code>SessionUsage</code></h2>
 <p><strong>Reusable</strong> · Used by: <code>SessionTaskAgent</code>, <code>talker</code> publish; <code>usage</code>, <code>temp_ui</code> subscribe</p>
 <p><code>SessionUsage(agent_id: str, context_tokens: int, input_tokens: int = 0, cache_write_tokens: int = 0, cache_read_tokens: int = 0, output_tokens: int = 0, session: str = "", parent: str = "", kind: "claude" | "subagent" | "tool" = "claude")</code> (event)</p>
@@ -609,8 +630,10 @@ active = [a.agent_id for a in result.value if a.active]
 </table>
 <p>The Talker hears the worker's, adds its own, and puts both before each of your messages as a <code>[Usage]</code> line; it also warns you once when either context passes <code>context_warning</code>. The temp UI keeps every agent's by id and shows the selected tab's worker and Talker in its header.</p>
 <h2 id="resetrequested"><code>ResetRequested</code></h2>
-<p><code>ResetRequested(agent_id: str)</code> (event)</p>
-<p>Asks the session behind <code>agent_id</code> ("talker" or a task agent's id) to start fresh. Sent by the temp UI's Reset buttons and the Talker's <code>&lt;&lt;RESET: talker | worker&gt;&gt;</code> tag. The Talker restarts its session and tells the new one its last few exchanges. A task agent (<a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.reset</code></a>) closes its session at once when idle; with a task, it asks the agent to write a handoff note, and the task carries on in a fresh session.</p>
+<p><strong>Reusable</strong> · Used by: <code>temp_ui</code> (a worker's Reset button) and <code>talker</code> (<code>&lt;&lt;RESET: worker&gt;&gt;</code>) send; <code>agent_hub</code> handles</p>
+<p><code>ResetRequested(agent_id: str)</code> (command)</p>
+<p>Asks task agent <code>agent_id</code>'s session to start fresh. <strong>A command the Hub handles</strong> (decision D5): it calls <a href="#itaskagentreset"><code>ITaskAgent.reset</code></a> on that agent. A task agent (<a href="infra.html#sessiontaskagent"><code>SessionTaskAgent.reset</code></a>) closes its session at once when idle; with a task, it asks the agent to write a handoff note, and the task carries on in a fresh session. <strong>A Talker session's reset is the Talker's own</strong>: its <code>&lt;&lt;RESET: talker&gt;&gt;</code> tag resets itself, and the temp UI's Talker Reset button calls the Talker's <code>talker.reset(session)</code> item (only for a caller that is you); the Talker restarts its session and tells the new one its last few exchanges.</p>
+<p><strong>Returns:</strong> the agent's <code>Result</code>; <code>not_available</code> for an agent that isn't running or can't be reset.</p>
 <footer>Generated from <code>docs/api/agents.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

@@ -13,7 +13,7 @@
 - The Main Assistant's session never gets it: every session start in `main_assistant.jsonl` shows `"mcp_servers": []`. In the 13:16 launch it showed `modules` as `connected`. So the config was never handed over; this isn't a connection that failed.
 - Likely cause: `ProfileAgent.door()` (`src/assistant/infra/profile_agent.py:70`) returns `{}` when `ctx.get_one(IModuleDoor)` finds nothing. `start_session=True` starts the first session before `agent_hub` has registered the door. Not confirmed yet: later session starts in this launch were empty too, so `get_one` may also come back empty after the Hub is up (for example the agent can't see the contract, or `door` is false in the config).
 
-**Left, after the restart:** (1) Check that the Main Assistant's session has the `modules` door: its tools load, and the log says "main_assistant restarted its session with the module door". (2) Rerun the helper launch test (handoff-73fc479c item 3): `modules.on task_agents`, `agents.launch` two job search helpers under different names, Allow each, and check each helper starts, shows its access card and gets its own temp UI tab. Check `hub.agents` lists both, and that a taken name is refused with a free name offered. (3) Report, and leave task_agents on until the user says otherwise. (4) Then the other checks in handoff-73fc479c (items 1, 2, 4 to 7). Nothing is committed or pushed.
+**Left, after the restart:** (1) Check that the Main Assistant's session has the `modules` door: its tools load, and the log says "main_assistant restarted its session with the module door". (2) Open hand check, not yet rerun: with `task_agents` on, `agents.launch` two job search helpers under different names and Allow each; each starts, shows its access card and gets its own tab, `hub.agents` lists both, and a taken name is refused with a free one offered. (3) Report, and leave task_agents on until the user says otherwise. Nothing is committed or pushed.
 
 **Touches:** `src/assistant/infra/profile_agent.py` (infra: needs an app restart), its tests, and possibly `agent_hub`'s start order. Docs: `docs/api/infra.md` (`ProfileAgent`).
 
@@ -21,7 +21,7 @@
 1. Confirm the cause first: log one line at each session start saying what `door()` found (door missing, or turned off in config), and run it in a test that starts `main_assistant` before `agent_hub`. If later starts still find nothing, the bug is in how the agent looks up the contract, and the note gets updated before any fix.
 2. Fix, if the cause is confirmed: when there's no door at session start, a warning is logged. When the door appears (the Hub provides `IModuleDoor`), an idle agent restarts its session once so it picks the door up. A busy agent picks it up at its next session start, as it does now.
 3. Add a test: start the agent before the Hub, then provide the door. The next session's command must have `--mcp-config`.
-4. After the restart, rerun the helper launch test (handoff-73fc479c item 3).
+4. After the restart, rerun the helper launch test (the open hand check under "Left" above).
 
 **Open questions:**
 - Restart the idle session when the door arrives, or hold the first session start until the Hub is up? **Recommended:** restart it when the door arrives. Holding the start would tie `main_assistant` to `agent_hub`, and the two can't depend on each other (that dependency would be circular).

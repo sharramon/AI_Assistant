@@ -1,6 +1,6 @@
 # Agents talk to each other freely, and a question never makes an agent busy
 
-> **Status: built (2026-11-10), waiting on the app restart and the hand checks.** The user approved all six choices as recommended. Takes in [two-agent-states](two-agent-states.md) and replaces [hub-folder-check-parent](hub-folder-check-parent.md) (cancelled, never built).
+> **Status: built (2026-11-10), waiting on the app restart and the hand checks.** The user approved all six choices as recommended. Takes in the two-agent-states note (deleted 2026-11-13) and replaces the hub-folder-check-parent note (cancelled, never built; deleted 2026-11-13).
 
 **Asked:** "the cv module can't give the job module the resulting cv and the info about it either. Which makes the process a mess." "They can just ask for permission to send things to each other if we need a gate." The cv and job modules were meant to talk to each other freely when needed; restore that, with the permission card as the only gate. And: an agent that asks a question must not sit in a holding pattern. The question is just a message; the agent ends its turn and is free; the user answers whenever they like, as a normal message, and the module finds the right context again from its notes.
 
@@ -49,7 +49,7 @@
 
 ### 3. A question is a message; the agent is never busy waiting (takes in two-agent-states)
 
-- **Two states only:** an agent or task is **active** (in a turn) or **idle**, as in [two-agent-states](two-agent-states.md); its table of what "waiting" touches is the work list. `TaskState` loses `running`, `paused` and `waiting_for_input`; `AgentInfo` gets `state` in place of `busy` and `working`.
+- **Two states only:** an agent or task is **active** (in a turn) or **idle**, as in the two-agent-states note; its table of what "waiting" touched was the work list. `TaskState` loses `running`, `paused` and `waiting_for_input`; `AgentInfo` gets `state` in place of `busy` and `working`.
 - **A `NEED:` ends the turn and the task.** The agent is free at once. The question becomes its own record in the Hub (id, agent, text, a **context key**, asked at), shown behind the tab's **!** as today. This replaces two-agent-states' "a new task ends the old one as left unanswered": the question stays answerable however much happens in between.
 - **Your answer is a normal message**, whenever you like: the Hub sends it to the agent as "Answer to your question <id> (<question>): <answer>", into its open task or as a new task.
 - **The module finds the context again.** The question carries a context key (cv: the job's work folder; job_search: the application doc). If the agent's session still has the question, nothing more is needed. If not (a relaunch, a reset, other work in between), the module adds its notes for that key to the message: cv adds the job's `job_start.json` summary and its handoff note; others their handoff note. Each module says how, through one small hook on its agent (`context_for(key)`), default: none.

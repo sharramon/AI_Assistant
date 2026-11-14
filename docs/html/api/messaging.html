@@ -52,6 +52,26 @@
 <h2 id="command"><code>Command</code></h2>
 <p><code>class Command(Message)</code></p>
 <p>Base for requests that exactly one handler carries out. Subclass it and add fields. Send with <a href="modules.html#modulecontextsend"><code>ModuleContext.send</code></a>; handle with <a href="modules.html#modulecontexthandle"><code>ModuleContext.handle</code></a>.</p>
+<p><strong>Fields</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sent_by</code></td>
+<td><code>str</code></td>
+<td><code>""</code></td>
+<td>Who sent it, stamped by the core: <a href="modules.html#modulecontextsend"><code>ModuleContext.send</code></a> always sets the sending module's id (whatever the module put there), and the router sets <code>"core"</code> when it's empty (the core's own sends, tests' <code>app.router.send</code>). Handlers may trust it. Not <code>sender</code>: <a href="agents.html#delivermessage"><code>DeliverMessage.sender</code></a> is the agent a message is from. Decision D3 (<a href="../architecture/decisions.html">decisions</a>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Commands, not events, for control</strong> (decision D5): anything that makes a part act is a command, so it has one handler, a declared sender (<code>manifest.sends</code>) and a stamped <code>sent_by</code>, and with no handler the sender gets <code>not_available</code> at once. So <a href="#shutdownrequested"><code>ShutdownRequested</code></a> (the core handles it), <a href="agents.html#agentnotice"><code>AgentNotice</code></a> and <a href="agents.html#resetrequested"><code>ResetRequested</code></a> (the Agent Hub handles both) are commands. Who may send what: <a href="../architecture/communication.html#who-sent-it-and-what-may-control">communication</a>.</p>
 <p><strong>Example</strong></p>
 <pre><code>class OpenUrl(Command):
     url: str
@@ -187,7 +207,7 @@
 <tr>
 <td><code>agent_id</code></td>
 <td><code>str | None</code></td>
-<td>The agent tab it was typed in (the temp UI's chat box sets it). <code>None</code> (voice, terminal 1): the focused tab. Added 2026-11-05 (agent talkers)</td>
+<td>The agent tab it was typed in (the temp UI's chat box sets it). <code>None</code> (voice, terminal 1): the focused tab</td>
 </tr>
 </tbody>
 </table>
@@ -198,17 +218,19 @@
 <p>A reply to present. Set <code>correlation_id</code> to the <code>id</code> of the <code>InputReceived</code> it answers, so the source can tell which replies are its own. Leave it <code>None</code> when the assistant speaks first (e.g. "the task is done"); <code>console_io</code> prints those too. <code>agent_id</code>: the agent tab whose chat it belongs in (the Talker sets it); <code>None</code> means the focused tab.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="shutdownrequested"><code>ShutdownRequested</code></h2>
-<p><code>ShutdownRequested(reason: str = "", restart: bool = False)</code> (event)</p>
-<p>Asks the host to shut down cleanly. Any module may publish it. With <code>restart</code>, <code>App.restart_requested</code> is set, the app exits with <code>core.restart_exit_code</code> (75), and the launcher (<code>python -m assistant</code>) starts it again. Published with <code>restart</code> by the Talker's <code>&lt;&lt;RESTART&gt;&gt;</code> (<a href="../agents/runtime.html#the-talker-on-its-own">Restart</a>).</p>
+<p><code>ShutdownRequested(reason: str = "", restart: bool = False)</code> (command)</p>
+<p>Asks the host to shut down cleanly. <strong>A command the core handles</strong> (<code>App._on_shutdown_requested</code>, decision D5): only a module that lists it in <code>manifest.sends</code> can send it; the handler logs the stamped <code>sent_by</code> and returns <code>ok</code> ("Shutting down", or "Shutting down to restart"). It isn't a <a href="modules.html#modulecontextsend">control command</a>: the strict <code>sends</code> check alone gates it, so the core names no add-on. With <code>restart</code>, <code>App.restart_requested</code> is set, the app exits with <code>core.restart_exit_code</code> (75), and the launcher (<code>python -m assistant</code>) starts it again. Senders: <code>console_io</code> (its exit words) and the Talker's <code>&lt;&lt;RESTART&gt;&gt;</code> (<a href="../agents/runtime.html#the-talker-on-its-own">Restart</a>), with <code>restart</code>, after your Allow on its <code>confirm</code> card.</p>
+<pre><code>await ctx.send(ShutdownRequested(reason="user asked", restart=True))   # needs ShutdownRequested in manifest.sends
+</code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="sessiontheme"><code>SessionTheme</code></h2>
 <p><code>SessionTheme(text: str)</code> (event)</p>
 <p>A few words about what this app session is about, from your first question. The Talker publishes it once; <code>__main__</code> passes it to <a href="infra.html#logsession"><code>LogSession.set_theme</code></a>, which creates the session's log folder with it in the name. Until then nothing is written to disk. If the first turn fails, the Talker still publishes it, with the message itself.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="moduleevent"><code>ModuleEvent</code></h2>
-<p><strong>Reusable</strong> · Used by: cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens to both), html_viewer (publishes <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), temp_ui (publishes <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code>; listens to the clips), talker (listens to all four) · built 2026-11-12</p>
+<p><strong>Reusable</strong> · Used by: cv (publishes <code>cv.job_finished</code>, <code>cv.job_submitted</code>), job_search (listens to both), html_viewer (publishes <code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), temp_ui (publishes <code>temp_ui.clip</code>, <code>temp_ui.clip_dropped</code>; listens to the clips), talker (listens to all four)</p>
 <p><code>ModuleEvent(name: str, source: str, data: dict[str, Any] = {})</code> (event)</p>
-<p>A <strong>module-owned</strong> event, matched by its name rather than its class, so a new one needs no restart and either side reloads on its own. Never built by hand: published with <a href="modules.html#modulecontextpublish_named"><code>ctx.publish_named</code></a> (the core sets <code>source</code> and copies <code>data</code> through JSON) and heard with <a href="modules.html#modulecontextsubscribe_named"><code>ctx.subscribe_named</code></a>. Declared in the manifest's <code>publishes_named</code> / <code>listens_named</code>.</p>
+<p>A <strong>module-owned</strong> event, matched by its name rather than its class, so a new one needs no restart and either side reloads on its own. Never built by hand: published with <a href="modules.html#modulecontextpublish_named"><code>ctx.publish_named</code></a> (the core sets <code>source</code> and copies <code>data</code> through JSON) and heard with <a href="modules.html#modulecontextsubscribe_named"><code>ctx.subscribe_named</code></a>. Declared in the manifest's <code>publishes_named</code> / <code>listens_named</code>; an undeclared one still works and is logged once.</p>
 <table>
 <thead>
 <tr>
@@ -232,7 +254,7 @@
 </tbody>
 </table>
 <p><strong>Named or typed:</strong> shared events (the core's, the Hub's, ones several modules agree on: <code>TaskUpdated</code>, <code>VoiceTranscript</code>, …) stay typed classes here, with their fields checked. A named event that becomes widely used, or whose payload needs checking, gets a typed class at the next planned restart (<a href="../architecture/decisions.html#decided">decisions</a>). Helpers: <code>event_name_ok(name, pattern=False)</code> (is it <code>&lt;module&gt;.&lt;what&gt;</code>, or with <code>pattern</code> also <code>&lt;module&gt;.*</code>) and <code>SubscriptionHandle</code> (from <code>subscribe</code> and <code>subscribe_named</code>, for <code>unsubscribe</code>), both in <code>assistant.contracts</code>.</p>
-<p><strong>Named events today</strong> (modules talk to each other through named events; a tool is only for a call out, <a href="../architecture/decisions.html#decided">decisions</a>):</p>
+<p><strong>Named events</strong> (modules talk to each other through named events; a tool is only for a call out, <a href="../architecture/decisions.html#decided">decisions</a>):</p>
 <table>
 <thead>
 <tr>
@@ -288,16 +310,16 @@
 </tr>
 </tbody>
 </table>
-<p>The HTML viewer's two are documented on its module page (<a href="../modules/html_viewer/architecture.html#events">html_viewer's events</a>); until 2026-11-13 they and the dropped snip were the typed <code>ViewerTabsChanged</code>, <code>ViewerClip</code> and <code>ViewerClipDropped</code> in the contracts.</p>
+<p>The HTML viewer's two are documented on its module page (<a href="../modules/html_viewer/architecture.html#events">html_viewer's events</a>).</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="snip-constants">Snip constants</h2>
 <p><strong>Shared limits</strong> (in <code>assistant.contracts</code>, one owner, principle 19): <code>MAX_SNIPS = 3</code>, the snips sent with one message (the Talker keeps, the temp UI shows at most this many); <code>PASTED_FILE = "(pasted)"</code>, a pasted image's <code>file</code> in a snip's data (<code>temp_ui.clip</code>; the Talker labels it <code>[Pasted] image</code>). Used by <code>talker</code>, <code>temp_ui</code>.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/messages.py</code></p>
 <h2 id="access-and-permissions">Access and permissions</h2>
-<p>Access lists and the messages of the core's <a href="../architecture/permissions.html#access-lists-built">permissions handler</a> (its first piece). A task-agent module asks for its whole list with <a href="modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a>; the handler answers from a saved grant, or asks you on one card: <code>PermissionRequested</code> → <code>AnswerPermissionRequest</code> → <code>PermissionChanged</code>. Built 2026-11-05.</p>
+<p>Access lists and the messages of the core's <a href="../architecture/permissions.html#access-lists-built">permissions handler</a>. A task-agent module asks for its whole list with <a href="modules.html#modulecontextpermissions"><code>ctx.permissions.request_set</code></a>; the handler answers from a saved grant, or asks you on one card: <code>PermissionRequested</code> → <code>AnswerPermissionRequest</code> → <code>PermissionChanged</code>.</p>
 <p><strong>Reusable</strong> · Used by: <code>job_search</code>, <code>task_agents</code> (lists, through <a href="infra.html#agent_access"><code>request_access</code></a>); the core's handler (sends the cards); <code>talker</code>, <code>temp_ui</code> (show and answer them)</p>
 <h3 id="accesskind"><code>AccessKind</code></h3>
-<p><code>class AccessKind(StrEnum)</code>: <code>workspace</code> (its working folder, read and write; always kept when the list is allowed), <code>read</code> (a folder), <code>write</code> (a folder), <code>python</code> (a Python, with any arguments), <code>command</code> (a shell command, with any arguments), <code>chrome</code> (the Claude in Chrome tools), <code>message</code> (messaging another agent; <code>target</code> is its id, label <code>message &lt;id&gt;</code>; saved under <code>agent_hub</code> per sender kind, asked by the Hub's message gate; built 2026-11-10).</p>
+<p><code>class AccessKind(StrEnum)</code>: <code>workspace</code> (its working folder, read and write; always kept when the list is allowed), <code>read</code> (a folder), <code>write</code> (a folder), <code>python</code> (a Python, with any arguments), <code>command</code> (a shell command, with any arguments), <code>chrome</code> (the Claude in Chrome tools), <code>message</code> (messaging another agent; <code>target</code> is its id, label <code>message &lt;id&gt;</code>; saved under <code>agent_hub</code> per sender kind, asked by the Hub's message gate).</p>
 <h3 id="accessitem"><code>AccessItem</code></h3>
 <p><code>AccessItem(kind: AccessKind, target: str = "")</code> (frozen)</p>
 <p>One line of an access list. <code>target</code>: the resolved folder, the Python's path or the command; empty for Chrome.</p>
@@ -329,23 +351,34 @@
 </table>
 <h3 id="accessnote"><code>AccessNote</code></h3>
 <p><code>AccessNote(text: str, items: tuple[str, ...] = (), source: "rule" | "review" | "refused" = "rule")</code> (frozen)</p>
-<p>A line on the card about some items (their keys): a fixed rule warning, the Main Assistant's review note, or an item taken off the list.</p>
+<p>A line on the card about some items (their keys): a fixed rule warning, the review's note (<code>review</code>: one line of an <a href="#addcardnotes"><code>AddCardNotes</code></a>), or an item taken off the list.</p>
 <h3 id="accessdenied-accesspending"><code>AccessDenied</code>, <code>AccessPending</code></h3>
 <p>Exceptions from <code>request_set</code>. <code>AccessDenied</code>: you denied the list, didn't answer in time, or the workspace was refused. <code>AccessPending</code>: the list waits on a card (<code>wait=False</code>); a module's <code>start</code> lets it through, so the start ends at once with this reason, and the handler turns the module on after your Allow.</p>
 <h3 id="permissionrequested"><code>PermissionRequested</code></h3>
 <p><code>PermissionRequested(request_id, module_id, subject="", action="access", reason="", items=(), notes=(), reviewed=None, rules=(), caller="")</code> (event)</p>
-<p>A card for you. <code>action</code>: <code>access</code> (a module's list), <code>grant</code> / <code>revoke</code> (an agent's call, <code>caller</code>, waiting for your yes), or <code>message</code> (agent <code>caller</code> wants to message the agent in its one <code>message:</code> item; answered Allow once, Always allow or Deny). <code>items</code>: the lines offered. <code>notes</code>: refused items, rule warnings, then the review's notes. <code>reviewed</code>: <code>True</code> or <code>False</code> for an access list (<code>False</code> shows "not reviewed"), <code>None</code> for no review step. <code>rules</code>: the fixed rules. Published by the handler; <code>temp_ui</code> shows it with tick boxes, the Talker says it.</p>
+<p>A card for you. <code>action</code>: <code>access</code> (a module's list), <code>grant</code> / <code>revoke</code> (an agent's call, <code>caller</code>, waiting for your yes), <code>message</code> (agent <code>caller</code> wants to message the agent in its one <code>message:</code> item; answered Allow once, Always allow or Deny), or <code>confirm</code> (a risky step <code>caller</code> asks for: a reload, an add, a remove, <code>modules.off</code> with dependents, the Talker's restart; <code>reason</code> says what, e.g. <code>modules.add (package: x)</code>; no items; Allow or Deny; <strong>Auto never skips it</strong>, only a <code>you</code> caller runs at once; sent by <a href="modules.html#modulecontextpermissions"><code>ctx.permissions.confirm</code></a> and the core's <a href="tools.html#the-ask-first-gate">ask-first gate</a>). <code>items</code>: the lines offered. <code>notes</code>: refused items, rule warnings, then the review's notes. <code>reviewed</code>: <code>True</code> or <code>False</code> for an access list (<code>False</code> shows "not reviewed"), <code>None</code> for no review step. <code>rules</code>: the fixed rules. Published by the handler; <code>temp_ui</code> shows it with tick boxes, the Talker says it.</p>
 <h3 id="answerpermissionrequest"><code>AnswerPermissionRequest</code></h3>
 <p><code>AnswerPermissionRequest(request_id: str, allow: bool, keep: tuple[str, ...] | None = None, remember: bool = True)</code> (command)</p>
-<p>Your answer to a card. <code>keep</code>: the keys of the ticked items (<code>None</code>: all of them); ignored on Deny. <code>remember</code>: for a <code>message</code> card, <code>False</code> is Allow once (this message only, nothing saved) and <code>True</code> is Always allow; other cards ignore it. The temp UI's buttons set it; the Talker's ALLOW sends <code>False</code>. Handled by the core. <code>invalid_arguments</code> if the card isn't open or a key isn't on it.</p>
+<p>Your answer to a card. <code>keep</code>: the keys of the ticked items (<code>None</code>: all of them); ignored on Deny. <code>remember</code>: for a <code>message</code> card, <code>False</code> is Allow once (this message only, nothing saved) and <code>True</code> is Always allow; other cards ignore it. The temp UI's buttons set it; the Talker's ALLOW sends <code>False</code>. Handled by the core. A control command: only a <code>you</code> caller or a relay (<code>[core.permissions] relays</code>, the Talker) may send it; anyone else gets <code>failed</code>. <code>invalid_arguments</code> if the card isn't open or a key isn't on it.</p>
 <h3 id="permissionchanged"><code>PermissionChanged</code></h3>
 <p><code>PermissionChanged(module_id, subject="", granted=(), request_id="", text="")</code> (event)</p>
 <p>A grant was saved, denied, widened or revoked. <code>request_id</code>: the card it closes, if any (UIs drop it). <code>granted</code>: what the module or subject holds now. <code>text</code>: what happened, for you.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/contracts/permissions.py</code> · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_access_cards.py</code></p>
+<h3 id="reviewaccesslist"><code>ReviewAccessList</code></h3>
+<p><strong>Reusable</strong> · Used by: the core's permissions handler sends; <code>agent_hub</code> handles (its <code>Reviewer</code>, <code>agent_hub/review.py</code>)</p>
+<p><code>ReviewAccessList(request_id: str, reviewer: str, who: str, reason: str = "", items: tuple[str, ...] = (), warnings: tuple[str, ...] = (), timeout: float = 90.0)</code> (command)</p>
+<p>The core asks for a review of an access list before its card shows (decision D6: the reviewer is a listener; <strong>the core never starts a task</strong>). <code>reviewer</code>: the agent that reviews (<code>[core.permissions] reviewer</code>, passed in the command); <code>who</code>: how the card names the list; <code>items</code>: the items' labels; <code>warnings</code>: the notes already on the card. <strong>Result:</strong> only whether a review started (<code>ok</code>, value the review task's id); <code>not_available</code> when nothing handles it (no Hub) or the reviewer is busy, and the card shows "not reviewed" at once. The notes come back as <code>AddCardNotes</code> within <code>timeout</code> seconds; the handler waits <code>timeout</code> + 5 s (<code>REVIEW_GRACE</code>), then shows the card "not reviewed". A command, not an event, so that with no Hub the router answers at once instead of a 90 s wait.</p>
+<h3 id="addcardnotes"><code>AddCardNotes</code></h3>
+<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> sends; the core handles (<code>PermissionsHandler.add_notes</code>)</p>
+<p><code>AddCardNotes(request_id: str, notes: tuple[str, ...] = (), reviewed: bool = True)</code> (command)</p>
+<p>A review's outcome for a card waiting on <code>ReviewAccessList</code>. <code>notes</code>: one line per risk; the core keeps at most 8 (<code>MAX_REVIEW_LINES</code>), each cut to 300 characters, as <code>AccessNote(source="review")</code>. <code>reviewed=False</code>: the review didn't finish (cancelled, failed, timed out), so the card says "not reviewed". <code>invalid_arguments</code> when no review waits for <code>request_id</code> (a late answer is refused).</p>
+<pre><code># the reviewer, once its task ends
+await ctx.send(AddCardNotes(request_id=cmd.request_id, notes=("writes outside its folder",), reviewed=True))
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/permissions.py</code> · <strong>Tests:</strong> <code>tests/test_permissions_handler.py</code>, <code>tests/test_access_cards.py</code>, <code>tests/test_review_listener.py</code>, <code>src/assistant/modules/agent_hub/tests/test_review.py</code></p>
 <h2 id="voice">Voice</h2>
-<p>Voice input (<a href="../modules/voice_in/voice-service.html#the-voice_in-module">design</a>). A module that needs the mic requires the voice contract <a href="#ivoice"><code>IVoice</code></a>; a UI button may send the commands instead. <code>voice_in</code> provides the one and handles the other, with the same sessions, and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id, or the id given to <code>IVoice.listen</code>), so each caller follows only its own session. Built 2026-11-03; <code>IVoice</code> built 2026-11-05.</p>
+<p>Voice input (<a href="../modules/voice_in/voice-service.html#the-voice_in-module">design</a>). A module that needs the mic requires the voice contract <a href="#ivoice"><code>IVoice</code></a>; a UI button may send the commands instead. <code>voice_in</code> provides the one and handles the other, with the same sessions, and publishes the events. <code>VoiceState</code> and <code>VoiceTranscript</code> carry <code>correlation_id</code> = the session id (the <code>StartListening</code> command's id, or the id given to <code>IVoice.listen</code>), so each caller follows only its own session.</p>
 <h3 id="ivoice"><code>IVoice</code></h3>
-<p><strong>Reusable</strong> · Used by: <code>voice_in</code> provides; <code>voice_notes</code> requires · built 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: <code>voice_in</code> provides; <code>voice_notes</code> requires</p>
 <p><code>class IVoice(Contract)</code>, single provider, in <code>assistant.contracts</code>.</p>
 <table>
 <thead>
@@ -365,7 +398,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>VoiceDestination</code> (enum): <code>talker</code> (the final text also goes to the Talker as <code>InputReceived(source="voice")</code>) or <code>caller</code> (only the events). One mic, one session at a time: "sessions" means each caller owns its own session id, not two at once. Look the provider up at each call (<code>ctx.get_one(IVoice)</code>), never keep it: a reload of <code>voice_in</code> swaps it. Requiring it makes the core turn <code>voice_in</code> on first, and refuse to turn it off while you're on.</p>
+<p><code>VoiceDestination</code> (enum): <code>talker</code> (the final text also goes to the Talker as <code>InputReceived(source="voice")</code>) or <code>caller</code> (only the events). One mic, one session at a time: "sessions" means each caller owns its own session id, not two at once. Look the provider up at each call (<code>ctx.get_one(IVoice)</code>), never keep it: a reload of <code>voice_in</code> swaps it. Requiring it makes the core turn <code>voice_in</code> on first. Turning <code>voice_in</code> off is never refused: you stay on, and the result names you, so cope with it being gone.</p>
 <pre><code>voice = ctx.get_one(IVoice)
 session = uuid4().hex
 await voice.listen(session, VoiceDestination.CALLER)   # then follow VoiceTranscript with correlation_id == session
@@ -374,15 +407,15 @@ text = (await voice.finish(session)).value["text"]
 <h3 id="startlistening"><code>StartListening</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>temp_ui</code> sends; <code>voice_in</code> handles (the command form of <code>IVoice.listen</code>, for UI buttons)</p>
 <p><code>StartListening(send_as_input: bool = True)</code> (command)</p>
-<p>Turn the mic on. With <code>send_as_input=False</code> (dictating into a text box, say) the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker. <strong>Result:</strong> <code>ok</code> once the service says <code>started</code>, value <code>{"session_id"}</code>. <strong>The second press wins</strong> (added 2026-11-04): a start while a session is open ends that session the way <code>discard=True</code> does, with <code>VoiceState(idle, reason="taken_over")</code> and an empty final for it, so its text never reaches the Talker; a <code>StopListening</code> it was waiting on gets <code>ok</code>, value <code>{"text": "", "taken_over": true}</code>. Each UI follows only the sessions it started (by this command's id). <code>not_available</code> (retryable) if the service couldn't start or the mic or engine failed; <code>failed</code> for <code>busy</code> or a denied <code>microphone</code> permission. A running service that <code>voice_in</code> reuses gets a quick <code>/health</code> check first, so a failed model fails at once with <code>engine_failed</code>.</p>
+<p>Turn the mic on. With <code>send_as_input=False</code> (dictating into a text box, say) the text goes only to <code>VoiceTranscript</code> subscribers, never to the Talker. <strong>Result:</strong> <code>ok</code> once the service says <code>started</code>, value <code>{"session_id"}</code>. <strong>The second press wins:</strong> a start while a session is open ends that session the way <code>discard=True</code> does, with <code>VoiceState(idle, reason="taken_over")</code> and an empty final for it, so its text never reaches the Talker; a <code>StopListening</code> it was waiting on gets <code>ok</code>, value <code>{"text": "", "taken_over": true}</code>. Each UI follows only the sessions it started (by this command's id). <code>not_available</code> (retryable) if the service couldn't start or the mic or engine failed; <code>failed</code> for <code>busy</code> or a denied <code>microphone</code> permission (the microphone request only logs and allows, so this one doesn't happen). A running service that <code>voice_in</code> reuses gets a quick <code>/health</code> check first, so a failed model fails at once with <code>engine_failed</code>.</p>
 <h3 id="stoplistening"><code>StopListening</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>temp_ui</code> and <code>voice_notes</code> send; <code>voice_in</code> handles</p>
 <p><code>StopListening(discard: bool = False, agent_id: str | None = None)</code> (command)</p>
-<p>Turn the mic off. <strong><code>agent_id</code></strong> (added 2026-11-06): the agent tab the stop was pressed in. <code>voice_in</code> keeps it on the session and publishes the final as <code>InputReceived(source="voice", agent_id=...)</code>, so the text reaches that tab's Talker even if you switch tabs while whisper finishes. <code>None</code> (another UI, or a stop by a long silence): the tab in focus when the text arrives. <strong>Result:</strong> <code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>; nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (its text is dropped), the service stopped, or no final came within <code>reply_timeout</code>.</p>
-<p><strong><code>discard=True</code></strong> (a clear button; added 2026-11-03): throw the session away instead. <code>voice_in</code> closes the socket (the service aborts and sends no final), publishes an empty final <code>VoiceTranscript</code> (clears the line) and <code>VoiceState(idle, reason="cleared")</code>, and sends nothing to the Talker; a final that still arrives is ignored. <strong>Result:</strong> <code>ok</code>, value <code>{"text": "", "discarded": true}</code>; nothing listening: <code>ok</code> with <code>None</code>. To carry on, the UI sends <code>StartListening</code> next; a <code>busy</code> answer within 2 s of a clear is retried once.</p>
+<p>Turn the mic off. <strong><code>agent_id</code>:</strong> the agent tab the stop was pressed in. <code>voice_in</code> keeps it on the session and publishes the final as <code>InputReceived(source="voice", agent_id=...)</code>, so the text reaches that tab's Talker even if you switch tabs while whisper finishes. <code>None</code> (another UI, or a stop by a long silence): the tab in focus when the text arrives. <strong>Result:</strong> <code>ok</code> after the final arrives, value <code>{"text", "latency_ms"}</code>; nothing listening: <code>ok</code> with <code>None</code>. <code>failed</code> if the mic was lost (its text is dropped), the service stopped, or no final came within <code>reply_timeout</code>.</p>
+<p><strong><code>discard=True</code></strong> (a clear button): throw the session away instead. <code>voice_in</code> closes the socket (the service aborts and sends no final), publishes an empty final <code>VoiceTranscript</code> (clears the line) and <code>VoiceState(idle, reason="cleared")</code>, and sends nothing to the Talker; a final that still arrives is ignored. <strong>Result:</strong> <code>ok</code>, value <code>{"text": "", "discarded": true}</code>; nothing listening: <code>ok</code> with <code>None</code>. To carry on, the UI sends <code>StartListening</code> next; a <code>busy</code> answer within 2 s of a clear is retried once.</p>
 <h3 id="listeningstate"><code>ListeningState</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>VoiceState</code></p>
-<p><code>StrEnum</code>: <code>idle</code> (mic off), <code>starting</code> (clicked; the service may be launching, the mic opening), <code>listening</code> (mic open, text coming), <code>dropped</code> (the mic went away mid-session; waiting for it to come back, then <code>listening</code> or <code>failed</code>; added 2026-11-03), <code>finishing</code> (the mic is off and the last piece is being cleaned; the detail is "cleaning up…", then <code>idle</code>; added 2026-11-03 for <a href="../modules/voice_in/voice-service.html#two-passes-live-text-cleaned-piece-by-piece">two passes</a>), <code>failed</code> (went wrong; the event's <code>reason</code> and <code>detail</code> say what).</p>
+<p><code>StrEnum</code>: <code>idle</code> (mic off), <code>starting</code> (clicked; the service may be launching, the mic opening), <code>listening</code> (mic open, text coming), <code>dropped</code> (the mic went away mid-session; waiting for it to come back, then <code>listening</code> or <code>failed</code>), <code>finishing</code> (the mic is off and the last piece is being cleaned; the detail is "cleaning up…", then <code>idle</code>; for <a href="../modules/voice_in/voice-service.html#two-passes-live-text-cleaned-piece-by-piece">two passes</a>), <code>failed</code> (went wrong; the event's <code>reason</code> and <code>detail</code> say what).</p>
 <h3 id="voicestate"><code>VoiceState</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>voice_in</code> publishes; <code>temp_ui</code> subscribes</p>
 <p><code>VoiceState(state: ListeningState, reason: str | None = None, detail: str | None = None)</code> (event)</p>
@@ -390,7 +423,7 @@ text = (await voice.finish(session)).value["text"]
 <h3 id="voicetranscript"><code>VoiceTranscript</code></h3>
 <p><strong>Reusable</strong> · Used by: <code>voice_in</code> publishes; <code>temp_ui</code> and any module that wants voice text subscribe</p>
 <p><code>VoiceTranscript(session_id: str, text: str, final: bool = False, settled_chars: int = 0)</code> (event)</p>
-<p>The live text: each partial (<code>final=False</code>), then once the final text (<code>final=True</code>; empty clears the line). <code>settled_chars</code> (added 2026-11-03): how many characters from the start of <code>text</code> are settled (cleaned by the final engine, or given up on); the rest is rough live text, which a UI may dim. Always 0 with one engine. <code>voice_in</code> publishes it in sentence case, and the final with one end mark (<a href="../modules/voice_in/voice-service.html#the-voice_in-module">text cleanup</a>, <code>[modules.voice_in] cleanup</code>); the engine's raw text is only in the log. This is the public stream of voice text; <code>InputReceived(source="voice")</code> is only the Talker's way in.</p>
+<p>The live text: each partial (<code>final=False</code>), then once the final text (<code>final=True</code>; empty clears the line). <code>settled_chars</code>: how many characters from the start of <code>text</code> are settled (cleaned by the final engine, or given up on); the rest is rough live text, which a UI may dim. Always 0 with one engine. <code>voice_in</code> publishes it in sentence case, and the final with one end mark (<a href="../modules/voice_in/voice-service.html#the-voice_in-module">text cleanup</a>, <code>[modules.voice_in] cleanup</code>); the engine's raw text is only in the log. This is the public stream of voice text; <code>InputReceived(source="voice")</code> is only the Talker's way in.</p>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/voice.py</code></p>
 <h3 id="the-voice-service-protocol">The voice service protocol</h3>
 <p><strong>Reusable</strong> · Used by: <code>voice_service</code> server (<code>server.py</code>, <code>session.py</code>), <code>voice_in</code> client (<code>module.py</code>)</p>
@@ -407,12 +440,12 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>Start(partials=True)</code>, <code>Stop</code></td>
 <td>app → service</td>
-<td><code>{"type": "start", "partials": true}</code>, <code>{"type": "stop"}</code>. <code>partials=False</code> asks for the text on send only (added 2026-11-03)</td>
+<td><code>{"type": "start", "partials": true}</code>, <code>{"type": "stop"}</code>. <code>partials=False</code> asks for the text on send only</td>
 </tr>
 <tr>
 <td><code>Started(partials=True, clean_pieces=False)</code></td>
 <td>service → app</td>
-<td>The mic is open; <code>partials</code> says whether live text will come this session (added 2026-11-03). <code>clean_pieces</code>: two passes, so <code>cleaned</code> and <code>refining</code> come and the final is the final engine's text (added 2026-11-03). All fields are optional on the wire, so older clients and services still work</td>
+<td>The mic is open; <code>partials</code> says whether live text will come this session. <code>clean_pieces</code>: two passes, so <code>cleaned</code> and <code>refining</code> come and the final is the final engine's text. All fields are optional on the wire, so older clients and services still work</td>
 </tr>
 <tr>
 <td><code>Partial(text)</code></td>
@@ -422,27 +455,27 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>Cleaned(piece, start, end, text="", fallback="")</code></td>
 <td>service → app</td>
-<td>Piece <code>piece</code> is done: live words <code>[start, end)</code> (split on spaces, from the session's start) are replaced by <code>text</code>. <code>fallback</code> (<code>failed</code>, <code>empty</code>, <code>timed_out</code>): <code>text</code> is empty and the span keeps its live words. In piece order, spans back to back; only with <code>clean_pieces</code> and <code>partials</code> (added 2026-11-03)</td>
+<td>Piece <code>piece</code> is done: live words <code>[start, end)</code> (split on spaces, from the session's start) are replaced by <code>text</code>. <code>fallback</code> (<code>failed</code>, <code>empty</code>, <code>timed_out</code>): <code>text</code> is empty and the span keeps its live words. In piece order, spans back to back; only with <code>clean_pieces</code> and <code>partials</code></td>
 </tr>
 <tr>
 <td><code>Refining(text="", pending=0)</code></td>
 <td>service → app</td>
-<td>After stop, with <code>clean_pieces</code>: the live engine's final text (empty with <code>partials</code> off) and how many pieces are still being cleaned; <code>final</code> follows (added 2026-11-03)</td>
+<td>After stop, with <code>clean_pieces</code>: the live engine's final text (empty with <code>partials</code> off) and how many pieces are still being cleaned; <code>final</code> follows</td>
 </tr>
 <tr>
 <td><code>MicDropped(detail="", wait_seconds)</code></td>
 <td>service → app</td>
-<td>The mic went away; the service tries to reopen it for <code>wait_seconds</code> (added 2026-11-03)</td>
+<td>The mic went away; the service tries to reopen it for <code>wait_seconds</code></td>
 </tr>
 <tr>
 <td><code>MicBack</code></td>
 <td>service → app</td>
-<td>A mic opened again; the session carries on (added 2026-11-03)</td>
+<td>A mic opened again; the session carries on</td>
 </tr>
 <tr>
 <td><code>Final(text, latency_ms, complete=True, ended_by="stop", parts=())</code></td>
 <td>service → app</td>
-<td>The finished text; <code>ended_by</code> is <code>"stop"</code> or <code>"silence"</code>; <code>complete</code> is false after a mic that didn't come back. <code>parts</code> (two passes, added 2026-11-03): one <code>FinalPart(text, cleaned=True, fallback="")</code> per piece, in order; <code>text</code> is them joined with spaces</td>
+<td>The finished text; <code>ended_by</code> is <code>"stop"</code> or <code>"silence"</code>; <code>complete</code> is false after a mic that didn't come back. <code>parts</code> (two passes): one <code>FinalPart(text, cleaned=True, fallback="")</code> per piece, in order; <code>text</code> is them joined with spaces</td>
 </tr>
 <tr>
 <td><code>Error(reason: ErrorCode, detail="")</code></td>
@@ -479,7 +512,7 @@ text = (await voice.finish(session)).value["text"]
 <p><strong>Defined in:</strong> <code>src/assistant/modules/voice_in/app/voice_service/protocol.py</code></p>
 <h3 id="the-voice-services-parts">The voice service's parts</h3>
 <p><strong>Reusable</strong> · Used by: <code>voice_service</code> (<code>server.py</code>, <code>session.py</code>, <code>transcribe.py</code>, <code>__main__.py</code>); <code>WhisperEngine</code> adds an <code>SttEngine</code>, <code>FileSource</code> an <code>AudioSource</code>; the Nemotron engine (step 7, planned) adds an <code>SttEngine</code> and reuses <code>transcribe</code> for the comparison; <code>RemoteSource</code> for <code>/ws/audio</code> (later) adds an <code>AudioSource</code></p>
-<p>The service's own API, inside <code>voice_in/app/voice_service/</code> (its own app, in voice_in's folder: never imported by the assistant; <code>voice_in</code> uses only the protocol above). Built 2026-11-03; design: <a href="../modules/voice_in/voice-service.html#the-voice-service-files-and-classes">Voice: files and classes</a>.</p>
+<p>The service's own API, inside <code>voice_in/app/voice_service/</code> (its own app, in voice_in's folder: never imported by the assistant; <code>voice_in</code> uses only the protocol above). Design: <a href="../modules/voice_in/voice-service.html#the-voice-service-files-and-classes">Voice: files and classes</a>.</p>
 <table>
 <thead>
 <tr>
@@ -497,7 +530,7 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>SttStream</code></td>
 <td>ABC (<code>engines</code>)</td>
-<td>One session's recognition: <code>accept(pcm: bytes)</code> (PCM16, 16 kHz mono), <code>partial() -&gt; str</code> (never called when <code>live_partials</code> is False), <code>finish() -&gt; str</code> (flush, final text). Optional, default no-ops (added 2026-11-03): <code>set_prompt(text)</code> (the previous piece's text, so the next reads on; whisper's <code>initial_prompt</code>) and <code>cancel()</code> (throw the result away; whisper decodes its window in one call, so <code>cancel</code> can't cut it short, only drop its text)</td>
+<td>One session's recognition: <code>accept(pcm: bytes)</code> (PCM16, 16 kHz mono), <code>partial() -&gt; str</code> (never called when <code>live_partials</code> is False), <code>finish() -&gt; str</code> (flush, final text). Optional, default no-ops: <code>set_prompt(text)</code> (the previous piece's text, so the next reads on; whisper's <code>initial_prompt</code>) and <code>cancel()</code> (throw the result away; whisper decodes its window in one call, so <code>cancel</code> can't cut it short, only drop its text)</td>
 </tr>
 <tr>
 <td><code>load_engine(name, config) -&gt; SttEngine</code></td>
@@ -507,7 +540,7 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>PieceCutter(*, chunk_ms, speech_rms, pause_seconds, min_seconds, max_seconds, cut_search_seconds)</code>, <code>.from_config(pieces, chunk_ms=, speech_rms=)</code></td>
 <td>class (<code>pieces</code>)</td>
-<td>Two passes: where the audio is cut into pieces for the final engine. <code>feed(level)</code> per chunk returns <code>None</code> or how many of the piece's chunks the cut keeps (the rest starts the next piece): after <code>[pieces] pause_seconds</code> of quiet once the piece is <code>min_seconds</code> long, or at <code>max_seconds</code> at the quietest chunk of the last <code>cut_search_seconds</code>. Quiet with no speech never cuts. Pure, no threads (added 2026-11-03)</td>
+<td>Two passes: where the audio is cut into pieces for the final engine. <code>feed(level)</code> per chunk returns <code>None</code> or how many of the piece's chunks the cut keeps (the rest starts the next piece): after <code>[pieces] pause_seconds</code> of quiet once the piece is <code>min_seconds</code> long, or at <code>max_seconds</code> at the quietest chunk of the last <code>cut_search_seconds</code>. Quiet with no speech never cuts. Pure, no threads</td>
 </tr>
 <tr>
 <td><code>EngineError</code></td>
@@ -517,17 +550,17 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>WhisperEngine(model_dir, config)</code></td>
 <td>class (<code>engines.whisper</code>)</td>
-<td>Whisper through faster-whisper (CTranslate2), <code>live_partials = False</code>. A stream buffers the audio; <code>finish</code> transcribes it all (<code>language="en"</code>, <code>vad_filter=True</code>, <code>[engine.whisper] beam_size</code>). Reads a local model folder only (<code>local_files_only</code>); faster-whisper and numpy are imported in <code>load</code> / <code>finish</code> (added 2026-11-03)</td>
+<td>Whisper through faster-whisper (CTranslate2), <code>live_partials = False</code>. A stream buffers the audio; <code>finish</code> transcribes it all (<code>language="en"</code>, <code>vad_filter=True</code>, <code>[engine.whisper] beam_size</code>). Reads a local model folder only (<code>local_files_only</code>); faster-whisper and numpy are imported in <code>load</code> / <code>finish</code></td>
 </tr>
 <tr>
 <td><code>transcribe(engine, source, *, load=True, timings=None) -&gt; str</code></td>
 <td>function (<code>transcribe</code>)</td>
-<td>One stream of <code>engine</code> over all of <code>source</code>'s chunks; the final text. <code>timings</code> gets <code>audio_seconds</code>, <code>load_seconds</code>, <code>accept_seconds</code>, <code>finish_seconds</code>. No server, no mic, no session thread (added 2026-11-03)</td>
+<td>One stream of <code>engine</code> over all of <code>source</code>'s chunks; the final text. <code>timings</code> gets <code>audio_seconds</code>, <code>load_seconds</code>, <code>accept_seconds</code>, <code>finish_seconds</code>. No server, no mic, no session thread</td>
 </tr>
 <tr>
 <td><code>transcribe_file(path, engine_name=None, config=None, *, timings=None) -&gt; str</code></td>
 <td>function (<code>transcribe</code>)</td>
-<td>The text of a 16 kHz mono WAV with the named engine (default: the config's). <code>python -m voice_service transcribe &lt;file&gt; [--engine E] [--model M]</code> prints it and the time taken (added 2026-11-03)</td>
+<td>The text of a 16 kHz mono WAV with the named engine (default: the config's). <code>python -m voice_service transcribe &lt;file&gt; [--engine E] [--model M]</code> prints it and the time taken</td>
 </tr>
 <tr>
 <td><code>ZipformerEngine(model_dir, config)</code></td>
@@ -557,7 +590,7 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>FileSource(path, *, chunk_ms=32, realtime=False)</code></td>
 <td>class (<code>audio</code>)</td>
-<td>A 16 kHz mono 16-bit WAV in chunks: read whole (<code>chunks</code>, <code>seconds</code>) or <code>start</code>ed like a mic, at the speed of speech with <code>realtime=True</code>. Any other format raises <code>ValueError</code> (added 2026-11-03)</td>
+<td>A 16 kHz mono 16-bit WAV in chunks: read whole (<code>chunks</code>, <code>seconds</code>) or <code>start</code>ed like a mic, at the speed of speech with <code>realtime=True</code>. Any other format raises <code>ValueError</code></td>
 </tr>
 <tr>
 <td><code>FakeSource(chunks=(), *, interval=0, fail_on_open=False, lose_after=None)</code>, <code>FakeSource.from_wav(path, *, chunk_ms=32, realtime=True)</code></td>
@@ -577,7 +610,7 @@ text = (await voice.finish(session)).value["text"]
 <tr>
 <td><code>create_app(config, engine, source_factory, *, config_path=None, watch_seconds=2.0) -&gt; FastAPI</code></td>
 <td>function (<code>server</code>)</td>
-<td><code>GET /health</code>, <code>POST /quit</code>, <code>WS /ws/listen</code>, one listener at a time; loads the engine on a background thread at startup. With <code>config_path</code>, watches that file and its <code>.local</code> override and quits (through <code>app.state.on_quit</code>) once the <code>[engine]</code> section changed and nothing is listening (added 2026-11-03). Set <code>app.state.on_quit</code> to what ends the server</td>
+<td><code>GET /health</code>, <code>POST /quit</code>, <code>WS /ws/listen</code>, one listener at a time; loads the engine on a background thread at startup. With <code>config_path</code>, watches that file and its <code>.local</code> override and quits (through <code>app.state.on_quit</code>) once the <code>[engine]</code> section changed and nothing is listening. Set <code>app.state.on_quit</code> to what ends the server</td>
 </tr>
 <tr>
 <td><code>ServiceConfig</code>, <code>load_service_config(path=None, *, host=None, port=None)</code>, <code>models_dir(config)</code></td>

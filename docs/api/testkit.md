@@ -18,9 +18,9 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 | `Calculator` | A module providing `IToolProvider` with one tool, `add` |
 | `pre_grant(app, module_id, subject, config, own_folder=None)` | Save a grant for `config`'s whole access list, so `module_id` turns on with no card. `own_folder`: the list has the module's own folder (default: every module but `task_agents`). Give it the config the module sees: for a module with defaults, `module_config(module_id, section)` |
 | `module_config(module_id, section=None) -> dict` | The config a module sees, built as the core builds it: its `module.toml` defaults (read with the core's `loader.module_defaults`) with `section` merged over them |
-| `stand_in(module_id) -> type` | A bare module class with that id and nothing else, standing in for a module another one `needs` (job_search needs cv), so a test starts the one under test without the real one |
+| `stand_in(module_id) -> type` | A bare module class with that id and nothing else, standing in for a module another one `needs` (voice_notes needs voice_in), so a test starts the one under test without the real one |
 | `free_port() -> int` | A free TCP port on 127.0.0.1, for a test server |
-| `sample_card(**over) -> PermissionRequested` | An access card as a module's access list opens it (job_search asking for job_search_agent's workspace and Chrome, not reviewed); `over` replaces any field. Moved from `tests/test_access_cards.py` (module folders item 11) |
+| `sample_card(**over) -> PermissionRequested` | An access card as a module's access list opens it (job_search asking for job_search_agent's workspace and Chrome, not reviewed); `over` replaces any field |
 | `pre_grant_kinds(app, section, module_id="task_agents")` | Pre-grant every kind of a `task_agents` config: its `module.toml` defaults (the shipped kinds too) with `section` (its `[modules.task_agents]`) merged over them |
 
 **Defined in:** `src/assistant/testkit/support.py`
@@ -31,7 +31,7 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 
 | Item | Does |
 |------|------|
-| `await request(port, raw) -> (reader, writer)` | Send raw HTTP bytes to `127.0.0.1:port`; the open stream |
+| `await request(port, raw) -> (reader, writer)` | Send raw HTTP bytes to `127.0.0.1:port`; the open stream. A request without a `Host` header gets `Host: 127.0.0.1:<port>`, as a browser sends it: the pages refuse one without (`local_request`, since 2026-11-13) |
 | `await post(port, path, body) -> dict` | POST `body` as JSON; the JSON answer |
 | `await next_item(reader, match) -> dict` | The next item on an open `/events` stream that `match` accepts, within 2 s |
 | `ui_port(app, module_id="temp_ui") -> int` | The port a started app's page module listens on, from its `url` |
@@ -40,7 +40,7 @@ It may import `assistant.*`; the builders that need a module (`start_hub`, `pre_
 | `dropped_event(snip_id)` | The temp UI's `temp_ui.clip_dropped`: you dropped that snip with its x |
 | `FakeVoiceIn` | A module with id `voice_in` that answers `StartListening` / `StopListening` and `IVoice` with the events voice_in publishes (no voice service); `fail` makes the next start fail |
 
-**Defined in:** `src/assistant/testkit/pages.py` (moved from `tests/test_temp_ui.py`, 2026-11-13; the snip events from `tests/test_viewer_listeners.py`, and `ui_port` / `read_events` from `tests/test_temp_ui.py`, module folders item 11)
+**Defined in:** `src/assistant/testkit/pages.py`
 
 ## The fake `claude` and agent fakes
 

@@ -27,7 +27,7 @@ All 14 modules are in `src/assistant/modules/<id>/`. Their group comes from each
 
 **voice_in is a core module in the code:** `src/assistant/modules/voice_in/docs/docs.toml` says `group = "core"`, and it's on at launch (`config/modules.toml`: `enabled = [..., "voice_in", "usage"]`). The approved picture draws it in the core too (voice_notes is the add-on that needs it), so the code and the picture agree: voice_in stays core (settled with you, 2026-11-13). Item 19's tripwire (`tests/test_module_folders.py:885`) covers only the add-ons (from the same `group` keys), so voice_in has no "nothing outside its folder" check.
 
-**The rezi helper is not a module.** It's a kind of helper in `task_agents` (`[agents.rezi]` in `src/assistant/modules/task_agents/module.toml`), and its folders are in `config/local.toml` (`[modules.task_agents.agents.rezi]`: `workspace = "C:/Jobs/rezi"`). The Rezi connection itself is part of cv (`rezi_url`, `token_file` in cv's `module.toml`). Its design note is `docs/next-steps/rezi-module.md`.
+**The rezi helper is not a module.** It's a kind of helper in `task_agents` (`[agents.rezi]` in `src/assistant/modules/task_agents/module.toml`), and its folders are in `config/local.toml` (`[modules.task_agents.agents.rezi]`: `workspace = "C:/Jobs/rezi"`). The Rezi connection itself is part of cv (`rezi_url`, `token_file` in cv's `module.toml`). Its design note (rezi-module) was deleted 2026-11-13; the design is in the cv module's docs.
 
 **Still outside a module folder:**
 - `data/permissions.toml`: the saved grants, still the live file. It's copied to `config/permissions.toml` once, at the next start (`config/default.toml`, `[core.permissions]` comment).

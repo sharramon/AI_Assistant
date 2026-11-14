@@ -1,27 +1,62 @@
 # AI Assistant
 
-A highly modular personal AI assistant, and a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (voice in, an HTML viewer, notes, tools, and the AI agents themselves) that can be turned on, off, swapped or reloaded while the app runs.
+A modular personal AI assistant, built as a long-term experimental platform. A small, stable **core** hosts a changing set of independent **modules**: inputs, outputs, views, tools, background workers, and the AI agents themselves. Modules can be added, replaced, turned on or off, or reloaded while the app runs, with little change elsewhere.
 
-## The core idea: agents and modules
+## The idea: a core and add-ons
 
-**Messages go through the Agent Hub; tools go through the module door.**
+[![The core line: the core box, add-ons that talk only through tools, events and contracts, and arrows that point one way](docs/architecture/img/core-line-rules.svg)](docs/architecture/img/core-line-rules.svg)
 
-- You talk to a **Talker**, which passes your words to the agent with the **focus**: the **Main Assistant** (the coordinator) or a specialist like the **job agent**.
-- Agents that aren't focused keep working. Their questions and permission cards wait behind a **!** on their tab until you switch to them.
-- Every agent sends one-line `STATUS:` milestones to the Main Assistant, which reads them at its next turn without being interrupted.
-- No agent calls a tool directly. Every agent uses a module's menu items through one **module door** (over MCP): list the modules, open one's menu, use an item. The core checks who may call it and runs it.
-- A big agent is in charge of its own module: the job agent comes with `job_search`, its menu and its background worker.
+The three rules of the core line:
 
-[![The Agent Hub as a switchboard: messages through the Hub, tools through the module door](docs/architecture/img/agents-switchboard.svg)](docs/architecture/img/agents-switchboard.svg)
+1. **The core** is what the app can't start without: the host, the core modules, the one module door with its gate, and seven ports (lifecycle, commands, events, contracts, directory, permissions, callers). It names no add-on.
+2. **Add-ons talk only through tools, events and contracts**, never by importing each other's code.
+3. **Arrows point one way:** an add-on may need the core or another add-on; the core never names an add-on.
 
-## How it's built
+The style is a modular monolith with ports and adapters: the modules run in one process. Detail: [architecture overview](docs/architecture/README.md).
 
-A **modular monolith** using ports and adapters, dependency injection and events. Every module is a wrapper (manifest, start / stop / reload, context) with a menu of what it can do, and it reaches the rest of the app only through the core's ports: commands, events, contracts and the module directory. Parts that are useful on their own (the HTML viewer, the voice service) are their own apps, launched by a thin module.
+## How modules talk through the core
+
+[![How modules talk through the core: a tool call, a command and an event, each through the core](docs/architecture/img/modules-talk.svg)](docs/architecture/img/modules-talk.svg)
+
+One module reaches another in three ways, all through the core: a **tool call** ("do this and tell me the result"), a **command** (one message to the one module that handles it) and an **event** ("this happened", to whoever listens). Detail: [core: how modules talk](docs/architecture/core.md#how-modules-talk-through-the-core).
+
+## The pipeline: inside the core
+
+[![Inside the core: who calls in, the core's six parts, and the modules](docs/architecture/img/core-inside.svg)](docs/architecture/img/core-inside.svg)
+
+Who calls in (left), the core's parts (middle), the modules (right). Every tool call goes door → gate → the module's item, and an item that asks shows you a card. Detail: [core: inside the core](docs/architecture/core.md#inside-the-core).
+
+## Module doors: one door, three tools
+
+Every module has a **menu**: named items, each with a description and its inputs. The agents reach every menu through **one MCP door** that the core hosts, with three fixed tools:
+
+1. **list modules**: one line per module,
+2. **show a menu**: one module's items,
+3. **use an item**: the core checks who may call it, asks you if the item asks, and runs it.
+
+So an agent loads one line per module until it needs a menu. Agents, other modules and UI buttons all reach a module the same way, through the core. Detail: [modules: one door](docs/architecture/modules.md#how-the-agents-reach-the-menus-one-door).
+
+## Why not just MCP servers?
+
+Plain MCP here would mean one MCP server per module, each offering its tools to the agents directly. We chose one door, for control:
+
+- **Per-module servers would go around the core.** They would skip the permission check, the module directory, the links between modules (what a module needs, events), and hot swap in one process (handing over state, waiting while a module is busy).
+- **Callers that aren't agents need the same checks.** The mic button, the viewer and other modules reach a module through commands, events and contracts. An MCP server serves only agents, so they would need a second path.
+- **The agent's context stays small.** The door's three tools don't grow with every module that's on, and they never change when a module is swapped, so the agent's tool list stays the same.
+- **MCP is still used where it fits.** The door itself is an MCP server. An outside tool that already speaks MCP gets a module that is an MCP client of it and puts the tool on its own menu (cv does this for Rezi). A module never serves MCP itself.
+
+Detail: [modules: why not plain MCP](docs/architecture/modules.md#why-not-plain-mcp), [decisions](docs/architecture/decisions.md).
+
+## The agents
+
+[![The agents' sessions: where each works, what it loads, and how work and tools reach the core](docs/architecture/img/agents-sessions.svg)](docs/architecture/img/agents-sessions.svg)
+
+The **Talker** talks with you and the **Main Assistant** does the work and coordinates; both work in the repo and load only the short overview. Module agents (cv_agent, job_search_agent) work in their module's workspace and load the short developer rules. Work goes through the **Agent Hub** (coordination only); tools go through the core's one module door and gate. Detail: [agents](docs/architecture/agents.md).
 
 ## Docs
 
 - [Architecture overview](docs/architecture/README.md)
-- [Agents: big agents and their modules](docs/architecture/agents.md#big-agents-and-their-modules)
+- [Core](docs/architecture/core.md), [Modules](docs/architecture/modules.md), [Agents](docs/architecture/agents.md), [Decisions](docs/architecture/decisions.md), [Principles](docs/architecture/principles.md)
 - [Module library](docs/architecture/module-library.md)
 - [API reference](docs/api/README.md)
 

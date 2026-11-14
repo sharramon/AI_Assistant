@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture docs audit</title>
+<!-- Generated from docs/next-steps/architecture-docs-audit.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="architecture-docs-audit.html"></nav>
+<main>
+<h1 id="architecture-docs-audit">Architecture docs audit</h1>
+<p>Status: <strong>stages 1 and 2 done 2026-11-13; docs built, 997 tests passed; waiting for the user's check by eye and the decisions under "For the user to decide". Final report at the end.</strong> The user approved the audit and the edits in one go, so stage 2 runs without a stop. Docs only: no code change, no reload, no commit.</p>
+<p>This note is also the handoff: if a session resets, carry on from "Stage 2 plan" below.</p>
+<h2 id="how-it-was-checked">How it was checked</h2>
+<p>Each page was read for orientation, then every claim was checked in the code (<code>src/assistant/core</code>, <code>infra</code>, <code>contracts</code>, <code>modules</code>, <code>tests</code>). The reference pictures and notes come from <a href="module-flow-and-piping.html">module-flow-and-piping.html</a>, with detail from <a href="piping.html">piping.html</a> and <a href="module-layouts.html">module-layouts.html</a>. Where the docs and the code disagree, the code wins. Line numbers (L…) refer to the page before the edits.</p>
+<h2 id="rules-the-edits-must-keep-tests-are-code">Rules the edits must keep (tests are code)</h2>
+<ul>
+<li><code>tests/test_module_docs.py:61-93</code>: <code>docs/architecture/README.md</code> must keep a <code>## Restructuring</code> section (only it may link to the next-steps pages at lines 74-77), and a Pages bullet matching <code>^- Restructuring \(proposal, not started\):</code>. The one other allowed next-steps link is README's <code>../../html-next-steps/module-folders.html</code>. No other architecture, agents, api or module docs page may link into next-steps.</li>
+<li><code>tests/test_module_layout.py:67-72</code>: <code>short-overview.md</code> stays under 6000 characters and names no add-on id.</li>
+</ul>
+<h2 id="cross-page-decisions-who-holds-what">Cross-page decisions (who holds what)</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Home page</th>
+<th>Others</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bird's-eye block diagram, summary, Pages, Parts</td>
+<td>README.md</td>
+<td>—</td>
+</tr>
+<tr>
+<td>The host, lifecycle, config and layering, inside the core (pic 3), how modules talk (pic 2), D1 to D6</td>
+<td>core.md</td>
+<td>link</td>
+</tr>
+<tr>
+<td>Commands, events, results, timeouts, the CONTROL table, who may send what</td>
+<td>communication.md</td>
+<td>core.md keeps a short D3/D5 summary</td>
+</tr>
+<tr>
+<td>Cards flow, modes, review as a listener, access card, risky steps</td>
+<td>permissions.md</td>
+<td>core.md: two lines and a link</td>
+</tr>
+<tr>
+<td>Who is who, where each agent works, which CLAUDE.md (pic 5), Hub as coordination only</td>
+<td>agents.md</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Agent code layers</td>
+<td>agents-code.md</td>
+<td>agents.md links, no class table</td>
+</tr>
+<tr>
+<td>Folders and files</td>
+<td>code-map.md</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Module folder layout, three rules (pic 1) and their tests, found/on/reached (pic 4), module_folders (pic 6), modules.add/remove, needs, hot reload</td>
+<td>modules.md</td>
+<td>core.md: one line and a link</td>
+</tr>
+<tr>
+<td>Decision record with the why</td>
+<td>decisions.md</td>
+<td>pages link to it</td>
+</tr>
+</tbody>
+</table>
+<p>The six reference pictures are copied as standalone files (straight copies, no redraw): <code>img/core-line-rules.svg</code> (pic 1), <code>img/modules-talk.svg</code> (pic 2), <code>img/core-inside.svg</code> (pic 3), <code>img/addon-found-reached.svg</code> (pic 4), <code>img/agents-sessions.svg</code> (pic 5), <code>img/module-folders-outside.svg</code> (pic 6). They depend on the reference page's legend and numbered lists, so each page that uses one carries the legend lines it needs and the list for its numbers.</p>
+<h2 id="code-points-found-not-changed-this-is-a-docs-only-job">Code points found (not changed: this is a docs-only job)</h2>
+<ul>
+<li><code>core/door.py:25</code> <code>CORE_LINE</code> says the core menu is "list, menu, on, off, reload, add"; it also has <code>docs</code>, <code>remove</code> and <code>permissions.*</code>.</li>
+<li><code>infra/agent_names.py:3</code> docstring says "The Agent Hub applies them"; it's <code>core/callers.py:42</code>.</li>
+<li><code>agent_hub/module.py:3</code> docstring says "three parts" and lists two; there are five (TaskBoard, Focus, Delivery, MessageGate, Reviewer).</li>
+<li><code>job_search/module.py:244</code> lists <code>ModuleStateChanged</code> twice (once through <code>AGENT_LISTENS</code>), so the generated module library shows it twice.</li>
+<li><code>scripts/build_docs.py</code> writes the module library's core row; it leaves out <code>GetMenu</code>, <code>StartProvider</code>, <code>ShutdownRequested</code>, <code>SetPermissionMode</code>, <code>AnswerPermissionRequest</code>, <code>AddCardNotes</code>, the core menu and the card events. The text sits between generated markers, so a hand edit would be overwritten.</li>
+<li>The core still names agents in three spots (the restructuring checklist's open should-fix items): <code>core/callers.py:22-23</code> reserves <code>hub</code>/<code>talker</code>, <code>core/permissions/handler.py:85</code> maps a <code>talker:</code> prefix, and <code>core/context.py:53-54,187</code> lets any <code>ITaskAgent</code> provider send <code>ReloadModule</code>/<code>AddModule</code>.</li>
+</ul>
+<h2 id="docsarchitecturereadmemd-overview">docs/architecture/README.md (overview)</h2>
+<ul>
+<li><strong>Bird's-eye mermaid (L9-100):</strong> too detailed, and wrong on the core line. It draws Talker, Main and Hub outside the core, and a "Features" box that mixes core modules (usage, task_agents) with add-ons (cv, job_search). The <code>starts what requires needs</code> label is garbled. In the code, core modules are those with <code>group = "core"</code> in <code>docs/docs.toml</code>. → <strong>replace</strong> with <code>img/core-line-rules.svg</code> plus a two-line caption.</li>
+<li><strong>L102 "Built today…":</strong> a dated status paragraph. It says "The Agent Hub is a module, not part of the core", but the Hub is a core module (<code>agent_hub/docs/docs.toml:3</code>). → <strong>delete</strong>; keep 2-3 sentences: the core = host + core modules + door and gate + seven ports; the Hub is a core module that only coordinates (<code>core/app.py:97-137</code>).</li>
+<li><strong>"The core idea" + agents-switchboard.svg (L104-108):</strong> duplicates agents.md, and the picture says the door is "hosted by the Hub" (it's the core's, <code>core/door.py:1-6</code>). → <strong>delete</strong> from the overview.</li>
+<li><strong>Summary (L112-118):</strong> fix the garbled "independent deployment is, for parts…" sentence; add that add-ons may live in outside folders (<code>[core] module_folders</code>, <code>core/loader.py:122-166</code>). → <strong>edit</strong>.</li>
+<li><strong>"## Currently fixing" (L120-122):</strong> status. → <strong>delete</strong> (it lives in <code>docs/next-steps/README.md</code>).</li>
+<li><strong>"## Restructuring" (L124-136):</strong> step order with dates and "waiting for restart". The test requires the section. → <strong>edit</strong> down to a one-line pointer with the allowed links only.</li>
+<li><strong>Pages:</strong> all 14 pages listed. The "Restructuring (proposal, not started)" bullet is stale, but its wording is locked by the test → <strong>user decision</strong> (below). The Voice bullet carries status ("the engine comparison is next") → <strong>edit</strong>.</li>
+<li><strong>Parts table (all File paths exist):</strong></li>
+<li>Module directory: the core menu list lacks <code>modules.docs</code> (<code>core/directory.py:61</code>).</li>
+<li>Module Registry: doesn't mention outside folders (<code>loader.add_module_folders</code>, <code>loader.py:143</code>).</li>
+<li>Shared Infrastructure: "configuration and logging today; persistence and auth/secrets later" is far out of date. Infra holds the agent kit, <code>ClaudeSession</code>, <code>SessionTaskAgent</code>, the door relay, <code>agent_access</code>, <code>show_pages</code> and more.</li>
+<li>Modules: split into core modules and add-ons; note <code>module_folders</code>.</li>
+<li>CV Tool: drop the dates.</li>
+<li>Agent Hub: add the <code>Reviewer</code> (<code>agent_hub/review.py:49</code>).</li>
+<li>Permissions: drop the "Built: …" wording.</li>
+<li>Voice handler: trim.
+  → <strong>edit</strong>.</li>
+</ul>
+<h2 id="docsarchitectureshort-overviewmd">docs/architecture/short-overview.md</h2>
+<p>2816 characters, names no add-on, mostly accurate.</p>
+<ul>
+<li>"Each is one folder, <code>src/assistant/modules/&lt;id&gt;/</code>" leaves out outside folders (<code>[core] module_folders</code>) and the gitignored <code>workspace/</code> → <strong>edit</strong>, one clause.</li>
+<li>"an agent's data folder is named there, outside the repo": it's optional. Unset, the agent works in its module's <code>workspace/</code> (<code>infra/agent_access.py</code> <code>data_folder</code>, <code>in_module_folder</code>) → <strong>edit</strong>.</li>
+<li>Add one clause: the door, agent names and modes are the core's (Callers port), not the Hub's → <strong>add</strong>.</li>
+<li>The checking tests: add <code>tests/test_module_layout.py</code> → <strong>edit</strong> (optional).</li>
+</ul>
+<h2 id="docsarchitecturecode-mapmd">docs/architecture/code-map.md</h2>
+<ul>
+<li>L5 "First drawn 2026-11-08 from the code review": history → <strong>delete</strong>.</li>
+<li>Mermaid id clash: <code>subgraph Kit["app_kit"]</code> (L18) and node <code>Kit["AgentKit"]</code> (L46) → <strong>rename</strong> the node <code>AKit</code>.</li>
+<li>Core box is missing <code>Callers</code> (<code>core/callers.py:26</code>), <code>CoreDoor</code>/<code>ModuleDoor</code> (<code>core/door.py:28,48</code>), <code>MenuTable</code> (<code>core/tools.py:37</code>), <code>ScopedContext</code> (<code>core/context.py:58</code>) and <code>PermissionsPort</code>/<code>PermissionsMenu</code>. The <code>directory</code> node is <code>CoreMenu</code> → <strong>edit</strong>.</li>
+<li>Edges:</li>
+<li><code>Hub -- hosts --&gt; Door</code> is wrong → <code>App --&gt; CoreDoor</code> (hosts <code>DoorServer</code>, <code>app.py:133-161</code>).</li>
+<li>Add <code>Router → dispatch_tool → Perm.confirm</code> (<code>tools.py:61-110</code>, <code>app.py:110-114</code>).</li>
+<li>Add <code>Callers → Perm</code> (<code>mode_of</code>, <code>app.py:104</code>).</li>
+<li><code>PA → Callers</code> (claims, <code>profile_agent.py:111</code>).</li>
+<li><code>Perm -- StartTask (review) --&gt; Hub</code> → <code>ReviewAccessList → Hub (Reviewer)</code>, <code>AddCardNotes → core</code> (<code>permissions/handler.py:6,617-621</code>).</li>
+<li><code>Talker -- hub.* · viewer.* · usage.* --&gt; Hub</code> → <code>InvokeTool → Router</code> via the door.
+  → <strong>edit</strong>.</li>
+<li>Contracts box: add <code>pages.py</code> (<code>IPageOpener</code>), <code>door.py</code> (<code>IModuleDoor</code>), <code>ModuleLogs</code>/<code>ModulePermissions</code> → <strong>edit</strong>.</li>
+<li>Infra box: <code>AgentKit</code> "provide · reset · grants" (reset left the kit); add <code>agent_access</code> and <code>developer_rules.md</code> → <strong>edit</strong>.</li>
+<li>Modules box: the Hub node lists <code>AgentNames</code> and "door host" (both gone). The real parts are TaskBoard, Focus, Delivery, MessageGate and Reviewer. Split the box into core modules and add-ons; add <code>module_folders</code> → <strong>edit</strong>.</li>
+<li>Apps box: add the CV Tool (<code>cv/app/cv_tool</code>); each app sits in its module's <code>app/</code> (<code>loader.add_app_folders</code>) → <strong>edit</strong>.</li>
+<li>"How it reads":</li>
+<li>The core imports <code>app_kit</code> too (<code>core/app.py:12-13</code>).</li>
+<li>The Hub doesn't host the door.</li>
+<li>The review is <code>ReviewAccessList</code> → the Hub's <code>Reviewer</code> → <code>AddCardNotes</code>.
+  → <strong>edit</strong>.</li>
+<li>Known gaps (L122) is a dated list → <strong>replace</strong> with the open gaps only: the Hub split (not approved); the Hub's free-text "permission allowed" in <code>TaskUpdated.text</code> (<code>agent_hub/tasks.py:395-412</code>); temp_ui is a stand-in.</li>
+</ul>
+<h2 id="docsarchitecturecoremd">docs/architecture/core.md</h2>
+<ul>
+<li><strong>Intro and "Where the core sits" mermaid (L7-45):</strong> shows Orchestrator, Tools, Views, Workers and "capability interfaces later": a pre-rebuild wish-list → <strong>replace</strong> with <code>img/core-inside.svg</code> (pic 3) and <code>img/modules-talk.svg</code> (pic 2), each with its legend and numbered list.</li>
+<li><strong>L51 "seven ports … (built 2026-11-13, decisions D1 to D7)":</strong> the ports are right. The six parts D1 to D6 (door, Callers, router, gate, bus, permissions handler) aren't named, and D7 is the boundary tests, not a port → <strong>edit</strong>.</li>
+<li><strong>Lifecycle box C (L183) and the <code>app.py</code> file row (L159):</strong> <code>App._handlers</code> (<code>app.py:106-124</code>) also handles <code>AnswerPermissionRequest</code>, <code>ListModules</code>, <code>GetMenu</code> and <code>StartProvider</code> → <strong>edit</strong>.</li>
+<li><strong>Shutdown order (L188-190):</strong> <code>App.stop</code> (<code>app.py:171-182</code>) runs <code>cancel_all</code> → <code>permissions.close()</code> → modules stop → door stop → handlers unregistered → bus close; the <code>permissions.close</code> step is missing → <strong>edit</strong>.</li>
+<li><strong>"Module folders outside the repo" (L196):</strong> history and plan ("step 2, built …, waiting on an app restart") → <strong>replace</strong> with one lifecycle line and a link to modules.md.</li>
+<li><strong>L198 <code>ShutdownRequested</code> "(decision D5, 2026-11-13), not an event: publishing one does nothing":</strong> → <strong>edit</strong> to "a command; only modules that list it in <code>sends</code> (console_io, talker) can send it".</li>
+<li><strong>L214, L245, L253:</strong> dated items → <strong>delete</strong> the dates; cut <code>RemoveModule</code> to one line and a link.</li>
+<li><strong>L225 "The control panel UI module that uses it comes later":</strong> → <strong>edit</strong>: temp_ui and the agents use the <code>modules.*</code> menu.</li>
+<li><strong>L259 handover banner:</strong> says the Talker, Main Assistant and Hub have no handover. <code>agent_hub/module.py:140</code> and <code>talker/module.py:173</code> both <code>export_state</code>; only main_assistant has none → <strong>replace</strong> with who hands over. Drop "(checked 2026-11-03)".</li>
+<li><strong>Callers (L275-279):</strong> facts right; "it was the Agent Hub's" and the banner are history → <strong>edit</strong>.</li>
+<li><strong>Door (L286-292):</strong> "Built", "not the Agent Hub" and "Menus are no longer in the container" are history → <strong>edit</strong> to "Menus are never in the container" (<code>tools.py:37-41</code>). <strong>Add:</strong> a door call goes door → router → gate; <code>DoorServer.call</code> uses <code>router.send</code> with <code>sent_by</code> = core (<code>mcp_door.py:145-158</code>, <code>app.py:134</code>, <code>router.py:56</code>).</li>
+<li><strong>Gate (L296-306):</strong></li>
+<li>"arguments checked, and its callers" applies only to items that ask (<code>tools.py:101-106</code>); other items are checked in <code>Menu.call</code> (<code>menu.py:155-162</code>). A module that provides <code>IToolProvider</code> itself gets neither.</li>
+<li>Start on use runs before the callers check (<code>tools.py:87-92</code> before <code>:105</code>, ≠6).</li>
+<li><code>modules.off</code> with dependents is sent as core (≠5, <code>directory.py:80-82</code>).</li>
+<li>The gate answers at once (≠2, <code>tools.py:109</code>, <code>handler.py:286</code>).
+  → <strong>edit</strong>.</li>
+<li><strong>Access-list review (L310-316):</strong> duplicates permissions.md → <strong>cut</strong> to two lines plus ≠3 and a link; keep the why (<code>_stop_tasks</code> only cancels, never starts a task).</li>
+<li><strong>"Communication internals" (L318-372):</strong> Commands, Who may send what and Events duplicate communication.md → <strong>move</strong> them there; keep the container, tools and directory here.</li>
+<li><strong>"<code>sends</code> is strict" / "<code>publishes</code> is strict" (L335, L353):</strong> <code>handles</code> is strict too (raises, <code>context.py:157-159</code>); <code>listens</code>, <code>listens_named</code> and <code>publishes_named</code> are loose with one log line (<code>context.py:108,224-231</code>). The checks run in <code>ScopedContext</code>; the router only stamps <code>core</code> (<code>router.py:56</code>) → <strong>edit</strong> (moves to communication.md).</li>
+<li><strong>L370 "A future <code>ToolsChanged</code> event":</strong> speculation → <strong>delete</strong>.</li>
+<li><strong>Config table:</strong> add <code>[core] module_folders</code> and <code>reload_idle_timeout</code>. Strip "(module folders item 12)" and "(item 11)" from the layering. Keep the <code>data/permissions.toml</code> copy-once as current behaviour (<code>store.py:31-41</code>) → <strong>edit</strong>.</li>
+<li><strong>"Adding, replacing, or removing a module" (L443-459):</strong> duplicates modules.md → <strong>cut</strong> to one line and a link; keep "contracts grow as needed, not in anticipation".</li>
+<li><strong>Keep:</strong> the lifecycle flowchart (edited), the state diagram and the log sequence. The <code>classDiagram</code> (L61-155) is accurate apart from <code>CommandRouter.hold</code>; keep it, with <code>hold</code> added.</li>
+<li><strong>Whys to keep:</strong></li>
+<li>The permissions handler is in the core, so nothing can turn it off.</li>
+<li>Shutdown is a command, so it has one known sender.</li>
+<li>The control-command rules.</li>
+<li>Menus are core-private, so no module picks its own caller.</li>
+<li>The gate answers at once (the router's timeout).</li>
+<li>Contracts aren't reloadable (<code>isinstance</code> identity).</li>
+<li>No file watcher (it would load half-written code).</li>
+<li>Cleanup doesn't depend on modules behaving.</li>
+</ul>
+<h2 id="docsarchitecturecommunicationmd">docs/architecture/communication.md</h2>
+<ul>
+<li><strong>L3 "Internals are in core.md#communication-internals":</strong> after the move this page holds them → <strong>edit</strong>; link core.md for pics 2 and 3.</li>
+<li><strong>Runtime flow and sequence mermaids (L7-16, L47-64):</strong> use a made-up Browser module and <code>browser.open</code> → <strong>replace</strong> with a link to pic 2 and its real examples (<code>cv.task</code>, <code>DeliverMessage</code>, <code>VoiceTranscript</code>, <code>cv.job_finished</code>).</li>
+<li><strong>Mechanisms table (L24-25):</strong> "Orchestrator lists all <code>IToolProvider</code>s" is wrong: menus aren't in the container (<code>tools.py:37</code>). <code>OpenUrl</code> and <code>CreateCalendarEvent</code> don't exist → <strong>edit</strong>, with <code>IVoice.listen</code>, <code>DeliverMessage</code> and <code>ActivateModule</code> as the examples.</li>
+<li><strong>L34 and L66 "IToolProviders" / "the argument schema each IToolProvider advertises":</strong> → <strong>edit</strong> to the <code>ToolSpec</code>s each menu shows through <code>GetMenu</code>. Drop "(built 2026-11-12)".</li>
+<li><strong>L70 "Built 2026-11-13 (decisions D3 and D5 …)":</strong> → <strong>edit</strong> to a plain link to decisions.md.</li>
+<li><strong>L73:</strong> add that <code>handles</code> is strict, that the listen and named-publish declarations are loose and logged, and that the checks run in the module's context → <strong>edit</strong>.</li>
+<li><strong>L74 "<code>DeactivateModule</code> … come only from a you caller or the core":</strong> add ≠5 (the core menu's <code>modules.off</code>/<code>modules.remove</code> send as <code>core</code>, behind the gate's card) and ≠4 (the Talker's card answers count through <code>relays</code>, <code>context.py:51-52</code>, <code>default.toml:46</code>; open decision G17) → <strong>add</strong>.</li>
+<li>Add the CONTROL table here (from core.md).</li>
+<li><strong>L89 "disabled or suspended":</strong> there is no "suspended" → "the module is off" (<code>module_off_text</code>, <code>tools.py:113</code>).</li>
+<li><strong>Command results:</strong> add that <code>TimedOut</code> is always retryable (<code>messages.py:81</code>) and <code>Failed</code> carries <code>retryable</code> (<code>messages.py:76</code>).</li>
+<li><strong>L101 "the lifecycle manager cancels all in-flight commands":</strong> it's the App, with <code>router.cancel_all()</code> (<code>app.py:171</code>) → <strong>edit</strong>.</li>
+<li>From core.md: one handler per command (<code>ValueError</code>), the timeout order, and <code>CommandRouter.hold</code> (a send waits during a reload, <code>router.py:28-38,62-68</code>) → <strong>add</strong>.</li>
+<li><strong>Events:</strong> facts match <code>bus.py</code>. Merge in core.md's event bullets (base-type subscription, <code>event_handler_timeout</code>) → <strong>edit</strong>.</li>
+<li><strong>Chaining (L79):</strong> facts right; drop "are built" → <strong>edit</strong>.</li>
+<li><strong>Known gap to note:</strong> !2, job_search reads cv's output by file path, past the door. Link modules.md.</li>
+</ul>
+<h2 id="docsarchitecturepermissionsmd">docs/architecture/permissions.md</h2>
+<ul>
+<li><strong>Status block (L5-13), five dated "Built:" notes:</strong> → <strong>replace</strong> with a short "not built yet" list with no dates: single names, permission sources, permissions required at start, the Main Assistant's own access (<code>port.py:30-36</code>).</li>
+<li><strong>History to delete:</strong> L39 ("the stand-in … is gone"), L56 "(built 2026-11-13)" and the fingerprint sentence, L105, L109 "before, the handler started the review task itself", L148, L167 "as before", L199 "no longer", L319, L333, L335 ("before, the Agent Hub"). Keep one line on <code>copy_old_grants</code> (<code>handler.py:203</code>).</li>
+<li><strong>Wrong or stale:</strong></li>
+<li>L37 and class diagram L241: <code>permissions.request</code> is missing (<code>permissions/menu.py:40-57</code>).</li>
+<li>L56: the own-folder write also covers an add-on folder outside the repo (<code>infra/agent_access.py:10,56-57,129</code>); the default workspace is <code>modules/&lt;id&gt;/workspace</code> (<code>agent_access.py:65-73</code>).</li>
+<li>L112 "It always answers with <code>AddCardNotes</code>": if the reviewer can't start, the Hub answers <code>not_available</code> and sends no notes (<code>agent_hub/review.py:66-68</code>).</li>
+<li>L170 gate order: start on use first (<code>tools.py:87-92</code>), then the <code>ask</code> mark; arguments and <code>callers</code> are checked before the card only for asking items (<code>tools.py:101-106</code>), else in <code>Menu.call</code> (<code>menu.py:155-162</code>). Add ≠6.</li>
+<li>L170 "every road passes the gate": code can also ask through <code>ctx.permissions.confirm</code> (the Talker's restart, <code>talker/session.py:398</code>) → two entry points, one handler.</li>
+<li>L325, L9: the mode belongs to each worker and Talker pair, kept in Callers (<code>callers.py:36,71-78</code>), set per tab (<code>temp_ui/page.html:235</code>); L329's Manual row applies to every task agent.</li>
+<li>L343-345: "Protected <code>config/</code>" is the repo's <code>config/</code> only (<code>permissions/rules.py:17-27</code>); a config folder set by <code>ASSISTANT_CONFIG_DIR</code> (<code>infra/config.py:40-42</code>) isn't protected (a known gap to confirm). The Modules zone should name outside add-on folders.</li>
+<li>L352 worktree branch edits in the present tense: probably planned (self-improvement step 4) → check, then mark planned.</li>
+<li>Class diagram: <code>ModulePermissions</code> lacks <code>own_agent</code> and <code>confirm</code> (<code>contracts/module.py:154,170</code>).</li>
+<li><strong>Missing:</strong></li>
+<li><strong>How a card travels:</strong> the handler publishes <code>PermissionRequested</code> on the bus (<code>handler.py:491</code>); temp_ui and the Talker listen; the answer <code>AnswerPermissionRequest</code> is a command through the router (<code>app.py:107</code>); <code>PermissionChanged</code> closes the card (<code>handler.py:441-445</code>); the agent gets the outcome as an <code>AgentNotice</code> command to the Hub, only logged with no Hub (<code>handler.py:584-589</code>).</li>
+<li><strong>Who may answer a card:</strong> <code>AnswerPermissionRequest</code> and <code>AnswerPermission</code> are control commands; only <code>you</code> (temp_ui) and <code>relays</code> (talker) may send them (<code>core/context.py:48-55,182-187</code>; <code>default.toml:45-46</code>). G17 is open (≠4).</li>
+<li><strong>Two card roads:</strong> (a) the handler's cards (access, grant, revoke, message, confirm); (b) an agent's own tool request: <code>PermissionGate</code> sends a <code>ReportKind.PERMISSION</code> report to the Hub's task board, answered with <code>AnswerPermission</code> (<code>infra/permission_gate.py:30-46</code>; <code>agent_hub/tasks.py:366,383</code>). L318 calls (b) planned; it's built.</li>
+<li><strong>Who sets the mode:</strong> <code>hub.mode</code> (callers = Talker, Manual only; <code>agent_hub/module.py:241-248</code>); Callers keeps no mode for relays (<code>callers.py:11,83-85</code>).</li>
+<li><strong><code>modules.off</code> without dependents:</strong> no card; sent as core (≠5, <code>directory.py:77-82</code>).</li>
+<li>Microphone never asked (<code>port.py:34-36</code>): said at L175 and L199; keep one.</li>
+<li><strong>Duplicated:</strong> L333 repeats L170-173 → merge into a small table (who or what → card or not). L335's <code>SetPermissionMode</code> chain also lives in runtime.md and api/agents.md → one sentence and a link.</li>
+<li><strong>Pictures:</strong> keep the access-list sequence, but mark P→U as a bus event, U→P as a command, and <code>AddCardNotes</code> as a command. <strong>Add</strong> a cards-flow picture cut from pic 3 (gate → handler ⇄ Callers → bus → temp_ui/Talker → router → handler, with ≠1 to ≠4) as <code>img/permissions-cards.svg</code>. Keep the class diagram (edited) and the two planned flows, labelled planned.</li>
+<li><strong>Whys to keep:</strong></li>
+<li>L73: a start can't wait on a card.</li>
+<li>L114: a command pair, so with no Hub the reply is <code>not_available</code> at once.</li>
+<li>L173: the gate returns at once because the router's timeout would cut it.</li>
+<li>L350: <code>PROTECTED</code> sits in the protected zone.</li>
+<li>L356: the limit.</li>
+</ul>
+<h2 id="docsarchitectureagentsmd">docs/architecture/agents.md</h2>
+<ul>
+<li><strong>History to delete:</strong> the L5/L7 status blocks; dated tags at L61, L91, L96, L314, L318 (and its change-note link), L328, L333, L335, L345, L350, L355, L379, L385. Keep the "why" clauses (L258 "a command, not an event, because the Hub's state must not miss it"; "never an interrupt").</li>
+<li><strong>"The idea" mermaid (L13-53):</strong> agents drawn inside the Hub, the core without door, gate or Callers, and planned Coding/Research/XR agents → <strong>replace</strong> with <code>img/agents-sessions.svg</code> (pic 5) and who is who. Keep "logical, not containment" (L57).</li>
+<li><strong>Add:</strong> which agents are core (talker, main_assistant, agent_hub, task_agents) and which are add-ons (cv, job_search).</li>
+<li><strong>L91, CLAUDE.md per agent:</strong> "the <code>task_agents</code> helpers work in the repo and load its CLAUDE.md" is <strong>wrong</strong>. Helpers work in <code>&lt;kind workspace&gt;/&lt;name&gt;</code>, with defaults <code>../assistant-helper</code> and <code>../assistant-rezi</code>, outside the repo (<code>task_agents/module.toml</code>, <code>module.py:325</code>), and get no module-folder grant (<code>own_folder=False</code>, <code>module.py:130,243</code>). → One row per agent:</li>
+<li>Talker: no built-in tools, only the door's three (<code>talker/session.py:247-264</code>).</li>
+<li>Main Assistant: <code>workspace="."</code>, the repo.</li>
+<li>cv_agent and job_search_agent: <code>modules/&lt;id&gt;/workspace</code>, or the config's data folder; repo CLAUDE.md excluded, developer rules loaded.</li>
+<li>Helpers: outside the repo.</li>
+<li><strong>L89, L341, job module:</strong> "when the sweep is done, the module sends an AgentNotice" is wrong: the runner is a stub that notifies at once (<code>job_search/module.py:161,342</code>). Missing: <code>job.tailor_cv</code> turns cv on and sends <code>cv.task</code>, cv's named events come back; <code>job.open_ui</code> → <strong>edit</strong>.</li>
+<li><strong>L90 "The Main Assistant has no module of its own":</strong> it has one (<code>main_assistant</code>, a <code>ProfileAgent</code> with <code>COORDINATOR_BLOCK</code>, <code>main_assistant/module.py:138-140</code>), but no menu → <strong>edit</strong>.</li>
+<li><strong>L121 "the core doesn't know that the Hub, agents or Claude exist":</strong> not quite: the three code points above → <strong>soften</strong>, list them as known gaps.</li>
+<li><strong>L122, Hub row:</strong> → coordination only: task board, focus, held questions, message delivery, plus the access-list review (≠3); it handles <code>AnswerPermission</code> for agent cards (<code>agent_hub/module.py:80-81</code>).</li>
+<li><strong>L133-154, Startup tree:</strong> lists <code>assistant_view</code> and terminal 2 (off), misses temp_ui, voice_in and usage. The real on-list is <code>config/modules.toml</code>: console_io, agent_hub, main_assistant, talker, temp_ui, voice_in, usage. The core opens the door before any module. task_agents, job_search and cv start off → <strong>rewrite</strong>.</li>
+<li><strong>L226-234, class table:</strong> "MainAssistantModule composed from SessionTaskAgent, ClaudeSession" is really <code>ProfileAgent</code> + <code>AgentKit</code>; it duplicates agents-code.md → <strong>delete</strong>, link.</li>
+<li><strong>L219-224, ITaskAgent table:</strong> misses <code>answer_permission</code>, <code>set_permission_mode</code>, <code>reset</code>, <code>note</code>, <code>request_approval</code> (<code>contracts/agents.py:200-218</code>) → one line and a link to the API.</li>
+<li><strong>L238-260, "Who sends what":</strong></li>
+<li>The Talker doesn't send <code>StartTask</code>/<code>SendToTask</code> commands: it sends <code>InvokeTool</code> (hub.* items), <code>AnswerPermissionRequest</code>, <code>ResetRequested</code> and <code>ShutdownRequested</code> (<code>talker/module.py:113</code>).</li>
+<li>"Planned: both agents find module tools through the directory" is built.</li>
+<li>The terminal-2 View box is stale.
+  → <strong>redraw</strong> as a mermaid: Talker → door → gate → hub.*; agents → ReportTask; events to temp_ui.</li>
+<li><strong>L161-207, sequence diagrams:</strong> label <code>hub.start</code>/<code>hub.send</code> as going through the door → gate.</li>
+<li><strong>L364-376, launch sequence:</strong> <code>agents.launch</code> goes through the door → gate (≠2).</li>
+<li><strong>L347, three kinds:</strong> add <code>cv_agent</code> (<code>named_only</code>; started by <code>cv.task</code>, callers job_search_agent and main_assistant; <code>cv/module.toml</code>).</li>
+<li><strong>L337, Limits:</strong> add the exception: a module's own folder under a wider grant.</li>
+<li><strong>L391, "The Hub encompasses all agents":</strong> contradicts coordination only → "one coordination layer; the Hub holds no agent".</li>
+<li><strong>Possible duplication:</strong> L289-341 (task state, questions, delivery, message gate) overlaps <code>agent_hub/docs/architecture.md</code> and runtime.md → trim to a summary and a link.</li>
+<li><strong>Notes for this page:</strong></li>
+<li>≠3: the review is a Hub task.</li>
+<li>≠4 / G17: the Talker may answer cards.</li>
+<li>≠1, ≠5: link permissions.md.</li>
+<li>!2: job_search reads cv's output by path.</li>
+<li>!5: <code>claudeMdExcludes</code> covers only the repo's files (<code>infra/agent_profile.py:121-125</code>), so an agent under an outside module folder may load a parent CLAUDE.md, and the developer rules point at repo paths.</li>
+<li>Unverified: whether the Talker and the helpers load any CLAUDE.md (it depends on cwd and Claude Code's lookup).</li>
+</ul>
+<h2 id="docsarchitectureagents-codemd">docs/architecture/agents-code.md</h2>
+<ul>
+<li>L5, L18, L20, L24, L25: dates and "gone/now" wording → <strong>delete</strong>.</li>
+<li>L19: add cv to the modules with a worker (<code>cv/module.py:278</code>).</li>
+<li>Add <code>AgentProfile.command</code>: <code>repo_claude_md=false</code> gives <code>--settings {claudeMdExcludes}</code> plus <code>developer_rules.md</code> (<code>infra/agent_profile.py:116-136,222-249</code>; <code>claude_session.py:69-70</code>), the code side of pic 5.</li>
+<li>Mermaid 1, L51 <code>tk_hub["_hub InvokeTool hub.*"]</code> in TalkerSession: there is no <code>TalkerSession._hub</code>; sessions call <code>TalkerModule.hub</code> (<code>talker/module.py:245</code>) → move or rename.</li>
+<li>Mermaid 2, L152 "planned: to its agent's session": built (<code>talker/module.py:299-323</code>) → delete "planned".</li>
+<li>Mermaid 3 matches <code>core/tools.py:61-110</code>; optionally mark ≠6 and ≠2.</li>
+<li>Known limits (L275-279, verified <code>core/directory.py:80-99</code>): add the three code points above and !5.</li>
+</ul>
+<h2 id="docsarchitecturemodulesmd">docs/architecture/modules.md</h2>
+<ul>
+<li><strong>L13, the declarations table:</strong></li>
+<li>"The core warns when a module handles a command it didn't list": <code>ctx.handle</code> raises and the module fails to start (<code>core/context.py:155-159</code>).</li>
+<li>Add <code>uses</code>, <code>needs</code>, <code>packages</code>, <code>publishes_named</code>, <code>listens_named</code>; the named publishes are loose (<code>context.py:108,224-231</code>).
+  → <strong>edit</strong>.</li>
+<li><strong>L42 "<code>modules.remove</code> … is refused while another module needs it":</strong> never refused; dependents stay on and the reply names them (<code>lifecycle.py:197-211</code>, <code>app.py:283-319</code>, <code>directory.py:95</code>). L194 already says so → <strong>edit</strong>.</li>
+<li><strong>L42, core menu:</strong></li>
+<li>Missing <code>modules.docs</code> (<code>directory.py:61</code>) and <code>permissions.grants/grant/request/revoke</code> (<code>permissions/menu.py:28-59</code>, <code>app.py:129</code>).</li>
+<li><code>modules.off</code> asks only when <code>with_dependents</code> is true (<code>ask_when</code>, <code>directory.py:80</code>).</li>
+<li>Mention <code>ask="risky"</code> with a link to permissions.md.
+  → <strong>edit</strong>.</li>
+<li><strong>L109 "modules never import MCP", example "Resi or Unity":</strong> cv imports the <code>mcp</code> client for Rezi (<code>cv/mcp.py:33,391</code>) → "never serve MCP; one may be an MCP client", with the <code>rezi.*</code> menu as the example. The <code>list_changed</code> refresh claim is unverified (no <code>list_changed</code> in cv) → drop.</li>
+<li><strong>Door mermaid (L62-90):</strong> <code>Notes -- StartListening --&gt; Core</code> is wrong: voice_notes calls <code>IVoice.listen</code> directly (<code>voice_notes/module.py:9-14,97,137</code>) → <strong>replace</strong> with a link to pic 2.</li>
+<li><strong>Chaining mermaid and text (L124-144):</strong> <code>StartListening</code>, the "planned: a session destination" edge and "follows its own sessions by the StartListening id" are stale. The call is <code>IVoice.listen(id, VoiceDestination.CALLER)</code>, built → <strong>edit</strong> the text, drop the mermaid, link pic 2.</li>
+<li><strong>L151 "<code>needs = []</code> (cv, and job_search since …)":</strong> every <code>module.toml</code> has <code>needs = []</code> except voice_notes (<code>["voice_in"]</code>); the core list leaves out voice_in → <strong>edit</strong>; split the paragraph; config layering moves to a link to core.md; the defaults go in the folder layout section.</li>
+<li><strong>L183 "the core group stays in the repo":</strong> only tests check it (<code>tests/test_boundaries.py:180-183,228</code>); the loader doesn't refuse (!1) → <strong>edit</strong> and add the gap. The <code>module_folders</code> detail moves here from core.md.</li>
+<li><strong>L173, hot swap:</strong> add <code>assistant.testkit</code> to the shared code (<code>loader.py:44</code>).</li>
+<li><strong>History to delete:</strong></li>
+<li>L5 status block.</li>
+<li>L16 "Built (2026-11-05) …" (many modules have menus now).</li>
+<li>L26-48 "Before the refactor", "Step by step" and "What changes", with the three history pictures. L48 "All of it is planned and needs an app restart" is false.</li>
+<li>L52, L54 status lines ("before, the Agent Hub hosted it").</li>
+<li>L115, L148, L161, L171, L177 status blocks and dated "(module folders item N)" fragments.</li>
+<li>L165 "They used to send InvokeTool viewer.open…".</li>
+<li>L185-208 "Built and planned" table → a short "not built yet" list: packages aren't installed automatically, parallel voice sessions, the data-types table generation.</li>
+<li><strong>L155</strong> duplicates L150-151 → merge.</li>
+<li><strong>L111 "Agent Hub (focus, held questions, milestones)"</strong> → "coordination: task board, focus, held questions, message delivery".</li>
+<li><strong>L54 "In Manual, <code>use_item</code> asks with Claude Code's own card":</strong> "for task agents; the Talker has no gate of its own". The Talker part is unverified.</li>
+<li><strong>Missing (this page holds it):</strong></li>
+<li><strong>Folder layout:</strong><ul>
+<li><code>__init__.py</code> (one <code>ModuleProtocol</code>).</li>
+<li><code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>; every folder has one, <code>test_module_folders.py:648</code>).</li>
+<li><code>app/</code> (companion app, found by folder, <code>loader.py:38-40,169-187</code>).</li>
+<li><code>tests/</code>, and <code>docs/</code> (<code>docs.toml</code> group).</li>
+<li><code>workspace/</code> (gitignored, cv and job_search).</li>
+<li>Optional <code>ruff.toml</code> (cv) and <code>static/</code> (temp_ui).</li>
+<li>Tripwire <code>test_nothing_of_an_add_on_is_outside_its_folder</code> (<code>test_module_folders.py:919</code>).</li>
+</ul>
+</li>
+<li><strong>The three rules (pic 1) and their tests.</strong> test_boundaries numbers them its own way (imports; core settings name no add-on; core needs only core; plus "core starts alone", <code>test_boundaries.py:1-25,208-240</code>). Also <code>test_no_core_code_names_an_add_on</code> (<code>test_module_folders.py:804</code>). Tests catch breaks only when pytest runs.</li>
+<li><strong>module_folders:</strong> absolute paths only (<code>loader.py:122-135</code>; why: the core may run on a server); each folder is appended to <code>assistant.modules.__path__</code> after the repo's (<code>loader.py:143-166</code>); an id found twice is a <code>LoadError</code> at startup; folders are read at launch (inferred, <code>loader.py:272</code>).</li>
+<li><code>modules.add</code> refuses an already-loaded package and an existing id (<code>lifecycle.py:177-187</code>).</li>
+<li>Start on use for tools as well as contracts (<code>app.py:233-258</code>); a call to an off module answers <code>module_off_text</code> (<code>tools.py:113</code>).</li>
+<li><strong>Notes for this page:</strong></li>
+<li>≠5: core-menu paragraph.</li>
+<li>≠6: start-on-use paragraph.</li>
+<li>!1: "you" trusted by module id, <code>callers.py:80</code>; only <code>test_boundaries.py:180</code> catches an outside <code>temp_ui</code>.</li>
+<li>!3: the twice-found check runs only at startup (<code>loader.py:156</code>; <code>modules.add</code> doesn't check, <code>lifecycle.py:172-188</code>).</li>
+<li>!4: the add card doesn't show the folder (<code>tools.py:107-109</code>).</li>
+<li>!2: workspace section, link the job_search page.</li>
+<li>!5: link agents.md.</li>
+<li><strong>Whys to keep:</strong></li>
+<li>One door, not plain MCP.</li>
+<li>Sessions, not copies (one mic).</li>
+<li>Named events (no restart, each side reloads alone).</li>
+<li><code>needs</code> vs <code>requires</code> (start order vs code contract).</li>
+<li>Absolute <code>module_folders</code> paths.</li>
+<li>Menus out of the container.</li>
+<li><strong>Pictures:</strong> use pic 1 (three rules), pic 4 (found, on, reached), pic 6 (module_folders); link pic 2 for chaining.</li>
+</ul>
+<h2 id="docsarchitecturemodule-librarymd">docs/architecture/module-library.md</h2>
+<ul>
+<li>The generated tables match the code (<code>tests/test_module_docs.py</code> passes): 14 modules. The core group is agent_hub, assistant_view, console_io, main_assistant, talker, task_agents, temp_ui, usage, voice_in; the add-ons are cv, echo_orchestrator, html_viewer, job_search, voice_notes.</li>
+<li>The doubled <code>ModuleStateChanged</code> in job_search's row and the incomplete core row are code points (above); not editable by hand.</li>
+<li>L9 "(decided 2026-11-12; it replaces the 2026-11-06 rule…)", L5 "(since 2026-11-05)": history → <strong>delete</strong>. L21 "assistant_view (for now)" → drop "(for now)".</li>
+<li>L15, README's Config section "is its <code>[modules.&lt;id&gt;]</code> section": settings are <code>module.toml</code> defaults, then <code>config/&lt;id&gt;.toml</code>, then <code>&lt;id&gt;.local.toml</code>, then <code>local.toml</code> (<code>app.py:359-367</code>) → <strong>edit</strong>.</li>
+<li>Data types table (if hand-written): add <code>GetMenu</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>, <code>RemoveModule</code>, <code>StartProvider</code>, <code>AnswerPermissionRequest</code>, <code>PermissionRequested</code>, <code>PermissionChanged</code>, <code>FocusChanged</code>, <code>FocusSuggested</code>, <code>SetFocus</code>, <code>ModuleEvent</code>, <code>cv.job_finished</code>/<code>cv.job_submitted</code>; check the <code>ReviewAccessList</code>/<code>AddCardNotes</code> anchors.</li>
+</ul>
+<h2 id="docsarchitecturecommunicationmd-decisionsmd-principlesmd-disagreements">docs/architecture/communication.md, decisions.md, principles.md disagreements</h2>
+<h3 id="decisionsmd">decisions.md</h3>
+<ul>
+<li><strong>Edit:</strong></li>
+<li>L18: the handler maps a <code>talker:</code> prefix to its pair's mode (<code>handler.py:85,435</code>); add relays; delete "allow-all stand-in … gone", "special start order … gone", the dates.</li>
+<li>L17: trim the <code>data/permissions.toml</code> copy to one clause.</li>
+<li>L20: drop the history; keep the rule, <code>app_kit</code> and the one import path.</li>
+<li>L22: describe the module shape as built; drop the plan pointer.</li>
+<li>L23: "The core hosts it (D1)".</li>
+<li>L26: on-demand chaining: rule plus a one-line why (<code>job_search/module.py:376</code>).</li>
+<li>L38: the Talker as a relay for card answers is listed as decided, but G17 is open → move it to Open with today's behaviour; keep "never for Auto" as decided (<code>callers.py:83</code>).</li>
+<li>L43 repeats D4 → merge.</li>
+<li>L27-34: drop the "same day" story; D7 = boundary tests guard the core line, with its why.</li>
+<li>L52: <code>IVoice</code> is decided; only parallel voice sessions stay open.</li>
+<li>L16, L12: drop the dates.</li>
+<li>L21: tighten "a restart with reset instructions…".</li>
+<li>"Deliberately deferred … until two or three very different modules are built": condition met → <strong>user decision</strong>.</li>
+<li><strong>Add decided entries, each with its why:</strong></li>
+<li>Manual off is never refused; <code>needs</code> is start order only; a failed needed module doesn't stop its needers.</li>
+<li>An off module answers <code>not_available</code>; the agent asks before <code>modules.on</code>; only <code>start_on_use</code> providers start by themselves.</li>
+<li><code>modules.remove(settings=keep|purge)</code>: asks, never refused, purges only <code>config/&lt;id&gt;.toml</code> and <code>.local.toml</code>, never deletes the folder or edits <code>modules.toml</code> (<code>app.py:283-314</code>). Supersedes module-folders decision 41's "refuses while needed".</li>
+<li><code>modules.add</code> asks, in Auto too (it loads new code).</li>
+<li>Only you set Auto; sessions start in Manual; Manual from anyone.</li>
+<li>The Hub is coordination only.</li>
+<li>Router and bus split (commands with a stamped <code>sent_by</code>, events only notify).</li>
+<li>The core line and groups (voice_in stays core).</li>
+<li>Module folders, layout step 1 (<code>config/</code> holds your choices only; <code>generated/</code> is rebuildable).</li>
+<li>The repo CLAUDE.md imports only the short overview; module agents skip it and load the developer rules.</li>
+<li>Module agents' workspace and the optional data folder.</li>
+<li>Every module may edit its own folder; task_agents helpers don't.</li>
+<li>The <code>module_folders</code> mechanism.</li>
+<li>Pages open through <code>IPageOpener</code>.</li>
+<li><strong>Open, to match what's really open:</strong></li>
+<li>Keep persistence, the UI handler, self-improvement permissions, parallel voice sessions.</li>
+<li>Add G17.</li>
+<li>Add the add-on move itself and step 7.</li>
+<li>Add a per-add-on CLAUDE.md and a session-only write grant on the add-ons folder.</li>
+<li>Add the code-versus-data split in workspaces.</li>
+<li>Add whether <code>extension-marketplace.md</code> is superseded.</li>
+<li>Add the three core-names-an-agent points and the known gaps !1, !3, !4 and the microphone.</li>
+</ul>
+<h3 id="principlesmd">principles.md</h3>
+<ul>
+<li>P3: add "menu tools".</li>
+<li>P4: state the core line (what the app can't start without; arrows one way; <code>tests/test_boundaries.py</code>).</li>
+<li>P11: "Dependencies are respected" → <code>needs</code> is start order, a manual off is never refused.</li>
+<li>P12: drop the date.</li>
+<li>P14 Today: add the Talker's menu.</li>
+<li>P15 Today: the door is the core's; <code>show_page</code> only parses the tag and <code>open_page</code> goes through <code>IPageOpener</code> (<code>infra/show_pages.py</code>).</li>
+<li>P17: the "optional would make a cycle … the Hub's door" example is stale (<code>AGENT_USES</code>, <code>infra/agent_kit.py:42</code>); add the outside <code>module_folders</code>; drop the dates.</li>
+<li>P18: the Hub wires <code>TaskBoard</code>, <code>Focus</code>, <code>Reviewer</code>, not <code>AgentNames</code> (<code>agent_hub/module.py:95,108,115</code>).</li>
+<li>P21: "never name a module" is broken by <code>callers.py:23</code> and <code>handler.py:85</code> → add a "Today:" line naming them as open.</li>
+<li>L40: drop "added on 2026-11-08 after the code review".</li>
+<li>Numbering 1-22 stays (P13 is referenced from CLAUDE.md).</li>
+</ul>
+<h3 id="docsagentsself-improvementmd">docs/agents/self-improvement.md</h3>
+<p>No contradiction.</p>
+<h2 id="docsarchitecturereusable-partsmd-remote-clientsmd">docs/architecture/reusable-parts.md, remote-clients.md</h2>
+<ul>
+<li>reusable-parts:</li>
+<li>L5 dated status → <strong>delete</strong>.</li>
+<li>L38 "The voice service still sits in <code>src/</code>" is false (it's in <code>voice_in/app/voice_service/</code>) → <strong>delete</strong>.</li>
+<li>L32 "(2026-11-13)" → plain statement.</li>
+<li>Optionally add <code>agent_access</code> and <code>AgentKit</code>.</li>
+<li>remote-clients:</li>
+<li>"the orchestrator invokes them through <code>InvokeTool</code>" → any agent, through the door.</li>
+<li>The language-neutral schema and <code>clients/</code> don't exist → mark planned.</li>
+</ul>
+<h2 id="docsapi-and-docsagents-only-where-they-contradict">docs/api and docs/agents (only where they contradict)</h2>
+<ul>
+<li><strong>api/core.md:</strong></li>
+<li>L36 "no longer an event": delete.</li>
+<li>L64 "(the Agent Hub hosted the do…)": delete.</li>
+<li>L318 "no longer come this way" → "Pages go through <code>IPageOpener</code>".</li>
+<li>L316: add ≠6.</li>
+<li><strong>api/messaging.md L115:</strong> "(command; an event until 2026-11-13)" → delete the history.</li>
+<li><strong>api/tools.md:</strong></li>
+<li>L80, L111: delete the history.</li>
+<li>L101: link decisions.md, not the checklist.</li>
+<li>L96: the argument and callers check is for asking items; others are checked in <code>Menu.call</code>; ≠6.</li>
+<li><strong>api/control.md:</strong></li>
+<li>L3: list <code>AnswerPermission</code> and <code>AnswerPermissionRequest</code> (relay-only, <code>context.py:51-52</code>). The <code>ReloadModule</code>/<code>AddModule</code> check only tests for <code>ITaskAgent</code> (<code>context.py:187</code>); the Allow is the agent's own <code>PermissionGate</code> card (<code>session_agent.py:790</code>). Through the menu the sender is core (≠5).</li>
+<li>L57 <code>permissions.request</code> "always your card": in Auto it's granted at once (<code>handler.py:387-389</code>); an agent with no access list is refused (<code>handler.py:366-368</code>).</li>
+<li>L56, L58 grant/revoke from an agent in Auto run at once (<code>handler.py:354,408</code>).</li>
+<li>L64 revoke: the <code>message:</code>-only case keeps the module on (<code>handler.py:681-682</code>).</li>
+<li>Delete the dates (L60, L62, L98, L115, L170, L174).</li>
+<li><strong>api/README.md:</strong></li>
+<li>L57 <code>AnswerPermissionRequest</code>: only you or a relay may send it.</li>
+<li>L78: the gate order (≠6).</li>
+<li>L120: mark <code>AnswerPermission</code> as a control command.</li>
+<li>L113 auto = "no prompts": confirm cards and <code>RELOAD:</code>/<code>ADD_MODULE:</code> cards still show in Auto (<code>handler.py:279</code>, <code>permission_gate.py:219</code>).</li>
+<li>L163 AgentKit "reset": no longer in the kit.</li>
+<li>L17: add <code>module_roots</code>, <code>in_module_folder</code>, <code>developer_rules</code>.</li>
+<li>L50, L127, L133 "(an event until 2026-11-13)": delete.</li>
+<li><strong>api/infra.md:</strong></li>
+<li>L302, L489, L410: dated history → delete.</li>
+<li><strong>api/testkit.md:</strong></li>
+<li>L23, L43 "(module folders item 11)": delete.</li>
+<li><strong>api/reusable.md:</strong></li>
+<li>L108: history, delete.</li>
+<li>L22: the Event Bus sits under Contracts → move it to Core host.</li>
+<li><strong>api/agents.md:</strong></li>
+<li>L383 "Used by: talker and main_assistant through the door" → every agent with the door.</li>
+<li><strong>agents/README.md:</strong></li>
+<li>L28 "Talker: no tools" → no built-in tools, only the door's three.</li>
+<li>L39 "not enforced until the permissions handler is built": it's built.</li>
+<li>L44 "one Main Assistant and one active task": several agents (<code>max_extra_agents=3</code>).</li>
+<li>L9-13: add module agents and helpers.</li>
+<li>L40: a missing line break.</li>
+<li><strong>agents/runtime.md:</strong></li>
+<li>L484 "the planned pairs": built.</li>
+</ul>
+<h2 id="pictures">Pictures</h2>
+<table>
+<thead>
+<tr>
+<th>Picture</th>
+<th>Plan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core-line-rules.svg</code> (pic 1)</td>
+<td>README (block diagram) and modules.md (three rules)</td>
+</tr>
+<tr>
+<td><code>modules-talk.svg</code> (pic 2)</td>
+<td>core.md; linked from communication.md and modules.md</td>
+</tr>
+<tr>
+<td><code>core-inside.svg</code> (pic 3)</td>
+<td>core.md</td>
+</tr>
+<tr>
+<td><code>addon-found-reached.svg</code> (pic 4)</td>
+<td>modules.md</td>
+</tr>
+<tr>
+<td><code>agents-sessions.svg</code> (pic 5)</td>
+<td>agents.md</td>
+</tr>
+<tr>
+<td><code>module-folders-outside.svg</code> (pic 6)</td>
+<td>modules.md</td>
+</tr>
+<tr>
+<td><code>permissions-cards.svg</code> (add)</td>
+<td>permissions.md: a cut of pic 3, card arrows only</td>
+</tr>
+<tr>
+<td><code>agents-switchboard.svg</code></td>
+<td>stale ("door hosted by the Hub", "next big agent (later)"); off README and agents.md, replaced by pic 5 and pic 2</td>
+</tr>
+<tr>
+<td><code>agents-below-hub.svg</code></td>
+<td>stale (same error, "next agent's module (later)"); off agents.md, replaced by pic 2</td>
+</tr>
+<tr>
+<td><code>agents-modes.svg</code></td>
+<td>labels match the code; keep on agents.md</td>
+</tr>
+<tr>
+<td><code>agents-code-layout.svg</code></td>
+<td>stale (Hub's <code>_Door</code>/<code>_Names</code>, AgentNotice as an event, no Callers, gate or cv); off agents-code.md, whose three mermaids (corrected) carry the layers</td>
+</tr>
+<tr>
+<td><code>module-directory-1-before.svg</code>, <code>-2-steps.svg</code>, <code>-3-changes.svg</code></td>
+<td>history (before/after); off modules.md, replaced by pic 4</td>
+</tr>
+<tr>
+<td>Mermaids</td>
+<td>replace: README bird's-eye, core.md "Where the core sits", communication.md both, modules.md door and chaining, agents.md "The idea" and "Who sends what" (redraw); fix: code-map (edges, id clash), agents-code (1, 2), permissions sequence (arrow kinds), core.md classDiagram (<code>hold</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The stale SVG files stay on disk. <code>docs/next-steps/agent-talkers.md:125-128,175</code> embeds the four agents-* files, and <code>module-system.md</code> / <code>module-shape-refactor.md</code> link the module-directory ones; those are change notes. <code>agents-switchboard.svg</code> also has uncommitted changes. Deleting them is the user's call (below).</p>
+<h2 id="good-to-know-and-known-gaps-for-the-architecture-docs">Good to know and Known gaps for the architecture docs</h2>
+<p>As current-state notes, each on its home page:</p>
+<ul>
+<li>≠1: risky core-menu items card even in Auto (<code>directory.py:80-99</code>): permissions, core.</li>
+<li>≠2: the gate doesn't wait; on Allow the handler runs the step (<code>tools.py:109</code>, <code>handler.py:285,554</code>): core, permissions.</li>
+<li>≠3: the review is a Hub task; notes come back as <code>AddCardNotes</code> (<code>review.py:66,96</code>): permissions, agents.</li>
+<li>≠4 / G17: the Talker relays card answers (<code>context.py:51-52</code>, <code>default.toml:46</code>); whether they count as yours is open: permissions, communication, agents, decisions (Open).</li>
+<li>≠5: <code>modules.off</code> without dependents gets no card and is sent as core (<code>directory.py:77-82</code>): permissions, communication, modules.</li>
+<li>≠6: start on use runs before the callers check (<code>tools.py:87-92</code> vs <code>:105</code>): core, permissions, modules.</li>
+<li>Door calls go door → router → gate (<code>mcp_door.py:145-158</code>): core.</li>
+<li>Listening is loose; publishing and handling are strict (<code>context.py:108,157-159,224-231</code>): communication.</li>
+<li>!1: "you" is trusted by module id (<code>callers.py:80</code>): permissions, modules.</li>
+<li>!2: job_search reads cv's output by path (<code>job_paths.json</code> <code>cv_output</code>): modules, agents, communication.</li>
+<li>!3: the twice-found check runs only at startup (<code>loader.py:156</code>): modules, core.</li>
+<li>!4: the <code>modules.add</code> card doesn't show the folder (<code>tools.py:107-109</code>): modules, permissions.</li>
+<li>!5: <code>claudeMdExcludes</code> covers only the repo's files (<code>agent_profile.py:121-125</code>): agents, agents-code.</li>
+<li>The microphone is never asked (<code>port.py:34-36</code>): permissions.</li>
+<li>A config folder outside the repo isn't in the protected zone (<code>rules.py:21-27</code>): permissions (to confirm).</li>
+<li>The core still names agents in three spots: agents-code, principles (P21), decisions (Open).</li>
+</ul>
+<h2 id="for-the-user-to-decide">For the user to decide</h2>
+<ol>
+<li>The overview's Pages bullet must start "Restructuring (proposal, not started):" (test-locked, <code>tests/test_module_docs.py:88</code>), but the restructuring is built. Change the test and the wording?</li>
+<li>Delete the stale SVG files (the agents-* three and module-directory-* three) even though change notes still show them?</li>
+<li>decisions.md "Deliberately deferred … until two or three very different modules are built": the condition is met. Rewrite or drop it?</li>
+<li>A config folder outside the repo (<code>ASSISTANT_CONFIG_DIR</code>) isn't protected: record it as a known gap (done) or fix it in code? <strong>Answered 2026-11-13: fixed in code, protected like <code>config/</code> (writes refused, reads allowed); <a href="outside-config-protected.html">outside-config-protected</a>, built, waiting for the restart.</strong></li>
+<li>The code points listed above (docstrings, <code>CORE_LINE</code>, the doubled event, the generated core row): fix in a code task? <strong>Answered 2026-11-13: fixed in code, the core row generated from <code>App.offers()</code> with a tripwire test; <a href="audit-code-fixes.html">audit-code-fixes</a>, built, waiting for the restart.</strong></li>
+</ol>
+<h2 id="stage-2-plan">Stage 2 plan</h2>
+<p>Six editors, one group of files each, so no file has two editors; one Write per file. Afterwards: one docs build, the tests, the architecture check, the final report below.</p>
+<table>
+<thead>
+<tr>
+<th>Editor</th>
+<th>Files</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>core.md, communication.md, api/core.md, api/messaging.md, api/tools.md</td>
+</tr>
+<tr>
+<td>B</td>
+<td>permissions.md, api/control.md, new img/permissions-cards.svg</td>
+</tr>
+<tr>
+<td>C</td>
+<td>agents.md, agents-code.md, agents/README.md, agents/runtime.md, api/agents.md</td>
+</tr>
+<tr>
+<td>D</td>
+<td>modules.md, module-library.md, api/modules.md</td>
+</tr>
+<tr>
+<td>E</td>
+<td>README.md, short-overview.md, code-map.md, reusable-parts.md, remote-clients.md, api/README.md, api/infra.md, api/testkit.md, api/reusable.md</td>
+</tr>
+<tr>
+<td>F</td>
+<td>decisions.md, principles.md</td>
+</tr>
+</tbody>
+</table>
+<h2 id="final-report-stage-2">Final report (stage 2)</h2>
+<h3 id="per-page">Per page</h3>
+<ul>
+<li><strong>README.md (overview):</strong></li>
+<li>Bird's-eye only: <code>img/core-line-rules.svg</code> with the three rules, a five-point summary, the Pages list and the Parts table.</li>
+<li>Parts: Modules split into core and add-ons; infra, Registry (outside folders), the core menu (<code>modules.docs</code>) and Hub (<code>Reviewer</code>) fixed.</li>
+<li>Removed: "Currently fixing", the status paragraph, the switchboard image.</li>
+<li><code>## Restructuring</code> cut to one line.</li>
+<li>Left: the test-locked bullet wording.</li>
+<li><strong>short-overview.md:</strong> adds outside module folders, <code>workspace/</code>, the optional data folder, "the door, names and modes are the core's (Callers)", and <code>test_module_layout.py</code>. 3100 characters, names no add-on.</li>
+<li><strong>core.md:</strong></li>
+<li>Pic 2 and pic 3, each with its legend and list (T/C/E; 1-13, P7, ≠1-≠6), and a D1-D6 parts table.</li>
+<li>Fixed: the handler list, the shutdown order (<code>permissions.close</code>), who hands over (only main_assistant doesn't), the gate order (≠6), door → router → gate.</li>
+<li>Config gains <code>module_folders</code>, <code>reload_idle_timeout</code> and <code>restart_exit_code</code>.</li>
+<li>Gaps !1, !3, !4 and the microphone.</li>
+<li>Commands, events and CONTROL moved to communication.md. The review, <code>module_folders</code>, remove and "adding a module" are cut to links. The whys are kept.</li>
+<li><strong>communication.md:</strong></li>
+<li>The made-up Browser mermaids are replaced by real examples and links to core.md's pictures.</li>
+<li>Holds the CONTROL table, strict vs loose declarations, <code>hold</code>, retryable results, ≠4, ≠5 and !2.</li>
+<li><strong>permissions.md:</strong></li>
+<li>Undated "Built / Not built yet" box.</li>
+<li>"How a card travels" with the new <code>img/permissions-cards.svg</code> (a cut of pic 3), and "Two card roads".</li>
+<li>Modes per agent pair (Manual from anyone, Auto only from you); the sequence diagram marks commands vs bus events.</li>
+<li>Zones: the repo's <code>config/</code> only; outside add-on folders added.</li>
+<li>Good to know ≠1-≠6, Known gaps; G17 under Open questions. Worktree branch edits marked planned (no code makes a worktree).</li>
+<li>Left: the "(built)" headings, because other pages and change notes link <code>#access-lists-built</code> and <code>#permission-mode-built</code>.</li>
+<li><strong>agents.md:</strong></li>
+<li>"Who is who" with pic 5 (legend, notes 1-4); a core/add-on agents table; a "where each works / which CLAUDE.md" table (helpers work outside the repo).</li>
+<li>The Hub as coordination only; job and cv notes fixed (the job runner is a stub; <code>job.tailor_cv</code>).</li>
+<li>Startup tree rewritten; "Who sends what" as a new mermaid; sequences use <code>hub.*</code> through door → gate.</li>
+<li>Class table removed; switchboard and below-hub pictures removed; Good to know and known gaps section.</li>
+<li>Renamed anchor: "The Agent Hub: the switchboard" → "coordination only" (nothing linked it).</li>
+<li><strong>agents-code.md:</strong> the SVG is replaced by a layers table; adds <code>AgentProfile.command</code>'s CLAUDE.md part; mermaid fixes (the <code>hub</code> box, "planned" removed); the gate quirks; three known limits plus !5.</li>
+<li><strong>modules.md (full rewrite):</strong></li>
+<li>Sections: the module folder, the three rules (pic 1) with their tests, find and open a menu (pic 4 with the A/P table), the core's menu, module folders outside the repo (pic 6, !1-!5), turning on and off, dependencies, a "Not built yet" list.</li>
+<li>Fixed: <code>handles</code> is strict, remove is never refused, <code>modules.off</code> asks only with dependents, <code>needs</code>, cv as an MCP client, <code>IVoice.listen</code>.</li>
+<li>Removed: the before/after section, its three pictures and both mermaids.</li>
+<li><strong>module-library.md:</strong></li>
+<li>Hand-written parts only: dates removed, the Config description fixed, a note on what the generated tables leave out, 17 more data types.</li>
+<li>The generated text is untouched.</li>
+<li><strong>decisions.md:</strong></li>
+<li>Decided is grouped (Platform, Core line, Modules, Agents, Permissions), each entry with a why and a link; every missing rebuild decision added.</li>
+<li>Open matches what's really open: G17, the add-on move, a per-add-on CLAUDE.md, code vs data, extension-marketplace, the core naming agents, the known gaps.</li>
+<li>"Deliberately deferred" left as it was. Step 7 not listed (nothing defines it).</li>
+<li><strong>principles.md:</strong> numbering 1-22 kept; P3, P4, P11, P12, P14, P15, P17, P18 and P21 fixed (P21 gets a "Today:" line for the two exceptions).</li>
+<li><strong>code-map.md:</strong> mermaid redrawn: the id clash fixed, the core's real classes, the door hosted by the core, the review as <code>ReviewAccessList</code> → <code>AddCardNotes</code>, modules split into core and add-ons, the CV Tool. "How it reads" fixed; Known gaps lists only what's open.</li>
+<li><strong>reusable-parts.md, remote-clients.md:</strong> status and false lines removed; remote clients marked planned.</li>
+<li><strong>docs/api:</strong></li>
+<li>README: four permissions fixes, AgentKit, the infra list, dates, the Event Bus under Core host.</li>
+<li>core, messaging, tools: history removed, ≠6, door → router → gate, the context checks. messaging.md wrongly said the core refuses to turn voice_in off; fixed.</li>
+<li>control: the card answers, sent as core, Auto, no access list, <code>message:</code> revoke, the <code>ListModules</code> order.</li>
+<li>modules: four fixes.</li>
+<li>agents: Used by.</li>
+<li>infra, testkit, reusable: history removed.</li>
+<li><strong>docs/agents:</strong> README (roles, the Talker's tools, the handler clause, limits); runtime.md (history wording at the audited spots).</li>
+<li><strong>Pictures:</strong> six reference pictures copied into <code>img/</code> plus the new <code>permissions-cards.svg</code>. No longer used by any architecture, agents or api page: <code>agents-switchboard.svg</code>, <code>agents-below-hub.svg</code>, <code>agents-code-layout.svg</code>, <code>module-directory-1-before.svg</code>, <code>-2-steps.svg</code>, <code>-3-changes.svg</code>. They're kept on disk because change notes still show them (decision 2).</li>
+</ul>
+<h3 id="deliberately-left">Deliberately left</h3>
+<ul>
+<li>Many dated "built …" tags in <code>docs/agents/runtime.md</code>, <code>docs/api/infra.md</code> and the API "Used by" lines (the audit scoped those pages to contradictions only).</li>
+<li>messaging.md's planned voice items.</li>
+<li>The generated module-library text.</li>
+<li>No code touched (the code points are listed above).</li>
+</ul>
+<h3 id="checks">Checks</h3>
+<ul>
+<li><code>.\.venv\Scripts\python scripts\build_docs.py</code>: passed (74 pages to docs/html, 132 to docs/html-next-steps).</li>
+<li><code>.\.venv\Scripts\python -m pytest</code>: <strong>997 passed</strong>, 2 deselected, 4 warnings (unclosed-pipe ResourceWarnings in two subprocess tests, not docs-related). This includes the doc tests: no next-steps links, the short overview's size, module docs.</li>
+<li>The anchors the editors flagged exist: <code>core.md#lifecycle</code>, <code>#configuration</code>, <code>#reloading-a-modules-code</code>, <code>permissions.md#risky-steps-ask-even-in-auto</code>, <code>modules.md#dependencies</code>.</li>
+<li>No dates, "no longer", "used to" or "hosted by the Hub" left in <code>docs/architecture/*.md</code> (two hits are real data: a log folder name and the <code>StartListening</code> command).</li>
+<li>Anchor sweep (follow-up session): 935 anchored links in docs/architecture, docs/agents, docs/api and module docs pointing into architecture; no broken file or anchor. All 7 <code>img/*.svg</code> files the architecture pages use exist; the 6 stale ones are unreferenced.</li>
+<li>Ruff not run: no Python touched.</li>
+</ul>
+<h3 id="not-verified">Not verified</h3>
+<ul>
+<li><strong>No picture was looked at rendered</strong>: the seven SVG files and the redrawn mermaids (code-map, agents "Who sends what").</li>
+<li><code>permissions-cards.svg</code> is a fresh cut with labels placed by estimate.</li>
+<li>Not every intra-doc anchor was swept (only the flagged ones).</li>
+<li>Which CLAUDE.md the Talker and the helpers load: unsettled in code; the agents page says so.</li>
+<li>"The Talker has no gate of its own" (pic 4, P1): taken from the reference, not checked in code.</li>
+</ul>
+<h3 id="architecture-check-docs-part-at-the-end">Architecture check (docs part, at the end)</h3>
+<ul>
+<li><strong>Modularity:</strong> the pages now state the core line as the code has it (core = host + core modules + door/gate + ports; add-ons talk only through tools, events and contracts); the three places where the core still names agents are listed as open, not hidden.</li>
+<li><strong>Reuse:</strong> no helper moved; <code>docs/api/reusable.md</code> only lost history wording and moved the Event Bus row to Core host. The pictures are reused from the reference page, not redrawn.</li>
+<li><strong>Fit with the main app:</strong> each topic has one home page (table above); communication.md holds the message rules and core.md the pictures.</li>
+<li><strong>Diagrams:</strong> replaced: README, core, communication, modules, agents. Fixed: code-map, agents-code, permissions sequence. Added: permissions-cards.</li>
+</ul>
+<h3 id="files-edited-more-than-once">Files edited more than once</h3>
+<ul>
+<li>This note (Write, then the status line and this report).</li>
+<li>tools.md (a heading put back for five inbound links).</li>
+<li>modules.md (a voice wording fix).</li>
+<li>agents.md (the <code>cv.job_submitted</code> name).</li>
+<li>runtime.md, api/agents.md, api/infra.md and api/reusable.md: one Edit per spot, by design.</li>
+</ul>
+<h3 id="pages-to-check-by-eye">Pages to check by eye</h3>
+<ul>
+<li><code>docs/html/architecture/index.html</code> (overview)</li>
+<li><code>docs/html/architecture/core.html</code></li>
+<li><code>docs/html/architecture/permissions.html</code> (new cards picture)</li>
+<li><code>docs/html/architecture/agents.html</code></li>
+<li><code>docs/html/architecture/modules.html</code></li>
+<li><code>docs/html/architecture/code-map.html</code> (redrawn mermaid)</li>
+<li><code>docs/html/architecture/decisions.html</code></li>
+</ul>
+<h3 id="next-a-fresh-session-only-if-wanted">Next (a fresh session, only if wanted)</h3>
+<p>Nothing required. Optional: sweep every <code>*.md#anchor</code> link in docs/architecture, docs/agents and docs/api against the headings; then act on the user's answers to "For the user to decide" 1-5.</p>
+<h2 id="cleanup">Cleanup</h2>
+<p>The user's answers (2026-11-13): 1 yes, 2 yes (and delete out-of-date notes), 3 drop. 4 and 5 are code tasks for later.</p>
+<p><strong>What the cancelled run left:</strong> nothing from this cleanup. No file deleted, no Cleanup section, the overview's Restructuring bullet, the test and the decisions.md line all unchanged. Every other change under <code>docs/</code> and <code>tests/</code> in <code>git status</code> comes from the audit stages before it.</p>
+<p><strong>What the test guarded:</strong> <code>tests/test_module_docs.py::test_main_docs_never_link_into_next_steps</code> keeps the permanent docs (architecture, agents, api, module pages) from linking into the change notes, which come and go. The one exception the user allowed is the overview's <code>## Restructuring</code> section and its one Pages bullet, and only to a fixed set of notes. The exact wording "(proposal, not started)" only found that bullet. The new wording "(built …)" does the same job, so the test still finds the one bullet and still refuses any other next-steps link.</p>
+<p><strong>Pictures to delete</strong> (<code>docs/architecture/img/</code>; the build regenerates <code>docs/html</code>, so their copies go too):</p>
+<ul>
+<li><code>agents-below-hub.svg</code>: stale (draws the door and names in the Hub); no page uses it.</li>
+<li><code>agents-code-layout.svg</code>: stale (the Hub's <code>_Door</code>/<code>_Names</code>, no Callers or gate); no page uses it.</li>
+<li><code>module-directory-1-before.svg</code>, <code>module-directory-2-steps.svg</code>, <code>module-directory-3-changes.svg</code>: before/after history of the module-system build; no page uses them.</li>
+<li><strong>Kept:</strong> <code>agents-switchboard.svg</code>. The repo's root <code>README.md</code> still shows it, so it's still in use (your call: swap the root README's picture for <code>core-line-rules.svg</code>, then delete it).</li>
+</ul>
+<p>None of the notes embeds these pictures. They name them only as text, so no picture link breaks.</p>
+<p><strong>Notes to delete</strong> (<code>docs/next-steps/</code>, with their built copies):</p>
+<ul>
+<li><code>job-cv-result-via-tools.md</code>: its own status line says it was replaced by job-cv-finish-event.</li>
+<li><code>hub-folder-check-parent.md</code>: cancelled, never built; replaced by agent-talk-and-questions.</li>
+<li><code>handoff-b31b8901.md</code>: done; superseded by handoff-2389decf.</li>
+<li><code>handoff-8c52a851.md</code>: "done, committed, nothing left to carry on".</li>
+<li><code>handoff-4dca192a.md</code>: built; its current state lives in job-cv-finish-event, and the rest is history.</li>
+<li><code>handoff-9bc35422.md</code>: finished; the restart and hand checks it leaves are in agent-talk-and-questions.</li>
+<li><code>handoff-da696d15.md</code>: the mid-build state of job-cv-start-order, which is now built and reloaded; that note holds the current state.</li>
+<li><code>handoff-0873d2c8.md</code>: the overnight module-folders run, finished (the checklist is 20 of 20, committed); its rules were for that run only.</li>
+</ul>
+<p><strong>Kept as judgement calls (for you):</strong></p>
+<ul>
+<li><code>module-shape-refactor.md</code>: superseded, but module-system.md still calls its "Diagrams to update" table the full list of doc changes.</li>
+<li><code>handoff-73fc479c.md</code>: its build is done, but door-at-session-start.md's hand check still points at its item 3.</li>
+<li><code>handoff-5eff4e83.md</code>: stale (in progress on 2026-11-12), but named-module-events.md links it.</li>
+<li><code>handoff-20c1d08e.md</code>: the cv-pdf-only build, waiting on you (it alone notes <code>CV_Test_SWE.odt</code> at 0 bytes).</li>
+<li><code>handoff-d81801ee.md</code>: done, waiting for your review of piping.html.</li>
+<li><code>handoff-dce225ad.md</code>: holds your decisions that replace manual-off-never-refused's part 2.</li>
+<li><code>handoff-e519644c.md</code>: cv_agent's own note.</li>
+<li><code>rezi-module.md</code>, <code>two-agent-states.md</code>: replaced or folded into other notes, but their Pending rows aren't closed.</li>
+<li>Every note whose Pending row still says "waiting on you", plus the ones the task named to keep.</li>
+</ul>
+<p><strong>Links fixed:</strong> the three Pending rows for deleted notes in <code>docs/next-steps/README.md</code>; agent-talk-and-questions.md (line 3) and handoff-5eff4e83.md (line 45) now name the deleted notes as plain text.</p>
+<p><strong>Item 3:</strong> the <code>## Deliberately deferred</code> section of decisions.md is dropped (its one line was the whole section), and the overview's Pages line now says "decided and open". No decision was waiting on that line: the section held nothing else, and nothing in the Open list points to it.</p>
+<p><strong>Second batch (2026-11-13, the judgement calls, approved by you):</strong></p>
+<ul>
+<li><code>module-shape-refactor.md</code>: superseded by module-system (built); its docs table was out of date. Mentions in module-system, job-agent and voice-notes are plain text.</li>
+<li><code>handoff-73fc479c.md</code>: the agent-permissions build log, done. Its helper-launch hand check is now one standalone, still-open line in door-at-session-start.md (not marked passed).</li>
+<li><code>handoff-5eff4e83.md</code>: the smoke test, all stages passed; named-module-events names it as plain text.</li>
+<li><code>handoff-20c1d08e.md</code>: the cv-pdf-only build, live. Its one fact kept here: the base CV folder's CV_Test_SWE.odt has been 0 bytes since 2026-11-08 (the PDF copy is fine; outside the repo, left untouched, your call).</li>
+<li><code>handoff-d81801ee.md</code>: the piping.html arrows, done; the pictures moved into module-flow-and-piping.html.</li>
+<li><code>handoff-dce225ad.md</code>: its decisions (1 to 5) are all in manual-off-never-refused.md and the code (<code>_note_missing_needs</code>, the "isn't on" answer in <code>core/tools.py</code>).</li>
+<li><code>handoff-e519644c.md</code>: cv_agent's page-settings note, built (<code>page_settings</code> in cv).</li>
+<li><code>rezi-module.md</code>: replaced by the cv module; its Pending row is closed, and module-folders-launch-check names it as plain text. <code>task_agents/module.toml</code> (the rezi helper's comment and prompt) still names the path; that's module code, left for a code task.</li>
+<li><code>two-agent-states.md</code>: built via agent-talk-and-questions step 3; its Pending row is closed and the links there are plain text.</li>
+<li><code>agents-switchboard.svg</code> (both copies): stale; the root README now shows <code>agents-sessions.svg</code>. agent-talkers and restructuring-checklist name it only as plain text (history).</li>
+</ul>
+<footer>Generated from <code>docs/next-steps/architecture-docs-audit.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

@@ -50,9 +50,9 @@
 <tr>
 <td><a href="modules.html#modulecontextpermissions"><code>ctx.permissions</code></a> (<code>ModulePermissions</code>)</td>
 <td>interface</td>
-<td><code>has</code> / <code>request</code> a permission (not checked yet: allowed, warned once per module and name); <code>request_set</code> a whole access list on one card. The core backs it with a <a href="core.html#permissionsport"><code>PermissionsPort</code></a> forwarding to its <a href="core.html#permissionshandler"><code>PermissionsHandler</code></a></td>
+<td><code>has</code> / <code>request</code> a permission (not checked yet: allowed, warned once per module and name); <code>request_set</code> a whole access list on one card; <code>confirm</code> a risky step on a yes/no card (Auto never skips it). The core backs it with a <a href="core.html#permissionsport"><code>PermissionsPort</code></a> forwarding to its <a href="core.html#permissionshandler"><code>PermissionsHandler</code></a></td>
 <td><code>contracts/module.py</code>, <code>core/permissions/</code>, <code>core/context.py</code></td>
-<td>every module's context (<code>ScopedContext</code>); callers: <code>voice_in</code> (<code>microphone</code>, on each start), the core's <code>CoreMenu</code>, <code>job_search</code> and <code>task_agents</code> (<code>request_set</code>, through <code>request_access</code>), <code>agent_hub</code> (<code>granted</code> / <code>ask</code>, its message gate), every module that asks</td>
+<td>every module's context (<code>ScopedContext</code>); callers: <code>voice_in</code> (<code>microphone</code>, on each start), the core's <code>CoreMenu</code>, <code>job_search</code> and <code>task_agents</code> (<code>request_set</code>, through <code>request_access</code>), <code>agent_hub</code> (<code>granted</code> / <code>ask</code>, its message gate), <code>talker</code> (<code>confirm</code>, its restart), every module that asks</td>
 </tr>
 <tr>
 <td><a href="messaging.html#accessitem"><code>AccessItem</code></a>, <a href="messaging.html#accesskind"><code>AccessKind</code></a>, <a href="messaging.html#accessnote"><code>AccessNote</code></a>, <a href="messaging.html#accessdenied-accesspending"><code>AccessDenied</code>, <code>AccessPending</code></a></td>
@@ -64,9 +64,30 @@
 <tr>
 <td><a href="messaging.html#permissionrequested"><code>PermissionRequested</code></a>, <a href="messaging.html#answerpermissionrequest"><code>AnswerPermissionRequest</code></a>, <a href="messaging.html#permissionchanged"><code>PermissionChanged</code></a></td>
 <td>event, command, event</td>
-<td>A card for you (an access list, or an agent's grant or revoke); your answer with the ticked items; a grant saved, denied or revoked, closing the card</td>
+<td>A card for you (an access list, an agent's grant or revoke, a message, or a <code>confirm</code> card for a risky step); your answer with the ticked items; a grant saved, denied or revoked, closing the card</td>
 <td><code>contracts/permissions.py</code></td>
-<td>the core's permissions handler publishes and handles → <code>talker</code> (<code>access_card_text</code>, <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> answer whole), <code>temp_ui</code> (the card with tick boxes)</td>
+<td>the core's permissions handler publishes and handles → <code>talker</code> (<code>access_card_text</code>, with a confirm head; <code>&lt;&lt;ALLOW&gt;&gt;</code> / <code>&lt;&lt;DENY&gt;&gt;</code> answer whole), <code>temp_ui</code> (the card with tick boxes, a confirm head)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#reviewaccesslist"><code>ReviewAccessList</code></a>, <a href="messaging.html#addcardnotes"><code>AddCardNotes</code></a></td>
+<td>command, command</td>
+<td>The core asks for an access list's review before its card shows; the reviewer's notes come back (D6: the core never starts a task; no Hub answers <code>not_available</code> at once, "not reviewed")</td>
+<td><code>contracts/permissions.py</code></td>
+<td>the core's permissions handler sends <code>ReviewAccessList</code> and handles <code>AddCardNotes</code> (<code>add_notes</code>) ↔ <code>agent_hub</code> (<code>Reviewer</code>, <code>review.py</code>)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#command"><code>Command.sent_by</code></a></td>
+<td>field</td>
+<td>Who sent a command, stamped by the core (the module's id, or <code>"core"</code>); handlers may trust it</td>
+<td><code>contracts/messages.py</code>, <code>core/context.py</code>, <code>core/router.py</code></td>
+<td><code>App._set_mode</code> (Auto only from you), <code>App._on_shutdown_requested</code> (logged), <code>agent_hub</code> (<code>AgentNotice</code>'s label)</td>
+</tr>
+<tr>
+<td><a href="messaging.html#shutdownrequested"><code>ShutdownRequested</code></a></td>
+<td>command</td>
+<td>Shut the app down, or restart it; a command the core handles (an event until 2026-11-13), gated by <code>manifest.sends</code></td>
+<td><code>contracts/messages.py</code>, <code>core/app.py</code></td>
+<td><code>console_io</code> (exit words), <code>talker</code> (restart, after its confirm card) → the core</td>
 </tr>
 <tr>
 <td><a href="modules.html#manifest"><code>Manifest</code></a></td>
@@ -81,13 +102,6 @@
 <td>A tool call, or a <code>StartProvider(contract)</code>, turns on the module that is off and has the tool (or provides the contract), if its config has <code>start_on_use = true</code> (same path as <code>ActivateModule</code>, one <code>App._start_on_use</code>); failed start → its error; one start for calls at once</td>
 <td><code>core/tools.py</code>, <code>core/app.py</code></td>
 <td>every <code>InvokeTool</code> caller (the agents' door, <code>use_item</code>); <code>StartProvider</code>: <code>open_page</code> (<code>talker</code>, <code>temp_ui</code>, <code>SessionTaskAgent</code>); modules opted in: <code>html_viewer</code></td>
-</tr>
-<tr>
-<td>Event Bus (<code>ctx.subscribe</code> / <code>ctx.publish</code>)</td>
-<td>core</td>
-<td>The stream for any event: voice text, agent activity, usage. <code>subscribe</code> returns a handle; <a href="modules.html#modulecontextunsubscribe"><code>ctx.unsubscribe</code></a> drops one subscription</td>
-<td><code>core/bus.py</code>, <code>core/context.py</code></td>
-<td>every module</td>
 </tr>
 <tr>
 <td><a href="messaging.html#moduleevent"><code>ModuleEvent</code></a>, <a href="modules.html#modulecontextpublish_named"><code>ctx.publish_named</code></a> / <a href="modules.html#modulecontextsubscribe_named"><code>subscribe_named</code></a> / <a href="modules.html#modulecontextunsubscribe"><code>unsubscribe</code></a>, <code>event_name_ok</code>, <code>SubscriptionHandle</code></td>
@@ -113,16 +127,23 @@
 <tr>
 <td><a href="modules.html#menu"><code>Menu</code></a></td>
 <td>part</td>
-<td>A module's actions: items with a schema, checked arguments, read without starting the module, linked to the running copy by the core</td>
+<td>A module's actions: items with a schema, checked arguments, read without starting the module, linked to the running copy by the core; an item's <code>ask</code> / <code>ask_when</code> mark sends it through the core's ask-first gate (<code>MenuItem.asks</code>, <code>Menu.get</code>)</td>
 <td><code>contracts/menu.py</code></td>
-<td><code>html_viewer</code>, <code>echo_orchestrator</code>, <code>agent_hub</code> (the <code>hub.*</code> menu, with <code>callers</code> and the <code>caller</code> argument); the core (<code>MenuTools</code>, its own <code>CoreMenu</code>), <code>scripts/build_docs.py</code></td>
+<td><code>html_viewer</code>, <code>echo_orchestrator</code>, <code>agent_hub</code> (the <code>hub.*</code> menu, with <code>callers</code> and the <code>caller</code> argument), <code>talker</code> (<code>talker.reset</code>); the core (<code>MenuTools</code>, its own <code>CoreMenu</code>: <code>ask="always"</code> on <code>modules.add / remove / reload</code>, <code>modules.off</code> with <code>ask_when</code>), <code>scripts/build_docs.py</code></td>
+</tr>
+<tr>
+<td><a href="tools.html#the-ask-first-gate">The ask-first gate</a></td>
+<td>core</td>
+<td>One checked gate for every menu call: arguments and <code>callers</code> first, then a <code>confirm</code> card for an item marked <code>ask</code> (<code>"always"</code>: Auto too; <code>"risky"</code>: skipped in Auto); a <code>you</code> caller runs at once</td>
+<td><code>core/tools.py</code> (<code>dispatch_tool(confirm=)</code>), <code>contracts/menu.py</code>, <code>core/permissions/handler.py</code> (<code>confirm</code>)</td>
+<td>every <code>InvokeTool</code> (modules and the door; the Talker's <code>use_item</code> too); the core's menu marks</td>
 </tr>
 <tr>
 <td><a href="tools.html#itoolprovider"><code>IToolProvider</code></a></td>
 <td>contract</td>
 <td>Something offering tools by name</td>
 <td><code>contracts/tools.py</code></td>
-<td>the core's <code>MenuTools</code> (every module menu); called via <code>InvokeTool</code></td>
+<td>the core's <code>MenuTools</code> (every module menu, in the core-private <code>MenuTable</code>, never the container); called via <code>InvokeTool</code></td>
 </tr>
 <tr>
 <td><a href="modules.html#modulecontextwithdraw"><code>ModuleContext.withdraw</code></a></td>
@@ -143,14 +164,21 @@
 <td>method</td>
 <td>Ask you to allow an app action on the agent's open task: the permission card in Manual, at once in Auto (the agent's own mode); on Allow, <code>run()</code>'s outcome is the task's next message</td>
 <td><code>contracts/agents.py</code>, <code>infra/session_agent.py</code></td>
-<td><code>SessionTaskAgent</code> implements (also its own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request); <code>task_agents</code> (<code>agents.launch</code>) calls</td>
+<td><code>SessionTaskAgent</code> implements (also its own <code>RELOAD:</code> / <code>ADD_MODULE:</code> request, which asks in Auto too); <code>task_agents</code> (<code>agents.launch</code>) calls</td>
+</tr>
+<tr>
+<td><a href="agents.html#itaskagentreset"><code>ITaskAgent.reset</code></a></td>
+<td>method</td>
+<td>Start an agent's session fresh (a handoff when it has a task); default <code>not_available</code></td>
+<td><code>contracts/agents.py</code>, <code>infra/session_agent.py</code></td>
+<td><code>SessionTaskAgent</code> implements; <code>agent_hub</code> calls for <code>ResetRequested</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#iagentnames"><code>IAgentNames</code></a></td>
 <td>contract</td>
-<td>The agent ids in use: <code>check</code>, <code>claim</code>, <code>release</code>, <code>taken</code>; one claim per id, a refusal names a free one; kept across a Hub reload</td>
-<td><code>contracts/agents.py</code>, <code>modules/agent_hub/names.py</code> (<code>AgentNames</code>)</td>
-<td><code>agent_hub</code> provides; <code>ProfileAgent</code> claims and releases (<code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>); <code>task_agents</code> checks at launch</td>
+<td>The agent ids in use: <code>check</code>, <code>claim</code>, <code>release</code>, <code>taken</code>; one claim per id, a refusal names a free one; plus <code>mode</code> (each agent's permission mode as the core set it) and <code>is_you</code>; in the core, so a Hub reload keeps them</td>
+<td><code>contracts/agents.py</code>, <code>core/callers.py</code> (<code>Callers</code>)</td>
+<td>the core provides; <code>ProfileAgent</code> claims and releases (<code>main_assistant</code>, <code>task_agents</code>, <code>job_search</code>); <code>task_agents</code> checks at launch and asks <code>is_you</code>; <code>talker</code> (<code>is_you</code>, <code>talker.reset</code>); <code>SessionTaskAgent</code> (<code>mode</code>, before Auto); <code>agent_hub</code> (<code>uses</code>)</td>
 </tr>
 <tr>
 <td><a href="agents.html#agentactivity"><code>AgentActivity</code></a></td>
@@ -183,16 +211,16 @@
 <tr>
 <td><a href="agents.html#setpermissionmode"><code>SetPermissionMode</code></a></td>
 <td>command</td>
-<td>Switch a task agent's mode; any UI or the control panel later</td>
-<td><code>contracts/agents.py</code></td>
-<td><code>temp_ui</code> (button), <code>talker</code> (Manual only) → <code>agent_hub</code></td>
+<td>Switch a task agent's mode; Auto only from you (the stamped <code>sent_by</code>); any UI or the control panel later</td>
+<td><code>contracts/agents.py</code>, <code>core/app.py</code> (<code>_set_mode</code>)</td>
+<td><code>temp_ui</code> (button), <code>agent_hub</code> (<code>hub.mode</code> for the Talker, Manual only) → the core</td>
 </tr>
 <tr>
 <td><a href="agents.html#permissionmodechanged"><code>PermissionModeChanged</code></a></td>
 <td>event</td>
-<td>A task agent's mode was set, and when it applies</td>
+<td>A task agent's mode was set, when it applies, and whether it answered the open request (<code>answered</code>)</td>
 <td><code>contracts/agents.py</code></td>
-<td><code>SessionTaskAgent</code> → <code>talker</code>, <code>temp_ui</code></td>
+<td><code>SessionTaskAgent</code> → <code>talker</code>, <code>temp_ui</code>, <code>agent_hub</code> (closes the card)</td>
 </tr>
 <tr>
 <td><a href="agents.html#questionkind"><code>QuestionKind</code></a>, <code>RISKY_PREFIX</code></td>
@@ -217,10 +245,17 @@
 </tr>
 <tr>
 <td><a href="agents.html#agentnotice"><code>AgentNotice</code></a></td>
-<td>event</td>
-<td>A module's callback for an agent (a slow item's result); the Hub passes it to that agent's <code>note</code></td>
+<td>command</td>
+<td>A module's callback for an agent (a slow item's result); the Hub passes it to that agent's <code>note</code>, labelled with its <code>sent_by</code> (an event until 2026-11-13)</td>
 <td><code>contracts/agents.py</code></td>
-<td><code>job_search</code> (<code>job.search</code>), <code>cv</code> (cv_agent's line about a delivered Submit) → <code>agent_hub</code></td>
+<td><code>job_search</code> (<code>job.search</code>), <code>cv</code> (cv_agent's line about a delivered Submit), the core's permissions handler (<code>_notify</code>: a card's outcome) → <code>agent_hub</code></td>
+</tr>
+<tr>
+<td><a href="agents.html#resetrequested"><code>ResetRequested</code></a></td>
+<td>command</td>
+<td>Start a task agent's session fresh; the Hub calls <code>ITaskAgent.reset</code> (an event until 2026-11-13; a Talker session's reset is the Talker's own <code>talker.reset</code>)</td>
+<td><code>contracts/agents.py</code></td>
+<td><code>temp_ui</code> (a worker's Reset), <code>talker</code> (<code>&lt;&lt;RESET: worker&gt;&gt;</code>) → <code>agent_hub</code></td>
 </tr>
 <tr>
 <td><a href="agents.html#delivermessage"><code>DeliverMessage</code></a>, <code>Delivery</code></td>
@@ -457,9 +492,9 @@
 <tr>
 <td><a href="infra.html#permissiongate"><code>PermissionGate</code></a></td>
 <td>class</td>
-<td>A task agent's one open question: tool requests, approvals, the timer, the Auto policy and the <code>git push</code> block; an approval kept for a task that ended waiting (<code>park</code>, <code>unpark</code>, <code>answer_parked</code>)</td>
+<td>A task agent's one open question: tool requests, approvals (<code>ask(action, run, always=False)</code>: <code>always</code> asks in Auto too), the timer, the Auto policy and the <code>git push</code> block; an approval kept for a task that ended waiting (<code>park</code>, <code>unpark</code>, <code>answer_parked</code>)</td>
 <td><code>infra/permission_gate.py</code></td>
-<td><code>SessionTaskAgent</code></td>
+<td><code>SessionTaskAgent</code> (<code>always=True</code> for <code>RELOAD:</code> / <code>ADD_MODULE:</code>)</td>
 </tr>
 <tr>
 <td><a href="infra.html#handoffkeeper"><code>HandoffKeeper</code></a></td>
@@ -485,7 +520,7 @@
 <tr>
 <td><a href="infra.html#agentkit"><code>AgentKit</code></a>, <code>AGENT_USES</code>, <code>AGENT_SENDS</code>, <code>AGENT_PUBLISHES</code>, <code>AGENT_LISTENS</code></td>
 <td>class, constants</td>
-<td>What every agent module repeated: provide, reset, follow a grant, open (ask → build → provide → start), take back; and the manifest declarations its agents need, named once</td>
+<td>What every agent module repeated: provide, follow a grant, open (ask → build → provide → start), take back; and the manifest declarations its agents need, named once (<code>AGENT_SENDS</code> with <code>ReloadModule</code>, <code>AddModule</code>; resets come through the Hub now)</td>
 <td><code>infra/agent_kit.py</code></td>
 <td><code>main_assistant</code>, <code>job_search</code>, <code>cv</code>, <code>task_agents</code></td>
 </tr>
@@ -513,9 +548,16 @@
 <tr>
 <td><a href="infra.html#agent_access"><code>module_folder</code>, <code>module_folder_of</code>, <code>MODULES_FOLDER</code></a></td>
 <td>functions</td>
-<td>A module's own folder (<code>src/assistant/modules/&lt;id&gt;</code>); the module folder a path is in</td>
+<td>A module's own folder (<code>src/assistant/modules/&lt;id&gt;</code>, or its folder outside the repo); the module folder a path is in</td>
 <td><code>infra/agent_access.py</code></td>
-<td><code>access_items</code> (the own-folder item), <code>agent_hub</code> (<code>folders_clash</code>), <code>tests/test_module_folders.py</code></td>
+<td><code>access_items</code> (the own-folder item), <code>agent_hub</code> (<code>folders_clash</code>), <code>tests/test_module_folders.py</code>, <code>tests/test_outside_modules.py</code></td>
+</tr>
+<tr>
+<td><a href="infra.html#agent_access"><code>module_roots</code></a></td>
+<td>function</td>
+<td>Every folder holding module folders: the repo's, then the outside ones <code>[core] module_folders</code> names (read from the modules package's path the loader extends)</td>
+<td><code>infra/agent_access.py</code></td>
+<td><code>module_folder</code>, <code>module_folder_of</code>, <code>main_assistant</code> (<code>worker_prompt</code>), <code>scripts/build_docs.py</code> (<code>module_dirs</code>), <code>tests/test_module_folders.py</code>, <code>test_find_modules</code>, <code>test_module_docs</code></td>
 </tr>
 <tr>
 <td><a href="infra.html#agent_access"><code>in_module_folder</code></a></td>
@@ -523,6 +565,20 @@
 <td>A module's configured folder, a relative one from its own module folder (<code>workspace</code> → <code>modules/&lt;id&gt;/workspace</code>), so no shipped default holds a personal path</td>
 <td><code>infra/agent_access.py</code></td>
 <td><code>cv</code> (<code>[agent] workspace</code>, <code>output_dir</code>), <code>job_search</code> (<code>workspace</code>, <code>documents</code>)</td>
+</tr>
+<tr>
+<td><a href="infra.html#agent_access"><code>data_folder</code>, <code>copy_data_once</code>, <code>REPO_FOLDER</code></a></td>
+<td>functions</td>
+<td>A module agent's data folder from its config (<code>data_folder</code> in <code>config/&lt;id&gt;.toml</code>, outside the repo; unset: its own workspace, nothing moves); its first use copies the old workspace in, never moving or deleting</td>
+<td><code>infra/agent_access.py</code></td>
+<td><code>cv</code> (<code>settings</code>, <code>init</code>), <code>job_search</code> (<code>job_config</code>, <code>copy_job_data</code>)</td>
+</tr>
+<tr>
+<td><a href="infra.html#agentprofile"><code>repo_claude_md_files</code>, <code>developer_rules</code></a></td>
+<td>functions</td>
+<td>The repo's CLAUDE.md files for <code>claudeMdExcludes</code>; the short developer rules a module's own agent gets instead (<code>infra/developer_rules.md</code>)</td>
+<td><code>infra/agent_profile.py</code></td>
+<td><code>AgentProfile.command</code> (<code>repo_claude_md = false</code>: cv's agent, the job agent)</td>
 </tr>
 <tr>
 <td><a href="infra.html#agent_access"><code>watch_grant</code></a></td>
@@ -534,7 +590,7 @@
 <tr>
 <td><a href="infra.html#profileagent"><code>ProfileAgent</code></a></td>
 <td>class</td>
-<td>One big agent from its config section: <code>AgentProfile</code> + <code>ClaudeSession</code> + <code>SessionTaskAgent</code>, with the door under its own name; claims its id from the Hub on start, releases it on stop; <code>set_access</code> takes a new grant live; <code>snips()</code> gives every session a read rule for your snips; <code>session_factory</code> to swap its session</td>
+<td>One big agent from its config section: <code>AgentProfile</code> + <code>ClaudeSession</code> + <code>SessionTaskAgent</code>, with the door under its own name; claims its id from the core's Callers port on start, releases it on stop; <code>set_access</code> takes a new grant live; <code>snips()</code> gives every session a read rule for your snips; <code>session_factory</code> to swap its session</td>
 <td><code>infra/profile_agent.py</code></td>
 <td><code>main_assistant</code>, <code>task_agents</code> (autostarted and launched helpers), <code>job_search</code>, <code>cv</code> (through <code>AgentKit</code>)</td>
 </tr>
@@ -543,7 +599,7 @@
 <td>functions</td>
 <td>The agent id rules: the form, the <code>reserved</code> ids the caller passes, module ids (a module's own id allowed for its own agent); a free variant <code>base_2</code>, <code>base_3</code>, ...</td>
 <td><code>infra/agent_names.py</code></td>
-<td><code>check_agent_id</code>: <code>agent_hub</code> (<code>AgentNames</code>, with its <code>RESERVED_AGENT_IDS</code>), <code>task_agents</code> (with its <code>TRUSTED_CALLERS</code>: autostart ids; the launch check when no Hub runs). <code>free_agent_id</code>: <code>agent_hub</code> (the free name in a refusal), <code>task_agents</code> (<code>agents.kinds</code>)</td>
+<td><code>check_agent_id</code>: the core's <code>Callers</code> (with its <code>RESERVED_AGENT_IDS</code>), <code>task_agents</code> (with its <code>TRUSTED_CALLERS</code>: autostart ids; the launch check when no core names run). <code>free_agent_id</code>: <code>Callers</code> (the free name in a refusal), <code>task_agents</code> (<code>agents.kinds</code>)</td>
 </tr>
 <tr>
 <td><a href="infra.html#milestonefeed"><code>MilestoneFeed</code></a></td>
@@ -590,9 +646,9 @@
 <tr>
 <td><a href="infra.html#mcp_door"><code>mcp_door</code></a>, <a href="tools.html#imoduledoor"><code>IModuleDoor</code></a></td>
 <td>module, contract</td>
-<td>The agents' one MCP door: a stdio relay <code>claude</code> starts, and the app-side <code>DoorServer</code> sending <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code> with the caller its token proves (<code>mcp_config(caller)</code>)</td>
-<td><code>infra/mcp_door.py</code>, <code>contracts/door.py</code></td>
-<td><code>agent_hub</code> (hosts, provides), <code>main_assistant</code>, <code>talker</code> (each session)</td>
+<td>The agents' one MCP door: a stdio relay <code>claude</code> starts, and the app-side <code>DoorServer</code> sending <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code> with the caller its token proves (<code>mcp_config(caller)</code>, for a module only itself or an agent it claimed)</td>
+<td><code>infra/mcp_door.py</code>, <code>contracts/door.py</code>, <code>core/door.py</code></td>
+<td>the core (hosts, provides: <code>CoreDoor</code>), <code>main_assistant</code>, <code>talker</code>, every <code>ProfileAgent</code> (each session)</td>
 </tr>
 </tbody>
 </table>
@@ -635,7 +691,7 @@
 <td>functions, fake</td>
 <td>Talk to a module's local page over raw HTTP (send, post JSON, the next matching <code>/events</code> item, a started page's port, the first items after <code>hello</code>); a voice_in stand-in answering the mic commands and <code>IVoice</code>; the snip events as html_viewer and temp_ui publish them (<code>clip_event</code>, <code>dropped_event</code>: <code>talker</code>'s <code>test_talker_snips.py</code>, <code>temp_ui</code>'s <code>test_temp_ui_snips.py</code>)</td>
 <td><code>testkit/pages.py</code></td>
-<td><code>temp_ui</code> (<code>test_temp_ui.py</code>, <code>test_temp_ui_snips.py</code>), <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code>, <code>request</code>, <code>ui_port</code> and <code>read_events</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code></td>
+<td><code>temp_ui</code> (<code>test_temp_ui.py</code>, <code>test_temp_ui_snips.py</code>), <code>voice_notes</code> (<code>test_voice_notes.py</code>); <code>post</code>, <code>request</code> (adds a <code>Host</code> header when missing), <code>ui_port</code> and <code>read_events</code> also <code>test_access_cards</code>, <code>test_agent_tabs</code>, <code>test_permission_mode</code>, <code>test_usage</code></td>
 </tr>
 <tr>
 <td><a href="testkit.html#the-fake-claude-and-agent-fakes"><code>FAKE</code>, <code>FAKE_JOB_UI</code>, <code>TIMEOUT</code></a></td>
@@ -678,6 +734,55 @@
 <td>Every module's <code>app/</code> folder (its companion app's package), found by folder, put on <code>sys.path</code> once (<code>app_folders</code> lists them)</td>
 <td><code>core/loader.py</code></td>
 <td><code>find_modules</code> (startup), <code>import_fresh</code> (reload, <code>AddModule</code>), root <code>conftest.py</code> (the test setup), <code>tests/test_module_folders.py</code></td>
+</tr>
+<tr>
+<td><a href="core.html#loader"><code>add_module_folders</code>, <code>configured_module_folders</code></a></td>
+<td>functions</td>
+<td>The outside module folders (<code>[core] module_folders</code>, absolute) on the modules package's path once, after the repo's; an id in two folders refused</td>
+<td><code>core/loader.py</code></td>
+<td><code>find_modules</code> (startup, from <code>__main__</code>), root <code>conftest.py</code>, <code>scripts/build_docs.py</code> (<code>module_dirs</code>), <code>tests/test_outside_modules.py</code></td>
+</tr>
+<tr>
+<td><a href="core.html#callers"><code>Callers</code></a></td>
+<td>class</td>
+<td>The Callers port (D2): agent names and claims, each agent's permission mode, who is you (<code>you</code>) and who relays your card answers (<code>relays</code>); <code>may_set_auto</code></td>
+<td><code>core/callers.py</code></td>
+<td><code>App</code> (provided as <code>IAgentNames</code>; <code>_set_mode</code>), <code>ScopedContext</code> (<code>you</code>, <code>relays</code>), <code>PermissionsHandler</code> (<code>mode_of</code>), <code>CoreDoor</code> (<code>claims</code>)</td>
+</tr>
+<tr>
+<td><a href="core.html#coredoor-moduledoor"><code>CoreDoor</code>, <code>ModuleDoor</code></a>, <code>CORE_LINE</code></td>
+<td>classes</td>
+<td>The module door hosted by the core (D1): the <code>DoorServer</code>, opened before any module; each module gets a <code>ModuleDoor</code> answering only for itself or the agents it claimed</td>
+<td><code>core/door.py</code></td>
+<td><code>App</code> (<code>app.door</code>, provided as <code>IModuleDoor</code>), <code>ScopedContext</code> (<code>get_one</code> / <code>get_all</code>)</td>
+</tr>
+<tr>
+<td><a href="core.html#menutable"><code>MenuTable</code></a></td>
+<td>class</td>
+<td>The core-private table of linked menus (G16): <code>InvokeTool</code> reaches them, the container never holds them; each context removes exactly its own</td>
+<td><code>core/tools.py</code></td>
+<td><code>App</code> (<code>app.menus</code>), <code>ScopedContext</code> (<code>link_menu</code>, <code>close</code>), <code>dispatch_tool</code></td>
+</tr>
+<tr>
+<td><a href="modules.html#modulecontextsend"><code>ScopedContext.send</code> / <code>publish</code></a> (strict), <code>CONTROL</code></td>
+<td>core</td>
+<td><code>sends</code> / <code>publishes</code> strict, the sender stamped, control commands only from you (plus relays for card answers, a task agent's module for reload / add)</td>
+<td><code>core/context.py</code></td>
+<td>every module's context</td>
+</tr>
+<tr>
+<td><a href="core.html#permissionshandler"><code>PermissionsHandler.confirm</code></a>, <code>CardAction.CONFIRM</code></td>
+<td>method</td>
+<td>A yes/no <code>confirm</code> card before a risky step, run by the core on Allow; Auto never skips it, a <code>you</code> caller runs at once</td>
+<td><code>core/permissions/handler.py</code>, <code>core/permissions/port.py</code></td>
+<td>the ask-first gate (<code>dispatch_tool</code>), <code>ctx.permissions.confirm</code> (<code>talker</code>'s restart)</td>
+</tr>
+<tr>
+<td>Event Bus (<code>ctx.subscribe</code> / <code>ctx.publish</code>)</td>
+<td>core</td>
+<td>The stream for any event: voice text, agent activity, usage. <code>subscribe</code> returns a handle; <a href="modules.html#modulecontextunsubscribe"><code>ctx.unsubscribe</code></a> drops one subscription</td>
+<td><code>core/bus.py</code>, <code>core/context.py</code></td>
+<td>every module</td>
 </tr>
 </tbody>
 </table>
@@ -754,7 +859,7 @@
 <td>functions</td>
 <td>Refuse other hosts and other origins: <code>require_loopback(host)</code> before listening, <code>local_request(host, origin)</code> per request; <code>LOOPBACK_HOSTS</code></td>
 <td><code>app_kit/local_guard.py</code></td>
-<td><code>voice_service</code> (<code>server.py</code>, <code>__main__.py</code>), HTML viewer app (<code>viewer.py</code>), CV Tool app (<code>cv_tool/server.py</code>: every request; JSON-only posts), <code>cv</code> module (<code>tool.py</code>: <code>LOOPBACK_HOSTS</code> checks <code>tool.host</code>)</td>
+<td><code>voice_service</code> (<code>server.py</code>, <code>__main__.py</code>), HTML viewer app (<code>viewer.py</code>), CV Tool app (<code>cv_tool/server.py</code>: every request; JSON-only posts), <code>cv</code> module (<code>tool.py</code>: <code>LOOPBACK_HOSTS</code> checks <code>tool.host</code>), <code>temp_ui</code> and <code>voice_notes</code> (their pages: <code>local_request</code>, 403 otherwise; G10, 2026-11-13)</td>
 </tr>
 </tbody>
 </table>

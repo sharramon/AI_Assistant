@@ -12,34 +12,42 @@
 <nav data-root="../" data-page="agents/index.html"></nav>
 <main>
 <h1 id="agents">Agents</h1>
-<p>How we run and work with the agents: setup, experiments, and what we've learned. How they fit the system is on the <a href="../architecture/agents.html">Agents architecture page</a>.</p>
-<blockquote>
-<p><strong>Status:</strong> built (2026-10-25): Talker, Main Assistant, and Agent Hub, launched by <code>python -m assistant</code>, shown in the <a href="runtime.html#temp-ui">temp UI</a>. See <a href="runtime.html">Agent runtime</a>. Next: <a href="self-improvement.html">self-improvement</a>.</p>
-</blockquote>
+<p>How we run and work with the agents: setup, experiments, and what we've learned. How they fit the system (who is who, where each works, which CLAUDE.md it loads) is on the <a href="../architecture/agents.html">Agents architecture page</a>.</p>
+<p>The Talker, the Main Assistant and the Agent Hub start with <code>python -m assistant</code>, shown in the <a href="runtime.html#temp-ui">temp UI</a>. See <a href="runtime.html">Agent runtime</a> and <a href="self-improvement.html">self-improvement</a>.</p>
 <h2 id="roles">Roles</h2>
 <table>
 <thead>
 <tr>
 <th>Agent</th>
 <th>Job</th>
-<th>First implementation</th>
+<th>Implementation</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Talker</strong></td>
-<td>Talks with you; hands off work; reports progress; relays questions</td>
-<td><code>claude -p</code> session, faster model (<code>sonnet</code>), no built-in tools</td>
+<td>Talks with you; hands off work; reports progress; relays questions. One per agent tab</td>
+<td><code>claude -p</code> session, faster model (<code>sonnet</code>), no built-in tools, only the module door's three tools</td>
 </tr>
 <tr>
 <td><strong>Main Assistant</strong></td>
-<td>Your main AI: reasons, plans, does the work, delegates</td>
-<td><code>claude -p</code> session (Claude Code) with file tools</td>
+<td>Your main AI: reasons, plans, does the work, coordinates the other agents</td>
+<td><code>claude -p</code> session (Claude Code) with file tools, working in the repo</td>
+</tr>
+<tr>
+<td><strong>Module agents</strong></td>
+<td>A specialist bundled with its add-on: <code>cv_agent</code> (cv), <code>job_search_agent</code> (job_search)</td>
+<td>A <code>ProfileAgent</code> working in its module's workspace or your data folder</td>
+</tr>
+<tr>
+<td><strong>Helpers</strong></td>
+<td>One-task agents from a kind of helper in config (<code>task_agents</code>), launched by name with your yes</td>
+<td>A <code>ProfileAgent</code> working in <code>&lt;kind workspace&gt;/&lt;name&gt;</code>, outside the repo by default</td>
 </tr>
 <tr>
 <td><strong>Subagents</strong></td>
-<td>Specialized workers the Main Assistant delegates to</td>
-<td>Claude Code's own subagents, inside the Main Assistant's process: <code>debugger</code> (<code>.claude/agents/debugger.md</code>, sonnet) for debugging loops and broad searches. Hub subagents (separate tasks you can stop one by one) later, if needed</td>
+<td>Claude Code's own subagents inside one session</td>
+<td><code>debugger</code> (<code>.claude/agents/debugger.md</code>, sonnet) for debugging loops and broad searches. They have no id and never reach the Hub</td>
 </tr>
 </tbody>
 </table>
@@ -49,15 +57,15 @@
 <li><strong>Worker context and batching:</strong> the Main Assistant is reminded at 150k and hands off to a fresh session by itself; its prompt says to batch edits, and a hook adds a note to its second edit to a file, once per file. Neither interrupts it (<a href="runtime.html#fresh-sessions-and-handoffs">runtime</a>, <a href="../architecture/decisions.html#decided">decision</a>).</li>
 <li><strong>Usage:</strong> each session's context now (what every call resends) and its tokens since launch (tokens only), worker and Talker apart. The Talker always knows both and warns you past 150k; the temp UI shows the selected tab's pair live. A Reset starts either one fresh.</li>
 <li>Messages in and out are <strong>JSON lines</strong> over stdin and stdout. The owning module, through <a href="../api/infra.html#claudesession"><code>ClaudeSession</code></a>, writes the agent's input and reads its event stream.</li>
-<li><strong>Transcripts for debugging:</strong> every line in and out goes to <code>talker.jsonl</code> and <code>main_assistant.jsonl</code> (<code>transcript</code> in each module's config, a file name), next to the app's own <code>assistant.log</code>, in one folder per launch: <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code> (<a href="../architecture/core.html#logging">Logging</a>).</li>
-<li>Agents never talk to each other directly; everything goes through the Hub and the core.</li>
-<li>Started with <code>--strict-mcp-config</code>, so your claude.ai MCP connectors aren't loaded.</li>
+<li><strong>Transcripts for debugging:</strong> every line in and out goes to a transcript per agent (<code>talker.jsonl</code>, <code>main_assistant.jsonl</code>, …; <code>transcript</code> in each module's config, a file name), next to the app's own <code>assistant.log</code>, in one folder per launch: <code>logs/&lt;start time&gt;_&lt;theme&gt;/</code> (<a href="../architecture/core.html#logging">Logging</a>).</li>
+<li>Agents never talk to each other directly; everything goes through the Hub's menu on the module door, and the core.</li>
+<li>Started with <code>--strict-mcp-config</code>, so your claude.ai MCP connectors aren't loaded; the module door is the only MCP server a session sees.</li>
 <li>Runs on your <strong>Claude subscription</strong> (terms checked for personal use). The session layer stays swappable to an API key.</li>
 </ul>
 <h2 id="permissions">Permissions</h2>
 <ul>
-<li><strong>Talker:</strong> no tools.</li>
-<li><strong>Main Assistant:</strong> for now, the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (<code>tools = "default"</code>, shell included), <code>acceptEdits</code> mode, and the repo as its working folder, so it loads <code>CLAUDE.md</code> and reads the docs like Claude Code does. Settings in its <code>module.toml</code> (<code>modules/main_assistant/</code>; your <code>config/main_assistant.toml</code>, or <code>[modules.main_assistant]</code> in <code>config/local.toml</code>, overrides them): (<code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>):</li>
+<li><strong>Talker:</strong> no built-in tools; only the module door's three tools (list modules, show a menu, use an item). Every item it uses passes the core's one gate.</li>
+<li><strong>Main Assistant:</strong> the same access as Claude Code in this repo (decided 2026-10-26). Every built-in tool (<code>tools = "default"</code>, shell included), <code>acceptEdits</code> mode, and the repo as its working folder, so it loads <code>CLAUDE.md</code> and reads the docs like Claude Code does. Settings in its <code>module.toml</code> (<code>modules/main_assistant/</code>; your <code>config/main_assistant.toml</code>, or <code>[modules.main_assistant]</code> in <code>config/local.toml</code>, overrides them): (<code>workspace</code>, <code>read_dirs</code>, <code>write_dirs</code>, <code>allowed_commands</code>):</li>
 </ul>
 <table>
 <thead>
@@ -73,7 +81,7 @@
 </tr>
 <tr>
 <td>Run, without asking</td>
-<td><code>allowed_commands</code>: the tests (<code>.\.venv\Scripts\python -m pytest</code>), <code>.\.venv\Scripts\ruff check</code>, the docs build, read-only git (<code>git status</code>, <code>git diff</code>, <code>git log</code>, <code>git show</code>), and <code>Get-ChildItem</code>, <code>Get-Content</code>, <code>Select-String</code>, with any arguments (added 2026-11-02)</td>
+<td><code>allowed_commands</code>: the tests (<code>.\.venv\Scripts\python -m pytest</code>), <code>.\.venv\Scripts\ruff check</code>, the docs build, read-only git (<code>git status</code>, <code>git diff</code>, <code>git log</code>, <code>git show</code>), and <code>Get-ChildItem</code>, <code>Get-Content</code>, <code>Select-String</code>, with any arguments</td>
 </tr>
 <tr>
 <td><strong>Asks you, each time</strong></td>
@@ -81,13 +89,15 @@
 </tr>
 </tbody>
 </table>
-<p>Its <code>debugger</code> subagent works under the same rules; its requests come to you the same way (checked 2026-10-27).</p>
-<p>Both agents' prompts state these permissions, so they don't have to find out by trying. The <a href="../architecture/permissions.html#repo-zones">repo zones</a> are recorded but not enforced until the permissions handler and branch workflow are built.
-- <strong>Permission requests:</strong> when it uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (<code>permission_timeout</code>). The Talker never answers on its own.- <strong>"You" means both.</strong> To you the Talker and the Main Assistant are one assistant, and both prompts say so.</p>
-<h2 id="first-implementation-limits">First implementation limits</h2>
+<p>Its <code>debugger</code> subagent works under the same rules; its requests come to you the same way.</p>
+<p>Both agents' prompts state these permissions, so they don't have to find out by trying. The <a href="../architecture/permissions.html#repo-zones">repo zones</a> are recorded; see that page for which are enforced.
+- <strong>Module agents and helpers:</strong> each asks for its access list on one card when its module turns on (a helper: at launch). A module agent also gets a write grant on its own module folder; a helper doesn't (<a href="../architecture/permissions.html">permissions</a>).
+- <strong>Permission requests:</strong> when an agent uses a tool its rules don't allow, the request comes to you: Allow / Deny buttons on a card in the temp UI's Talker pane, or tell the Talker yes or no. Each answer covers that one use. Unanswered requests are denied after 10 minutes (<code>permission_timeout</code>). The Talker never answers on its own.
+- <strong>"You" means both.</strong> To you the Talker and the Main Assistant are one assistant, and both prompts say so.</p>
+<h2 id="limits">Limits</h2>
 <ul>
-<li>One Main Assistant and <strong>one active task</strong>; another request gets "busy". No queue.</li>
-<li>No scheduling or distributed machinery until needed.</li>
+<li>Each agent runs <strong>one task at a time</strong>. Besides the Main Assistant, at most <code>max_extra_agents</code> agents (3 by default) have an active task at once (<a href="../architecture/agents.html#working-together">working together</a>).</li>
+<li>No scheduling, queues or distributed machinery until needed.</li>
 </ul>
 <h2 id="workflow-skills">Workflow skills</h2>
 <p>Project skills in <code>.claude/skills/</code>, used by Claude Code and the Main Assistant alike. <code>CLAUDE.md</code> says when each applies.</p>
@@ -124,7 +134,7 @@
 </table>
 <h2 id="pages">Pages</h2>
 <ul>
-<li><a href="runtime.html">Agent runtime</a>: how the two agents are spawned, behave, and talk to each other</li>
+<li><a href="runtime.html">Agent runtime</a>: how the agents are spawned, behave, and talk to each other</li>
 <li><a href="self-improvement.html">Self-improvement</a>: the plan for the assistant to read and change its own code and docs, and how permissions get granted</li>
 <li><a href="spike.html">Two-Claude spike</a>: the disposable experiment and its findings</li>
 </ul>

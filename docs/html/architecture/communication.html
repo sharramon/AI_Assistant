@@ -12,18 +12,7 @@
 <nav data-root="../" data-page="architecture/communication.html"></nav>
 <main>
 <h1 id="communication">Communication</h1>
-<p>How modules talk to each other through the core. Internals are in <a href="core.html#communication-internals">core</a>. Back to the <a href="index.html">overview</a>.</p>
-<h2 id="runtime-flow-typical-request">Runtime flow (typical request)</h2>
-<pre><code class="language-mermaid">flowchart LR
-    In[Input module] -- &quot;event: InputReceived&quot; --&gt; Bus[Event Bus]
-    Bus --&gt; Orch[Orchestrator module]
-    Orch -- &quot;command: invoke tool&quot; --&gt; Router[Command Router]
-    Router --&gt; Tool[Tool module]
-    Tool -- result --&gt; Orch
-    Orch -- &quot;event: ResponseReady&quot; --&gt; Bus
-    Bus --&gt; Out[View / output modules]
-</code></pre>
-<p><code>InvokeTool</code> asks every <code>IToolProvider</code> at call time, so a tool module's tools can be called without touching the caller. <strong>Today</strong> the agents don't look tools up: the Talker is hardcoded to the viewer's tools and the Main Assistant can't call tools. <strong>Planned:</strong> both find tools through the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a>.</p>
+<p>How modules talk to each other through the core: the three mechanisms, who may send what, command results, timeouts, and event delivery. The pictures of a tool call, a command and an event through the core, and of the core's six parts, are on <a href="core.html#how-modules-talk-through-the-core">core</a>. Back to the <a href="index.html">overview</a>.</p>
 <h2 id="mechanisms">Mechanisms</h2>
 <table>
 <thead>
@@ -36,32 +25,39 @@
 </thead>
 <tbody>
 <tr>
+<td>Tool call</td>
+<td><code>InvokeTool(name, args)</code>, a command the core's gate handles</td>
+<td>Asking a module to do one of its menu items, from code or from an agent</td>
+<td>job_search → <code>cv.task</code></td>
+</tr>
+<tr>
 <td>Interface (via DI)</td>
 <td>Direct call through a shared contract</td>
-<td>Querying a capability another module provides</td>
-<td>Orchestrator lists all <code>IToolProvider</code>s</td>
+<td>Querying or driving a capability another module provides</td>
+<td>voice_notes → <code>IVoice.listen</code></td>
 </tr>
 <tr>
 <td>Command</td>
 <td>Exactly one handler, returns a typed result, has a timeout, cancellable</td>
 <td>An explicit action someone wants done</td>
-<td><code>OpenUrl</code>, <code>CreateCalendarEvent</code></td>
+<td><code>DeliverMessage</code> (the Agent Hub), <code>ActivateModule</code> (the core)</td>
 </tr>
 <tr>
 <td>Event</td>
 <td>Zero or more subscribers, no result</td>
 <td>Notifying that something happened</td>
-<td><code>InputReceived</code>, <code>ResponseReady</code></td>
+<td><code>VoiceTranscript</code>, <code>cv.job_finished</code></td>
 </tr>
 </tbody>
 </table>
 <p>Commands and events are plain data records defined in Contracts, not objects with behavior.</p>
 <h2 id="how-modules-reach-each-other">How modules reach each other</h2>
-<p>A module never holds a reference to another module. Its only access to the app is the <code>ModuleContext</code> the core passes to <code>init</code>, which wraps the <strong>Command Router</strong>, <strong>Event Bus</strong>, and <strong>DI container</strong> and removes everything the module registered when it stops. Contracts only define shapes (interfaces and message types). The core does the delivery.</p>
+<p>A module never holds a reference to another module. Its only access to the app is the <code>ModuleContext</code> the core passes to <code>init</code>, which wraps the router, the bus and the DI container, and removes everything the module registered when it stops. Contracts only define shapes (interfaces and message types); the core does the delivery. A module importing or calling another directly is never allowed (<code>tests/test_boundaries.py</code> checks it).</p>
 <ul>
-<li><strong>Interface call:</strong> the module asks DI for a contract (e.g. all <code>IToolProvider</code>s) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or none), so it must handle absence.</li>
-<li><strong>Command (request/response):</strong> <code>result = await ctx.send(command, timeout=None)</code>. The router finds the one module registered as that command's handler, calls it, and returns a typed result (see <a href="#command-results">Command results</a>) to the sender. If no handler is registered, the sender gets <code>NotAvailable</code> instead of a crash.</li>
-<li><strong>Event (one-way):</strong> <code>ctx.publish(event)</code>. Every subscriber gets a copy; the publisher gets nothing back. When a reply is needed for long-running work (transcription, a multi-step browser task), the event carries a <strong>correlation id</strong>, and the replying module publishes its own event (progress, completed, failed) with the same id.</li>
+<li><strong>Tool call:</strong> <code>await ctx.send(InvokeTool(name="cv.task", args=…))</code>. The core's gate (<code>dispatch_tool</code>) finds the one module whose menu offers the name, at call time, checks the call and asks you first if the item asks (<a href="core.html#the-ask-first-gate">the gate</a>). Agents call the same items through the core's module door. They find them with the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a>: <code>ListModules</code>, then <code>GetMenu(id)</code> for that module's <code>ToolSpec</code>s (name, description, argument schema). So the orchestrator and the agents need no per-tool code.</li>
+<li><strong>Interface call:</strong> the module asks DI for a contract (<code>ctx.get_one(IVoice)</code>) and calls methods on it directly, getting return values back. This is still direct communication between modules; it's only decoupled from the concrete implementation. Use it deliberately, and only through interfaces defined in Contracts. If no module provides it, the module gets nothing (an empty list or <code>None</code>), so it must handle absence. Contract calls don't pass the gate.</li>
+<li><strong>Command (request/response):</strong> <code>result = await ctx.send(command, timeout=None)</code>. The router finds the one module registered as that command's handler, calls it, and returns a typed result (<a href="#command-results">command results</a>). If no handler is registered, the sender gets <code>NotAvailable</code> instead of a crash.</li>
+<li><strong>Event (one-way):</strong> <code>ctx.publish(event)</code>. Every subscriber gets a copy; the publisher gets nothing back. When a reply is needed for long-running work, the event carries a <strong>correlation id</strong>, and the replying module publishes its own event (progress, completed, failed) with the same id.</li>
 </ul>
 <p>Choosing between them:</p>
 <table>
@@ -72,6 +68,10 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>One of another module's menu items, with a result back</td>
+<td>Tool call</td>
+</tr>
 <tr>
 <td>An answer now, from a capability that may have zero or many providers</td>
 <td>Interface</td>
@@ -86,30 +86,65 @@
 </tr>
 <tr>
 <td>Long-running work with progress or a delayed result</td>
-<td>Command to start it, then events with a correlation id</td>
+<td>A tool call or command to start it, then events with a correlation id</td>
 </tr>
 </tbody>
 </table>
-<pre><code class="language-mermaid">sequenceDiagram
-    participant V as Voice module
-    participant Bus as Event Bus
-    participant O as Orchestrator module
-    participant R as Command Router
-    participant B as Browser module
-    participant UI as UI module
-
-    V-&gt;&gt;Bus: publish InputReceived(&quot;open my calendar&quot;)
-    Bus-&gt;&gt;O: InputReceived
-    O-&gt;&gt;R: send InvokeTool(&quot;browser.open&quot;, url)
-    R-&gt;&gt;B: handle InvokeTool
-    B--&gt;&gt;R: Result(ok, page title)
-    R--&gt;&gt;O: Result(ok, page title)
-    O-&gt;&gt;Bus: publish ResponseReady(&quot;Opened your calendar&quot;)
-    Bus-&gt;&gt;UI: ResponseReady
-</code></pre>
-<p><strong>Where message types live:</strong> shared commands and events (<code>InputReceived</code>, <code>ResponseReady</code>, <code>InvokeTool</code>) are defined in Contracts. A <strong>module-owned</strong> event, one only its module defines, is instead a <a href="../api/messaging.html#moduleevent"><code>ModuleEvent</code></a> matched by name: <code>ctx.publish_named</code> / <code>ctx.subscribe_named</code>, no new class and no restart, and either side reloads on its own (built 2026-11-12). The bus keeps nothing, so a listener that's off misses it. Modules talk to each other this way; a tool is only for a call out: the job agent calls <code>cv.task</code>, cv publishes <code>cv.job_finished</code> and <code>cv.job_submitted</code>, and job_search hears them and wakes its agent. The HTML viewer's tabs and snips are its named events too (<code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), heard by the Talker and the temp UI by name. The AI calls tools through the single generic <code>InvokeTool(name, args)</code> command, using the name and argument schema each <code>IToolProvider</code> advertises, so the orchestrator needs no per-tool code. A typed command such as <code>CreateCalendarEvent</code> is added to Contracts only when one module needs to call another directly.</p>
+<p><strong>Where message types live:</strong> shared commands and events (<code>InputReceived</code>, <code>ResponseReady</code>, <code>InvokeTool</code>, <code>VoiceTranscript</code>) are typed classes in Contracts. A <strong>module-owned</strong> event, one only its module defines, is a <a href="../api/messaging.html#moduleevent"><code>ModuleEvent</code></a> matched by name: <code>ctx.publish_named</code> / <code>ctx.subscribe_named</code>, no new class and no restart, and either side reloads on its own. Its name starts with the publisher's id and its data is plain JSON. The bus keeps nothing, so a listener that's off misses it. Modules talk to each other this way, and a tool is only for a call out: the job agent calls <code>cv.task</code>, cv publishes <code>cv.job_finished</code> and <code>cv.job_submitted</code>, and job_search hears them and wakes its agent. The HTML viewer's tabs and snips are its named events too (<code>html_viewer.tabs_changed</code>, <code>html_viewer.clip</code>), heard by the Talker and the temp UI. A typed command is added to Contracts only when one module needs to call another directly.</p>
+<p><strong>Known gap:</strong> job_search reads cv's output by file path, not through a tool or event: the job project's <code>cv_output</code> link in <code>job_paths.json</code> points into cv's workspace. That goes past the core, so wherever cv's workspace sits, the link has to point there (<a href="modules.html">modules</a>).</p>
+<h2 id="who-sent-it-and-what-may-control">Who sent it, and what may control</h2>
+<p>The rules behind these are decisions D3 and D5 in <a href="decisions.html">decisions</a>. Every check below runs in the module's own context (<code>ScopedContext</code>, <code>core/context.py</code>) before the router delivers.</p>
+<ul>
+<li><strong>The sender is stamped.</strong> Every command carries <code>sent_by</code>: <code>ctx.send</code> sets it to the sending module's id, and the router sets <code>"core"</code> when it's empty (the core's own sends, the door's). A module can't send as another. <code>InvokeTool.caller</code> is always the sending module too, except for the door, which sets the caller its token proved. The field is named <code>sent_by</code> because <code>DeliverMessage.sender</code> already means the agent a message is from.</li>
+<li><strong>What is strict, what is loose.</strong> <code>sends</code>: a command type not in the manifest is refused (<code>invalid_arguments</code>, "must list X in manifest.sends") and logged as an error. <code>publishes</code>: a typed event not in the manifest is dropped and logged as an error; <code>ctx.publish</code> raises for a hand-built <code>ModuleEvent</code> (use <code>ctx.publish_named</code>, which stamps the source). <code>handles</code> and <code>provides</code>: an undeclared one raises. Listening is loose: an undeclared <code>subscribe</code>, <code>subscribe_named</code>, named publish or contract lookup still works and is logged once, so the manifest gets fixed.</li>
+<li><strong>Control commands come only from you.</strong> The <code>CONTROL</code> table in <code>context.py</code> lists the commands only the core and a <code>you</code> caller (<code>[core.permissions] you</code>, <code>temp_ui</code> by default) may send, plus the others each one names:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Also from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DeactivateModule</code>, <code>RemoveModule</code></td>
+<td>nobody else</td>
+</tr>
+<tr>
+<td><code>AnswerPermission</code>, <code>AnswerPermissionRequest</code></td>
+<td>the relays (<code>[core.permissions] relays</code>: the Talker passing on your ALLOW / DENY)</td>
+</tr>
+<tr>
+<td><code>ReloadModule</code>, <code>AddModule</code></td>
+<td>a module that provides <code>ITaskAgent</code> (its <code>RELOAD:</code> / <code>ADD_MODULE:</code> line, after your Allow on its card)</td>
+</tr>
+</tbody>
+</table>
+<p>A refused send gives <code>Result.failed("... is a control command ...")</code>. Left out on purpose, with the reason:</p>
+<ul>
+<li><code>ActivateModule</code>: the module's own access card guards its start, and job_search turns cv on.</li>
+<li><code>CancelTask</code>: it goes through the Hub's menu, which checks the caller.</li>
+<li><code>SetPermissionMode</code>: its handler, the core's, lets Auto in only from you or the core, and Manual is always safe.</li>
+<li><code>ShutdownRequested</code>: the strict <code>sends</code> check alone, so the core names no add-on.</li>
+</ul>
+<p><strong>Good to know:</strong></p>
+<ul>
+<li>The core's menu sends its control commands as <code>core</code>. So an agent's <code>modules.off</code>, <code>modules.remove</code>, <code>modules.reload</code> or <code>modules.add</code> isn't refused by the table; the gate's confirm card stands in for it. <code>modules.off</code> without <code>with_dependents</code> shows no card.</li>
+<li>The Talker's card answers count as yours, through <code>relays</code>. Whether they should is an open decision (<a href="decisions.html">decisions</a>).</li>
+</ul>
+<p><strong>Events never control.</strong> An event only tells what happened. Anything that makes a part act is a command with one handler: <code>ShutdownRequested</code> (the core), <code>AgentNotice</code> and <code>ResetRequested</code> (the Agent Hub), <code>ReviewAccessList</code> (the Hub) and <code>AddCardNotes</code> (the core). Why: each has one handler and a known sender, and with no handler the sender gets <code>not_available</code> at once instead of a silent drop.</p>
 <h2 id="chaining-modules">Chaining modules</h2>
-<p>One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (a voice-notes module listening to <code>VoiceTranscript</code>), or sends its commands. A shared service serves several users through sessions, each with its own destination, instead of running copies. Events between modules, the voice contract <code>IVoice</code> and its sessions are built (<a href="modules.html#chaining-modules">modules</a>).</p>
+<p>One module uses another through these same mechanisms, with no glue code: it listens to the events the other announces (voice_notes listening to <code>VoiceTranscript</code>), calls its contract (<code>IVoice</code>), or calls its menu items. A shared service serves several users through sessions, each with its own destination, instead of running copies (<a href="modules.html#chaining-modules">modules</a>).</p>
+<h2 id="commands">Commands</h2>
+<p><code>CommandRouter.send</code>:</p>
+<ul>
+<li>One handler per command type; registering a second raises <code>ValueError</code>.</li>
+<li>Each send runs the handler as its own task and waits up to the timeout: the per-call <code>timeout</code>, else <code>core.command_timeouts.&lt;ClassName&gt;</code>, else <code>core.command_timeout</code>.</li>
+<li>Every outcome becomes a <code>Result</code>: no handler → <code>NotAvailable</code>; exception → <code>Failed</code>; timeout → <code>TimedOut</code> (handler cancelled); cancelled → <code>Cancelled</code>; a non-<code>Result</code> return → <code>Failed</code>.</li>
+<li>If the sender is cancelled, the handler is cancelled too.</li>
+<li>While a module is being reloaded (<code>CommandRouter.hold</code>), a command with no handler waits for one, up to its timeout, instead of failing at once.</li>
+</ul>
 <h2 id="command-results">Command results</h2>
 <p>Every command returns exactly one of these statuses. They mean different things, especially to an AI agent deciding what to do next:</p>
 <table>
@@ -133,17 +168,17 @@
 </tr>
 <tr>
 <td><code>NotAvailable</code></td>
-<td>No handler registered, or the module is disabled or suspended</td>
+<td>No handler registered, or the module is off ("The X module isn't on …": ask the user, then <code>modules.on</code>)</td>
 <td>Use another approach or tell the user</td>
 </tr>
 <tr>
 <td><code>Failed</code></td>
-<td>Handler ran and hit an error; carries the error and whether a retry might help</td>
+<td>Handler ran and hit an error; carries the error and <code>retryable</code> (whether a retry might help)</td>
 <td>Retry if retryable, else report</td>
 </tr>
 <tr>
 <td><code>TimedOut</code></td>
-<td>No result within the timeout</td>
+<td>No result within the timeout; always <code>retryable</code></td>
 <td>Retry, or ask the user whether to wait longer</td>
 </tr>
 <tr>
@@ -156,18 +191,21 @@
 <p>Handler exceptions never propagate to the sender. The router catches them and returns <code>Failed</code>.</p>
 <h2 id="timeouts-and-cancellation">Timeouts and cancellation</h2>
 <ul>
-<li>Every command has a timeout: a default from config, overridable per command type or per call. When it expires, the router returns <code>TimedOut</code> and signals cancellation to the handler.</li>
-<li>Cancellation is cooperative asyncio task cancellation: the handler gets <code>CancelledError</code> at its next <code>await</code>. Long-running work is identified by its correlation id and can be cancelled with <code>ctx.cancel(correlation_id)</code>, from the sender, the UI, or shutdown. Handlers that start external processes clean those up themselves for now.</li>
-<li>Handlers for long-running work (browser, 3D, remote desktop) must check the cancellation signal and stop promptly.</li>
-<li>On shutdown, the lifecycle manager cancels all in-flight commands before stopping modules.</li>
+<li>Every command has a timeout: a default from config, overridable per command type or per call. When it expires, the router returns <code>TimedOut</code> and cancels the handler.</li>
+<li>Cancellation is cooperative asyncio task cancellation: the handler gets <code>CancelledError</code> at its next <code>await</code>. In-flight commands are found by id or correlation id and cancelled with <code>ctx.cancel(correlation_id)</code>, from the sender, the UI, or shutdown. Handlers that start external processes clean those up themselves; there's no extra machinery for that.</li>
+<li>Handlers for long-running work must check the cancellation signal and stop promptly, or answer at once and report later (the gate's "Asked the user on a card" does this, so the router's timeout never cuts a call waiting for you).</li>
+<li>On shutdown, <code>App.stop</code> cancels all in-flight commands (<code>router.cancel_all()</code>) before stopping modules.</li>
 </ul>
 <h2 id="event-delivery">Event delivery</h2>
+<p><code>EventBus</code>:</p>
 <ul>
-<li><code>publish</code> returns immediately. It never waits on subscribers.</li>
-<li>Each subscriber is delivered to independently, so one slow or failing subscriber can't block the bus or other subscribers.</li>
-<li>Subscriber exceptions are caught and logged, never passed back to the publisher.</li>
-<li>Each subscriber has one worker and a bounded queue, so background tasks never grow with traffic. When a subscriber's queue is full, new events are dropped for it and logged.</li>
-<li>A handler that exceeds its time budget is cancelled and logged. Heavy work belongs in a command or background worker, not inside an event handler.</li>
+<li><code>publish</code> only enqueues and returns at once, so it never blocks the publisher.</li>
+<li>Each subscription has a bounded queue (<code>core.event_queue_size</code>) and exactly one worker task, so one slow or failing subscriber can't block the bus or the others. Task count grows with subscriptions, never with traffic.</li>
+<li>When a subscriber's queue is full, the event is dropped for that subscriber and a warning is logged.</li>
+<li>Subscriber exceptions are caught and logged, never passed back to the publisher. A handler is cancelled after <code>core.event_handler_timeout</code> seconds and logged. In both cases the worker moves on to the next event. Heavy work belongs in a command or background worker, not inside an event handler.</li>
+<li>Subscribing to a base type receives subclasses too, so subscribing to <code>Event</code> receives everything.</li>
+<li>A named subscription (<code>subscribe_named("cv.job_finished")</code>, or <code>"cv.*"</code>) is a <code>ModuleEvent</code> subscription filtered by name.</li>
+<li>Events still queued for a stopped module are dropped, and a stopped module's context drops what it publishes.</li>
 </ul>
 <footer>Generated from <code>docs/architecture/communication.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

@@ -53,7 +53,7 @@
 </tr>
 <tr>
 <td><code>stand_in(module_id) -&gt; type</code></td>
-<td>A bare module class with that id and nothing else, standing in for a module another one <code>needs</code> (job_search needs cv), so a test starts the one under test without the real one</td>
+<td>A bare module class with that id and nothing else, standing in for a module another one <code>needs</code> (voice_notes needs voice_in), so a test starts the one under test without the real one</td>
 </tr>
 <tr>
 <td><code>free_port() -&gt; int</code></td>
@@ -61,7 +61,7 @@
 </tr>
 <tr>
 <td><code>sample_card(**over) -&gt; PermissionRequested</code></td>
-<td>An access card as a module's access list opens it (job_search asking for job_search_agent's workspace and Chrome, not reviewed); <code>over</code> replaces any field. Moved from <code>tests/test_access_cards.py</code> (module folders item 11)</td>
+<td>An access card as a module's access list opens it (job_search asking for job_search_agent's workspace and Chrome, not reviewed); <code>over</code> replaces any field</td>
 </tr>
 <tr>
 <td><code>pre_grant_kinds(app, section, module_id="task_agents")</code></td>
@@ -82,7 +82,7 @@
 <tbody>
 <tr>
 <td><code>await request(port, raw) -&gt; (reader, writer)</code></td>
-<td>Send raw HTTP bytes to <code>127.0.0.1:port</code>; the open stream</td>
+<td>Send raw HTTP bytes to <code>127.0.0.1:port</code>; the open stream. A request without a <code>Host</code> header gets <code>Host: 127.0.0.1:&lt;port&gt;</code>, as a browser sends it: the pages refuse one without (<code>local_request</code>, since 2026-11-13)</td>
 </tr>
 <tr>
 <td><code>await post(port, path, body) -&gt; dict</code></td>
@@ -114,7 +114,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Defined in:</strong> <code>src/assistant/testkit/pages.py</code> (moved from <code>tests/test_temp_ui.py</code>, 2026-11-13; the snip events from <code>tests/test_viewer_listeners.py</code>, and <code>ui_port</code> / <code>read_events</code> from <code>tests/test_temp_ui.py</code>, module folders item 11)</p>
+<p><strong>Defined in:</strong> <code>src/assistant/testkit/pages.py</code></p>
 <h2 id="the-fake-claude-and-agent-fakes">The fake <code>claude</code> and agent fakes</h2>
 <p><strong>Reusable</strong> · Used by: the central agent tests (<code>test_agents</code>, <code>test_multi_agent</code>, <code>test_permission_mode</code>, ...); <code>task_agents</code> (<code>test_task_agents.py</code>), <code>talker</code> (<code>test_talker.py</code>: <code>FAKE</code>, <code>next_matching</code>), <code>cv</code> (<code>test_worker.py</code>: <code>FAKE</code>), <code>agent_hub</code> (<code>test_end_waiting.py</code>, <code>test_end_report_race.py</code>: <code>StubSession</code>, <code>StubContext</code>; <code>test_gate.py</code>: <code>FakeAgent</code>)</p>
 <table>

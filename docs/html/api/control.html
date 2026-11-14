@@ -12,12 +12,20 @@
 <nav data-root="../" data-page="api/control.html"></nav>
 <main>
 <h1 id="module-control">Module control</h1>
-<p>Turning modules on and off while the app runs. The core handles these commands; any module may send them (a control panel, or an agent asked to "enable the browser module"). All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>. How it works: <a href="../architecture/core.html#runtime-module-control">runtime module control</a>.</p>
-<p>Every module listed in <code>src/assistant/__main__.py</code> is <strong>available</strong>; <code>modules.enabled</code> in config only sets which are active at startup.</p>
+<p>Turning modules on and off while the app runs. The core handles these commands. A module sends one only if its manifest lists it in <code>sends</code>, and its sender is stamped (<a href="messaging.html#command"><code>Command.sent_by</code></a>).</p>
+<p><strong>Control commands</strong> (<a href="../architecture/decisions.html#decided">D3</a>): <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code> and <code>RemoveModule</code> here, plus the card answers <code>AnswerPermission</code> and <code>AnswerPermissionRequest</code>. Who may send them:</p>
+<ul>
+<li>the core, and a caller that is you (<code>[core.permissions] you</code>, <code>temp_ui</code>), may send any of them;</li>
+<li>a relay (<code>[core.permissions] relays</code>, the Talker) may send the two card answers;</li>
+<li>a module that provides <code>ITaskAgent</code> may send <code>ReloadModule</code> / <code>AddModule</code>, which it does after your Allow on its agent's own card (<a href="modules.html#modulecontextsend">the table</a>);</li>
+<li>anyone else gets <code>failed</code>.</li>
+</ul>
+<p><code>ListModules</code>, <code>GetMenu</code>, <code>ActivateModule</code> and <code>StartProvider</code> aren't control commands. Agents reach all of them through <a href="#the-cores-menu">the core's menu</a>, whose risky items ask you first. The menu sends its command as the core, so through the menu the control-command check is not what guards a step: the item's card is. <code>modules.off</code> without dependents has no card, so any agent can turn a module off. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>. How it works: <a href="../architecture/core.html#runtime-module-control">runtime module control</a>.</p>
+<p>Every module found at startup is <strong>available</strong>; <code>modules.enabled</code> in config only sets which are active at startup.</p>
 <h2 id="listmodules"><code>ListModules</code></h2>
 <p><code>ListModules()</code> (command)</p>
 <p>The module directory: every available module, one line each (its id, one-line description and current state).</p>
-<p><strong>Returns:</strong> <code>Result.ok(list[ModuleInfo])</code>, in the order the modules are listed in <code>__main__.py</code>.</p>
+<p><strong>Returns:</strong> <code>Result.ok(list[ModuleInfo])</code>, in the order the modules were found (by folder name, <code>find_modules</code>).</p>
 <p><strong>Example</strong></p>
 <pre><code>result = await ctx.send(ListModules())
 active = [m.id for m in result.value if m.state is ModuleState.ACTIVE]
@@ -51,7 +59,7 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="the-cores-menu">The core's menu</h2>
-<p>Module control as menu items, under the id <code>core</code> (<code>GetMenu(module_id="core")</code>), called with <code>InvokeTool</code> like any module's items. Each sends the matching command above, so results and errors are the same.</p>
+<p>Module control as menu items, under the id <code>core</code> (<code>GetMenu(module_id="core")</code>), called with <code>InvokeTool</code> like any module's items. Each <code>modules.*</code> item sends the matching command above, so results and errors are the same.</p>
 <table>
 <thead>
 <tr>
@@ -90,25 +98,25 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 <td><code>modules.off</code></td>
 <td><code>module_id</code>, <code>with_dependents</code> (false)</td>
 <td><code>DeactivateModule</code></td>
-<td>with <code>with_dependents</code></td>
+<td>with <code>with_dependents</code> (<code>ask="always", ask_when="with_dependents"</code>)</td>
 </tr>
 <tr>
 <td><code>modules.reload</code></td>
 <td><code>module_id</code>, <code>now</code> (false)</td>
 <td><code>ReloadModule</code></td>
-<td>no</td>
+<td>yes (<code>ask="always"</code>)</td>
 </tr>
 <tr>
 <td><code>modules.add</code></td>
 <td><code>package</code>, <code>activate</code> (true)</td>
 <td><code>AddModule</code></td>
-<td>yes</td>
+<td>yes (<code>ask="always"</code>)</td>
 </tr>
 <tr>
 <td><code>modules.remove</code></td>
 <td><code>module_id</code>, <code>settings</code> (<code>"keep"</code> or <code>"purge"</code>, required)</td>
 <td><code>RemoveModule</code> (<code>purge</code> when <code>"purge"</code>)</td>
-<td>yes</td>
+<td>yes (<code>ask="always"</code>)</td>
 </tr>
 <tr>
 <td><code>permissions.grants</code></td>
@@ -120,26 +128,33 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 <td><code>permissions.grant</code></td>
 <td><code>module_id</code>, <code>items</code> (keys), <code>subject</code></td>
 <td>(the handler)</td>
-<td>from an agent: your card</td>
+<td>from an agent in Manual: your card</td>
 </tr>
 <tr>
 <td><code>permissions.request</code></td>
 <td><code>read</code>, <code>write</code>, <code>commands</code> (lists), <code>python</code>, <code>chrome</code>, <code>reason</code></td>
 <td>(the handler)</td>
-<td>always your card</td>
+<td>from an agent in Manual: your card</td>
 </tr>
 <tr>
 <td><code>permissions.revoke</code></td>
 <td><code>module_id</code>, <code>subject</code>, <code>items</code> (keys; none: all)</td>
 <td>(the handler)</td>
-<td>from an agent: your card</td>
+<td>from an agent in Manual: your card</td>
 </tr>
 </tbody>
 </table>
-<p><code>modules.docs</code> returns the module's own docs, on or off: a list of <code>{"title", "path"}</code>, one per page in its folder's <code>docs/</code> (order and titles from <a href="app_kit.html#module_docs"><code>module_docs</code></a>), <code>[]</code> if it ships none, <code>invalid_arguments</code> for an unknown id. An agent learns what a module does from the module itself: its menu, then these pages. Added 2026-11-06.</p>
-<p>"Asks first" for <code>modules.*</code> goes through the core's <code>ctx.permissions</code> (<code>modules.off_with_dependents</code>, <code>modules.add</code>, <code>modules.remove</code>, whose reason says keep or delete its settings); single names aren't checked yet, so they're allowed and logged. Refused → <code>failed</code> ("Not allowed: …"). Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
-<p>The <code>permissions.*</code> items are the <a href="../architecture/permissions.html#managing-grants">permissions handler</a>'s grant calls (<a href="core.html#permissionsmenu"><code>PermissionsMenu</code></a>). <code>permissions.grants</code> lists the saved grants per module and subject (the kind of agent): what was granted, the date, and whether the current list still matches. <code>permissions.grant</code> widens a grant with asked-for items, and a module that's off is turned on; one that's on takes it live (from its agents' next session, at once when idle). <code>permissions.request</code> is an agent asking for more access for itself (its module and subject come from its id; folders resolved); on Allow the items join its grant as added items, and a running agent takes them live. <code>permissions.revoke</code> takes back all or some items; the module turns off right away and its running tasks are stopped. From you (a UI you click in, <code>temp_ui</code> by default) they apply at once; from an agent they show you a card, and the answer reaches the agent as a note.</p>
-<p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code>, <code>src/assistant/core/permissions/menu.py</code></p>
+<p><code>modules.docs</code> returns the module's own docs, on or off: a list of <code>{"title", "path"}</code>, one per page in its folder's <code>docs/</code> (order and titles from <a href="app_kit.html#module_docs"><code>module_docs</code></a>), <code>[]</code> if it ships none, <code>invalid_arguments</code> for an unknown id. An agent learns what a module does from the module itself: its menu, then these pages.</p>
+<p>"Asks first" for <code>modules.*</code> is the core's <a href="tools.html#the-ask-first-gate">ask-first gate</a>. The items are marked <code>ask="always"</code>, so every agent caller, in Manual <strong>or Auto</strong>, gets a <code>confirm</code> card (<a href="messaging.html#permissionrequested"><code>PermissionRequested</code></a>, <code>action="confirm"</code>) naming the call and its arguments (<code>modules.remove (module_id: weather, settings: purge)</code>). A caller that is you (<code>temp_ui</code>) runs at once. The call answers at once: "Asked the user on a card (<id>) to confirm …; the answer reaches you as a note". On Allow the core runs it and the outcome reaches the caller as a note (<a href="agents.html#agentnotice"><code>AgentNotice</code></a>); on Deny nothing runs. The items' own code asks nothing. Through <code>InvokeTool</code> a call is capped by its timeout (30 s by default); a reload or add that takes longer still finishes, and <code>ModuleStateChanged</code> reports it.</p>
+<p>The <code>permissions.*</code> items are the <a href="../architecture/permissions.html#managing-grants">permissions handler</a>'s grant calls (<a href="core.html#permissionsmenu"><code>PermissionsMenu</code></a>):</p>
+<ul>
+<li><code>permissions.grants</code> lists the saved grants per module and subject (the kind of agent): what was granted, the date, and whether the current list still matches.</li>
+<li><code>permissions.grant</code> widens a grant with asked-for items. A module that's off is turned on; one that's on takes it live (from its agents' next session, at once when idle).</li>
+<li><code>permissions.request</code> is an agent asking for more access for itself. Its module and subject come from its id, and folders are resolved. On Allow the items join its grant as added items, and a running agent takes them live. An agent with no access list (the Main Assistant) gets <code>not_available</code>.</li>
+<li><code>permissions.revoke</code> takes back all or some items. The module turns off right away and its running tasks are stopped, except for a revoke of only <code>message:</code> items, which leaves it on.</li>
+</ul>
+<p>From you (a UI you click in, <code>temp_ui</code> by default), or from an agent in Auto, they apply at once. From an agent in Manual they show you a card, and the answer reaches the agent as a note.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/core/directory.py</code>, <code>src/assistant/core/permissions/menu.py</code> · <strong>Tests:</strong> <code>tests/test_directory.py</code>, <code>tests/test_risky_steps_ask.py</code>, <code>tests/test_auto_skips_cards.py</code></p>
 <h2 id="activatemodule"><code>ActivateModule</code></h2>
 <p><code>ActivateModule(module_id: str)</code> (command)</p>
 <p>Turn a module on: a fresh instance, then <code>init</code> and <code>start</code>.</p>
@@ -185,7 +200,7 @@ result = await ctx.send(InvokeTool(name=specs[0].name, args={"path": "docs/html/
 </tr>
 <tr>
 <td><code>failed</code></td>
-<td>Several modules could provide a required contract (the error lists them; activate one first), it would be a second provider of a single-provider contract, a required provider failed, or its own <code>init</code>/<code>start</code> raised. In the last case its state is <code>failed</code> and it can be retried</td>
+<td>Several modules could provide a required contract (the error lists them; activate one first), it would be a second provider of a single-provider contract, a required provider failed, a circle of <code>needs</code>, or its own <code>init</code>/<code>start</code> raised. In the last case its state is <code>failed</code> and it can be retried. A module it <code>needs</code> that fails doesn't fail it: that's logged, and it turns on anyway</td>
 </tr>
 <tr>
 <td><code>timed_out</code></td>
@@ -200,7 +215,7 @@ if not result.is_ok:
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="startprovider"><code>StartProvider</code></h2>
-<p><code>StartProvider(contract: str)</code> (command) · built 2026-11-13 (module folders item 15)</p>
+<p><code>StartProvider(contract: str)</code> (command)</p>
 <p>Start on use, by contract: turn on the module that is off, declares <code>contract</code> (a contract's class name, e.g. <code>"IPageOpener"</code>) in its <code>manifest.provides</code>, and has <code>start_on_use = true</code> in its config, the same way as <code>ActivateModule</code>. A caller names a contract, never a module, so no core module names an add-on. Sent by <a href="infra.html#show_page"><code>open_page</code></a> when no <a href="modules.html#ipageopener"><code>IPageOpener</code></a> is on.</p>
 <p><strong>Returns</strong></p>
 <table>
@@ -228,7 +243,7 @@ if not result.is_ok:
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code> (command), <code>src/assistant/core/app.py</code> (<code>App._start_provider</code>) · <strong>Tests:</strong> <code>tests/test_start_on_use.py</code></p>
 <h2 id="deactivatemodule"><code>DeactivateModule</code></h2>
 <p><code>DeactivateModule(module_id: str, with_dependents: bool = False)</code> (command)</p>
-<p>Turn a module off: <code>stop</code>, then everything it registered is removed. Its tools, handlers, and contracts disappear.</p>
+<p>Turn a module off: <code>stop</code>, then everything it registered is removed. Its tools, handlers, and contracts disappear. <strong>Never refused:</strong> the modules that need it (<code>needs</code>, or a contract only it provides) stay on, and the result's value names them. A later call to one of its menu items answers <code>not_available</code> with "The <id> module isn't on … use modules.on" (see <a href="tools.html#invoketool"><code>InvokeTool</code></a>).</p>
 <p><strong>Parameters</strong></p>
 <table>
 <thead>
@@ -250,7 +265,7 @@ if not result.is_ok:
 <td><code>with_dependents</code></td>
 <td><code>bool</code></td>
 <td>no</td>
-<td>Also deactivate active modules that require something only this one provides (they go first)</td>
+<td>Also deactivate the active modules that need it or require something only this one provides (they go first). <code>modules.off</code> asks you first</td>
 </tr>
 </tbody>
 </table>
@@ -265,15 +280,11 @@ if not result.is_ok:
 <tbody>
 <tr>
 <td><code>ok</code></td>
-<td>It's inactive (or already was)</td>
+<td>It's inactive (or already was). With modules left on that need it, the value says so: <code>"voice_in is off; voice_notes needs it and stays on"</code>; otherwise <code>None</code></td>
 </tr>
 <tr>
 <td><code>invalid_arguments</code></td>
 <td>No module has that id</td>
-</tr>
-<tr>
-<td><code>failed</code></td>
-<td>Active modules require it and <code>with_dependents</code> is false; the error names them</td>
 </tr>
 </tbody>
 </table>
@@ -335,10 +346,10 @@ if not result.is_ok:
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/control.py</code></p>
 <h2 id="removemodule"><code>RemoveModule</code></h2>
-<p><code>RemoveModule(module_id: str, purge: bool = False)</code> (command) · built 2026-11-13 (module folders item 16)</p>
+<p><code>RemoveModule(module_id: str, purge: bool = False)</code> (command)</p>
 <p>Remove a module from this run: turn it off if it's on, and take it out of the module list, so <code>ListModules</code> and <code>GetMenu</code> don't offer it until <a href="#addmodule"><code>AddModule</code></a> loads it again. Sent by the core's <code>modules.remove</code>, which asks first. How it works: <a href="../architecture/core.html#runtime-module-control">runtime module control</a>.</p>
 <ul>
-<li><strong>Refused while needed:</strong> by an active module that <code>needs</code> it or requires something only it provides, or by one in <code>modules.enabled</code> (re-read from <code>config/</code> when the app has a config loader) whose <code>needs</code> lists it, on or off.</li>
+<li><strong>Never refused while needed:</strong> the active modules that <code>need</code> it or require something only it provides stay on; the result lists them (<code>still_on</code>) and its message says "Still on, and needing it: …".</li>
 <li><strong><code>purge</code>:</strong> deletes <code>config/&lt;id&gt;.toml</code> and <code>config/&lt;id&gt;.local.toml</code> (in the app's config directory: <code>App(config_dir=...)</code>, else <code>ASSISTANT_CONFIG_DIR</code>, else <code>config/</code>), and nothing else. An id that names a shared file (<code>default</code>, <code>local</code>, <code>modules</code>, <code>permissions</code>, <code>voice_service</code>) has none to purge. Without <code>purge</code>, nothing is deleted.</li>
 <li><strong>Never:</strong> deletes the module's folder, or rewrites <code>config/modules.toml</code>. If it's in <code>enabled</code>, the result tells you to take it out, or it starts again at the next launch.</li>
 </ul>
@@ -378,7 +389,7 @@ if not result.is_ok:
 <tbody>
 <tr>
 <td><code>ok</code></td>
-<td>Value: <code>{"module_id", "deleted": [paths], "kept": [paths], "folder": path or None, "enabled": bool, "message": str}</code>; <code>message</code> says what was deleted or kept, whether to edit <code>enabled</code>, and that the folder is yours to delete</td>
+<td>Value: <code>{"module_id", "still_on": [ids], "deleted": [paths], "kept": [paths], "folder": path or None, "enabled": bool, "message": str}</code>; <code>message</code> says what was deleted or kept, whether to edit <code>enabled</code>, and that the folder is yours to delete</td>
 </tr>
 <tr>
 <td><code>invalid_arguments</code></td>
@@ -386,7 +397,7 @@ if not result.is_ok:
 </tr>
 <tr>
 <td><code>failed</code></td>
-<td>Another module needs it (the error names them), or it couldn't be turned off. Nothing is deleted</td>
+<td>It couldn't be turned off. Nothing is deleted</td>
 </tr>
 </tbody>
 </table>

@@ -2,7 +2,7 @@
 
 Behavior that two parts need is built once and shared ([principle 13](principles.md)). This page says where reusable parts live and why; the list of them is the [reusable parts index](../api/reusable.md). Back to the [overview](README.md).
 
-> **Status: decided 2026-11-02.** `app_kit` and `agent_tags` are built (2026-11-02), and `ctx.permissions` is built (it forwards to the core's permissions handler). Everything in the index exists unless it says *planned*.
+Everything in the index exists unless it says *planned*.
 
 ## The rule
 
@@ -16,26 +16,26 @@ Behavior that two parts need is built once and shared ([principle 13](principles
 | Place | Holds | Imports | Used by |
 |-------|-------|---------|---------|
 | `assistant.contracts` | Interfaces, commands, events: reusable by definition | nothing | core, modules |
-| `assistant.infra` | Helpers for the main app's modules: `ClaudeSession`, `SessionTaskAgent`, `LogSession`, config, and `agent_tags` | contracts, `app_kit` | core, modules |
-| `src/app_kit/` | Helpers shared by the main app **and** the independent apps: the Edge window, layered config, `CompanionApp`, the local-only guard (`local_guard`) | standard library only | `html_viewer`, `voice_service`, `temp_ui`, thin modules, other apps |
+| `assistant.infra` | Helpers for the main app's modules: `ClaudeSession`, `SessionTaskAgent`, `ProfileAgent`, `AgentKit`, `agent_access`, `agent_tags`, `LogSession`, config | contracts, `app_kit` | core, modules |
+| `src/app_kit/` | Helpers shared by the main app **and** the independent apps: the Edge window, layered config, `CompanionApp`, the local-only guard (`local_guard`), a module's docs folder (`module_docs`) | standard library only | the independent apps (`html_viewer`, `voice_service`, `cv_tool`), the core, `infra`, `temp_ui`, the thin modules |
 | `assistant.testkit` | The fakes and helpers tests share: the fake `claude`, app builders, pre-saved grants ([test kit](../api/testkit.md)) | anything in `assistant` | tests only: the central `tests/` and every module's own `tests/` |
 
 A module's tests import shared helpers from `assistant.testkit` only, never from `tests.*`, so the module's folder carries its tests whole. Nothing in the app imports the test kit.
 
-`app_kit` exists because the [independent apps](decisions.md#decided) can't import `assistant`. That rule used to force copies (the viewer had its own window code). `app_kit` is a small package in the same repo, ships with each app that uses it, and never imports `assistant`. Each part has one import path: the window functions come only from `app_kit`, not re-exported from `assistant.infra`.
+`app_kit` exists because the [independent apps](decisions.md#decided) can't import `assistant`; without it they would each keep a copy of the same code. It is a small package in the same repo, ships with each app that uses it, and never imports `assistant`. Each part has one import path: the window functions come only from `app_kit`, not re-exported from `assistant.infra`.
 
 ## Left out on purpose
 
-- **HTTP servers:** the temp UI (raw asyncio), the viewer (stdlib), and voice (FastAPI) each serve differently. The temp UI is throwaway and the viewer works. **New companion apps use FastAPI**; nothing gets migrated.
-- **Agent prompts:** the SHOW instructions appear in both agent prompts. Modules can't share text without importing each other; this goes away once agents call tools directly. Turning a SHOW tag into the viewer's tool call is shared ([`show_page`](../api/infra.md#show_page)).
+- **HTTP servers:** the temp UI (raw asyncio), the viewer (stdlib), and voice (FastAPI) each serve differently. The temp UI is throwaway and the viewer works. **Companion apps still to come use FastAPI**; nothing gets migrated.
+- **Agent prompts:** the SHOW instructions appear in both agent prompts. Modules can't share text without importing each other; this goes away once agents call tools directly. Turning a SHOW tag into a page opened is shared ([`show_page`](../api/infra.md#show_page)).
 - **SSE writing and the in-app page server** (viewer app, temp UI, voice notes): `voice_notes` copies the temp UI's page server. Left until the UI handler is designed, since the temp UI is a stand-in; the long-lived user is the viewer app.
-- **Viewer events** left `contracts/messages.py` (2026-11-13): they are html_viewer's named events (`html_viewer.tabs_changed`, `html_viewer.clip`), heard by name; only the shared snip limits (`MAX_SNIPS`, `PASTED_FILE`) stay in the contracts.
+- **Viewer events** are html_viewer's named events (`html_viewer.tabs_changed`, `html_viewer.clip`), heard by name, not contract classes; only the shared snip limits (`MAX_SNIPS`, `PASTED_FILE`) are in the contracts.
 
 ## Companion app checklist
 
-Every independent app the main app launches (the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md), the [voice service](../../src/assistant/modules/voice_in/docs/voice-service.md)) keeps the same shape, so [`CompanionApp`](../api/app_kit.md#companionapp) can launch and call any of them:
+Every independent app the main app launches (the [HTML viewer](../../src/assistant/modules/html_viewer/docs/viewer-app.md), the [voice service](../../src/assistant/modules/voice_in/docs/voice-service.md), the CV Tool) keeps the same shape, so [`CompanionApp`](../api/app_kit.md#companionapp) can launch and call any of them:
 
-1. Its own package, run with `python -m <app>`; never imports `assistant`. It lives in its module's folder as `app/<its package>/` (`app/` is no package; the CV Tool is `cv/app/cv_tool/`, the HTML viewer `html_viewer/app/html_viewer/`): the core puts every module's `app/` folder on the import path at startup ([`loader.add_app_folders`](../api/core.md#loader)), and `CompanionApp` passes the folder on to the app's process ([`launch_env`](../api/app_kit.md#companionapp)). The voice service still sits in `src/` and moves the same way.
+1. Its own package, run with `python -m <app>`; never imports `assistant`. It lives in its module's folder as `app/<its package>/` (`app/` is no package: the CV Tool is `cv/app/cv_tool/`, the HTML viewer `html_viewer/app/html_viewer/`, the voice service `voice_in/app/voice_service/`). The core puts every module's `app/` folder on the import path at startup ([`loader.add_app_folders`](../api/core.md#loader)), and `CompanionApp` passes the folder on to the app's process ([`launch_env`](../api/app_kit.md#companionapp)).
 2. Listens on `127.0.0.1` only, refuses another host, and refuses browser requests from another origin (WebSocket `Origin`, JSON-only POSTs). One shared check does it: [`app_kit.local_guard`](../api/app_kit.md#local_guard).
 3. A ping endpoint answering `{"app": "<name>", ...}`.
 4. A JSON `POST` quit endpoint.

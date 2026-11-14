@@ -12,10 +12,7 @@
 <nav data-root="../" data-page="architecture/modules.html"></nav>
 <main>
 <h1 id="modules">Modules</h1>
-<p>How a module is shaped, how the assistants find what it can do, and how modules work together. The core's side is in <a href="core.html">core</a>; the messages are in <a href="communication.html">communication</a>. Each module's own page, and every module's interface side by side: the <a href="module-library.html">module library</a>. Back to the <a href="index.html">overview</a>.</p>
-<blockquote>
-<p><strong>Status: decided 2026-11-04, being built.</strong> Built: the wrapper (<code>ModuleProtocol</code>, the manifest with its one-line description and inputs and outputs, lifecycle, context), the <code>Menu</code> part (the HTML viewer's and the echo stand-in's), the generated module library, <code>requires</code> by contract, reloading a module while the app runs, the directory (<code>ListModules</code>, <code>GetMenu</code>, the core's <code>modules.*</code> menu), finding modules by folder, the <code>ctx.logs</code> port, and the voice contract (<code>IVoice</code>) with sessions each owned by their caller. Planned: both assistants using the directory. Each item: <a href="#built-and-planned">Built and planned</a>. The build plan is the module system change note (<code>docs/next-steps/module-system.md</code>), which supersedes the module-shape note. The agents reach the menus through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05).</p>
-</blockquote>
+<p>This page covers what a module is, how its folder is laid out, how the core finds it, turns it on and reaches it, and the rules that keep the core and the add-ons apart. The core's side (the host, the router, the gate, the bus) is on <a href="core.html">core</a>, and the messages are on <a href="communication.html">communication</a>. Every module's interface, side by side, is in the <a href="module-library.html">module library</a>. Back to the <a href="index.html">overview</a>.</p>
 <h2 id="a-module-is-a-wrapper-with-a-menu">A module is a wrapper with a menu</h2>
 <p>Every module has the same <strong>wrapper</strong>, owned by the core, and inside it a <strong>menu</strong> of what it can do.</p>
 <table>
@@ -23,89 +20,297 @@
 <tr>
 <th>Part</th>
 <th>What it is</th>
-<th>Built?</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Manifest</strong></td>
-<td>Its id, a one-line <code>description</code>, the contracts it <code>provides</code>, <code>requires</code>, and optionally uses, the commands it <code>handles</code> and <code>sends</code>, the events it <code>publishes</code> and <code>listens</code> to, its permissions</td>
-<td>Built (description, commands and events 2026-11-05). The core warns when a module handles a command it didn't list</td>
+<td>Its id and a one-line <code>description</code>. The contracts it <code>provides</code>, <code>requires</code>, uses if present (<code>optional</code>) or looks up at each call (<code>uses</code>). The modules it <code>needs</code> and the pip <code>packages</code> it uses (both from its <code>module.toml</code>). The commands it <code>handles</code> and <code>sends</code>, the events it <code>publishes</code> and <code>listens</code> to, the named events it <code>publishes_named</code> and <code>listens_named</code>, and its permissions (<a href="../api/modules.html#manifest"><code>Manifest</code></a>)</td>
 </tr>
 <tr>
 <td><strong>Lifecycle</strong></td>
-<td><code>ModuleProtocol</code>: <code>init</code>, <code>start</code>, <code>stop</code>, <code>busy</code>, <code>export_state</code>; the core starts, stops, and reloads it</td>
-<td>Built</td>
+<td><a href="../api/modules.html#moduleprotocol"><code>ModuleProtocol</code></a>: <code>init</code>, <code>start</code>, <code>stop</code>, <code>busy</code>, <code>export_state</code>. The core starts, stops and reloads it</td>
 </tr>
 <tr>
 <td><strong>Context</strong></td>
-<td><code>ctx</code>, its only access to the app: commands, events, contracts, config, log, permissions</td>
-<td>Built, with <code>ctx.logs</code> (2026-11-05)</td>
+<td><code>ctx</code>, its only access to the app: commands, events, contracts, config, log, logs, permissions (<a href="../api/modules.html#modulecontext"><code>ModuleContext</code></a>)</td>
 </tr>
 <tr>
 <td><strong>Menu</strong></td>
-<td>A <a href="../api/modules.html#menu"><code>Menu</code></a> part on the module: named items, each with a one-line description and its inputs (<code>ToolSpec</code>), readable without starting the module. The core links it to the running copy, checks the arguments, and routes <code>InvokeTool</code> to it</td>
-<td>Built (2026-11-05): the HTML viewer (<code>open</code>, <code>highlight</code>, <code>tabs</code>) and the echo stand-in (<code>echo.say</code>)</td>
+<td>A <a href="../api/modules.html#menu"><code>Menu</code></a> part on the module: named items, each with a one-line description and its inputs (<code>ToolSpec</code>), readable without starting the module. While the module is on, the core links the menu to the running copy in its own menu table, and <a href="core.html">the gate</a> routes <code>InvokeTool</code> to it</td>
 </tr>
 </tbody>
 </table>
 <ul>
-<li><strong>The wrapper is ours only.</strong> Every module has the same one, so the core can start, stop, swap, and list any module without knowing what it does.</li>
-<li><strong>The menu is MCP-like:</strong> a list of tools a model can read and call, with a description and an argument schema each. It isn't MCP itself. The agents reach every menu through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> in front of the core; modules never speak MCP.</li>
-<li><strong>A menu can be empty.</strong> <code>voice_in</code> offers commands (<code>StartListening</code>, <code>StopListening</code>) and events, not tools.</li>
+<li><strong>The wrapper is ours only.</strong> Every module has the same one, so the core can start, stop, swap and list any module without knowing what it does.</li>
+<li><strong>The manifest is checked as the module runs.</strong> <code>handles</code> is strict: <code>ctx.handle</code> for an unlisted command raises, and the module fails to start. <code>sends</code> and <code>publishes</code> are strict: an unlisted send is refused and an unlisted publish is dropped, both logged as errors. Listening and named publishing are loose: an unlisted subscription, lookup or named event still works and is logged once (<a href="communication.html">who may send what</a>).</li>
+<li><strong>The menu is MCP-like:</strong> a list of tools a model can read and call, each with a description and an argument schema. It isn't MCP itself. The agents reach every menu through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> in front of the core, and modules never serve MCP.</li>
+<li><strong>A menu can be empty.</strong> <code>voice_in</code> and <code>voice_notes</code> offer contracts, commands and events, not tools.</li>
+</ul>
+<h2 id="the-module-folder">The module folder</h2>
+<p>A module is one folder, <code>src/assistant/modules/&lt;id&gt;/</code> (or in an <a href="#module-folders-outside-the-repo">outside folder</a>), named with its manifest id. Everything of the module is in it, so deleting the folder leaves nothing behind except your own (gitignored) choices in <code>config/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>In the folder</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>__init__.py</code> and the code</td>
+<td>Exports exactly one <code>ModuleProtocol</code> class</td>
+</tr>
+<tr>
+<td><code>module.toml</code></td>
+<td>Its config defaults, its <code>needs</code> and its <code>packages</code>. Every module folder has one. Your <code>config/&lt;id&gt;.toml</code> overrides the defaults key by key (<a href="core.html#configuration">configuration</a>)</td>
+</tr>
+<tr>
+<td><code>app/</code></td>
+<td>Its companion app, if it has one (cv's CV Tool, html_viewer's viewer, voice_in's voice service). <code>app/</code> is no package: the core puts it on the import path, found by folder, so the app keeps its own import name and never imports the module</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>Its tests. They import only <code>assistant.testkit</code>, never the central <code>tests/</code></td>
+</tr>
+<tr>
+<td><code>docs/</code></td>
+<td>Its pages and <code>docs.toml</code>, whose <code>group</code> says core or add-on (<a href="module-library.html#module-pages">module pages</a>)</td>
+</tr>
+<tr>
+<td><code>workspace/</code></td>
+<td>The working folder of its agent (cv, job_search), gitignored. Your documents and outputs live there unless <code>config/&lt;id&gt;.toml</code> names a data folder outside the repo (<a href="agents.html">agents</a>)</td>
+</tr>
+<tr>
+<td><code>ruff.toml</code> (optional)</td>
+<td>Its own lint exceptions (cv). It starts with <code>extend = "&lt;path to the root pyproject.toml&gt;"</code>, so the root settings still apply</td>
+</tr>
+</tbody>
+</table>
+<p><code>static/</code> (temp_ui's page files) and other folders are the module's own business.</p>
+<p><strong>Tripwire:</strong> <code>test_nothing_of_an_add_on_is_outside_its_folder</code> in <code>tests/test_module_folders.py</code> checks each add-on: its app is in <code>app/</code>, its <code>needs</code> and <code>packages</code> are in its <code>module.toml</code> and reach its manifest, nothing of it is in <code>pyproject.toml</code> or committed <code>config/</code>, its tests are in its <code>tests/</code>, and its agent's workspace is in its folder. <code>test_every_module_folder_has_its_module_toml</code> checks every module.</p>
+<h2 id="the-three-rules">The three rules</h2>
+<p><a href="img/core-line-rules.svg"><img alt="The core line: the core (host, core modules, door and gate, seven ports), two add-ons that reach each other only through tools, events and contracts, and needs arrows that point from add-on to core or add-on, never back" src="img/core-line-rules.svg" /></a></p>
+<p>Grey: the core and the core modules. Dashed: an add-on. The numbers are the rules:</p>
+<ol>
+<li><strong>The core is what the app can't start without, plus its ports:</strong> the host, the core modules (<code>group = "core"</code> in their <code>docs/docs.toml</code>), the module door and its one gate, and the seven ports (lifecycle, commands, events, contracts, directory, permissions, callers). Every other module is an add-on.</li>
+<li><strong>Modules talk only through tools, events and contracts</strong> (<code>assistant.contracts</code>), never by importing each other's code. Shared helpers are <code>assistant.infra</code> and <code>app_kit</code>. How each way passes through the core: <a href="core.html">how modules talk</a>.</li>
+<li><strong>Arrows point one way:</strong> an add-on may need the core or another add-on, and the core never names an add-on.</li>
+</ol>
+<p>Why: the core stays small and stable, and an add-on can be added, replaced or deleted with no change anywhere else.</p>
+<p><strong>The tests that check them.</strong> They catch a break only when pytest runs.</p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Checks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/test_boundaries.py</code></td>
+<td>A module imports only <code>assistant.contracts</code>, <code>assistant.infra</code>, <code>app_kit</code>, its own package and its own <code>app/</code> packages. The shared code (<code>core</code>, <code>contracts</code>, <code>infra</code>, <code>app_kit</code>) imports no module. <code>config/default.toml</code> and the core modules' <code>module.toml</code> name no add-on. A core module <code>needs</code> only core modules, and no <code>needs</code> makes a cycle. The core group starts alone, and the shipped on-list turns on no add-on. A module in an outside folder is an add-on, and no id is in two folders. Each check also runs on a planted bad tree, to prove it catches a break</td>
+</tr>
+<tr>
+<td><code>tests/test_module_folders.py</code></td>
+<td>No core code names an add-on's id or its menu items (<code>test_no_core_code_names_an_add_on</code>). Each add-on is whole in its folder (the tripwire above). The config files hold your choices only, and <code>generated/</code> is gitignored</td>
+</tr>
+<tr>
+<td><code>tests/test_module_docs.py</code></td>
+<td>Every module has its docs and a <a href="module-library.html">module library</a> row, and the library is fresh</td>
+</tr>
+</tbody>
+</table>
+<p>The tests number the rules their own way (their rule 1 is imports, rule 2 is "core settings name no add-on", rule 3 is "core needs only core"). They check the same line.</p>
+<h3 id="the-needs-arrows-point-one-way">The needs arrows point one way</h3>
+<p>No core module, and no code in the core, <code>contracts</code>, <code>infra</code> or <code>app_kit</code>, names an add-on's id or its menu items. When the core group wants something an add-on does, it asks for a <strong>slot</strong>: a contract in <code>assistant.contracts</code> that an add-on fills ("plugs in"), looked up at each call (<code>uses</code>, no start order). With nothing plugged in, the caller says so plainly.</p>
+<ul>
+<li><strong>Opening a page:</strong> the Talker's and the workers' SHOW tags and temp_ui's Open in viewer button go through <a href="../api/modules.html#ipageopener"><code>IPageOpener</code></a>, with <a href="../api/infra.html#show_page"><code>open_page</code> / <code>show_page</code></a>. <code>html_viewer</code> fills it while it's on. With none on, the answer is "No page viewer is on".</li>
+<li><strong>Start on use, by contract:</strong> with no provider on, <code>open_page</code> sends <a href="../api/control.html#startprovider"><code>StartProvider</code></a><code>("IPageOpener")</code>. The core turns on the module that declares the contract in <code>manifest.provides</code> and has <code>start_on_use = true</code> in its config. No module is named anywhere on the way.</li>
+<li><strong>Hearing an add-on's named events by name is allowed</strong> (<a href="#chaining-modules">chaining modules</a>): the Talker and temp_ui listen to <code>html_viewer.tabs_changed</code> and <code>html_viewer.clip</code> by name, with no import, and nothing breaks when nobody publishes them.</li>
 </ul>
 <h2 id="find-a-module-then-open-its-menu">Find a module, then open its menu</h2>
-<p>Both the Talker and the Main Assistant find what to use the same way: first a <strong>directory</strong> with one line per module, then the <strong>menu</strong> of the one module they need, then a call. They never see every tool at once, and no agent has another module's tools written into it.</p>
-<p>Colors in the pictures: solid lines are built today, dashed orange is planned. Blue is a module's wrapper (ours only), yellow its menu (MCP-like), purple the core, faded grey the old way.</p>
-<h3 id="before-the-refactor-november-2026">Before the refactor (November 2026)</h3>
-<p><a href="img/module-directory-1-before.svg"><img alt="Before the refactor: the Talker hardcoded to the viewer, the Main Assistant unable to call tools" src="img/module-directory-1-before.svg" /></a></p>
-<p>One shortcut to one module. The Talker turns its SHOW tags into the viewer's <code>viewer.open</code> / <code>viewer.highlight</code>; the Main Assistant can't call module tools at all, so the viewer watches its SHOW tags instead. The core keeps a flat list of tools, with no directory and no one-line descriptions.</p>
-<h3 id="step-by-step-the-asks-built-the-agents-using-them-planned">Step by step (the asks built; the agents using them planned)</h3>
-<p><a href="img/module-directory-2-steps.svg"><img alt="Step by step: list modules, open one menu, call one item" src="img/module-directory-2-steps.svg" /></a></p>
+<p>The Talker, the Main Assistant and every other agent find what to use the same way: first a <strong>directory</strong> with one line per module, then the <strong>menu</strong> of the one module they need, then a call. They never see every tool at once, and no agent has another module's tools written into it.</p>
 <ol>
-<li><strong>List modules</strong> (built): <code>ListModules</code>, the directory, one line each, from each manifest's description.</li>
-<li><strong>Give me its menu</strong> (built): <code>GetMenu(id)</code>, that module's <code>ToolSpec</code>s only, read from its class, so it works while the module is off.</li>
-<li><strong>Call an item</strong> (built): <code>InvokeTool(name, args)</code>, routed to the module that offers it (the module must be on).</li>
+<li><strong>List modules:</strong> <code>ListModules</code>, the directory: one line each, from each manifest's description, with its state.</li>
+<li><strong>Give me its menu:</strong> <code>GetMenu(id)</code>: that module's <code>ToolSpec</code>s only, read from its class, so it works while the module is off.</li>
+<li><strong>Call an item:</strong> <code>InvokeTool(name, args)</code>, through the gate to the module that offers it. A module that is off answers "isn't on", unless it starts on use (below).</li>
 </ol>
-<p>The core has a menu of its own under the id <code>core</code>: <code>modules.list</code>, <code>modules.menu</code>, <code>modules.on</code>, <code>modules.off</code>, <code>modules.reload</code>, <code>modules.add</code>, <code>modules.remove</code>. So anything that can call a menu item can also find modules and turn them on, off, or reload them. The risky items (turning off with dependents, adding new code, removing a module) ask the permissions first. <code>modules.remove</code> takes <code>settings</code>, <code>keep</code> or <code>purge</code> (deleting only <code>config/&lt;id&gt;.toml</code> and <code>config/&lt;id&gt;.local.toml</code>); it's refused while another module needs it, and never deletes the module's folder (<a href="core.html#runtime-module-control">removing a module</a>). The agents will send all three asks through <a href="#how-the-agents-reach-the-menus-one-door">one MCP door</a> (decided 2026-11-05; planned).</p>
-<h3 id="what-changes">What changes</h3>
-<p><a href="img/module-directory-3-changes.svg"><img alt="What changes: a one-line description, two new asks, both assistants using them" src="img/module-directory-3-changes.svg" /></a></p>
-<p>Each manifest gets a one-line description, the core gets the two asks, and both assistants use them instead of hardcoded tags. All of it is planned and needs an app restart (it touches the core and contracts).</p>
+<p><a href="img/addon-found-reached.svg"><img alt="How an add-on is found, turned on and reached: voice_notes followed from &quot;I want to start recording voice notes&quot; to its first event, through the door, router, directory, core menu, gate, lifecycle manager and bus, with the permission steps" src="img/addon-found-reached.svg" /></a></p>
+<p>Grey: the core, a core module or an agent. Dashed: an add-on. Teal: the part the picture is about; in the core, a part that checks. Blue: you, and where you see things. Arrows: teal is a tool call, grey a command through the router, blue an event on the bus, green a contract call, dotted grey the core's own call (no message). Purple solid with a filled head is a permission question; dashed with a hollow head is an answer, in any colour. ✓ marks a check the core makes. D1 to D6 are the core's parts (<a href="core.html">inside the core</a>).</p>
+<p>The picture follows voice_notes, an add-on, from "I want to start recording voice notes" to its first event:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>What happens</th>
+<th>What is checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>At launch, <code>loader.find_modules</code> takes every module folder. The <code>LifecycleManager</code> keeps every module class, on or off</td>
+<td>Each folder must export one module class whose id is the folder's name</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>The agent calls the door's tools: <code>list_modules</code>, <code>show_menu</code>, <code>use_item</code></td>
+<td>The caller is proved by the core; no module may name another; this works with the Hub off</td>
+</tr>
+<tr>
+<td>A3, A4</td>
+<td>Router → directory: <code>ListModules</code> finds voice_notes, off. <code>GetMenu("voice_notes")</code> shows an empty menu (its page has the Record button)</td>
+<td>Read-only; the sender is stamped</td>
+</tr>
+<tr>
+<td>A5, A6</td>
+<td><code>use_item("modules.on")</code> becomes <code>InvokeTool</code> → the gate → the core menu's <code>modules.on</code></td>
+<td>The caller is proved, and the item's <code>callers</code> are checked; a risky item asks the permissions handler (P13) and gets allow, deny or a card back (P14)</td>
+</tr>
+<tr>
+<td>A7</td>
+<td>The core menu sends <code>ActivateModule</code> through the router to the <code>LifecycleManager</code></td>
+<td>Sent as <code>core</code></td>
+</tr>
+<tr>
+<td>A8</td>
+<td>The <code>LifecycleManager</code> first turns on what voice_notes requires and needs: the provider of <code>IVoice</code>, and <code>voice_in</code></td>
+<td>voice_in is on from launch, so nothing more happens. Two providers of one contract are refused, and you pick one</td>
+</tr>
+<tr>
+<td>A9</td>
+<td>It starts voice_notes: <code>init</code>, <code>link_menu</code> (its tools, if any), then <code>start()</code>, where it subscribes</td>
+<td>A module with an access list asks its card here (P7 to P12); voice_notes has none</td>
+</tr>
+<tr>
+<td>A10</td>
+<td>The core publishes <code>ModuleStateChanged</code> (starting, active) for the UIs</td>
+<td><code>publishes</code> is strict</td>
+</tr>
+<tr>
+<td>A11</td>
+<td><code>GeneratedFiles</code> writes <code>generated/</code> on every state change</td>
+<td>A copy for people and the docs; nothing reads it to decide</td>
+</tr>
+<tr>
+<td>A12</td>
+<td>On Record, voice_notes calls voice_in through the contract: <code>IVoice.listen(…)</code></td>
+<td>Contract calls aren't gated. voice_in's microphone ask only logs (a known gap, <a href="permissions.html">permissions</a>)</td>
+</tr>
+<tr>
+<td>A13</td>
+<td>voice_in publishes <code>VoiceState</code> and <code>VoiceTranscript</code>; voice_notes gets them</td>
+<td><code>publishes</code> is strict; voice_notes lists both in <code>listens</code></td>
+</tr>
+<tr>
+<td>A14</td>
+<td>Any later tool call to an add-on (here <code>viewer.open</code>) goes door → router → gate → its item</td>
+<td>The same checks as A2 and A5, from an agent or from a module's code</td>
+</tr>
+<tr>
+<td>P1, P2</td>
+<td>The agent asks its own gate "use_item?" and gets allow or deny</td>
+<td>Only Claude Code's own asks: <code>use_item</code> asks in Manual for task agents. The Talker has no gate of its own; its calls pass the core's gate like any other</td>
+</tr>
+<tr>
+<td>P3 to P6</td>
+<td>An agent's own card, through the Hub's task board (not drawn)</td>
+<td>Its <code>ReportTask</code> and <code>AnswerPermission</code> carry a sender</td>
+</tr>
+<tr>
+<td>P7, P12</td>
+<td>A module starting asks for its access list (<code>request_set</code>); the handler answers with the grant, a wait on the card, or a deny</td>
+<td>Asked once, at start; none in Auto</td>
+</tr>
+<tr>
+<td>P8, P9</td>
+<td>The handler asks Callers for the caller's mode and gets Manual or Auto</td>
+<td>Read in the core, so it works with the Hub off; only "you" can set Auto</td>
+</tr>
+<tr>
+<td>P10</td>
+<td>The handler publishes the card, <code>PermissionRequested</code>; it reaches you in temp_ui and the Talker</td>
+<td><code>publishes</code> is strict</td>
+</tr>
+<tr>
+<td>P11</td>
+<td>Your answer, <code>AnswerPermissionRequest</code>, goes through the router to the handler</td>
+<td>The sender is stamped; only a "you" caller may answer (or the Talker as a relay: an open decision, <a href="permissions.html">permissions</a>)</td>
+</tr>
+<tr>
+<td>P13, P14</td>
+<td>The gate asks the handler "may it?" for a risky item (<code>modules.add</code>, <code>modules.remove</code>, <code>modules.off</code> with dependents, and so on) and gets allow, deny or "card"</td>
+<td>Asked once, from an agent or from code. In Auto it is allowed with no card, except risky core-menu items, which always card. The gate doesn't wait for your answer</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-cores-menu">The core's menu</h3>
+<p>The core has a menu of its own under the id <code>core</code>, so anything that can call a menu item can also find modules and turn them on or off:</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Does</th>
+<th>Asks you first</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modules.list</code>, <code>modules.menu</code></td>
+<td>The directory and one module's menu</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>modules.docs</code></td>
+<td>A module's own docs pages: each page's title and path</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>modules.on</code></td>
+<td>Turns a module on, with what it requires and needs</td>
+<td>no; the module's own access card still shows (in Manual)</td>
+</tr>
+<tr>
+<td><code>modules.off</code></td>
+<td>Turns a module off. Never refused: the modules that need it stay on, and the reply names them. <code>with_dependents</code> turns them off first</td>
+<td>only with <code>with_dependents</code> true</td>
+</tr>
+<tr>
+<td><code>modules.reload</code></td>
+<td>Swaps a module's code (<a href="#hot-swap">hot swap</a>); <code>now</code> cuts in if it's busy</td>
+<td>always</td>
+</tr>
+<tr>
+<td><code>modules.add</code></td>
+<td>Loads a module that wasn't there at launch, and turns it on</td>
+<td>always</td>
+</tr>
+<tr>
+<td><code>modules.remove</code></td>
+<td>Takes a module out of this run (<a href="#turning-modules-on-and-off">turning modules on and off</a>)</td>
+<td>always</td>
+</tr>
+<tr>
+<td><code>permissions.grants</code>, <code>permissions.grant</code>, <code>permissions.request</code>, <code>permissions.revoke</code></td>
+<td>The saved access grants (<a href="permissions.html">permissions</a>)</td>
+<td>per <a href="permissions.html">permissions</a></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The ask mark is on the item</strong> (<code>ask="always"</code>, with <code>ask_when</code> naming a boolean argument). <code>dispatch_tool</code>, the one gate, reads it and shows a <code>confirm</code> card, even in Auto, because these steps load code or take a module away. Only a "you" caller (a UI you click in, <code>[core.permissions] you</code>, temp_ui) runs them at once. An item marked <code>ask="risky"</code> skips the card for a caller in Auto (<a href="permissions.html">risky steps</a>).</li>
+<li><strong>Good to know:</strong> <code>modules.off</code> without dependents shows no card, and the core menu sends the <code>DeactivateModule</code> as <code>core</code>. So from any agent it isn't held to "control commands only from you".</li>
+</ul>
 <h3 id="how-the-agents-reach-the-menus-one-door">How the agents reach the menus: one door</h3>
-<blockquote>
-<p><strong>Status: built (2026-11-05)</strong> for both the Main Assistant and the Talker (chunks 8 and 9 of the module system change note, <code>docs/next-steps/module-system.md</code>). The Talker's SHOW tags stay a shorthand for opening a page, now through the <a href="#the-needs-arrows-point-one-way">page-opener slot</a> (<code>IPageOpener</code>), not the viewer's tools. The door is a small <strong>stdio relay</strong> that <code>claude</code> starts itself (<code>python -m assistant.infra.mcp_door</code>, from the session's <code>--mcp-config</code>); it passes each call over local HTTP, with a token, to a <code>DoorServer</code> the Agent Hub hosts, which sends <code>ListModules</code>, <code>GetMenu</code> or <code>InvokeTool</code> through the core. The Hub offers it as the <a href="../api/tools.html#imoduledoor"><code>IModuleDoor</code></a> contract. In Manual, <code>use_item</code> asks with the permission card; the two read-only tools don't.</p>
-</blockquote>
-<p>The agents are <code>claude</code> sessions, and MCP is how a <code>claude</code> session calls tools in the middle of a reply. So the app serves <strong>one MCP server, the door</strong>, in front of the core. It has three fixed tools that map onto the three steps above: <strong>list modules</strong>, <strong>show a menu</strong>, <strong>use an item</strong>. Everything behind it is our own wrapper: the core's directory, <code>InvokeTool</code>, and the permission check.</p>
-<pre><code class="language-mermaid">flowchart TB
-    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
-    Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&quot;]
-    Door[&quot;&lt;b&gt;One MCP door&lt;/b&gt;&lt;br/&gt;3 fixed tools: list modules · show a menu · use an item&quot;]
-    subgraph App[&quot;Our app: commands, events, contracts&quot;]
-        Core[&quot;&lt;b&gt;Core&lt;/b&gt;&lt;br/&gt;directory · InvokeTool · permission check&quot;]
-        Viewer[&quot;&lt;b&gt;HTML viewer&lt;/b&gt;&lt;br/&gt;menu&quot;]
-        Voice[&quot;&lt;b&gt;voice_in&lt;/b&gt;&quot;]
-        Notes[&quot;&lt;b&gt;Voice notes&lt;/b&gt;&quot;]
-        Unity[&quot;&lt;b&gt;Unity module&lt;/b&gt;&lt;br/&gt;menu · an MCP client inside&quot;]
-        Btn[&quot;&lt;b&gt;Mic button&lt;/b&gt;&lt;br/&gt;UI&quot;]
-    end
-    UnityMcp[&quot;Unity's own MCP server&quot;]
-
-    Talker --&gt; Door
-    Main --&gt; Door
-    Door --&gt; Core
-    Core --&gt; Viewer
-    Core --&gt; Voice
-    Core --&gt; Unity
-    Notes -- &quot;StartListening&quot; --&gt; Core
-    Btn -- &quot;StartListening&quot; --&gt; Core
-    Unity -. &quot;MCP&quot; .-&gt; UnityMcp
-
-    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
-    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class Door planned
-    class Unity,UnityMcp later
-</code></pre>
-<p>Purple: planned. Dashed grey: an example for later. Agents, other modules and UI buttons all reach a module the same way, through the core.</p>
+<p>The agents are <code>claude</code> sessions, and MCP is how a <code>claude</code> session calls tools in the middle of a reply. So the app serves <strong>one MCP server, the door</strong>, in front of the core. It has three fixed tools that map onto the three steps above: <strong>list modules</strong>, <strong>show a menu</strong>, <strong>use an item</strong>. Everything behind it is our own wrapper: the directory, the router, the gate and the permission check.</p>
+<ul>
+<li><strong>How a call travels:</strong> the door is a small <strong>stdio relay</strong> that <code>claude</code> starts itself (<code>python -m assistant.infra.mcp_door</code>, from the session's <code>--mcp-config</code>). It passes each call over local HTTP, with a token, to the <code>DoorServer</code> the core hosts (<code>core/door.py</code>, <code>[core.door]</code> in config). That server sends <code>ListModules</code>, <code>GetMenu</code> or <code>InvokeTool</code> through the router, with the caller the token proved. Agents and module code share one path: router, then gate. The core offers the door as the <a href="../api/tools.html#imoduledoor"><code>IModuleDoor</code></a> contract.</li>
+<li><strong>The door is the core's</strong> (<a href="decisions.html">decision D1</a>). It opens before any module starts, so every agent's first session has it, and reloading a module (the Hub too) doesn't touch it.</li>
+<li><strong>A module gets a config only for itself or its agents.</strong> Its <code>ctx.get_one(IModuleDoor)</code> is a door bound to its id: <code>mcp_config(caller)</code> answers only when <code>caller</code> is the module or an agent id it claimed in the core's Callers port. Anyone else gets a warning in the log and <code>{}</code>.</li>
+<li><strong>Menus aren't in the DI container.</strong> The core keeps them in its own table (<code>MenuTable</code>), so no module can call a menu as a plain <code>IToolProvider</code> and name its own caller. A module's own <code>InvokeTool</code> always has the module as its caller.</li>
+<li>Agents, other modules and UI buttons all reach a module the same way, through the core (<a href="core.html">how modules talk</a>).</li>
+</ul>
 <table>
 <thead>
 <tr>
@@ -126,7 +331,7 @@
 <td>Only the agent's own allow-list; buttons and modules unchecked</td>
 </tr>
 <tr>
-<td>Module to module (voice notes → voice)</td>
+<td>Module to module (job_search → cv)</td>
 <td>Kept</td>
 <td>No path between doors, or glue per pair</td>
 </tr>
@@ -146,158 +351,79 @@
 <p>Plain MCP here means an MCP server per module, each offering its tools to the agents directly. We chose one door for control. It wasn't because MCP can't change its tools: our test on Claude Code 2.1.318 showed that a running session follows tools added or removed when the server sends <code>list_changed</code>.</p>
 <ul>
 <li><strong>Per-module servers would go around the core.</strong> Each would face only the agent. It would skip the permission check, the module directory, the links between modules (<code>requires</code>, events), and hot swap in one process (handing over state, waiting while busy).</li>
-<li><strong>Callers that aren't agents need the same checks.</strong> The mic button, the viewer and other modules reach a module through commands, events and contracts. That's how voice notes uses <code>voice_in</code>. An MCP server would serve only the agents, so these callers would need a second path.</li>
-<li><strong>The agent's context stays small.</strong> The door has three fixed tools (list modules, show a menu, use an item), so it doesn't grow with every module that's on. They never change on a swap, so no <code>list_changed</code> notice is needed. In the test, a tool added without a notice was never seen, and a removed one stayed listed until a call failed.</li>
-<li><strong>MCP is still used.</strong> The door is an MCP server (<code>assistant.infra.mcp_door</code>). An outside tool that already speaks MCP, such as Resi or Unity, gets a thin module that is an MCP client of it. That module offers the tool's list as its own menu and refreshes the menu when the tool sends <code>list_changed</code>. Modules are never MCP servers themselves and never import MCP.</li>
+<li><strong>Callers that aren't agents need the same checks.</strong> The mic button, the viewer and other modules reach a module through commands, events and contracts. An MCP server would serve only the agents, so these callers would need a second path.</li>
+<li><strong>The agent's context stays small.</strong> The door has three fixed tools, so it doesn't grow with every module that's on. They never change on a swap, so no <code>list_changed</code> notice is needed. In the test, a tool added without a notice was never seen, and a removed one stayed listed until a call failed.</li>
+<li><strong>MCP is still used.</strong> The door is an MCP server (<code>assistant.infra.mcp_door</code>). An outside tool that already speaks MCP gets a module that is an MCP client of it and offers the tool's list on its own menu. cv does this for Rezi: its <code>rezi.*</code> items call Rezi's MCP server (<code>cv/mcp.py</code>). A module never serves MCP itself.</li>
 </ul>
-<p><strong>What plain MCP would replace:</strong> only the list, menu and call steps; the agent would see each tool directly. <strong>What it wouldn't:</strong> events, commands and contracts between modules; callers that aren't agents; hot swap inside the app; one permission check for every caller; the module directory; and the Agent Hub (focus, held questions, milestones).</p>
-<h2 id="chaining-modules">Chaining modules</h2>
-<blockquote>
-<p><strong>Status:</strong> events between modules are built (<code>voice_in</code> publishes <code>VoiceTranscript</code> and <code>VoiceState</code>; voice notes listens to them), and so is the voice contract <code>IVoice</code> (2026-11-05): <code>voice_in</code> provides it, voice notes requires it, and each caller opens and ends only its own session. One mic, so one session at a time; the second press wins.</p>
-</blockquote>
-<p>Modules are combined through what they declare, with no glue code between pairs:</p>
-<ul>
-<li><strong>Listen to events.</strong> A module uses another's output by subscribing to the events it announces. A voice-notes module listens to <code>VoiceTranscript</code>; it never imports <code>voice_in</code>.</li>
-<li><strong>Call commands or menu items.</strong> For an action with a result, through the core (<code>StartListening</code>, <code>InvokeTool</code>).</li>
-<li><strong>Share a service through sessions.</strong> A shared service runs once and serves several users. Each user starts a <strong>session</strong> and says where the result goes (its <strong>destination</strong>); the service keeps them apart by session id. Two copies of <code>voice_in</code> would fight over the one mic and load the speech engine twice.</li>
-<li><strong>Keep message shapes general.</strong> Reuse a shared event before adding a new type: a new type is a contract change and needs a restart. A module's own event is a <strong>named event</strong> instead (<a href="../api/messaging.html#moduleevent"><code>ModuleEvent</code></a>, built 2026-11-12): <code>ctx.publish_named("cv.job_finished", data)</code> under its own id, <code>ctx.subscribe_named("cv.job_finished", handler)</code> (or <code>cv.*</code>) on the other side, <code>ctx.unsubscribe(handle)</code> to drop one subscription at any time. No class, no restart, and either side reloads on its own (<a href="decisions.html#decided">decided</a>). <strong>Modules talk to each other through named events; a tool is only for a call out.</strong> Example: the job agent calls the <code>cv.task</code> tool to pass a job; cv publishes <code>cv.job_finished</code> when its worker ends and <code>cv.job_submitted</code> at the user's Submit; job_search subscribes and wakes its agent.</li>
-</ul>
-<pre><code class="language-mermaid">flowchart LR
-    Btn[&quot;&lt;b&gt;Mic button&lt;/b&gt;&lt;br/&gt;temp UI&quot;]
-    Rec[&quot;&lt;b&gt;Record button&lt;/b&gt;&lt;br/&gt;voice notes&quot;]
-    Video[&quot;&lt;b&gt;Video file&lt;/b&gt;&lt;br/&gt;transcription app&quot;]
-    Voice[&quot;&lt;b&gt;voice_in&lt;/b&gt;&lt;br/&gt;provides IVoice&quot;]
-    Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
-    Notes[&quot;&lt;b&gt;Voice notes&lt;/b&gt;&lt;br/&gt;requires IVoice&quot;]
-
-    Btn -- &quot;StartListening&lt;br/&gt;send to the Talker&quot; --&gt; Voice
-    Voice -- &quot;final text&quot; --&gt; Talker
-    Rec -- &quot;StartListening&lt;br/&gt;not to the Talker&quot; --&gt; Voice
-    Voice -- &quot;VoiceTranscript&lt;br/&gt;its sessions only&quot; --&gt; Notes
-    Rec -. &quot;planned: a session&lt;br/&gt;destination: notes&quot; .-&gt; Voice
-    Video -. &quot;file source&lt;br/&gt;(the service has one)&quot; .-&gt; Voice
-
-    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
-    class Video planned
-</code></pre>
-<p>Solid: built (the mic button's flow, and voice notes v1, which follows its own sessions by the <code>StartListening</code> id; see <a href="../modules/voice_notes/index.html">voice_notes</a>). Purple, dashed: planned. Today the voice service takes one listener at a time (a second <code>start</code> gets <code>busy</code>) and <code>StartListening</code> only chooses whether the Talker gets the text (<code>send_as_input</code>). The video case feeds a file instead of the mic; the service already has a file source and <code>transcribe_file</code> (<a href="../modules/voice_in/voice-service.html#a-shared-service">voice</a>).</p>
-<h2 id="dependencies">Dependencies</h2>
-<blockquote>
-<p><strong>Status:</strong> built, by contract, including the voice contract (2026-11-05).</p>
-</blockquote>
-<ul>
-<li><strong>A manifest requires contracts, never module ids</strong> (<a href="principles.html">principle 2</a>). The core starts the provider first: in dependency order at startup, and at runtime <code>ActivateModule</code> activates the sole provider first. It refuses to turn a provider off while an active module requires it (<a href="core.html#runtime-module-control">runtime module control</a>).</li>
-<li><strong><code>needs</code> lists module ids</strong> (built 2026-11-13, module folders item 2): the modules this one can't run without, written in its <code>module.toml</code> as <code>needs = []</code> (cv) or <code>needs = ["cv"]</code> (job_search, built 2026-11-13) and <code>needs = ["voice_in"]</code> (voice_notes, item 10: it keeps <code>requires IVoice</code> too). The core modules' <code>needs</code> are empty (item 11: agent_hub, talker, main_assistant, task_agents, console_io, temp_ui, usage, assistant_view; echo_orchestrator too): a core module may need only core modules, never an add-on, and each of these runs alone. Every module folder has a <code>module.toml</code>, which also holds the module's config defaults (cv, job_search, html_viewer, voice_in, voice_notes, agent_hub, talker, main_assistant, task_agents with its kinds of helper, console_io, temp_ui; usage, assistant_view and echo_orchestrator have none), and your <code>config/&lt;id&gt;.toml</code> (then <code>config/&lt;id&gt;.local.toml</code>, then <code>[modules.&lt;id&gt;]</code> in <code>config/local.toml</code>) only overrides them (<a href="core.html#configuration">configuration</a>). <code>config/default.toml</code> holds no module's defaults, only the core's settings; which modules are on is <code>config/modules.toml</code>. The core reads the key into <code>Manifest.needs</code> when it loads the module. Turning a module on turns on what it needs first (at startup too, even if <code>modules.enabled</code> doesn't list it); turning off a needed module is refused while a module that needs it is on, and the error names that module (<code>with_dependents</code> turns them off first); a needed id that doesn't exist is refused by name. The code still talks to the other module only through contracts, its menu and named events; <code>requires</code> is unchanged.</li>
-<li><strong><code>packages</code> lists its pip packages</strong> (built 2026-11-13): written in its <code>module.toml</code> as <code>packages = ["pymupdf&gt;=1.24", "pypdf&gt;=7", "mcp&gt;=2.3", "httpx2&gt;=2.10"]</code> (cv; its <code>tests/test_packages.py</code> checks every import is listed), read into <code>Manifest.packages</code> by the same reader as <code>needs</code> (<code>loader.apply_module_toml</code>). Nothing installs them yet: install them by hand with pip from that list. <code>pyproject.toml</code> holds the app's own packages and the <code>dev</code> extra; no module extra is left there (voice_in's packages are in its <code>module.toml</code>).</li>
-<li><strong>Its ruff rules are in its folder:</strong> a module's lint exceptions go in its own <code>ruff.toml</code> (cv: the CV Tool engine's per-file ignore), which starts with <code>extend = "&lt;path to the root pyproject.toml&gt;"</code>. Ruff uses the closest config file for each file, so the root settings (<code>src</code>, the rule selection, isort's first-party names) still apply inside the module folder, and only what the module's file adds is new.</li>
-<li><strong><code>optional</code></strong> contracts are used if some module provides them, and the module copes without them.</li>
-<li><strong>No module starts another itself.</strong> Turning on voice notes turns on voice, like a package listing its dependency, but the core does it.</li>
-<li><strong>Voice:</strong> <code>voice_in</code> provides the voice contract <a href="../api/messaging.html#ivoice"><code>IVoice</code></a>, and voice notes requires it: turning voice notes on turns <code>voice_in</code> on first, and <code>voice_in</code> can't be turned off while voice notes is on. Any other module that provides <code>IVoice</code> can replace <code>voice_in</code>.</li>
-</ul>
-<h3 id="the-needs-arrows-point-one-way">The needs arrows point one way</h3>
-<blockquote>
-<p><strong>Status: built (2026-11-13, module folders item 15).</strong> Tripwire: <code>test_no_core_code_names_an_add_on</code> in <code>tests/test_module_folders.py</code>.</p>
-</blockquote>
-<p>"Needs" arrows go add-on → core, or add-on → add-on, <strong>never core → add-on</strong>. No core module (the <code>core</code> group in each module's <code>docs/docs.toml</code>), and no code in the core, <code>contracts</code>, <code>infra</code> or <code>app_kit</code>, names an add-on's id or its menu items. When the core group wants something an add-on does, it asks for a <strong>slot</strong>: a contract in <code>assistant.contracts</code> that an add-on fills ("plugs in"), looked up at each call (<code>uses</code>, no start order). With nothing plugged in, the caller says so plainly.</p>
-<ul>
-<li><strong>Opening a page:</strong> the Talker's and the workers' SHOW tags and temp_ui's Open in viewer button go through <a href="../api/modules.html#ipageopener"><code>IPageOpener</code></a>, with <a href="../api/infra.html#show_page"><code>open_page</code> / <code>show_page</code></a>. <code>html_viewer</code> fills it while it's on; none on: "No page viewer is on". They used to send <code>InvokeTool viewer.open</code> / <code>viewer.highlight</code>, naming the viewer's tools.</li>
-<li><strong>Start on use stays, by contract:</strong> with no provider on, <code>open_page</code> sends <a href="../api/control.html#startprovider"><code>StartProvider</code></a><code>("IPageOpener")</code>, and the core turns on the module that declares it in <code>manifest.provides</code> and has <code>start_on_use = true</code> in its config. No module is named anywhere on the way.</li>
-<li><strong>Hearing an add-on's named events by name is allowed</strong> (module folders decision 9, <a href="#chaining-modules">chaining modules</a>): the Talker and temp_ui listen to <code>html_viewer.tabs_changed</code> / <code>html_viewer.clip</code> by name, with no import, and nothing breaks when nobody publishes them.</li>
-</ul>
-<h2 id="hot-swap">Hot swap</h2>
-<blockquote>
-<p><strong>Status:</strong> built (2026-11-03).</p>
-</blockquote>
-<p>A module's code is swapped while the app runs: <code>ReloadModule</code> stops it, imports its package fresh, and starts a new instance; if the new code fails, the old code runs again. <code>AddModule</code> loads a brand-new module. Changes to the core, contracts, <code>infra</code>, <code>app_kit</code>, or <code>__main__</code>, and a new contract, still need a restart. Details: <a href="core.html#reloading-a-modules-code">reloading a module's code</a>.</p>
+<p><strong>What plain MCP would replace:</strong> only the list, menu and call steps; the agent would see each tool directly. <strong>What it wouldn't:</strong> events, commands and contracts between modules; callers that aren't agents; hot swap inside the app; one permission check for every caller; the module directory; and the Agent Hub's coordination (task board, focus, held questions, message delivery).</p>
 <h2 id="found-by-folder">Found by folder</h2>
-<blockquote>
-<p><strong>Status: built (2026-11-05).</strong> <code>find_modules()</code> in <code>core/loader.py</code>; <code>__main__.py</code> names no module.</p>
-</blockquote>
 <ul>
 <li><strong>A module is its folder:</strong> <code>src/assistant/modules/&lt;id&gt;/</code>, with the folder name equal to the manifest id. Its <code>__init__.py</code> exports exactly one <code>ModuleProtocol</code> class.</li>
-<li><strong>The core scans the folder</strong> at launch to know which modules are available; <code>modules.enabled</code> still says which start. It reuses the reload's loader (<code>core/loader.py</code>). Folders starting with <code>_</code> are ignored.</li>
-<li><strong>A bad folder is skipped and logged</strong> (it fails to import, exports no module class or two, or its id isn't the folder's name); the other modules still load. If it was in <code>modules.enabled</code>, startup then fails with "Enabled modules not found".</li>
-<li><strong>Adding a module is adding a folder,</strong> then <code>AddModule("assistant.modules.&lt;id&gt;")</code> while the app runs (which refuses a folder named differently from its id), or a restart.</li>
+<li><strong>The core scans the folders once, at launch</strong> (<code>find_modules()</code> in <code>core/loader.py</code>; <code>__main__.py</code> names no module) to know which modules are available. <code>config/modules.toml</code> says which start. Folders starting with <code>_</code> are ignored.</li>
+<li><strong>A bad folder is skipped and logged:</strong> one that fails to import, exports no module class or two, or has an id that isn't the folder's name. The other modules still load. If it was on the on-list, startup then fails with "Enabled modules not found".</li>
+<li><strong>Adding a module is adding a folder,</strong> then <code>modules.add</code> with <code>assistant.modules.&lt;id&gt;</code> while the app runs, or a restart. <code>modules.add</code> refuses a folder named differently from its id, a package that is already loaded ("use ReloadModule"), and an id that already exists.</li>
 </ul>
-<h2 id="built-and-planned">Built and planned</h2>
-<table>
-<thead>
-<tr>
-<th>Item</th>
-<th>State</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Wrapper: manifest (id, contracts, permissions), lifecycle, context</td>
-<td>Built</td>
-</tr>
-<tr>
-<td>Menus: a <code>Menu</code> part on the module, linked by the core, called with <code>InvokeTool</code></td>
-<td>Built (2026-11-05; the HTML viewer, the echo stand-in)</td>
-</tr>
-<tr>
-<td><code>requires</code> / <code>optional</code> by contract, dependency order, refusal to stop a needed provider</td>
-<td>Built</td>
-</tr>
-<tr>
-<td><code>needs</code> by module id, from <code>module.toml</code>: turned on first, refused off while needed</td>
-<td>Built (2026-11-13)</td>
-</tr>
-<tr>
-<td>Needs arrows one way: no core code names an add-on; slots (<code>IPageOpener</code>) and <code>StartProvider</code> instead</td>
-<td>Built (2026-11-13, module folders item 15)</td>
-</tr>
-<tr>
-<td><code>packages</code> in <code>module.toml</code> (listed, not installed) and a module's own <code>ruff.toml</code></td>
-<td>Built (2026-11-13)</td>
-</tr>
-<tr>
-<td>Reload and add while running</td>
-<td>Built (2026-11-03)</td>
-</tr>
-<tr>
-<td>Events from one module heard by another (<code>VoiceTranscript</code>, <code>VoiceState</code>)</td>
-<td>Built</td>
-</tr>
-<tr>
-<td><code>ModuleProtocol</code>: the one interface, <code>Module</code> renamed</td>
-<td>Built (2026-11-05)</td>
-</tr>
-<tr>
-<td>Manifest description, commands (<code>handles</code>, <code>sends</code>) and events (<code>publishes</code>, <code>listens</code>)</td>
-<td>Built (2026-11-05); the core refuses a handled command the manifest doesn't list</td>
-</tr>
-<tr>
-<td><code>ctx.logs</code> port</td>
-<td>Built (2026-11-05)</td>
-</tr>
-<tr>
-<td>Directory and menu asks (<code>ListModules</code> with descriptions, <code>GetMenu</code>, the core's <code>modules.*</code> menu)</td>
-<td>Built (2026-11-05)</td>
-</tr>
-<tr>
-<td>Both assistants using them through one MCP door</td>
-<td>Built (2026-11-05): <code>IModuleDoor</code>, the stdio relay; the Main Assistant and the Talker get it in each session</td>
-</tr>
-<tr>
-<td>Finding modules by folder</td>
-<td>Built (2026-11-05)</td>
-</tr>
-<tr>
-<td>Voice contract; voice sessions with a destination</td>
-<td>Built (2026-11-05): <code>IVoice</code>, one mic, each caller owns its session; parallel sessions would need the voice service to take several listeners</td>
-</tr>
-<tr>
-<td>Voice-notes module</td>
-<td>Built (v1 2026-11-04; requires <code>IVoice</code> 2026-11-05)</td>
-</tr>
-<tr>
-<td>A page per module and the <a href="module-library.html">module library</a></td>
-<td>Built; the library's table is generated from the manifests and menus (2026-11-05), the module pages are hand-written</td>
-</tr>
-</tbody>
-</table>
+<h3 id="module-folders-outside-the-repo">Module folders outside the repo</h3>
+<p><code>[core] module_folders</code> (in <code>config/local.toml</code>) names more folders that hold module folders, outside the repo, such as <code>["C:/AddOns"]</code> with <code>cv/</code> inside. It is empty by default.</p>
+<p><a href="img/module-folders-outside.svg"><img alt="Add-ons kept in a folder outside the repo: the loader finds them in C:/AddOns as well as the repo, and they reach the core through the same door, gate, Callers, router, bus and permissions handler; the red marks are the known gaps" src="img/module-folders-outside.svg" /></a></p>
+<p>The legend is the same as in the picture above. Arrows 1 to 13 and the ≠ marks are those of the <a href="core.html">inside of the core</a>. Red marks are the known gaps below.</p>
+<ul>
+<li><strong>Found the same way.</strong> At launch the loader appends each folder to <code>assistant.modules.__path__</code>, after the repo's, so a module there keeps the import name <code>assistant.modules.&lt;id&gt;</code>. <code>loader.find_modules</code> then takes every sub-folder with the same id check. The <code>LifecycleManager</code> keeps every class, on or off, and starts one with <code>init</code>, <code>link_menu</code> and <code>start</code> (A1, A9).</li>
+<li><strong>Reached the same way.</strong> An add-on in an outside folder gets its tool calls through the same door and gate, and its cards through the same permissions handler. It uses the same Callers, router and bus, and its agent's folder grants go on the core's own access card. There is no separate path.</li>
+<li><strong>Absolute paths only.</strong> A path relative to the current folder is refused, because the core may run on a server where the current folder means nothing.</li>
+<li><strong>An id in two folders stops the startup</strong> (<code>LoadError</code>): a module is never shadowed by another copy.</li>
+<li><strong>The core group stays in the repo.</strong> A module outside the repo must be an add-on.</li>
+<li><strong>Folders are read at launch.</strong> A module added later with <code>modules.add</code> must already sit in a folder named at launch.</li>
+</ul>
+<p><strong>Known gaps:</strong></p>
+<ul>
+<li><strong>!1 "You" is trusted by module id, not by folder</strong> (<code>core/callers.py</code>, <code>[core.permissions] you</code>). A module in an outside folder named like a core module (<code>temp_ui</code>, say) would get your rights. The loader doesn't refuse it. Only <code>tests/test_boundaries.py</code> (<code>outside_core</code>) catches it, and only when pytest runs.</li>
+<li><strong>!2 job_search reads cv's output by file path, not through a tool.</strong> The job project's <code>cv_output</code> link in its paths file points into cv's workspace, past the door, so wherever cv's workspace sits, the link has to point there (<a href="../modules/job_search/index.html">job_search</a>).</li>
+<li><strong>!3 The "found in two folders" check runs only at startup</strong> (<code>loader.add_module_folders</code>). A module added later with <code>modules.add</code> isn't checked.</li>
+<li><strong>!4 The <code>modules.add</code> card doesn't show which folder the code comes from.</strong> It shows the item and its arguments only.</li>
+<li><strong>!5 The CLAUDE.md exclude list covers only the repo's files.</strong> An agent working under an outside folder may load a CLAUDE.md from a parent folder there (<a href="agents.html">agents</a>).</li>
+</ul>
+<h2 id="turning-modules-on-and-off">Turning modules on and off</h2>
+<ul>
+<li><strong>On:</strong> <code>modules.on</code> (<code>ActivateModule</code>) turns on what the module requires and needs first (<a href="#dependencies">dependencies</a>), then runs <code>init</code>, <code>link_menu</code> and <code>start</code>. A module with an access list asks its card at start (in Manual).</li>
+<li><strong>Start on use:</strong> a tool call to an off module, or a <code>StartProvider</code> for a contract, turns that module on by itself only if its config says <code>start_on_use = true</code> (html_viewer). Otherwise the call answers "The <id> module isn't on…", and the agent asks you before it uses <code>modules.on</code>. <strong>Good to know:</strong> the gate starts an off <code>start_on_use</code> module before it checks the caller, so a caller who may not use the item can still switch the module on.</li>
+<li><strong>Off:</strong> <code>modules.off</code> (<code>DeactivateModule</code>) is never refused. The modules that need or require it stay on and cope without it, and the reply names them. <code>with_dependents</code> turns them off first, after your yes on a card.</li>
+<li><strong>Add:</strong> <code>modules.add</code> (<code>AddModule</code>) loads a module that wasn't there at launch, imports it fresh and turns it on (unless <code>activate</code> is false). It asks first, even in Auto, because it runs new code.</li>
+<li><strong>Remove:</strong> <code>modules.remove</code> (<code>RemoveModule</code>) takes a module out of this run, after your yes on a card. It is never refused: the modules that need it stay on, and the reply names them. <code>settings</code> is <code>keep</code> (delete nothing) or <code>purge</code> (delete only <code>config/&lt;id&gt;.toml</code> and <code>config/&lt;id&gt;.local.toml</code>). It never deletes the module's folder and never edits <code>config/modules.toml</code>. The reply says what is left to you. <code>modules.add</code> brings it back.</li>
+<li><strong>Reload:</strong> <a href="#hot-swap">hot swap</a>.</li>
+</ul>
+<p>The core-side detail (the lifecycle manager, the order at startup and shutdown) is on <a href="core.html#lifecycle">core</a>.</p>
+<h2 id="dependencies">Dependencies</h2>
+<ul>
+<li><strong><code>requires</code> lists contracts, never module ids</strong> (<a href="principles.html">principle 2</a>). The core starts the provider first: in dependency order at startup, and at runtime <code>ActivateModule</code> activates the sole provider first. With two possible providers, it refuses and asks you to turn one on. Turning a provider off is never refused.</li>
+<li><strong><code>needs</code> lists module ids</strong> in <code>module.toml</code>: the modules this one can't run without. Only voice_notes has one (<code>needs = ["voice_in"]</code>, next to <code>requires IVoice</code>). Every other module has <code>needs = []</code>. A module that works on its own and only chains to another for one step doesn't list it (job_search and cv, below).</li>
+<li><strong><code>needs</code> is start order only.</strong> Turning a module on turns on what it needs first, at startup too, even if the on-list doesn't name it. A needed module that fails doesn't stop it. Turning off or removing a needed module leaves the modules that need it on.</li>
+<li>A needed id that doesn't exist is refused by name (at startup a <code>StartupError</code>, at runtime <code>not_available</code>). A cycle is refused.</li>
+<li>A core module may need only core modules (rule 3). All the core modules' <code>needs</code> are empty, so each runs alone.</li>
+<li><strong>Why both <code>needs</code> and <code>requires</code>:</strong> <code>requires</code> is about code (which contract it calls), and <code>needs</code> is about running (which module must come up first). The code still talks to the other module only through contracts, its menu and named events.</li>
+<li><strong><code>optional</code></strong> contracts are used if some module provides them, and the module copes without them. <strong><code>uses</code></strong> contracts are looked up at each call with no start order (the slots above).</li>
+<li><strong><code>packages</code> lists its pip packages</strong> in <code>module.toml</code> (cv: <code>pymupdf</code>, <code>pypdf</code>, <code>mcp</code>, <code>httpx2</code>; voice_in: the voice service's). The core reads them into <code>Manifest.packages</code>, but nothing installs them: install them by hand with pip from that list. <code>pyproject.toml</code> holds only the app's own packages and the <code>dev</code> extra. cv's <code>tests/test_packages.py</code> checks that every import is listed.</li>
+<li><strong>On-demand chaining</strong> (<a href="decisions.html">decisions</a>): a module may turn on the add-on it chains to at the moment it needs it, with <a href="../api/control.html#activatemodule"><code>ActivateModule</code></a>. The core still asks that module's access card (in Manual), and the reply comes back as the other module's named events. Example: job_search's <code>job.tailor_cv</code> turns cv on at the CV step, sends <code>cv.task</code> for its agent (allowed by cv's <code>[hand_off] modules</code>), and hears <code>cv.job_finished</code>. If cv can't come on, job_search tells its agent, which asks you whether to use the base PDF untailored. Why not <code>needs</code>: job_search works without cv for everything else.</li>
+<li><strong>Voice:</strong> <code>voice_in</code> provides the voice contract <a href="../api/messaging.html#ivoice"><code>IVoice</code></a>, and voice notes requires it. Turning voice notes on turns <code>voice_in</code> on first. <code>voice_in</code> can still be turned off: voice notes stays on and says "voice input is off" at Record. Any other module that provides <code>IVoice</code> can replace <code>voice_in</code>.</li>
+</ul>
+<h2 id="chaining-modules">Chaining modules</h2>
+<p>Modules are combined through what they declare, with no glue code between pairs. The three ways (a tool call, a command and an event), each through the core, are drawn on <a href="core.html">core</a> (how modules talk).</p>
+<ul>
+<li><strong>Listen to events.</strong> A module uses another's output by subscribing to the events it announces. voice notes listens to <code>VoiceTranscript</code>; it never imports <code>voice_in</code>.</li>
+<li><strong>Call commands or menu items.</strong> For an action with a result, through the core (<code>InvokeTool</code>, <code>DeliverMessage</code>).</li>
+<li><strong>Call a contract.</strong> For a shared service: voice notes calls <code>IVoice.listen(session_id, VoiceDestination.CALLER)</code> with an id it made, so the words go only to its page, never to the Talker, and it follows only its own sessions. Contract calls are direct, not gated.</li>
+<li><strong>Share a service through sessions, not copies.</strong> A shared service runs once and serves several users. Each user starts a <strong>session</strong> and says where the result goes (its <strong>destination</strong>), and the service keeps them apart by session id. Why: two copies of <code>voice_in</code> would fight over the one mic and load the speech engine twice. There is one mic, so the voice service takes one session at a time. The temp UI's mic button uses <code>StartListening</code>, whose <code>send_as_input</code> says whether the Talker gets the text (<a href="../modules/voice_in/voice-service.html#a-shared-service">voice</a>).</li>
+<li><strong>Keep message shapes general.</strong> Reuse a shared event before adding a new type, because a new type is a contract change and needs a restart. A module's own event is a <strong>named event</strong> instead (<a href="../api/messaging.html#moduleevent"><code>ModuleEvent</code></a>): <code>ctx.publish_named("cv.job_finished", data)</code> under its own id, and <code>ctx.subscribe_named("cv.job_finished", handler)</code> (or <code>cv.*</code>) on the other side. <code>ctx.unsubscribe(handle)</code> drops one subscription at any time. There is no class and no restart, and either side reloads on its own (<a href="decisions.html">decided</a>). <strong>Modules talk to each other through named events; a tool is only for a call out.</strong> Example: the job agent calls <code>job.tailor_cv</code>. The job module turns cv on at that moment and sends <code>cv.task</code> for its agent. cv publishes <code>cv.job_finished</code> when its worker ends and <code>cv.job_submitted</code> at your Submit, and job_search subscribes and wakes its agent.</li>
+</ul>
+<h2 id="hot-swap">Hot swap</h2>
+<p>A module's code is swapped while the app runs. <code>modules.reload</code> (<code>ReloadModule</code>) waits until the module isn't <code>busy()</code> (or cuts in with <code>now</code>), stops it, imports its package fresh, and starts a new instance with what the old one's <code>export_state</code> handed over. If the new code fails, the old code runs again. <code>modules.add</code> loads a module that wasn't there at launch.</p>
+<p>Changes to the shared code (<code>assistant.core</code>, <code>contracts</code>, <code>infra</code>, <code>testkit</code>, <code>app_kit</code>) or <code>__main__</code>, and a new contract, still need a restart, because every module holds the same classes from them. Details: <a href="core.html#reloading-a-modules-code">reloading a module's code</a>.</p>
+<h2 id="not-built-yet">Not built yet</h2>
+<ul>
+<li><strong>Installing a module's <code>packages</code>:</strong> they're listed, not installed; install them by hand with pip.</li>
+<li><strong>Parallel voice sessions:</strong> the voice service takes one listener at a time.</li>
+<li><strong>Generated data types:</strong> the <a href="module-library.html">module library</a>'s data types table is still hand-written.</li>
+</ul>
 <footer>Generated from <code>docs/architecture/modules.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

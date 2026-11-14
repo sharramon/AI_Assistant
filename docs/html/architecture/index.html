@@ -14,123 +14,42 @@
 <h1 id="architecture">Architecture</h1>
 <p>The whole project at a glance. Each part links to its own page; the public interface is in the <a href="../api/index.html">API reference</a>.</p>
 <h2 id="birds-eye-view">Bird's-eye view</h2>
-<p>Each block is one part, named with what it does. The core sits in the middle with its ports: every module plugs into the same ones, and every arrow between parts travels through them. Each module is a wrapper with a menu of what it can do (<a href="modules.html">modules</a>).</p>
-<pre><code class="language-mermaid">flowchart LR
-    You([&quot;&lt;b&gt;You&lt;/b&gt;&lt;br/&gt;speak · type · listen&quot;])
-    Term[&quot;&lt;b&gt;Terminals · temp UI&lt;/b&gt;&lt;br/&gt;talk · watch the assistant&quot;]
-    Window[&quot;&lt;b&gt;Chat window&lt;/b&gt;&lt;br/&gt;nicer UI for the same&quot;]
-    Quest[&quot;&lt;b&gt;Quest 3 / glasses&lt;/b&gt;&lt;br/&gt;remote screen + mic&quot;]
-    VoiceOut[&quot;&lt;b&gt;Voice out&lt;/b&gt;&lt;br/&gt;text → speech&quot;]
-
-    subgraph Hub[&quot;Agent Hub: coordinates the agents · focus · !&quot;]
-        subgraph MainTab[&quot;Main tab&quot;]
-            Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;talks with you&quot;]
-            Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;does the work · coordinates&quot;]
-            Talker -- &quot;hub.* menu: work · questions&quot; --&gt; Main
-            Main -- progress · clarifications --&gt; Talker
-        end
-        subgraph HelperTab[&quot;Helper tab: one per agent&quot;]
-            HTalker[&quot;&lt;b&gt;Its own Talker&lt;/b&gt;&lt;br/&gt;its own chat&quot;]
-            Helper[&quot;&lt;b&gt;Helper&lt;/b&gt;&lt;br/&gt;job agent · helpers&quot;]
-            HTalker -- work · questions --&gt; Helper
-            Helper -- progress · clarifications --&gt; HTalker
-        end
-        Subs[&quot;&lt;b&gt;Subagents&lt;/b&gt;&lt;br/&gt;specialized work&quot;]
-        Main -. &quot;hub.start · hub.send&quot; .-&gt; Helper
-        Helper -. STATUS .-&gt; Main
-        Main -. delegates .-&gt; Subs
-    end
-
-    subgraph Core[&quot;Core: the ports every module plugs into&quot;]
-        Life[&quot;&lt;b&gt;Lifecycle&lt;/b&gt;&lt;br/&gt;start · stop · reload&lt;br/&gt;find by folder&quot;]
-        Cmds[&quot;&lt;b&gt;Commands&lt;/b&gt;&lt;br/&gt;one handler · a Result&quot;]
-        Events[&quot;&lt;b&gt;Events&lt;/b&gt;&lt;br/&gt;any number of listeners&quot;]
-        Contracts[&quot;&lt;b&gt;Contracts&lt;/b&gt;&lt;br/&gt;shared interfaces · requires&quot;]
-        Dir[&quot;&lt;b&gt;Directory&lt;/b&gt;&lt;br/&gt;one line per module → its menu&quot;]
-        Perms[&quot;&lt;b&gt;Permissions&lt;/b&gt;&lt;br/&gt;who may use what · always on&quot;]
-    end
-
-    subgraph Mods[&quot;Modules: each a wrapper with a menu&quot;]
-        VoiceIn[&quot;&lt;b&gt;Voice in&lt;/b&gt;&lt;br/&gt;thin: speech → text&quot;]
-        Viewer[&quot;&lt;b&gt;HTML viewer&lt;/b&gt;&lt;br/&gt;thin · menu: open · highlight · tabs&quot;]
-        Notes[&quot;&lt;b&gt;Voice notes&lt;/b&gt;&lt;br/&gt;requires the voice contract&quot;]
-        Control[&quot;&lt;b&gt;Control panel&lt;/b&gt;&lt;br/&gt;turn modules on / off&quot;]
-        Features[&quot;&lt;b&gt;Features&lt;/b&gt;&lt;br/&gt;usage · cv · job_search · task_agents&lt;br/&gt;more later&quot;]
-    end
-
-    subgraph Apps[&quot;Independent apps: own process, through CompanionApp&quot;]
-        VoiceSvc[&quot;&lt;b&gt;Voice service&lt;/b&gt;&lt;br/&gt;mic · speech engines&quot;]
-        ViewerApp[&quot;&lt;b&gt;HTML viewer app&lt;/b&gt;&lt;br/&gt;tabs · edit · snip&quot;]
-    end
-
-    You -- speak --&gt; VoiceSvc
-    VoiceSvc -- &quot;live · final text&quot; --&gt; VoiceIn
-    VoiceIn -- &quot;launches (CompanionApp)&quot; --&gt; VoiceSvc
-    Viewer -- &quot;launches · calls (CompanionApp)&quot; --&gt; ViewerApp
-    You -- type --&gt; Term
-    VoiceIn -- &quot;text (to the tab you're in)&quot; --&gt; Talker
-    Term -- &quot;text (to the tab you're in)&quot; --&gt; Talker
-    Term -. &quot;a helper's tab&quot; .-&gt; HTalker
-    Talker -- conversation --&gt; Term
-    Main -- activity --&gt; Term
-    Talker -- reply --&gt; VoiceOut
-    VoiceOut -- audio --&gt; You
-    Window -. later .-&gt; Talker
-    Quest -. later .-&gt; Talker
-    Talker -- &quot;1 list · 2 menu (MCP door)&quot; --&gt; Dir
-    Main -- &quot;1 list · 2 menu (MCP door)&quot; --&gt; Dir
-    Talker -- &quot;3 call (InvokeTool)&quot; --&gt; Cmds
-    Main -- &quot;3 call (InvokeTool)&quot; --&gt; Cmds
-    Cmds -- &quot;open a page&quot; --&gt; Viewer
-    VoiceIn -- VoiceTranscript --&gt; Events
-    Events -- listens --&gt; Notes
-    Notes -- &quot;requires IVoice&quot; --&gt; Contracts
-    Main -- &quot;may I?&quot; --&gt; Perms
-    Perms -- &quot;allow? (card · voice)&quot; --&gt; Talker
-    You -. on / off .-&gt; Control
-    Control -. &quot;on · off · reload&quot; .-&gt; Life
-    Life -- &quot;starts what requires needs&quot; --&gt; Mods
-
-    classDef planned fill:#efeaf7,stroke:#6b4fa0,color:#1d1d1b
-    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
-    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    classDef port fill:#ffffff,stroke:#6b4fa0,color:#1d1d1b
-    classDef module fill:#dbe9f4,stroke:#2f6f9f,color:#1d1d1b
-    classDef app fill:#e3f1e6,stroke:#3d7f4f,color:#1d1d1b
-    class Life,Cmds,Events,Contracts,Dir,Perms port
-    class VoiceIn,Viewer,Notes,Features module
-    class VoiceSvc,ViewerApp app
-    class VoiceOut planned
-    class You person
-    class Window,Quest,Subs,Control later
-</code></pre>
-<p><strong>Built today:</strong> a single app: the core, terminal 1 (talk), the Talker, the Main Assistant, the Agent Hub, and a <a href="../agents/runtime.html#temp-ui">temp UI</a> (a web page with both, a stand-in for the chat window until a UI handler is designed). <strong>Agent tabs:</strong> every agent tab is a pair, its own Talker and its own worker with its own chat (built 2026-11-05). <strong>Voice in:</strong> the <a href="../modules/voice_in/voice-service.html">voice service</a> and its thin <code>voice_in</code> module are built and on; the temp UI's mic button turns the mic on and off. <strong>Terminals:</strong> one to talk in, one view-only window showing what the Main Assistant is doing; the chat window later gives the same with nicer UX. <strong>Permissions:</strong> every part asks one <a href="permissions.html">permissions handler</a> before using location, the mic, files, or accounts; it asks you when it has no answer. It's part of the core and always on. Its first piece is built: a task agent's access list is asked on one card when its module is turned on, and the grant is saved per kind of agent. Single names (the mic) are still allowed and logged, and the Main Assistant still asks through the Agent Hub. <strong>Modules:</strong> each is a wrapper (manifest, start / stop / reload, context) with a menu of tools inside (a <code>Menu</code> part); built, with the HTML viewer's and the echo stand-in's menus so far, and the <a href="module-library.html">module library</a> generated from them. Voice notes is built and off at launch (like the HTML viewer, turned on with <code>modules.on</code>); it requires the voice contract (<code>IVoice</code>), which <code>voice_in</code> provides (<a href="../modules/voice_notes/index.html">voice_notes</a>). The directory is built in the core (one line per module, then its menu, plus the core's own <code>modules.*</code> menu), and the core finds modules by folder. The Main Assistant and the Talker use the directory through one MCP door (list · menu · call, hosted by the Agent Hub) (<a href="modules.html">modules</a>). Each module has its own page; the <a href="module-library.html">module library</a> lists them all with their interfaces. <strong>White in the core:</strong> its ports, and the permissions handler. <strong>Blue:</strong> a module. <strong>Green:</strong> an independent app, in its own process, launched by its thin module through <code>CompanionApp</code>; it refuses other hosts and other origins. <strong>Purple:</strong> planned next. <strong>Dashed:</strong> later. The <a href="agents.html">Agent Hub</a> is a module, not part of the core.</p>
-<h2 id="the-core-idea-agents-and-modules">The core idea: agents and modules</h2>
-<p>Messages go through the Agent Hub; tools go through the module door. You talk to the agent with the focus, other agents' questions wait behind a <strong>!</strong> on their tab, and every agent sends one-line milestones to the Main Assistant. More in <a href="agents.html#big-agents-and-their-modules">Agents: big agents and their modules</a>.</p>
-<p><a href="img/agents-switchboard.svg"><img alt="The Agent Hub as a switchboard: messages through the Hub, tools through the module door" src="img/agents-switchboard.svg" /></a></p>
+<p><a href="img/core-line-rules.svg"><img alt="The core line: the core box, add-ons that talk only through tools, events and contracts, and arrows that point one way" src="img/core-line-rules.svg" /></a></p>
+<p>The numbers are the three rules of the core line:</p>
+<ol>
+<li><strong>The core</strong> is what the app can't start without: the host, the core modules, the one module door with its gate, and the seven ports. It names no add-on.</li>
+<li><strong>Add-ons talk only through tools, events and contracts</strong>, never by importing each other's code.</li>
+<li><strong>Arrows point one way:</strong> an add-on may need the core or another add-on; the core never names an add-on.</li>
+</ol>
 <h2 id="summary">Summary</h2>
-<p>A highly modular personal AI assistant that serves as a long-term experimental platform. A small, stable core hosts an ever-changing set of independent modules (inputs, outputs, views, tools, background workers, and the AI orchestration itself) that can be added, replaced, or discarded with minimal changes elsewhere.</p>
-<p>The agents reach every module through one MCP door with three fixed tools, not an MCP server per module. That keeps every caller behind the core's checks and the agents' context small (<a href="modules.html#why-not-plain-mcp">why not plain MCP?</a>).</p>
-<p>The style is a <strong>modular monolith</strong> using <strong>ports &amp; adapters</strong>, <strong>dependency injection</strong>, and <strong>event-driven communication</strong>. The modules run in one process. Changing a module's code needs no restart: the module is reloaded in place (turned off, given its new code, turned on), and a brand-new module is added the same way (<a href="core.html#reloading-a-modules-code">reloading</a>). Changes to the core, contracts or shared helpers, and a new module that needs a new contract or port type, still need a restart. Turning modules on and off also happens while the app runs (<a href="core.html#runtime-module-control">runtime module control</a>: built in the core; a control panel and asking the Talker come later). <strong>Independent deployment is, for parts that are useful on their own:</strong> such a part is its own app that the main app launches and talks to through two-way hooks, via a thin module (<a href="decisions.html#decided">decisions</a>). The <a href="../modules/html_viewer/viewer-app.html">HTML viewer</a> is the first.</p>
-<p>The core runs on a PC today and will later move to a server, so it must not assume a local desktop: configuration, secrets, and data paths come from config files and environment variables, and user-facing interfaces are modules or remote clients. Headsets (Quest 3) and smartglasses are <a href="remote-clients.html">remote clients</a> that connect over the network.</p>
-<h2 id="currently-fixing">Currently fixing</h2>
-<p>Making modules truly self-contained: each module's code, companion app, defaults, tests, docs, dependency list and its agent's workspace live in its own <code>modules/&lt;id&gt;</code> folder. Beside them sit a core group (the host and the core modules), <code>config/</code> (your choices only) and <code>generated/</code>. Dependencies are declared per module, and removing a module asks whether to purge its settings or keep them. The plan: <a href="../../html-next-steps/module-folders.html">module folders</a>. Progress: <strong>20 of 20 done</strong> (2026-11-13), item by item in the checklist <code>docs/next-steps/module-folders-checklist.md</code>, each checked against the code. <strong>Waiting for an app restart and its hand checks</strong> (the morning report at the top of the checklist).</p>
+<p>A modular personal AI assistant, built as a long-term experimental platform. A small, stable core hosts a changing set of independent modules (inputs, outputs, views, tools, background workers and the AI agents themselves), which can be added, replaced or dropped with little change elsewhere.</p>
+<ul>
+<li><strong>The core</strong> is the host (<code>src/assistant/core/</code>), the core modules (each module's <code>docs/docs.toml</code> says <code>group = "core"</code>), the one module door with its one gate (<code>dispatch_tool</code>), and seven ports: lifecycle, commands, events, contracts, the directory, permissions and callers (<a href="core.html">core</a>).</li>
+<li><strong>Add-ons</strong> are every other module, one folder each: in the repo's <code>src/assistant/modules/&lt;id&gt;/</code>, or in a folder outside the repo named in <code>[core] module_folders</code> (<a href="modules.html">modules</a>).</li>
+<li><strong>The agents.</strong> The Talker talks with you, the Main Assistant does the work and coordinates, and helpers and module agents do jobs. They reach every module through one MCP door with three tools (list modules, show a menu, use an item), so each module costs them one line until they open its menu (<a href="agents.html">agents</a>). The Agent Hub is a core module that does coordination only: focus, tasks, held questions and messages. The door, the agent names and each agent's permission mode belong to the core (its Callers port).</li>
+<li><strong>The style</strong> is a modular monolith with ports and adapters: the modules run in one process, and a module's code is reloaded in place without a restart. A part that is useful on its own (the HTML viewer, the voice service, the CV Tool) runs as its own app, launched by its thin module through <code>CompanionApp</code> (<a href="decisions.html#decided">decisions</a>).</li>
+<li><strong>Where it runs:</strong> a PC today, a server later, so the core assumes no desktop. Config, secrets and data paths come from config files and environment variables; user-facing interfaces are modules or <a href="remote-clients.html">remote clients</a>.</li>
+</ul>
+<h2 id="restructuring">Restructuring</h2>
+<p>The core and hub restructuring: <a href="../../html-next-steps/core-and-hub-definition.html">the note</a> (<code>core-and-hub-definition.md</code>).</p>
 <h2 id="pages">Pages</h2>
 <ul>
+<li><a href="short-overview.html">Short overview</a>: the one page the repo's CLAUDE.md loads</li>
 <li><a href="principles.html">Principles</a>: the rules behind every decision</li>
-<li><a href="reusable-parts.html">Reusable parts</a>: build it once; where shared parts live</li>
-<li><a href="code-map.html">Code map</a>: every package and its main classes, with who calls whom</li>
-<li><a href="core.html">Core</a>: the host, lifecycle, and how modules are added or swapped</li>
-<li><a href="modules.html">Modules</a>: a module is a wrapper with a menu; the directory, chaining, dependencies, hot swap, finding by folder</li>
+<li><a href="reusable-parts.html">Reusable parts</a>: build it once; where shared parts live, the companion app checklist</li>
+<li><a href="code-map.html">Code map</a>: every package and its main classes and files, with who calls whom</li>
+<li><a href="core.html">Core</a>: the host, lifecycle, the inside of the core, and how modules talk</li>
+<li><a href="modules.html">Modules</a>: a module's folder and lifecycle, the three rules, outside folders (<code>module_folders</code>), adding and removing a module</li>
 <li><a href="module-library.html">Module library</a>: every module's one-liner and interface (tools, commands, events, data types), each linking to its own <a href="module-library.html#module-pages">module page</a></li>
-<li><a href="communication.html">Communication</a>: commands, events, results, timeouts</li>
-<li><a href="agents.html">Agents</a>: the Agent Hub, Talker, Main Assistant, subagents</li>
-<li><a href="agents-code.html">Agents: code layout</a>: the agent code in layers, and which method calls which (focus, reports, the door)</li>
-<li><a href="permissions.html">Permissions</a>: who may use what, per module</li>
-<li><a href="remote-clients.html">Remote clients</a>: Quest, glasses, the gateway</li>
-<li><a href="decisions.html">Decisions</a>: decided, open, and deferred</li>
+<li><a href="communication.html">Communication</a>: commands, events, results, timeouts, who may send what</li>
+<li><a href="agents.html">Agents</a>: who is who, where each agent works, which CLAUDE.md it loads, the Agent Hub</li>
+<li><a href="agents-code.html">Agents: code layout</a>: the agent code in layers, and which method calls which</li>
+<li><a href="permissions.html">Permissions</a>: cards, permission modes, the access-list review, the access card</li>
+<li><a href="remote-clients.html">Remote clients</a>: Quest, glasses, the gateway (planned)</li>
+<li><a href="decisions.html">Decisions</a>: decided and open</li>
+<li>Restructuring (built 2026-11-13; the result is on the Core, Modules, Agents and Permissions pages, the history in these change notes): <a href="../../html-next-steps/core-and-hub-definition.html">the note</a>, <a href="../../html-next-steps/core-and-hub-proposal.html">the proposal</a>, <a href="../../html-next-steps/piping.html">the piping</a>, <a href="../../html-next-steps/module-layouts.html">module layouts</a>, <a href="../../html-next-steps/agent-claude-md-options.html">agents and CLAUDE.md</a></li>
 <li><a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>: viewing and editing HTML in tabs; state, commands, view</li>
-<li><a href="../modules/voice_in/voice-service.html">Voice</a>: speech to text through a shared voice service (service, <code>voice_in</code>, the temp UI's mic button and the real-mic check built; the engine comparison is next)</li>
+<li><a href="../modules/voice_in/voice-service.html">Voice</a>: speech to text through a shared voice service, its <code>voice_in</code> module and the temp UI's mic button</li>
 </ul>
 <h2 id="parts">Parts</h2>
 <table>
@@ -145,19 +64,31 @@
 <tbody>
 <tr>
 <td>Module Registry</td>
-<td>Finds the available modules by folder (<code>loader.find_modules</code>); selects the enabled ones from their manifests; validates the dependency graph</td>
+<td>Finds the modules by folder (<code>loader.find_modules</code>), in the repo and in the outside folders <code>[core] module_folders</code> names (<code>loader.add_module_folders</code>); selects the enabled ones; validates the dependency graph</td>
 <td><code>src/assistant/core/registry.py</code>, <code>loader.py</code></td>
 <td><a href="core.html">core</a>, <a href="modules.html#found-by-folder">modules</a></td>
 </tr>
 <tr>
 <td>Module directory</td>
-<td>One line per module (<code>ListModules</code>), then that module's menu (<code>GetMenu</code>), plus the core's own menu (<code>modules.*</code>: list, menu, on, off, reload, add). Built; the Talker and the Main Assistant using it are planned</td>
-<td><code>src/assistant/core/directory.py</code>, <code>app.py</code></td>
-<td><a href="modules.html#find-a-module-then-open-its-menu">modules</a></td>
+<td>One line per module (<code>ListModules</code>), then that module's menu (<code>GetMenu</code>), plus the core's own menu (<code>modules.*</code>: list, menu, docs, on, off, reload, add, remove). The menus sit in a core-private table (<code>MenuTable</code>), not the container</td>
+<td><code>src/assistant/core/directory.py</code>, <code>tools.py</code>, <code>app.py</code></td>
+<td><a href="modules.html#find-a-module-then-open-its-menu">modules</a>, <a href="core.html#tools">core</a></td>
+</tr>
+<tr>
+<td>Module door</td>
+<td>The agents' one MCP door (list · menu · call), hosted by the core and opened before any module starts. A module gets a door config only for itself or the agents it claimed. Every call passes one gate in <code>dispatch_tool</code>: the item's callers, then a card for items that ask first</td>
+<td><code>src/assistant/core/door.py</code>, <code>tools.py</code>, <code>infra/mcp_door.py</code></td>
+<td><a href="core.html#the-module-door">core</a></td>
+</tr>
+<tr>
+<td>Callers</td>
+<td>The seventh port: agent names (<code>IAgentNames</code>, one claim per id; claims outlive a Hub reload), each agent's permission mode (Auto only from you), who is "you" (<code>[core.permissions] you</code>) and who relays your card answers (<code>relays</code>, the Talker)</td>
+<td><code>src/assistant/core/callers.py</code></td>
+<td><a href="core.html#callers">core</a></td>
 </tr>
 <tr>
 <td>Lifecycle Manager</td>
-<td>Initializes, starts, and stops modules in dependency order; turns modules on and off at runtime; reloads a module's code and adds new modules (with <code>core/loader.py</code>)</td>
+<td>Initializes, starts and stops modules in dependency order; turns modules on and off at runtime; reloads a module's code and adds new modules (with <code>core/loader.py</code>)</td>
 <td><code>src/assistant/core/lifecycle.py</code></td>
 <td><a href="core.html#lifecycle">core</a></td>
 </tr>
@@ -169,25 +100,25 @@
 </tr>
 <tr>
 <td>Command Router</td>
-<td>Routes each command to its single handler and returns the result</td>
-<td><code>src/assistant/core/router.py</code></td>
-<td><a href="core.html#communication-internals">core</a></td>
+<td>Routes each command to its single handler and returns the result. Every command carries its sender (<code>sent_by</code>); a module sends only what its manifest lists, and control commands only from you</td>
+<td><code>src/assistant/core/router.py</code>, <code>context.py</code></td>
+<td><a href="core.html#who-may-send-what">core</a></td>
 </tr>
 <tr>
 <td>Event Bus</td>
-<td>In-process publish/subscribe for events</td>
+<td>In-process publish/subscribe for events; a module publishes only what its manifest lists</td>
 <td><code>src/assistant/core/bus.py</code></td>
 <td><a href="core.html#communication-internals">core</a></td>
 </tr>
 <tr>
 <td>Contracts</td>
-<td><code>ModuleProtocol</code>, <code>Manifest</code>, <code>ModuleContext</code>, capability interfaces, command and event types</td>
+<td><code>ModuleProtocol</code>, <code>Manifest</code>, <code>ModuleContext</code>, <code>Menu</code>, capability interfaces, command and event types</td>
 <td><code>src/assistant/contracts/</code></td>
 <td><a href="../api/index.html">API</a></td>
 </tr>
 <tr>
 <td>Shared Infrastructure</td>
-<td>Configuration and logging today; persistence and auth/secrets later</td>
+<td>Helpers for the main app's modules: config and logging, the agent parts (<code>ClaudeSession</code>, <code>SessionTaskAgent</code>, <code>ProfileAgent</code>, <code>AgentKit</code>), access lists and module folders (<code>agent_access</code>), the door's relay (<code>mcp_door</code>), page opening (<code>show_page</code>)</td>
 <td><code>src/assistant/infra/</code></td>
 <td><a href="../api/infra.html">API</a></td>
 </tr>
@@ -199,7 +130,7 @@
 </tr>
 <tr>
 <td>Generated files</td>
-<td><code>generated/</code> (gitignored, safe to delete): the live module list, the directory and the dependencies, rewritten by the core on every module state change; the docs build adds the module library's copy</td>
+<td><code>generated/</code> (gitignored, safe to delete): the live module list, the directory and the dependencies, rewritten by the core on every module state change</td>
 <td><code>src/assistant/core/generated.py</code></td>
 <td><a href="core.html#generated-files">core</a></td>
 </tr>
@@ -211,8 +142,8 @@
 </tr>
 <tr>
 <td>Modules</td>
-<td>All capabilities, including the AI orchestration; each a wrapper (manifest, lifecycle, context) with a menu of tools. Today: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>temp_ui</code>, <code>voice_in</code> (voice input's thin module), <code>usage</code>, and, off by default, <code>html_viewer</code> (the HTML viewer's thin module), <code>voice_notes</code>, <code>task_agents</code> (helper agents launched by name from kinds in config), <code>job_search</code> (the job agent and its menu), <code>cv</code> (the CV agent and the CV Tool), <code>assistant_view</code> and the <code>echo_orchestrator</code> stand-in</td>
-<td><code>src/assistant/modules/&lt;id&gt;/</code>, one folder each (code, <code>module.toml</code>, <code>app/</code>, <code>tests/</code>, <code>docs/</code>; an agent's <code>workspace/</code>, gitignored)</td>
+<td>All capabilities, the AI agents included; each a wrapper (manifest, lifecycle, context) with a menu of tools. Core modules: <code>console_io</code>, <code>talker</code>, <code>main_assistant</code>, <code>agent_hub</code>, <code>temp_ui</code>, <code>voice_in</code>, <code>usage</code> (on at launch), <code>task_agents</code>, <code>assistant_view</code>. Add-ons: <code>html_viewer</code>, <code>voice_notes</code>, <code>job_search</code>, <code>cv</code>, <code>echo_orchestrator</code></td>
+<td><code>src/assistant/modules/&lt;id&gt;/</code> or an outside folder, one folder each (code, <code>module.toml</code>, <code>app/</code>, <code>tests/</code>, <code>docs/</code>; an agent's <code>workspace/</code>, gitignored)</td>
 <td><a href="module-library.html">module library</a>, <a href="../agents/runtime.html">agent runtime</a></td>
 </tr>
 <tr>
@@ -223,57 +154,57 @@
 </tr>
 <tr>
 <td>HTML viewer</td>
-<td>Its own app: view, edit, highlight, and snip HTML files. The main app launches it through the thin <code>html_viewer</code> module, with <code>CompanionApp</code>; its tabs and snips are its named events (<code>html_viewer.*</code>)</td>
+<td>Its own app: view, edit, highlight and snip HTML files. Launched by the thin <code>html_viewer</code> module through <code>CompanionApp</code>; its tabs and snips are its named events (<code>html_viewer.*</code>)</td>
 <td><code>src/assistant/modules/html_viewer/app/html_viewer/</code></td>
 <td><a href="../modules/html_viewer/viewer-app.html">HTML viewer</a></td>
 </tr>
 <tr>
 <td>Voice handler</td>
-<td>Speech to text: a shared <code>voice_service</code> app (mic and engine; built, runs alone) and the thin <code>voice_in</code> module that launches it, relays the mic's state and live text, and sends the final text to the Talker (built and on; the temp UI's mic button drives it); built on <code>CompanionApp</code> and <code>load_layered</code>. Engines: by default two passes, the Zipformer's live text cleaned piece by piece by whisper, whose text is sent; or one engine, Zipformer (live text) or whisper (text on send). Chosen in the service's config, which restarts the service on a change; <code>transcribe</code> gives a file's text with no server. <code>voice_in</code> provides the voice contract <code>IVoice</code> (built): sessions each owned by their caller, with a destination (the Talker, or only the caller)</td>
+<td>Speech to text: the <code>voice_service</code> app (mic and engines) and the thin <code>voice_in</code> module that launches it, relays the mic's state and live text, and sends the final text to the Talker. <code>voice_in</code> provides the voice contract <code>IVoice</code></td>
 <td><code>src/assistant/modules/voice_in/</code> (the service in its <code>app/voice_service/</code>)</td>
 <td><a href="../modules/voice_in/voice-service.html">voice</a></td>
 </tr>
 <tr>
 <td>CV Tool</td>
-<td>The <code>cv</code> module's own UI half, its own app: the four tabs (Job &amp; CV, the pick, First Draft, ATS Loop), the CV's local PDF (text under 9 pt only warns), and your Submit (never refused; pushed to the <code>cv</code> module on its event stream, which tells the asker). The <code>cv</code> module launches and calls it through <code>CompanionHandover</code> (<code>cv.open_tool</code>, <code>cv.tool_*</code>); built 2026-11-09; in the module's folder since 2026-11-13 (<code>app/</code>, on the import path at startup)</td>
+<td>The <code>cv</code> module's own UI, its own app: the four tabs (Job &amp; CV, the pick, First Draft, ATS Loop), the CV's local PDF and your Submit. The <code>cv</code> module launches and calls it through <code>CompanionHandover</code> (<code>cv.open_tool</code>, <code>cv.tool_*</code>)</td>
 <td><code>src/assistant/modules/cv/app/cv_tool/</code>, <code>src/assistant/modules/cv/tool.py</code></td>
 <td><a href="../modules/cv/architecture.html#the-cv-tool-app-cvappcv_tool">cv architecture</a></td>
 </tr>
 <tr>
 <td>Voice notes</td>
-<td>Notes by voice in its own window, with its own record button; needs <code>voice_in</code> and requires the voice contract (<code>IVoice.listen</code> without the Talker), listens to voice events (built); its defaults in its <code>module.toml</code></td>
+<td>Notes by voice in its own window; needs <code>voice_in</code>, requires <code>IVoice</code> (<code>listen</code> without the Talker) and listens to voice events</td>
 <td><code>src/assistant/modules/voice_notes/</code></td>
 <td><a href="../modules/voice_notes/index.html">voice_notes</a>, <a href="modules.html#chaining-modules">modules</a></td>
 </tr>
 <tr>
 <td>Agent Hub</td>
-<td>Coordinates the agents: who is doing what, task state, routing, clarifications; the focus (who you talk to), held questions, and milestones fed to the coordinator; messages between agents (<code>DeliverMessage</code>, never into a turn; a card before an agent messages one that isn't its child); agent names (<code>IAgentNames</code>: one claim per id); its <code>hub.*</code> menu on the module door, each item knowing its caller</td>
+<td>Coordination only: task state and routing (<code>TaskBoard</code>), the focus and held questions (<code>Focus</code>), milestones fed to the coordinator, messages between agents (<code>Delivery</code>: <code>DeliverMessage</code>, never into a turn; <code>MessageGate</code>: a card before an agent messages one that isn't its child), agents' notices and resets (<code>AgentNotice</code>, <code>ResetRequested</code>), the access-list review (<code>Reviewer</code>: <code>ReviewAccessList</code>, answered with <code>AddCardNotes</code>), and its <code>hub.*</code> menu, each item knowing its caller</td>
 <td><code>src/assistant/modules/agent_hub/</code></td>
 <td><a href="agents.html">agents</a></td>
 </tr>
 <tr>
 <td>Permissions handler</td>
-<td>Part of the core, always on: knows what each module needs and what you've granted; asks you otherwise. Modules call it through <code>ctx.permissions</code>. First piece built: access lists on one card, saved grants per kind of agent, the Main Assistant's review, and <code>permissions.grants / grant / revoke</code> on the core's menu. Single names are still allowed and logged</td>
+<td>Part of the core, always on: knows what each module needs and what you've granted, and asks you on a card otherwise. Modules call it through <code>ctx.permissions</code>. Access lists on one card, saved grants per kind of agent, the review asked of the Hub's listener, confirm cards before risky steps (Auto never skips them), and <code>permissions.grants / grant / request / revoke</code> on the core's menu. Reads each agent's mode from Callers. Single names (the mic) are allowed and logged</td>
 <td><code>src/assistant/core/permissions/</code> (your saved grants: <code>config/permissions.toml</code>, gitignored)</td>
-<td><a href="permissions.html">permissions</a></td>
+<td><a href="permissions.html">permissions</a>, <a href="core.html#the-ask-first-gate">core</a></td>
 </tr>
 <tr>
 <td>Control panel</td>
-<td>UI module to turn modules on and off while running, through the core's control interface (planned)</td>
+<td>UI module to turn modules on and off while running, through the core's control commands (planned)</td>
 <td><em>TBD</em> module</td>
 <td><a href="core.html#runtime-module-control">core</a></td>
 </tr>
 <tr>
 <td>Gateway module</td>
-<td>Relays messages to and from remote clients over WebSocket</td>
+<td>Relays messages to and from remote clients over WebSocket (planned)</td>
 <td><em>TBD</em></td>
-<td></td>
+<td><a href="remote-clients.html">remote clients</a></td>
 </tr>
 <tr>
 <td>Remote clients</td>
-<td>Device apps with their own UI logic (Quest 3 first)</td>
+<td>Device apps with their own UI logic, Quest 3 first (planned)</td>
 <td><em>TBD</em> (planned: <code>clients/</code>)</td>
-<td></td>
+<td><a href="remote-clients.html">remote clients</a></td>
 </tr>
 </tbody>
 </table>

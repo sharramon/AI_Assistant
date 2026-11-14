@@ -1,29 +1,38 @@
 # Agents: code layout
 
-How the agent code is laid out: which classes live in which package, and which method calls which. Back to [Agents](agents.md); the ideas behind it are in [Big agents and their modules](agents.md#big-agents-and-their-modules).
+How the agent code is laid out: which classes live in which package, and which method calls which. Back to [Agents](agents.md); the ideas behind it are in [Big agents and their modules](agents.md#big-agents-and-their-modules). How the core passes a call along (door, router, gate, bus) is in [core](core.md).
 
-> **Agent talkers (built 2026-11-05):** the `talker` module is a router with one `TalkerSession` per agent tab, each with its own partner agent and chat (`TalkerSession ×N` in the pictures).
-
-Three topics run through it, marked on the boxes: **F** focus and switching, **R** agents reporting to the Main Assistant, **D** the module door.
+Three topics run through it: **focus and switching**, **agents reporting to the Main Assistant**, and **the module door**. Each has a picture below.
 
 ## The layers
 
-Boxes are classes, grey regions are packages, and every arrow is a structural link.
+Four packages, and every link points up, toward the core and the contracts:
 
-[![The agent code in layers: contracts, core, modules, infra](img/agents-code-layout.svg)](img/agents-code-layout.svg)
+| Package | Holds | Imports |
+|---------|-------|---------|
+| `contracts` | Interfaces and plain message types: `ITaskAgent`, `IAgentNames`, `IModuleDoor`, `Menu`, `ReportTask`, `TaskUpdated`, `SetFocus`, `FocusChanged`, `FocusSuggested`, `InvokeTool`, `AgentNotice`, `ResetRequested` | nothing of ours |
+| `core` | The ports every module plugs into; knows no agent logic. `ScopedContext` (stamps every command's `sent_by`), `CommandRouter`, `EventBus`, `Container`, `Directory`, `CoreDoor` / `ModuleDoor` (`core/door.py`), `Callers` (`core/callers.py`, the agent names and modes), `dispatch_tool` and `MenuTools` (`core/tools.py`, the one gate), the permissions handler | contracts, infra |
+| `infra` | Shared helpers: `ClaudeSession`, `SessionTaskAgent`, `ProfileAgent`, `AgentProfile`, `AgentKit`, `MilestoneFeed`, `agent_tags`, `PermissionGate`, `HandoffKeeper`, `DoorServer` and the stdio relay (`mcp_door.py`) | contracts only |
+| `modules` | `agent_hub`, `talker`, `main_assistant`, `task_agents` (core modules), `cv`, `job_search` (add-ons), `temp_ui` | contracts and infra, never another module |
 
-- **Grey ━** owns (a box inside a box owns too). **Teal ━** through a core port (`ctx`): what the module sends, handles, publishes, hears, provides or uses. **Dashed ┅** implements or imports contracts, or calls functions. **Magenta ┈** the door's HTTP hop.
-- **No line joins two module regions.** Each module reaches the others through its teal stub into the core, by a message or a contract named on the stub.
-- **Every arrow points up**, toward the core and contracts. Modules own infra helpers, infra imports only contracts, and the core implements the contracts' ports.
-- **One spine for the three topics.** Focus, reports and the door all go through `AgentHubModule` and a few contract types. The core only carries the caller (`ScopedContext` stamps it, `dispatch_tool` and `MenuTools.invoke_as` pass it on); it holds no agent logic.
-- **Every big agent is a `ProfileAgent`** (`infra/profile_agent.py`): its `AgentProfile`, its `ClaudeSession` and the `SessionTaskAgent` on it, plus the door under its own name. `main_assistant` has one, `job_search` bundles one, `task_agents` builds one per helper.
-- **The Hub's parts** (split 2026-11-08). `AgentHubModule` (`agent_hub/module.py`) is a small coordinator: it wires the commands, events and its menu to a `TaskBoard` (`tasks.py`: every `TaskRecord` and the task state machine, the cap, the folder check), a `Focus` (`focus.py`: the focused agent, its fallback to the coordinator, releasing what a tab held) and `AgentNames` (`names.py`: `IAgentNames`). It keeps only the running-agent lookup (`_agents`, `_agent`) and the coordinator's feed (`_feed`), which it hands to the parts. A held question is `TaskRecord.held` next to its `question`; `Focus.set` releases it through `TaskBoard.release`. Two more parts (built 2026-11-10): `Delivery` (`delivery.py`: the `DeliverMessage` handler; never into a turn, waits per agent and tries again on every `AgentStateChanged` / `ModuleStateChanged` with `flush`; `later` holds an answer whose agent is in a turn) and `MessageGate` (`gate.py`: an agent's `hub.send` to an agent that isn't its child; asks `ctx.permissions.ask` with `message:<receiver>`, holds the messages behind one card per pair, then hands them to `Delivery.deliver`).
+- **No line joins two modules.** Each module reaches the others through the core: a command, an event, a tool call or a contract. `tests/test_boundaries.py` checks the imports.
+- **Coordination in the Hub, the checks in the core.** Focus, tasks and reports go through `AgentHubModule` and a few contract types. The door, the agent names and the modes are the core's. The core carries the caller (`ScopedContext` stamps `sent_by`; the door sets the caller its token proved; `dispatch_tool` and `MenuTools.invoke_as` pass it on) and checks it at one gate. Why: the checks then work with the Hub off, and a Hub reload can't drop them ([decisions](decisions.md)).
+- **Every big agent is a `ProfileAgent`** (`infra/profile_agent.py`): its `AgentProfile`, its `ClaudeSession` and the `SessionTaskAgent` on it, plus the door under its own name (up before any module, so its first session has it). `main_assistant` has one, `job_search` and `cv` each bundle one (`job_search_agent`, `cv_agent`), and `task_agents` builds one per helper. Every agent module builds its agents through `AgentKit` and declares `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`.
+- **Which CLAUDE.md a session loads is set in `AgentProfile.command`.** With `repo_claude_md = false` (a module's own agent: cv's, the job agent) it passes `--settings {"claudeMdExcludes": [the repo's CLAUDE.md files]}` (`repo_claude_md_files`; `ClaudeSession` turns `settings` into `--settings <json>`) and appends the short developer rules (`infra/developer_rules.md`, through `developer_rules(module_folder)`) to the prompt, with its module's folder and docs page named. Otherwise nothing is excluded, and the session loads whatever CLAUDE.md Claude Code finds from its working folder ([which CLAUDE.md each agent loads](agents.md#which-claudemd-each-agent-loads)).
+- **The Hub's parts.** `AgentHubModule` (`agent_hub/module.py`) is a small coordinator. It wires the commands, events and its menu to five parts:
+  - `TaskBoard` (`tasks.py`): every `TaskRecord` and the task state machine, the cap, the folder check.
+  - `Focus` (`focus.py`): the focused agent, its fallback to the coordinator, releasing what a tab held.
+  - `Delivery` (`delivery.py`): the `DeliverMessage` handler. Never into a turn; it waits per agent and tries again on every `AgentStateChanged` / `ModuleStateChanged` (`flush`); `later` holds an answer whose agent is in a turn.
+  - `MessageGate` (`gate.py`): an agent's `hub.send` to an agent that isn't its child. It asks `ctx.permissions.ask` with `message:<receiver>`, holds the messages behind one card per pair, then hands them to `Delivery.deliver`.
+  - `Reviewer` (`review.py`): the `ReviewAccessList` handler. It runs the access-list review as a short task on the board and answers `AddCardNotes`.
+
+  The Hub `uses` `IAgentNames` from the core. It handles `AgentNotice` (`_on_notice` → `ITaskAgent.note`) and `ResetRequested` (`_on_reset` → `ITaskAgent.reset()`) as commands, and listens to `PermissionModeChanged` (`TaskBoard.on_mode_changed` closes the card a switch to Auto answered). It keeps only the running-agent lookup (`_agents`, `_agent`) and the coordinator's feed (`_feed`), which it hands to the parts. A held question is `TaskRecord.held` next to its `question`; `Focus.set` releases it through `TaskBoard.release`.
 - **A question is its task record.** On a `need`, `TaskBoard.report` makes the record `idle` with its question and `question_key` and drops its holder (`TaskRecord.asked`); the agent is free. `TaskBoard.send` into an asked record calls `_answer`, which assigns the same task id again ("Answer to your question …"); if the agent is active, `AgentHubModule._send` hands the answer to `Delivery.later`. `export_questions` / `restore` carry the asked records over a Hub reload.
-- **The Talker reaches the Hub only through its menu.** Its mode switch and card answers are `hub.mode` (Manual only) and `hub.answer`, both `callers=("talker",)`, like `hub.focus`. The UI still sends `SetPermissionMode` and `AnswerPermission` as commands (your own clicks).
+- **The Talker reaches the Hub only through its menu.** Its mode switch and card answers are `hub.mode` (Manual only) and `hub.answer`, both `callers=("talker",)`, like `hub.focus`. The UI sends `SetPermissionMode` and `AnswerPermission` as commands (your own clicks). The core handles `SetPermissionMode` (Auto only from you); the Hub's `hub.mode` sends it on. A Talker session's reset is the Talker's own menu item, `talker.reset`, for you only.
 - **SHOW tags go through one helper.** `SessionTaskAgent._show` and the Talker's `SHOW` tag both call [`show_page`](../api/infra.md#show_page) (`infra/show_pages.py`), which opens the page through the page-opener slot ([`IPageOpener`](../api/modules.md#ipageopener), filled by an add-on; started on use with `StartProvider`); each words its own message from the outcome. temp_ui's Open in viewer button uses the same helper's `open_page`.
-- **The worker's parts** (split 2026-11-08). `SessionTaskAgent` keeps the task state machine and composes a `PermissionGate` (the one open question, the Auto policy, the `git push` block), a `HandoffKeeper` (handoff count, reminder and reset texts) and a `LastLineTags` table (`_finish_turn` looks up `NEED` / `RELOAD` / `ADD_MODULE` / `HANDOFF`); the session's `UsageMeter` counts tokens. A `NEED` goes through `_ask_user`: it reports the question with its key and drops the task; the agent is `idle` once the Hub has it. The owning module sets the key and the notes with `set_context(key, notes)` (default `default_context`: the handoff note); `assign` of an answer carries on in the live session or adds the notes to a fresh one (`_first_text`). Every agent module builds its agents through `AgentKit` and declares `AGENT_USES` / `SENDS` / `PUBLISHES` / `LISTENS`. Picture 2 shows this below.
-- **The Talker's parts** (split 2026-11-08). `TalkerModule` routes; `RestartFlow` (`talker/restart.py`) is the main tab's restart; each `TalkerSession` runs its tags from a table (`_tags`, one `_tag_*` handler each) and uses the module only through its methods for the sessions (`task_started`, `usage_of`, `hub`, `restart`, ...).
-- **The feed lives in each agent.** The Hub passes milestones, task ends and focus moves to the coordinator with `ITaskAgent.note`; the agent's `MilestoneFeed` keeps them and `_with_feed` adds them to its next message, its own `CONTINUE` turns included. Nothing wakes the coordinator.
+- **The worker's parts.** `SessionTaskAgent` keeps the task state machine and composes a `PermissionGate` (the one open question, the Auto policy, the `git push` block), a `HandoffKeeper` (handoff count, reminder and reset texts) and a `LastLineTags` table (`_finish_turn` looks up `NEED` / `RELOAD` / `ADD_MODULE` / `HANDOFF`); the session's `UsageMeter` counts tokens. A `NEED` goes through `_ask_user`: it reports the question with its key and drops the task; the agent is `idle` once the Hub has it. The owning module sets the key and the notes with `set_context(key, notes)` (default `default_context`: the handoff note); `assign` of an answer carries on in the live session or adds the notes to a fresh one (`_first_text`).
+- **The Talker's parts.** `TalkerModule` routes and holds `hub(name, **args)`, the one call to the Hub's menu (`InvokeTool`); `RestartFlow` (`talker/restart.py`) is the main tab's restart; each `TalkerSession` runs its tags from a table (`_tags`, one `_tag_*` handler each) and uses the module only through its methods for the sessions (`task_started`, `usage_of`, `hub`, `restart`, ...).
+- **The feed lives in each agent.** The Hub passes milestones, task ends and focus moves to the coordinator with `ITaskAgent.note`; the agent's `MilestoneFeed` keeps them and `_with_feed` adds them to its next message, its own `CONTINUE` turns included. Nothing wakes the coordinator: an interrupt would cost it a full step at its whole context.
 
 ## 1. Focus and switching
 
@@ -42,13 +51,13 @@ flowchart LR
     tk_fc["_on_focus<br/>the released items, in their tab's session"]
     tk_sug["_on_suggestion<br/>asks you yes or no"]
     tk_tu["_on_task_updated<br/>to its agent's session"]
+    tk_hub["hub(name, args)<br/>InvokeTool hub.*"]
   end
 
   subgraph TS["TalkerSession ×N · modules/talker/session.py (one per tab)"]
     tk_handle["_handle"]
     tk_turn["_take_turn"]
-    tk_tag["_run_tag<br/>tags act on its partner"]
-    tk_hub["_hub<br/>InvokeTool hub.*"]
+    tk_tag["_run_tag<br/>_tags: tags act on its partner"]
   end
 
   subgraph MCL["Main Assistant's claude session"]
@@ -77,9 +86,9 @@ flowchart LR
   tk_handle --> tk_turn
   tk_handle -- "reply's tags" --> tk_tag
   tk_tag --> tk_hub
-  tk_hub -. "InvokeTool hub.send" .-> h_send_item
+  tk_hub -. "InvokeTool hub.send<br/>router → gate" .-> h_send_item
   tk_hub -. "InvokeTool hub.focus<br/>after you say yes" .-> h_focus_item
-  mcl_use -. "door: InvokeTool" .-> h_suggest
+  mcl_use -. "door → router → gate" .-> h_suggest
 
   h_send_item --> h_focused
   h_send_item -- "task open" --> h_sendtask
@@ -97,7 +106,7 @@ flowchart LR
   h_updated -. "TaskUpdated" .-> ui_task
 ```
 
-**How it reads:** a tab click sends `SetFocus`. The four `_on_*` methods on `TalkerModule` pick the session: your words go to their tab's `TalkerSession`, whose `PASS` tag sends them on with `hub.send(agent_id=its partner)`, so they reach that agent's task, or start one. The Main Assistant can only suggest: `hub.suggest_focus` publishes `FocusSuggested`, the tab's Talker asks you, and the focus moves only when you say yes (`FOCUS` → `hub.focus`, an item only the Talkers may use). A question, reply or end from an agent out of focus is held on its task record; `Focus.set` releases it (`TaskBoard.release`) in `FocusChanged`, and that tab's Talker says it then.
+**How it reads:** a tab click sends `SetFocus`. The four `_on_*` methods on `TalkerModule` pick the session: your words go to their tab's `TalkerSession`, whose `PASS` tag sends them on through `TalkerModule.hub` with `hub.send(agent_id=its partner)`, so they reach that agent's task, or start one. The Main Assistant can only suggest: `hub.suggest_focus` publishes `FocusSuggested`, the tab's Talker asks you, and the focus moves only when you say yes (`FOCUS` → `hub.focus`, an item only the Talkers may use). A question, reply or end from an agent out of focus is held on its task record; `Focus.set` releases it (`TaskBoard.release`) in `FocusChanged`, and that tab's Talker says it then.
 
 ## 2. Agents reporting to the Main Assistant
 
@@ -114,7 +123,7 @@ flowchart LR
 
   subgraph PROF["AgentProfile · infra/agent_profile.py"]
     p_from["from_config"]
-    p_cmd["command(prompt, mode, door)"]
+    p_cmd["command(prompt, mode, door)<br/>repo_claude_md = false:<br/>--settings claudeMdExcludes + developer rules"]
   end
 
   subgraph STA["SessionTaskAgent · infra/session_agent.py"]
@@ -149,7 +158,7 @@ flowchart LR
   end
 
   subgraph TK["TalkerModule"]
-    tk_tu["_on_task_updated<br/>skips milestones<br/>planned: to its agent's session"]
+    tk_tu["_on_task_updated<br/>skips milestones,<br/>the rest to its agent's session"]
   end
 
   subgraph UI["TempUIModule"]
@@ -194,8 +203,8 @@ flowchart LR
   subgraph AG["ProfileAgent · TalkerSession.command"]
     a_door["mcp_config(own id)"]
   end
-  subgraph HDOOR["_Door · IModuleDoor · modules/agent_hub/module.py"]
-    door_cfg["mcp_config(caller)"]
+  subgraph HDOOR["ModuleDoor · IModuleDoor · core/door.py (bound to the asking module)"]
+    door_cfg["mcp_config(caller)<br/>only its own id or an id it claimed"]
   end
 
   subgraph CS["claude -p · the agent's process"]
@@ -214,15 +223,15 @@ flowchart LR
     d_call["call(tool, arguments, caller)"]
   end
 
-  subgraph CTX["ScopedContext · core/context.py (the Hub's)"]
-    c_send["send(command)<br/>keeps the caller: the door's host"]
+  subgraph CTX["CoreDoor · core/door.py (opened by App before the modules)"]
+    c_send["router.send(command)<br/>the core's own send, the caller its token proved"]
   end
   subgraph RT["CommandRouter · core/router.py"]
     rt_send["send(command)"]
   end
   subgraph TOOLS["core/tools.py"]
-    dt["dispatch_tool"]
-    prov["_providers(name)"]
+    dt["dispatch_tool · the one gate<br/>start on use first, then for an ask item:<br/>args · callers · confirm card (answers at once)"]
+    prov["_providers(name)<br/>MenuTable, then IToolProvider modules"]
     mt_inv["MenuTools.invoke_as(name, args, caller)"]
   end
   subgraph APP["App · core/app.py"]
@@ -235,8 +244,7 @@ flowchart LR
   end
 
   subgraph JOB["JobSearchModule · modules/job_search/module.py"]
-    j_search["search(days, caller) · job.search<br/>answers at once"]
-    j_bg["_search<br/>background task"]
+    j_search["search(days, caller) · job.search<br/>answers at once (the runner is a stub)"]
   end
 
   subgraph HUB["AgentHubModule · modules/agent_hub/module.py"]
@@ -265,17 +273,21 @@ flowchart LR
   m_call --> m_check
   m_call -- "runs the item" --> j_search
 
-  j_search -- "spawns" --> j_bg
-  j_bg -. "AgentNotice(agent_id = caller)" .-> h_notice
+  j_search -. "command AgentNotice(agent_id = caller)" .-> h_notice
   h_notice -- "via ITaskAgent" --> ja_note
 ```
 
-**How it reads:** each session's door config carries a token for its own id, so `DoorServer` knows the caller and the agent can't fake it. Every other module's `InvokeTool` gets its own id stamped by `ScopedContext.send`; only the door's host (`agent_hub`) may pass on the one its token proved. The caller rides on `InvokeTool` through the core down to the menu item, where `Menu.allowed` checks the item's `callers`. `job.search` returns at once; when its background task finishes, it publishes `AgentNotice` addressed to the caller, and the Hub passes it to that agent with `note`, for its next message.
+**How it reads:** each session's door config carries a token for its own id, so `DoorServer` knows the caller and the agent can't fake it. A module gets a config only for itself or an agent id it claimed in Callers (`ModuleDoor`). Every module's own `InvokeTool` gets its own id stamped by `ScopedContext.send`; only the core's door passes on the one its token proved. The caller rides on `InvokeTool` through the router and the gate down to the menu item: `Menu.call` checks the item's `callers` and its arguments; for an item marked `ask`, `dispatch_tool` checks them first and opens a `confirm` card. `job.search` returns at once; it sends the `AgentNotice` command for the caller, and the Hub passes it to that agent with `note`, labelled `[job_search]` (the stamped sender), for its next message. The search runner isn't built, so the note says nothing ran.
+
+Two spots that work in a way you might not expect:
+
+- **Start on use comes first.** `dispatch_tool` turns on an off `start_on_use` module before it checks the caller (`core/tools.py:87-92`, then `:105`), so a caller who may not use the item can still switch that module on.
+- **The gate doesn't wait for the card.** For an `ask` item it answers "asked on a card" at once; after your Allow the permissions handler runs the step itself ([permissions](permissions.md)).
 
 ## Known limits
 
-- **One point of failure:** the door lives in `agent_hub`, so with the Hub off no agent has module tools.
 - **A name in config:** the Hub knows the coordinator by id (`coordinator` in `[modules.agent_hub]`, default `main_assistant`). A replacement Main Assistant must keep that id, or change the setting.
-- **A near-loop to keep loose:** agent modules use `IModuleDoor`, which `agent_hub` provides, and `agent_hub` uses every `ITaskAgent`. It stays safe while both remain optional lookups and neither becomes a `requires`.
-- **Risky items ask for themselves:** each risky menu item calls `ctx.permissions` (or `request_approval`) on its own. There is no `risky` flag on `Menu.item` checked once in `MenuTools`, so a new item can forget to ask.
+- **Most items ask for themselves:** only the core's `modules.add / remove / reload / off` carry an `ask` mark that `dispatch_tool` checks. Other items that ask (`agents.launch`, `permissions.grant / revoke`) ask in their own code (`request_approval`, a card), so a new risky item must be marked `ask="always"` or `"risky"`, or it won't ask.
 - **A bundled agent reloads with its module:** reloading `job_search` restarts its agent, so the reload waits while that agent is busy (`busy()`).
+- **The core still names agents in three spots.** `core/callers.py:22` reserves the ids `hub` and `talker`; `core/permissions/handler.py:85` maps a `talker:` prefix to its worker's mode; `core/context.py:53-54,187` lets any module that provides `ITaskAgent` send `ReloadModule` / `AddModule`, while the Allow card for those is asked in infra (`PermissionGate`), so the core trusts the role, not your answer. Each could come from config, like `relays`.
+- **The CLAUDE.md exclude list covers only the repo's files** (`infra/agent_profile.py:121-125`). A module agent working under an add-ons folder outside the repo would load any CLAUDE.md it finds in a parent folder there, and the developer rules point at repo paths it may not be able to read.

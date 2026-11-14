@@ -12,61 +12,119 @@
 <nav data-root="../" data-page="architecture/agents.html"></nav>
 <main>
 <h1 id="agents">Agents</h1>
-<p>How the AI side fits the system: an <strong>Agent Hub</strong> coordinates a <strong>Talker</strong>, a <strong>Main Assistant</strong>, and <strong>subagents</strong>. Back to the <a href="index.html">overview</a>. How we actually run and test the agents is in the <a href="../agents/index.html">Agents tab</a>.</p>
-<blockquote>
-<p><strong>Status: built (2026-10-25)</strong> for the Talker, one Main Assistant, and the Hub. Hub subagents are still to come; for now the Main Assistant uses Claude Code's own subagents (a <code>debugger</code>) inside its session. Since 2026-10-27 the Main Assistant starts a fresh session per task and hands off between big parts (<a href="../agents/runtime.html#fresh-sessions-and-handoffs">runtime</a>). Since 2026-11-03 the worker is reminded at 150k and hands off to a fresh session by itself, and batches its edits through a standing prompt line and a once-per-file hook note, with no interrupts (<a href="../agents/runtime.html#fresh-sessions-and-handoffs">runtime</a>, <a href="decisions.html#decided">decision</a>). <strong>Restart:</strong> <code>python -m assistant</code> is a launcher that starts the app again whenever it exits with code 75; when you ask for a restart, the Talker gets reset instructions from the worker, the app exits with 75, and the new launch hands those instructions to the Talker as its first input (<a href="core.html#lifecycle">core</a>, <a href="../agents/runtime.html#the-talker-on-its-own">runtime</a>). The <a href="../agents/spike.html">spike</a> confirmed the interrupt the design relies on. API: <a href="../api/agents.html">Agents</a>.</p>
-<p><strong>Agent tabs: built (2026-11-05).</strong> Every agent tab is a pair, its own Talker and its own worker, with its own chat. A helper's Talker starts the first time its tab is used and closes with its tab; there is no idle timeout.</p>
-</blockquote>
+<p>How the AI side fits the system: who each agent is, where it works, which CLAUDE.md it loads, and how the <strong>Agent Hub</strong> coordinates them. Back to the <a href="index.html">overview</a>. How we run and test the agents is in the <a href="../agents/index.html">Agents tab</a>; processes, prompts and loops are in <a href="../agents/runtime.html">Agent runtime</a>. The code, class by class: <a href="agents-code.html">Agents: code layout</a>. API: <a href="../api/agents.html">Agents</a>.</p>
+<h2 id="who-is-who">Who is who</h2>
+<p>You talk with the <strong>Talker</strong>. The <strong>Main Assistant</strong> does the work and coordinates the others: <strong>helpers</strong> (one-task agents from <code>task_agents</code>) and <strong>module agents</strong> (<code>cv_agent</code>, <code>job_search_agent</code>, each bundled with its add-on). Each agent is its own Claude Code session (<code>claude -p</code>). The <strong>Agent Hub</strong> is not an AI: it only coordinates.</p>
+<p><a href="img/agents-sessions.svg"><img alt="The agents: where each works and which CLAUDE.md it loads" src="img/agents-sessions.svg" /></a></p>
+<p><strong>Reading the picture.</strong> Grey solid boxes are the core, a core module or an agent; dashed boxes are add-ons; teal marks the part the picture is about (here the sessions and what they load); blue is you. Arrows: a tool call goes through the core's door and gate; a dashed arrow with a filled head is a helper's <code>STATUS</code> line becoming a report. The core box is drawn in full on the <a href="core.html">core</a> page (its parts D1 to D6, how modules talk, and the spots that work in an unexpected way); the three rules for the core line are on <a href="modules.html">modules</a>.</p>
+<ol>
+<li><strong>The repo's CLAUDE.md is small:</strong> it imports only the <a href="short-overview.html">short overview</a>. The API index covers the core only, and each module's API is on its own docs page in its folder. So the Talker's and the Main Assistant's base context stays the same size however many modules there are.</li>
+<li><strong>The Main Assistant hands work on:</strong> <code>hub.start</code> and <code>hub.send</code> go through the door and the gate to the Hub's menu. A helper reports back with a <code>STATUS:</code> line, which the Hub turns into a note for the Main Assistant's next turn.</li>
+<li><strong>Module agents skip the repo's CLAUDE.md:</strong> <code>claudeMdExcludes</code> is passed per agent with <code>--settings</code>, set from its <code>AgentProfile</code>. They write code, so the short developer rules load in its place, without the overview and the API index.</li>
+<li><strong>Each module agent works in its workspace:</strong> its module's own <code>modules/&lt;id&gt;/workspace</code> (gitignored), or your data folder outside the repo if <code>config/&lt;id&gt;.toml</code> names one (<code>data_folder</code>). It edits its own code through a write grant on its module folder, on the same access card.</li>
+</ol>
+<p>The picture shows <strong>logical relationships, not containment</strong>: no agent lives inside the Hub, and every message travels through the core's <a href="communication.html">commands, events, and <code>InvokeTool</code></a>. Not every request passes every level: the Talker reads task status straight from the Hub.</p>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Module</th>
+<th>Core or add-on</th>
+<th>Starts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Talker (one session per agent tab)</td>
+<td><code>talker</code></td>
+<td>core</td>
+<td>with the app; a helper tab's Talker on that tab's first use</td>
+</tr>
+<tr>
+<td>Main Assistant (<code>main_assistant</code>), the coordinator</td>
+<td><code>main_assistant</code></td>
+<td>core</td>
+<td>with the app</td>
+</tr>
+<tr>
+<td>Agent Hub (not an AI)</td>
+<td><code>agent_hub</code></td>
+<td>core</td>
+<td>with the app</td>
+</tr>
+<tr>
+<td>Helpers (<code>flight_search</code>, <code>helper_2</code>, …)</td>
+<td><code>task_agents</code></td>
+<td>core, off at launch</td>
+<td>launched by name, with your yes</td>
+</tr>
+<tr>
+<td><code>cv_agent</code></td>
+<td><code>cv</code></td>
+<td>add-on, off at launch</td>
+<td>when cv turns on (<code>job.tailor_cv</code> turns it on)</td>
+</tr>
+<tr>
+<td><code>job_search_agent</code></td>
+<td><code>job_search</code></td>
+<td>add-on, off at launch</td>
+<td>when job_search turns on (<code>modules.on</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="which-claudemd-each-agent-loads">Which CLAUDE.md each agent loads</h3>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Works in</th>
+<th>Loads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Talker</td>
+<td>The app's folder (the repo), unless <code>cwd</code> is set in its config. No built-in tools: only the door's three</td>
+<td>Nothing is excluded, so Claude Code's own lookup finds the repo's <code>CLAUDE.md</code> (the short overview). Not checked by a test</td>
+</tr>
+<tr>
+<td>Main Assistant</td>
+<td>The repo (<code>workspace = "."</code>)</td>
+<td>The repo's <code>CLAUDE.md</code>, the short overview. A module's API is read on that module's docs page when it works on it</td>
+</tr>
+<tr>
+<td>Helpers</td>
+<td><code>&lt;kind workspace&gt;/&lt;name&gt;</code>. The default kinds use <code>../assistant-helper</code> and <code>../assistant-rezi</code>, outside the repo, so they never clash with the Main Assistant's folder</td>
+<td>Nothing is excluded (<code>repo_claude_md</code> defaults to true), but their folder is outside the repo, so the repo's <code>CLAUDE.md</code> isn't on their path. <strong>Unverified</strong> which CLAUDE.md, if any, they load</td>
+</tr>
+<tr>
+<td><code>cv_agent</code></td>
+<td><code>modules/cv/workspace</code>, or <code>data_folder</code> from <code>config/cv.toml</code></td>
+<td><code>repo_claude_md = false</code>: the repo's CLAUDE.md files are excluded, and the developer rules (<code>infra/developer_rules.md</code>) are in its prompt, with its module's folder and docs page named</td>
+</tr>
+<tr>
+<td><code>job_search_agent</code></td>
+<td><code>modules/job_search/workspace</code>, or <code>data_folder</code> from <code>config/job_search.toml</code></td>
+<td>The same as cv's, plus the job project's own <code>CLAUDE.md</code> in its workspace</td>
+</tr>
+</tbody>
+</table>
+<p>Why module agents skip it: they work on one module, so the whole app's overview is noise in every step they take, and the developer rules (keep to your folder, talk only through the door, events and contracts, test in <code>tests/</code>) are all they need. The data folder must be absolute and outside the repo; on its first use the old workspace is copied into it, never moved or deleted (<a href="../api/infra.html#agent_access"><code>data_folder</code></a>, <a href="../api/infra.html#agentprofile"><code>AgentProfile</code></a>).</p>
 <h2 id="the-idea">The idea</h2>
-<p>Separate <strong>communication</strong> (Talker), <strong>coordination</strong> (Hub), <strong>intelligence</strong> (Main Assistant), and <strong>execution</strong> (subagents), each a replaceable module.</p>
-<pre><code class="language-mermaid">flowchart TB
-    Human([&quot;&lt;b&gt;You&lt;/b&gt;&quot;])
-    IO[&quot;&lt;b&gt;Voice / text / XR&lt;/b&gt;&lt;br/&gt;input + output modules&quot;]
-
-    subgraph Hub[&quot;Agent Hub: focus · ! · who is doing what (not an AI)&quot;]
-        direction TB
-        subgraph MainTab[&quot;Main tab (default)&quot;]
-            Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&lt;br/&gt;fast, conversational&quot;]
-            Main[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;reasons, plans, coordinates&quot;]
-            Talker -- work · questions --&gt; Main
-            Main -- progress · clarifications --&gt; Talker
-        end
-        subgraph HelperTab[&quot;Helper tab: one per agent&quot;]
-            HTalker[&quot;&lt;b&gt;Its own Talker&lt;/b&gt;&lt;br/&gt;its own chat&quot;]
-            Helper[&quot;&lt;b&gt;Helper / big agent&lt;/b&gt;&lt;br/&gt;job agent, flight_search…&quot;]
-            HTalker -- work · questions --&gt; Helper
-            Helper -- progress · clarifications --&gt; HTalker
-        end
-        Coding[&quot;Coding agent&quot;]
-        Research[&quot;Research agent&quot;]
-        XR[&quot;3D/XR agent&quot;]
-        Main -. &quot;hub.start · hub.send&quot; .-&gt; Helper
-        Helper -. &quot;STATUS milestones&quot; .-&gt; Main
-        Main -. delegates .-&gt; Coding
-        Main -. delegates .-&gt; Research
-        Main -. delegates .-&gt; XR
-    end
-
-    Core[&quot;&lt;b&gt;Application core&lt;/b&gt;&lt;br/&gt;commands · events · contracts · DI&quot;]
-
-    Human &lt;--&gt; IO
-    IO &lt;-- &quot;the tab you're in&quot; --&gt; Talker
-    IO &lt;-. &quot;the tab you're in&quot; .-&gt; HTalker
-    Hub --- Core
-
-    classDef person fill:#e6f0f7,stroke:#2f6f9f,color:#1d1d1b
-    classDef later fill:#f2f1ee,stroke:#8a877c,stroke-dasharray:5 4,color:#5f5e58
-    class Human person
-    class Coding,Research,XR later
-</code></pre>
-<p>Each tab is a pair, its Talker and its agent. A helper's Talker talks only for its own agent, its updates never reach the main chat, and the agents reach each other only through the Hub's menu.</p>
-<p>The picture shows <strong>logical relationships, not containment or mandatory paths</strong>. Every agent is its own module, and all messages travel through the core's <a href="communication.html">commands, events, and <code>InvokeTool</code></a>. Not every request passes every level: the Talker reads task status straight from the Hub.</p>
+<p>Separate <strong>communication</strong> (Talker), <strong>coordination</strong> (Hub), <strong>intelligence</strong> (Main Assistant), and <strong>execution</strong> (helpers and module agents), each a replaceable module. The Talker stays fast and interruptible because it does no work; the Main Assistant keeps one line of reasoning because the Hub does the bookkeeping.</p>
 <h2 id="big-agents-and-their-modules">Big agents and their modules</h2>
-<p>The core idea of agents and modules: <strong>messages go through the Agent Hub, tools go through the module door.</strong> Each big agent (a specialist like the job agent) is in charge of its own module, and every agent reports one-line milestones to the Main Assistant. Built (module system chunks 1–9); the job agent's search runner is still a stub, and the next big agent is later. How the code is laid out is in <a href="agents-code.html">Agents: code layout</a>.</p>
-<h3 id="the-agent-hub-the-switchboard">The Agent Hub: the switchboard</h3>
-<p>The Hub decides who you're talking to (the <strong>focus</strong>), holds what's waiting for you (questions and cards behind the <strong>!</strong> on a tab), and keeps the <strong>milestone feed</strong>. The UI is built around it. The pictures below show the pairs: one Talker per tab, each with its own chat; the questions, cards, replies and finished work of a tab you're not in wait behind its <strong>!</strong>.</p>
-<p><a href="img/agents-switchboard.svg"><img alt="The Agent Hub as a switchboard: messages through the Hub, tools through the module door" src="img/agents-switchboard.svg" /></a></p>
-<p><strong>Two separate routes.</strong> Messages (your talk, the focus, the held questions, and the <code>STATUS:</code> milestones) go only through the Hub, between you, the Talker and the agents (blue and grey). Tools go another way (dotted magenta): any agent, and the Talker for quick things, calls the <a href="modules.html#find-a-module-then-open-its-menu">module door</a>, which the Hub hosts but which carries no conversation. The door passes the call to the core, the core checks the item's callers and runs a module's menu item, and the result and any events come back the same way.</p>
+<p>The core idea: <strong>messages go through the Agent Hub, tools go through the module door.</strong> Each big agent (a specialist like the job agent) is in charge of its own module, and every agent reports one-line milestones to the Main Assistant.</p>
+<h3 id="the-agent-hub-coordination-only">The Agent Hub: coordination only</h3>
+<p>The Hub holds four things, and nothing else of the agents:</p>
+<ul>
+<li><strong>The task board:</strong> every task, its state, its parent and children, its reports (<code>TaskBoard</code>).</li>
+<li><strong>The focus:</strong> which agent you're talking to (<code>Focus</code>).</li>
+<li><strong>Held questions:</strong> a question, card, reply or finished task from an agent out of focus waits behind the <strong>!</strong> on its tab until you open it.</li>
+<li><strong>Message delivery:</strong> agent-to-agent messages, never into a turn (<code>Delivery</code>, behind the <code>MessageGate</code>).</li>
+</ul>
+<p>It also runs the access-list review when the core asks (<code>ReviewAccessList</code>): a short task on the reviewer agent, whose notes go back onto the card (<code>AddCardNotes</code>). With the Hub off, the card says "not reviewed".</p>
+<p><strong>Two separate routes.</strong> Messages (your talk, the focus, the held questions, and the <code>STATUS:</code> milestones) go only through the Hub, between you, the Talker and the agents. Tools go another way: any agent, and the Talker for quick things, calls the <a href="modules.html#find-a-module-then-open-its-menu">module door</a>, which the core hosts and which carries no conversation. The door sends the call to the router, the router to the one gate, and the gate checks the item's callers (and asks you first for a risky item) before it runs a module's menu item (<a href="core.html">core</a>).</p>
+<p><strong>Between Main and a helper</strong> the two routes meet. <code>hub.start</code> and <code>hub.send</code> are tool calls: items on the <a href="../api/agents.html#the-hubs-menu">Hub's menu</a>, reached through the door. <code>STATUS</code> is neither a tool nor an event: it's a <code>STATUS: &lt;one line&gt;</code> line in the helper's text, read by <code>agent_tags.status_lines</code> and sent to the Hub as a <code>ReportTask</code> of kind <code>milestone</code>; the Hub passes it to the Main Assistant's <code>note</code>, and its <code>MilestoneFeed</code> adds it to the end of its next message. The event bus only carries copies for the UIs: the Hub publishes <code>TaskUpdated</code>, and each agent publishes its own <code>AgentActivity</code>.</p>
 <h3 id="how-an-agents-messages-move-two-modes">How an agent's messages move: two modes</h3>
 <p>One agent sends two kinds of message at once: <strong>status lines to the Main Assistant</strong> and <strong>questions to you</strong>. Only the focus decides who you're talking to. Blue: your conversation, through the Talker. Grey: a <code>STATUS:</code> line to the Main Assistant. Red: a question or card for you, held behind the <strong>!</strong>. Teal: the Main Assistant suggests a switch.</p>
 <p><a href="img/agents-modes.svg"><img alt="Mode A, normal, and Mode B, direct" src="img/agents-modes.svg" /></a></p>
@@ -76,24 +134,38 @@
 <li><strong>Back to A.</strong> You click the Main Assistant's tab, and the job agent's next question goes behind the <strong>!</strong> again. The main chat shows only your conversation with the Main Assistant.</li>
 </ul>
 <h3 id="below-the-hub-modules-the-door-the-core">Below the Hub: modules, the door, the core</h3>
-<p>A big agent is in charge of its own module. No agent calls a tool directly: every agent uses a module's menu items, through the door.</p>
-<p><a href="img/agents-below-hub.svg"><img alt="Agents use the module door; the core routes to a module's menu; workers report back by events" src="img/agents-below-hub.svg" /></a></p>
+<p>No agent calls another module's code: every agent uses a module's menu items through the door (list the modules, show a menu, use an item). The way a call travels, door → router → gate → item, is drawn on the <a href="core.html">core</a> page.</p>
 <ul>
-<li><strong>The job module</strong> (<code>job_search</code>) is a wrapper with a menu, a background worker and its own agent (a <code>ProfileAgent</code>, id <code>job_search_agent</code>). <code>job.search</code> starts the sweep and returns at once, so the agent stays free. When the sweep is done, the module publishes an <code>AgentNotice</code> to the caller, and the Hub hands it to that agent at its next turn.</li>
-<li><strong>The Main Assistant</strong> has no module of its own. It works in this repo and uses any module's menu through the door.</li>
+<li><strong>The job module</strong> (<code>job_search</code>, an add-on) is a wrapper with a menu and its own agent (a <code>ProfileAgent</code>, id <code>job_search_agent</code>):</li>
+<li><code>job.search</code> answers at once. The search runner isn't built: the module sends an <code>AgentNotice</code> command for the caller straight away, saying nothing ran, and the Hub hands it to that agent at its next turn. The note is labelled with the sending module (<code>[job_search] …</code>), stamped by the core, not chosen by the sender.</li>
+<li><code>job.tailor_cv</code> (only the job agent) turns cv on if it's off, waits for your answer on cv_agent's access card (<code>cv_wait</code>), and sends <code>cv.task</code> for its agent. cv's named events (<code>cv.job_finished</code>, <code>cv.job_submitted</code>) come back, and job_search turns them into a message for its agent.</li>
+<li><code>job.open_ui</code> opens the job UI in its own window.</li>
+<li><strong>The cv module</strong> (<code>cv</code>, an add-on) bundles <code>cv_agent</code>. Its jobs come from <code>cv.task</code> (callers <code>job_search_agent</code> and <code>main_assistant</code>, and the module <code>job_search</code>), which starts the worker as the caller's child task. A free pick never lands on it (<code>named_only = true</code>).</li>
+<li><strong>The Main Assistant</strong> has its own module, <code>main_assistant</code>, but no menu. It works in the repo and uses any module's menu through the door.</li>
 <li><strong>Permission cards</strong> from a risky item name their agent, and the Hub holds them behind the <strong>!</strong> unless that agent has the focus.</li>
+</ul>
+<h3 id="what-the-core-keeps-what-the-hub-keeps">What the core keeps, what the Hub keeps</h3>
+<p>The Hub does coordination only; who may do what is the core's (<a href="decisions.html">decisions</a>, D1 to D7). Why: the checks then hold with the Hub off or reloading, and the Hub stays a replaceable module.</p>
+<ul>
+<li><strong>The door is the core's.</strong> The core opens it before any module starts, so every agent's first session has it, and a Hub reload doesn't touch it. A module gets a door config only for itself or an agent id it claimed (<a href="modules.html#find-a-module-then-open-its-menu">modules</a>).</li>
+<li><strong>Callers is the core's</strong> (<code>core/callers.py</code>): agent names and claims, each agent's permission mode, who is you (<code>[core.permissions] you</code>, today <code>temp_ui</code>) and the relays that pass your answers (<code>relays</code>, today the Talker).</li>
+<li><strong>Modes:</strong> the core handles <code>SetPermissionMode</code>. Auto comes only from you (the UI's button) or the core; Manual from anyone, the Talker's <code>hub.mode</code> included. An agent's own switch to Auto is refused unless Callers already says Auto. The Hub listens to <code>PermissionModeChanged</code> to close a card the switch answered.</li>
+<li><strong>Notices and resets are commands</strong> the Hub handles: <code>AgentNotice</code> (passed to the agent's <code>note</code>, labelled with the sender) and <code>ResetRequested</code> (<code>ITaskAgent.reset()</code>: at once when idle, a handoff mid-task). A Talker session's reset is the Talker's own: its RESET tag, or its <code>talker.reset</code> menu item, for you only. <code>ShutdownRequested</code> is a command the core handles. Events only tell; they never control.</li>
+<li><strong>Risky steps ask, in Auto too.</strong> <code>modules.add</code>, <code>modules.remove</code>, <code>modules.reload</code>, and <code>modules.off</code> with dependents, open a <code>confirm</code> card for every agent caller; a <code>you</code> caller runs at once. An agent's <code>RELOAD:</code> / <code>ADD_MODULE:</code> line keeps its own permission card, shown in Auto too, and the Talker's restart opens a <code>confirm</code> card (<a href="permissions.html#risky-steps-ask-even-in-auto">permissions</a>).</li>
+<li><strong>The review is the Hub's:</strong> the core asks for it with <code>ReviewAccessList</code> and takes the notes back with <code>AddCardNotes</code>; the core never starts a task (<a href="permissions.html#the-review">permissions</a>).</li>
+<li><strong>Agent cards are the Hub's:</strong> an agent's tool permission is a <code>permission</code> report on its task, and your answer (<code>AnswerPermission</code>) goes to the Hub, which passes it to the agent.</li>
 </ul>
 <h3 id="the-workflow-in-steps-job-search">The workflow in steps (job search)</h3>
 <ol>
 <li>You tell the Talker "run a job search." It goes to the Main Assistant, which has the focus (Mode A).</li>
 <li>The Main Assistant hands it to the job agent with <code>hub.start</code> and suggests talking to it directly. You say yes, so the focus moves (Mode B).</li>
-<li>The job agent uses <code>job.search</code> on its own module through the door. The sweep runs in the background, and the agent stays free to talk.</li>
-<li>You switch back to the Main Assistant (Mode A). When the sweep is done, the job agent gets the notice and sends <code>STATUS: 24 found, 12 fit</code>.</li>
+<li>The job agent uses <code>job.search</code> on its own module through the door. The item answers at once, and the agent stays free to talk.</li>
+<li>You switch back to the Main Assistant (Mode A). When the result comes, the job agent gets the notice and sends <code>STATUS: 24 found, 12 fit</code>.</li>
 <li>The Main Assistant reads that one line at its next turn. Your conversation with it isn't interrupted.</li>
 <li>The job agent needs you ("apply to this one first?") or a Chrome permission. That's held, and its tab shows <strong>!</strong>.</li>
 <li>You click the tab when you're ready (Mode B). The Talker says the question and the card shows. You answer, and the job agent goes on, stopping before Submit.</li>
 </ol>
-<p>In steps 2–7 the job tab has its own Talker and its own chat: step 2 opens it, step 4's end waits behind its <strong>!</strong> instead of reaching the main chat, and step 7's question is said by the job tab's Talker. The sequence diagrams under <a href="#flows">Flows</a> stay true per tab: their <code>T</code> is the Talker of the tab you're in.</p>
+<p>In steps 2–7 the job tab has its own Talker and its own chat: step 2 opens it, step 4's end waits behind its <strong>!</strong> instead of reaching the main chat, and step 7's question is said by the job tab's Talker. The sequence diagrams under <a href="#flows">Flows</a> hold per tab: their <code>T</code> is the Talker of the tab you're in. (Step 3's search runner is a stub today: the notice says nothing ran.)</p>
 <h2 id="responsibilities">Responsibilities</h2>
 <table>
 <thead>
@@ -106,42 +178,46 @@
 <tbody>
 <tr>
 <td><strong>Application core</strong></td>
-<td>Generic module communication and lifecycle, including turning modules on and off</td>
-<td>Know that the Hub, agents, or Claude exist</td>
+<td>Generic module communication and lifecycle, including turning modules on and off. The module door, the one gate for menu items, and the Callers port: agent names, each caller's permission mode, who is you</td>
+<td>Start a task, or hold any agent logic. It still names agents in three spots (<a href="agents-code.html#known-limits">known limits</a>)</td>
 </tr>
 <tr>
 <td><strong>Agent Hub</strong> (module)</td>
-<td>Agent registry and capabilities, availability, task ids and parent/child links, routing requests and results, progress and failures, task history, clarification and cancellation flows</td>
-<td>Reason or decide how to solve anything; duplicate the core's registry, lifecycle, DI, router, bus, or tool dispatch</td>
+<td>Coordination only: the task board (ids, parent/child links, state, reports, history), the focus, held questions, message delivery, agent cards, notices and resets for agents, the access-list review</td>
+<td>Reason or decide how to solve anything; host the door or the agent names; set permission modes; duplicate the core's registry, lifecycle, router, bus, or tool dispatch</td>
 </tr>
 <tr>
 <td><strong>Talker</strong></td>
-<td>Converse, answer simple things directly, hand substantial work to the Main Assistant, report progress and results, relay clarification questions, stay responsive and interruptible. Read spoken input (marked <code>[Spoken]</code>, from <code>InputReceived(source="voice")</code>) for what was meant, using the conversation, with no extra cleanup call</td>
+<td>Converse, answer simple things directly, hand substantial work to its agent, report progress and results, relay clarification questions, stay responsive and interruptible. Read spoken input (marked <code>[Spoken]</code>, from <code>InputReceived(source="voice")</code>) for what was meant, using the conversation, with no extra cleanup call</td>
 <td>Do substantial work itself</td>
 </tr>
 <tr>
 <td><strong>Main Assistant</strong></td>
-<td>The central intelligence: reasoning, planning, executing, choosing tools, splitting work, delegating to subagents (through the Hub), combining results</td>
+<td>The central intelligence: reasoning, planning, executing, choosing tools, splitting work, delegating to helpers and module agents (through the Hub), combining results</td>
 <td>Own bookkeeping or talk to the human directly</td>
 </tr>
 <tr>
-<td><strong>Subagents</strong></td>
-<td>Specialized execution (coding, research, 3D, browser, robotics…), possibly in parallel, reporting progress</td>
+<td><strong>Helpers and module agents</strong></td>
+<td>Specialized execution, possibly in parallel, reporting milestones</td>
 <td>Plan the overall task</td>
 </tr>
 </tbody>
 </table>
 <p><strong>The Hub manages who is doing what, not how the work is done.</strong> Not every capability needs to be an agent: browser, file, or 3D services can stay ordinary tool modules.</p>
-<p>A Claude Code session can also spawn its own internal subagents. Those are its own business; <strong>Hub subagents</strong> are separate, registered modules. Today the Main Assistant uses an internal one, <code>debugger</code>, so debugging loops run in their own small context; the Hub can't list or stop it separately. Hub subagents come when stopping one at a time is needed.</p>
+<p>A Claude Code session can also spawn its own internal subagents. Those are its own business: they have no id, and the Hub can't list or stop them. The Main Assistant uses one, <code>debugger</code>, so debugging loops run in their own small context.</p>
 <h2 id="startup">Startup</h2>
-<p>The core's lifecycle manager starts every module, agents included; the Hub launches nothing. Each agent module owns its <code>claude</code> process, and the terminals belong to view modules, not to the agents:</p>
+<p>The core's lifecycle manager starts every module, agents included; the Hub launches nothing. Each agent module owns its <code>claude</code> process, and the windows belong to view modules, not to the agents:</p>
 <pre><code>python -m assistant
- └─ core lifecycle activates the enabled modules, in dependency order:
-     ├─ console_io       terminal 1, the app's own: you talk here
-     ├─ main_assistant   its own hidden `claude -p` process
-     ├─ talker           its own hidden `claude -p` process
-     ├─ assistant_view   opens terminal 2: the Main Assistant's activity, view only
-     └─ agent_hub        coordinates; launches nothing (after the agents it finds)
+ └─ the core opens the module door, then activates the enabled modules
+    (config/modules.toml), in dependency order:
+     ├─ console_io       terminal 1, the app's own
+     ├─ main_assistant   its own hidden `claude -p` process (before the Hub, which lists ITaskAgent as optional)
+     ├─ agent_hub        coordinates; launches nothing
+     ├─ talker           a hidden `claude -p` per tab session
+     ├─ temp_ui          the app's window: tabs, chats, cards
+     └─ voice_in, usage
+    off at launch: task_agents, job_search, cv, html_viewer, voice_notes,
+    assistant_view (terminal 2); turned on with modules.on, or on use
 </code></pre>
 <p>Each module decides when to start its expensive part (<a href="core.html#runtime-module-control">runtime module control</a>):</p>
 <table>
@@ -155,43 +231,46 @@
 <tbody>
 <tr>
 <td>Talker</td>
-<td>When activated, kept warm</td>
+<td>The main tab's when activated, kept warm; a helper tab's on first use, closed with its tab</td>
 <td>You expect an instant reply</td>
 </tr>
 <tr>
 <td>Main Assistant</td>
-<td>When activated; restarted on the next task if it was closed</td>
-<td>Ready for the first task; a restart's few seconds are fine before a long task</td>
+<td>When activated; a fresh session for each task</td>
+<td>Ready for the first task; a task's context holds only that task</td>
 </tr>
 <tr>
-<td>Subagents</td>
-<td>When the Hub first delegates to one; stop when idle</td>
+<td>Module agents</td>
+<td>When their module turns on</td>
 <td>Most aren't used most of the time</td>
 </tr>
 <tr>
-<td>Assistant view</td>
-<td>When activated</td>
-<td>Terminal 2 should be there when you look</td>
+<td>Helpers</td>
+<td>When launched, with your yes</td>
+<td>They exist for one task</td>
 </tr>
 </tbody>
 </table>
-<p>The Hub "taps" an agent by sending it a task through its contract; if that agent's process isn't running, the agent module starts it. Swapping terminal 2 for the chat window later is a config change.</p>
+<p>The Hub "taps" an agent by sending it a task through its contract; if that agent's process isn't running, the agent module starts it.</p>
+<p><strong>Restart:</strong> <code>python -m assistant</code> is a launcher that starts the app again whenever it exits with code 75. When you ask for a restart, the Talker gets reset instructions from the worker, the app exits with 75, and the new launch hands those instructions to the Talker as its first input (<a href="core.html#lifecycle">core</a>, <a href="../agents/runtime.html#the-talker-on-its-own">runtime</a>).</p>
 <h2 id="flows">Flows</h2>
+<p>Every <code>T → H</code> arrow below is a <code>hub.*</code> item: the Talker's <code>InvokeTool</code>, through the router and the gate to the Hub's menu.</p>
 <h3 id="task-assignment">Task assignment</h3>
 <pre><code class="language-mermaid">sequenceDiagram
     actor You
     participant T as Talker
     participant H as Hub
     participant M as Main Assistant
-    participant S as Subagent
+    participant S as Helper
     You-&gt;&gt;T: &quot;Build a 3D environment&quot;
-    T-&gt;&gt;H: request work
+    T-&gt;&gt;H: hub.start (door → gate)
     H-&gt;&gt;M: assign task
-    M-&gt;&gt;H: delegate subtask
-    H-&gt;&gt;S: assign subtask
-    S--&gt;&gt;H: progress, done
-    M--&gt;&gt;H: progress, done
-    H--&gt;&gt;T: relevant updates
+    M-&gt;&gt;H: hub.start: a child task
+    H-&gt;&gt;S: assign child task
+    S--&gt;&gt;H: STATUS lines, done
+    H--&gt;&gt;M: the child's end, as a message
+    M--&gt;&gt;H: done
+    H--&gt;&gt;T: TaskUpdated
     T-&gt;&gt;You: &quot;The environment is ready&quot;
 </code></pre>
 <h3 id="progress-request">Progress request</h3>
@@ -200,9 +279,9 @@
     participant T as Talker
     participant H as Hub
     You-&gt;&gt;T: &quot;How's it going?&quot;
-    T-&gt;&gt;H: get task status
+    T-&gt;&gt;H: hub.status
     H--&gt;&gt;T: status + recent activity
-    T-&gt;&gt;You: &quot;The coding agent is on the renderer&quot;
+    T-&gt;&gt;You: &quot;The helper is on the renderer&quot;
 </code></pre>
 <p>The Main Assistant isn't interrupted or asked for routine status. The status carries the task's last activity lines (the Hub keeps them from <code>AgentActivity</code>), and the Talker always has both sessions' usage (<code>SessionUsage</code>), so "what is it doing?" and "how full is it?" never need an interrupt.</p>
 <h3 id="clarification">Clarification</h3>
@@ -212,17 +291,17 @@
     participant H as Hub
     participant A as Agent
     A-&gt;&gt;H: ReportTask need (its turn ends; it's free)
-    H-&gt;&gt;T: clarification request
+    H--&gt;&gt;T: TaskUpdated: the question
     T-&gt;&gt;You: &quot;Realistic or stylized?&quot;
     You-&gt;&gt;T: &quot;Stylized&quot;
-    T-&gt;&gt;H: SendToTask (your answer)
+    T-&gt;&gt;H: hub.send (your answer)
     H-&gt;&gt;A: assign the same task: &quot;Answer to your question …&quot;
 </code></pre>
 <p>Communication is two-way: agents can ask the human for information, and the Talker stays responsive. A question never keeps an agent busy: it ends its turn, takes other work meanwhile, and your answer comes back as a message to the same task, whenever you give it (<a href="#questions-are-messages">questions are messages</a>).</p>
 <h2 id="task-agents">Task agents</h2>
-<p>The v1 design: a minimal Hub, one Main Assistant, real modules (no relay script). Full signatures are on the <a href="../api/agents.html">Agents API page</a>. Processes, spawning, each agent's loop, and prompts: <a href="../agents/runtime.html">Agent runtime</a>.</p>
+<p>Full signatures are on the <a href="../api/agents.html">Agents API page</a>. Processes, spawning, each agent's loop, and prompts: <a href="../agents/runtime.html">Agent runtime</a>. The classes: <a href="agents-code.html">Agents: code layout</a>.</p>
 <h3 id="itaskagent"><code>ITaskAgent</code></h3>
-<p>Any agent that takes tasks provides <strong><code>ITaskAgent</code></strong> (<code>multiple = True</code>): the Main Assistant now, subagents later. The Hub knows only this contract, finds agents with <code>ctx.get_all(ITaskAgent)</code>, and never imports an agent module. The Talker doesn't provide it; it stays driven by <code>InputReceived</code> / <code>ResponseReady</code>.</p>
+<p>Any agent that takes tasks provides <strong><code>ITaskAgent</code></strong> (<code>multiple = True</code>): the Main Assistant, the helpers and the module agents. The Hub knows only this contract, finds agents with <code>ctx.get_all(ITaskAgent)</code>, and never imports an agent module. The Talker doesn't provide it; it stays driven by <code>InputReceived</code> / <code>ResponseReady</code>.</p>
 <table>
 <thead>
 <tr>
@@ -254,56 +333,35 @@
 </tr>
 </tbody>
 </table>
-<p>There's no <code>Agent</code> base class. Each class inherits one interface and is assembled from parts (<a href="principles.html">principle 12</a>):</p>
-<table>
-<thead>
-<tr>
-<th>Class</th>
-<th>Inherits</th>
-<th>Composed from</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>MainAssistantModule</code></td>
-<td><code>ModuleProtocol</code></td>
-<td><code>SessionTaskAgent</code>, <code>ClaudeSession</code></td>
-</tr>
-<tr>
-<td><code>SessionTaskAgent</code></td>
-<td><code>ITaskAgent</code></td>
-<td><code>ClaudeSession</code>, <code>ModuleContext</code></td>
-</tr>
-<tr>
-<td><code>ClaudeSession</code> (<code>infra</code>)</td>
-<td>nothing</td>
-<td>one <code>claude -p</code> stream-json process</td>
-</tr>
-</tbody>
-</table>
-<p>The module provides the contract through its composed part: <code>ctx.provide(ITaskAgent, self._agent)</code>. A later subagent reuses <code>SessionTaskAgent</code> and <code>ClaudeSession</code> with its own prompt and permissions.</p>
+<p>It also has <code>note</code> (a line for its next message: milestones, notices), <code>reset</code>, <code>answer_permission</code>, <code>set_permission_mode</code> and <code>request_approval</code>, each with a default (<a href="../api/agents.html#itaskagent">API</a>). There's no <code>Agent</code> base class: each big agent is a <code>ProfileAgent</code> assembled from parts (<a href="agents-code.html#the-layers">code layout</a>, <a href="principles.html">principle 12</a>).</p>
 <h3 id="who-sends-what">Who sends what</h3>
 <pre><code class="language-mermaid">flowchart LR
     Talker[&quot;&lt;b&gt;Talker&lt;/b&gt;&quot;]
+    Gate[&quot;&lt;b&gt;Core&lt;/b&gt;&lt;br/&gt;door · router · gate&quot;]
     Hub[&quot;&lt;b&gt;Agent Hub&lt;/b&gt;&lt;br/&gt;authoritative task state&quot;]
-    Agent[&quot;&lt;b&gt;Main Assistant&lt;/b&gt;&lt;br/&gt;ITaskAgent&quot;]
-    View[&quot;&lt;b&gt;Terminal 2&lt;/b&gt;&lt;br/&gt;assistant_view&quot;]
+    Agent[&quot;&lt;b&gt;Task agent&lt;/b&gt;&lt;br/&gt;ITaskAgent&quot;]
+    UI[&quot;&lt;b&gt;temp_ui&lt;/b&gt;&quot;]
 
-    Talker -- &quot;StartTask · GetTaskStatus&lt;br/&gt;SendToTask · CancelTask&quot; --&gt; Hub
-    Hub -- &quot;assign · message · cancel&quot; --&gt; Agent
+    Talker -- &quot;InvokeTool hub.*&quot; --&gt; Gate
+    Agent -- &quot;use_item hub.* (door)&quot; --&gt; Gate
+    Gate -- &quot;the Hub's menu item&quot; --&gt; Hub
+    UI -- &quot;SetFocus · AnswerPermission&quot; --&gt; Hub
+    Hub -- &quot;assign · message · cancel · note · reset&quot; --&gt; Agent
     Agent -- &quot;ReportTask&quot; --&gt; Hub
     Hub -. &quot;TaskUpdated&quot; .-&gt; Talker
-    Agent -. &quot;AgentActivity&lt;br/&gt;AgentStateChanged&quot; .-&gt; View
+    Hub -. &quot;TaskUpdated · FocusChanged&quot; .-&gt; UI
+    Agent -. &quot;AgentActivity · AgentStateChanged&quot; .-&gt; UI
 </code></pre>
-<p>Solid: commands and contract calls, which always return a <code>Result</code>. Dotted: events, which may be dropped.</p>
+<p>Solid: tool calls, commands and contract calls, which always return a <code>Result</code>. Dotted: events, which may be dropped.</p>
 <ul>
-<li><strong>Talker → Hub:</strong> commands <code>StartTask</code>, <code>GetTaskStatus</code> (status without bothering the agent), <code>SendToTask</code> (a question, extra instruction, or your answer), <code>CancelTask</code>. In v1 the <code>talker</code> module turns tags in the Talker's text (<code>&lt;&lt;WORK: …&gt;&gt;</code>, <code>&lt;&lt;ASK: …&gt;&gt;</code>, <code>&lt;&lt;PAUSE: …&gt;&gt;</code>, <code>&lt;&lt;CANCEL&gt;&gt;</code> etc.) into these commands. Planned: both agents find module tools through the <a href="modules.html#find-a-module-then-open-its-menu">directory, then menu</a> instead of hardcoded tags.</li>
-<li><strong>You never use keywords or flags.</strong> You just talk; the Talker (a Claude too) infers from context whether you meant continue, pause, or cancel, and emits the matching tag.</li>
+<li><strong>Talker → Hub:</strong> only through the Hub's menu (<code>TalkerModule.hub</code> sends <code>InvokeTool</code>): <code>hub.start</code>, <code>hub.status</code> (status without bothering the agent), <code>hub.send</code> (a question, extra instruction, or your answer), <code>hub.cancel</code>, <code>hub.focus</code>, <code>hub.answer</code>, <code>hub.mode</code> (Manual only). The Talker's tags (<code>&lt;&lt;WORK: …&gt;&gt;</code>, <code>&lt;&lt;PASS&gt;&gt;</code>, <code>&lt;&lt;CANCEL&gt;&gt;</code> etc.) are a shorthand for these items. It also sends <code>AnswerPermissionRequest</code> (your answer to a core card, as a relay), <code>ResetRequested</code> and <code>ShutdownRequested</code> (a restart, after its confirm card).</li>
+<li><strong>You never use keywords or flags.</strong> You just talk; the Talker (a Claude too) infers from context whether you meant continue, pause, or cancel, and uses the matching item.</li>
+<li><strong>Agents → Hub:</strong> the same menu, through the door (<code>hub.start</code> for a child task, <code>hub.send</code>, <code>hub.suggest_focus</code>, …), each call carrying the caller its token proved.</li>
 <li><strong>Agent → any UI:</strong> the <code>AgentStateChanged</code> event whenever its <code>state</code> (active or idle) changes, so a UI shows it live. <code>ListAgents</code> (Hub) is the authoritative read.</li>
 <li><strong>Hub → agent:</strong> the <code>ITaskAgent</code> methods.</li>
-<li><strong>Agent → Hub:</strong> the <code>ReportTask(task_id, kind, text, key)</code> command, with <code>kind</code> = <code>progress</code> / <code>reply</code> / <code>need</code> / <code>turn_end</code> / <code>done</code> / <code>failed</code>, and with a <code>need</code> its context <code>key</code>. A turn that ends with no last-line tag (or with its card open) reports <code>turn_end</code>, and the Hub answers whether the task ends waiting or is done (<a href="#task-state">a waiting task ends with a note</a>). A command, not an event, because the Hub's state must not miss it.</li>
-<li><strong>Hub → Talker:</strong> the <code>TaskUpdated</code> event on every report and state change. The Talker can always re-read with <code>GetTaskStatus</code>.</li>
-<li><strong>Agent → terminal 2:</strong> the <code>AgentActivity</code> event, the agent's raw text and tool calls. Published by the agent module directly, since it's high-volume and only for viewing.</li>
+<li><strong>Agent → Hub:</strong> the <code>ReportTask(task_id, kind, text, key)</code> command, with <code>kind</code> = <code>progress</code> / <code>milestone</code> / <code>reply</code> / <code>need</code> / <code>turn_end</code> / <code>done</code> / <code>failed</code>, and with a <code>need</code> its context <code>key</code>. A turn that ends with no last-line tag (or with its card open) reports <code>turn_end</code>, and the Hub answers whether the task ends waiting or is done (<a href="#task-state">task state</a>). A command, not an event, because the Hub's state must not miss it.</li>
+<li><strong>Hub → Talker and UIs:</strong> the <code>TaskUpdated</code> event on every report and state change. The Talker can always re-read with <code>hub.status</code>.</li>
+<li><strong>Agent → viewers:</strong> the <code>AgentActivity</code> event, the agent's raw text and tool calls. Published by the agent module directly, since it's high-volume and only for viewing.</li>
 </ul>
 <h3 id="messages-and-cancel">Messages and cancel</h3>
 <p><strong><code>message</code></strong> works like typing into Claude Code while it works:</p>
@@ -313,7 +371,7 @@
     participant H as Hub
     participant M as Main Assistant
     You-&gt;&gt;T: &quot;Wait, is it using the old API?&quot;
-    T-&gt;&gt;H: SendToTask(text, resume=true)
+    T-&gt;&gt;H: hub.send(text) → SendToTask(resume=true)
     H-&gt;&gt;M: message(text, resume=true)
     M-&gt;&gt;M: interrupt the current turn
     M-&gt;&gt;H: ReportTask(reply, &quot;Yes, v1. Switching to v2.&quot;)
@@ -323,7 +381,7 @@
 </code></pre>
 <ul>
 <li><strong><code>resume=true</code></strong> (default): after the reply, the agent sends "continue the task" to its session itself.</li>
-<li><strong><code>resume=false</code></strong>: you said stop or pause. The agent replies and the task goes <code>idle</code>, still held by its agent; a later <code>SendToTask</code> with <code>resume=true</code> (e.g. "carry on") continues it. A new task for that agent drops it. To abandon the task, use <code>CancelTask</code>.</li>
+<li><strong><code>resume=false</code></strong> (<code>hub.send</code> with <code>pause</code>): you said stop or pause. The agent replies and the task goes <code>idle</code>, still held by its agent; a later <code>hub.send</code> without <code>pause</code> (e.g. "carry on") continues it. A new task for that agent drops it. To abandon the task, use <code>hub.cancel</code>.</li>
 <li><strong>Answering a question:</strong> if the agent asked you something (<code>need</code>), its turn has ended and it dropped the task, so there's nothing to interrupt. Your answer gives the same task back to it (<a href="#questions-are-messages">questions are messages</a>).</li>
 <li>The Talker infers <code>resume</code> from context; you never say a keyword. The reply is how it (and you) decide whether to cancel.</li>
 </ul>
@@ -333,9 +391,9 @@
 <pre><code class="language-mermaid">stateDiagram-v2
     [*] --&gt; active: assign accepted
     active --&gt; idle: ReportTask need (the agent drops it, keeps nothing)
-    idle --&gt; active: SendToTask (your answer: assigned again, same id)
-    active --&gt; idle: SendToTask resume=false (the agent still holds it)
-    idle --&gt; active: SendToTask resume=true
+    idle --&gt; active: your answer (assigned again, same id)
+    active --&gt; idle: hub.send with pause (the agent still holds it)
+    idle --&gt; active: hub.send without pause
     active --&gt; done: ReportTask done
     active --&gt; failed: ReportTask failed
     active --&gt; cancelled: CancelTask
@@ -348,51 +406,58 @@
     cancelled --&gt; [*]
 </code></pre>
 <p>Two live states: <strong>active</strong> (its agent is in a turn on it; a permission card mid-turn keeps it active) and <strong>idle</strong>. An idle task is either paused (you stopped it; its agent still holds it, and a new task for that agent ends it as done) or holds its agent's note (a <code>need</code>, or what it ended waiting on; the agent dropped it and is free). <code>progress</code>, <code>milestone</code> and <code>reply</code> reports don't change the state. Each agent runs <strong>one task at a time</strong>; <code>assign</code> to an active agent is refused and <code>StartTask</code> returns <code>not_available</code>. An idle agent takes new work, whatever questions it has open.</p>
-<p><strong>A waiting task ends with a note</strong> (built 2026-11-13): a task never sits in an open-ended pause. When a turn ends with no last-line tag, or with its card (an approval: <code>RELOAD:</code>, <code>ADD_MODULE:</code>, a helper launch in Manual) still open, the agent reports <code>turn_end</code> with the task's context key, and the Hub decides (<code>TaskBoard._settle</code>). If the task waits on its card, or on child tasks started with <code>tell_parent</code> (the default), it <strong>ends waiting</strong>, the way a <code>need</code> does: the agent drops it (its live session kept) and is free for new tasks and messages, and the Hub's record is the note: what it waits on (<code>question_kind</code> <code>wait</code>, "waiting on child task …"; a card keeps <code>permission</code>, so it shows as before), its key, its recent reports. The note outlives a Hub reload (<code>export_questions</code>). An open approval stays in the agent's gate for that task (<code>PermissionGate.park</code>). Otherwise the task is done, as before. <strong>What gives it back</strong> (the same task id, through <code>_answer</code>: into the live session if nothing ran since, else a fresh one with the key's notes): each child's end, delivered into that parent task by id (for the coordinator too), the card's outcome (the agent reports it as the task's <code>progress</code>), or your message. If the agent is busy then, it waits in <code>Delivery</code> until the agent is free. If other children are still open, the resumed turn ends waiting again. A child started with <code>tell_parent=False</code> doesn't count (its module reports the end itself). An agent still in a turn, a <code>need</code>, and messages it sent that wait elsewhere are never ended this way. No queues, priorities, progress percentages, or crash resume yet.</p>
-<h3 id="questions-are-messages">Questions are messages</h3>
-<p>A question never makes an agent busy (built 2026-11-10; the change note: <code>docs/next-steps/agent-talk-and-questions.md</code>).</p>
+<p><strong>A waiting task ends with a note:</strong> a task never sits in an open-ended pause, so an agent is never blocked by a card or a child. When a turn ends with no last-line tag, or with its card (an approval: <code>RELOAD:</code>, <code>ADD_MODULE:</code>, a helper launch in Manual) still open, the agent reports <code>turn_end</code> with the task's context key, and the Hub decides (<code>TaskBoard._settle</code>):</p>
 <ul>
-<li><strong>A <code>NEED:</code> ends the turn.</strong> The agent reports <code>need</code> with the question's context <strong>key</strong> (<code>ReportTask.key</code>; its module decides it: cv uses the job's folder, others the task's last handoff note), drops the task and is idle. The Hub keeps the task <code>idle</code> with its question (<code>TaskInfo.question_key</code>), behind the tab's <strong>!</strong> as before.</li>
-<li><strong>Your answer is a message,</strong> whenever you give it: the Hub assigns the same task id to the agent again, with "Answer to your question in task <id> (…): <answer>" and the key (<code>Task.question_key</code>). If the agent is in a turn on other work, the answer waits and goes in when it's free (<code>hub.send</code> says "delivered: when its agent is free").</li>
+<li><strong>It waits</strong> on its card, or on child tasks started with <code>tell_parent</code> (the default): it <strong>ends waiting</strong>, the way a <code>need</code> does. The agent drops it (its live session kept) and is free; the Hub's record is the note: what it waits on (<code>question_kind</code> <code>wait</code>; a card keeps <code>permission</code>), its key, its recent reports. The note outlives a Hub reload. An open approval stays in the agent's gate for that task (<code>PermissionGate.park</code>).</li>
+<li><strong>Otherwise</strong> the task is done.</li>
+<li><strong>What gives it back</strong> (the same task id: into the live session if nothing ran since, else a fresh one with the key's notes): each child's end, the card's outcome, or your message. If the agent is busy then, it waits in <code>Delivery</code>. A child started with <code>tell_parent=False</code> doesn't count (its module reports the end itself).</li>
+</ul>
+<p>No queues, priorities, progress percentages, or crash resume. The Hub's own detail is on its <a href="../modules/agent_hub/architecture.html">module page</a>.</p>
+<h3 id="questions-are-messages">Questions are messages</h3>
+<p>A question never makes an agent busy.</p>
+<ul>
+<li><strong>A <code>NEED:</code> ends the turn.</strong> The agent reports <code>need</code> with the question's context <strong>key</strong> (<code>ReportTask.key</code>; its module decides it: cv uses the job's folder, others the task's last handoff note), drops the task and is idle. The Hub keeps the task <code>idle</code> with its question (<code>TaskInfo.question_key</code>), behind the tab's <strong>!</strong>.</li>
+<li><strong>Your answer is a message,</strong> whenever you give it: the Hub assigns the same task id to the agent again, with "Answer to your question in task <id> (…): <answer>" and the key. If the agent is in a turn on other work, the answer waits and goes in when it's free (<code>hub.send</code> says "delivered: when its agent is free").</li>
 <li><strong>The agent finds the context again.</strong> If its session still has the question, it carries on there. If not (a relaunch, a reset, other work in between), it starts a fresh session and adds its module's notes for the key: the hook <code>SessionTaskAgent.set_context(key, notes)</code>, by default the handoff note (<a href="../api/infra.html#sessiontaskagent"><code>default_context</code></a>); cv adds the job's <code>job_start.json</code> summary and its handoff note.</li>
-<li><strong>A permission card</strong> (a tool call mid-turn) is unchanged: the turn stays active, and Allow or Deny lets it carry on.</li>
+<li><strong>A permission card</strong> (a tool call mid-turn) keeps the turn active, and Allow or Deny lets it carry on.</li>
 <li><strong>Open questions survive a Hub reload</strong> (handed over in <code>export_state</code>) and don't hold up the reload. An app restart doesn't wait for them either: they're listed in the reset note with their context.</li>
 </ul>
 <h3 id="working-together">Working together</h3>
-<p>Several task agents can run at once (built 2026-11-05). The helpers beside the Main Assistant come from kinds of helper in config, in the <a href="../modules/task_agents/index.html"><code>task_agents</code></a> module, launched by name (<a href="#launching-a-helper">launching a helper</a>); a big agent with code of its own is bundled with its own module. Both are built on the shared <code>ProfileAgent</code>. The build plan is the multi-agent change note (<code>docs/next-steps/multi-agent.md</code>).</p>
+<p>Several task agents run at once. The helpers beside the Main Assistant come from kinds of helper in config, in the <a href="../modules/task_agents/index.html"><code>task_agents</code></a> module, launched by name (<a href="#launching-a-helper">launching a helper</a>); a big agent with code of its own is bundled with its own module. Both are built on the shared <code>ProfileAgent</code>.</p>
 <ul>
 <li><strong>The focus:</strong> the Hub keeps which agent you're talking to. At launch it's the coordinator (<code>[modules.agent_hub] coordinator</code>, the Main Assistant). Only the Talker moves it (<code>hub.focus</code>, after you said so) or a UI (<code>SetFocus</code>); the coordinator can only suggest a move (<code>hub.suggest_focus</code>), which the Talker asks you about.</li>
 <li><strong>Held questions:</strong> a <code>need</code> or <code>permission</code> from an agent out of focus is held on its task (the <strong>!</strong> on its tab) until you focus it; <code>FocusChanged</code> then releases it.</li>
-<li><strong>Milestones to the coordinator:</strong> each agent's prompt (the shared block from <code>AgentProfile</code>) asks for <code>STATUS:</code> lines at milestones, reported as <code>milestone</code>. The Hub feeds every other agent's milestones and ends, and each focus move, to the coordinator's <code>note</code>, read at the end of its next message. Never an interrupt.</li>
-<li><strong>A child's end to its parent</strong> (built 2026-11-12): when a child task ends <code>done</code> or <code>failed</code>, the Hub sends its parent's agent the end as a message (<code>[Message from agent_hub] Your child task … ended …</code>), delivered like any <code>DeliverMessage</code>. A child started with <code>StartTask.tell_parent=False</code> tells no one: its module reports the end itself as a named event (<code>cv.task</code> → <code>cv.job_finished</code>, which job_search turns into a message for its agent). The coordinator as parent gets only its feed line. A parent hands work over and ends its turn; the result wakes it (<a href="../modules/agent_hub/architecture.html">Agent Hub</a>).</li>
+<li><strong>Milestones to the coordinator:</strong> each agent's prompt (the shared block from <code>AgentProfile</code>) asks for <code>STATUS:</code> lines at milestones, reported as <code>milestone</code>. The Hub feeds every other agent's milestones and ends, and each focus move, to the coordinator's <code>note</code>, read at the end of its next message. Never an interrupt: it would cost a full step at the coordinator's whole context.</li>
+<li><strong>A child's end to its parent:</strong> when a child task ends <code>done</code> or <code>failed</code>, the Hub sends its parent's agent the end as a message (<code>[Message from agent_hub] Your child task … ended …</code>), delivered like any <code>DeliverMessage</code>. A child started with <code>StartTask.tell_parent=False</code> tells no one: its module reports the end itself as a named event (<code>cv.task</code> → <code>cv.job_finished</code>, which job_search turns into a message for its agent). The coordinator as parent gets only its feed line. A parent hands work over and ends its turn; the result wakes it (<a href="../modules/agent_hub/architecture.html">Agent Hub</a>).</li>
 <li><strong>One road to the Hub:</strong> agents and the Talker reach the Hub through its menu on the module door; every item knows its caller (<code>InvokeTool.caller</code>, set by the door from the session's token, never by the session). Others may cancel only their own child tasks.</li>
-<li><strong>Agents message each other</strong> (built 2026-11-10): <code>hub.send</code> with <code>agent_id</code> works for every agent. Into its own child task a message goes straight in (it interrupts, as before). Anything else goes through the Hub's <strong>message gate</strong>: the first message from A to B opens a permission card, "A wants to message B", with <strong>Allow once</strong> · <strong>Always allow</strong> · <strong>Deny</strong>. Always saves a grant under <code>agent_hub</code> for A's kind, one per direction (<a href="permissions.html#messages-between-agents">permissions</a>). On Allow the message is delivered; on Deny or no answer A gets a <code>[messages]</code> note and nothing is sent. The Talker is never asked.</li>
+<li><strong>Agents message each other:</strong> <code>hub.send</code> with <code>agent_id</code> works for every agent. Into its own child task a message goes straight in (it interrupts). Anything else goes through the Hub's <strong>message gate</strong>: the first message from A to B opens a permission card, "A wants to message B", with <strong>Allow once</strong> · <strong>Always allow</strong> · <strong>Deny</strong>. Always saves a grant under <code>agent_hub</code> for A's kind, one per direction (<a href="permissions.html#messages-between-agents">permissions</a>). On Allow the message is delivered; on Deny or no answer A gets a <code>[messages]</code> note and nothing is sent. The Talker is never asked.</li>
 <li><strong>Delivery never interrupts a turn</strong> (<code>DeliverMessage</code>, handled by the Hub's <code>Delivery</code>): the text arrives as <code>[Message from &lt;sender&gt;] …</code>, into the agent's open task, or as a new task if it has none. An agent in a turn gets it when the turn ends; one that isn't running gets it when it starts. Messages to one agent keep their order. Modules use it too: the cv module's result at Submit (<a href="../modules/cv/architecture.html">cv</a>).</li>
-<li><strong>Limits:</strong> besides the coordinator (not counted), at most <code>[modules.agent_hub] max_extra_agents</code> agents (3 by default) with an active task at once, and no two active agents writing the same folders. An idle agent, or one whose task only holds a question, holds no folder. A free pick (<code>hub.start</code> with no <code>agent_id</code>) never lands on an agent whose own config says <code>named_only = true</code> (<a href="../api/agents.html#agentinfo"><code>AgentInfo.named_only</code></a>); anyone may still name it (cv_agent, in cv's <code>[agent]</code>: <code>cv.task</code> starts it). <code>[modules.agent_hub] named_only</code> is an optional fallback list of ids, empty by default.</li>
-<li><strong>The Talker's part</strong> (<a href="../modules/talker/index.html">talker</a>): one <code>TalkerSession</code> per agent tab, each with its partner agent; the module routes your input by its tab (else the focus) and each <code>TaskUpdated</code> to its agent's session. A session's tags act on its partner, it hears only its partner's updates, and it reaches the Hub through its menu with <code>InvokeTool</code> (its tags are a shorthand). PASS sends your words to its own agent unchanged (<code>hub.send(agent_id)</code>); a bare "yes" answers that tab's card when it has only one, and asks which when it has more.</li>
+<li><strong>Limits:</strong> besides the coordinator (not counted), at most <code>[modules.agent_hub] max_extra_agents</code> agents (3 by default) with an active task at once, and no two active agents writing the same folders, or one inside the other. The exception: a module's own folder (<code>src/assistant/modules/&lt;id&gt;</code>) under a wider grant such as the Main Assistant's whole repo, so a module agent can edit its own code while the Main Assistant works. An idle agent, or one whose task only holds a question, holds no folder. A free pick (<code>hub.start</code> with no <code>agent_id</code>) never lands on an agent whose own config says <code>named_only = true</code> (<a href="../api/agents.html#agentinfo"><code>AgentInfo.named_only</code></a>); anyone may still name it (cv_agent: <code>cv.task</code> starts it). <code>[modules.agent_hub] named_only</code> is an optional fallback list of ids, empty by default.</li>
+<li><strong>The Talker's part</strong> (<a href="../modules/talker/index.html">talker</a>): one <code>TalkerSession</code> per agent tab, each with its partner agent; the module routes your input by its tab (else the focus) and each <code>TaskUpdated</code> to its agent's session. A session's tags act on its partner, it hears only its partner's updates, and it reaches the Hub through its menu with <code>InvokeTool</code>. PASS sends your words to its own agent unchanged (<code>hub.send(agent_id)</code>); a bare "yes" answers that tab's card when it has only one, and asks which when it has more.</li>
 <li><strong>The coordinator delegates:</strong> its prompt block tells it to use <code>hub.agents</code>, <code>hub.start</code> (a child task), <code>hub.status</code> / <code>hub.send</code> / <code>hub.cancel</code> on its own children, and <code>hub.suggest_focus</code>; only you move the focus. It launches a helper (<code>agents.launch</code>) only when you asked for one.</li>
 <li><strong>In the temp UI</strong> (<a href="../modules/temp_ui/index.html">temp_ui</a>): one tab per big agent with a state dot and the <strong>!</strong>, the Main Assistant's in its own colour; a click moves the focus and brings the held items. A chat per tab under a "Talker · agent" header, the last 300 items of each replayed, not saved across a relaunch.</li>
-<li><strong>The job agent</strong> (<a href="../modules/job_search/index.html">job_search</a>): <code>job_search_agent</code>, the first big agent bundled with its own module (a <code>ProfileAgent</code> plus its <code>job.search</code> menu item, a stub that answers through <code>AgentNotice</code>).</li>
 </ul>
 <h3 id="agent-names">Agent names</h3>
-<p>Every task agent has one id. The Hub, the tabs, the focus, messages, usage and the module door all find an agent by it (built 2026-11-05; the note: <code>docs/next-steps/agent-names.md</code>).</p>
+<p>Every task agent has one id. The Hub, the tabs, the focus, messages, usage and the module door all find an agent by it.</p>
 <ul>
-<li><strong>Three kinds of agent, kept apart.</strong> The coordinator and module agents come with their own module and start with it: the Main Assistant (<code>main_assistant</code>) and the job agent (<code>job_search_agent</code>). Helpers come from <code>task_agents</code>, launched by name for one task (<code>flight_search</code>) from a kind of helper in config. Sub-agents are what a <code>claude</code> session starts inside itself (its own Task tool); they have no id and never reach the Hub.</li>
+<li><strong>Three kinds of agent, kept apart.</strong> The coordinator and module agents come with their own module and start with it: the Main Assistant (<code>main_assistant</code>), the job agent (<code>job_search_agent</code>) and cv's worker (<code>cv_agent</code>). Helpers come from <code>task_agents</code>, launched by name for one task (<code>flight_search</code>) from a kind of helper in config. Sub-agents are what a <code>claude</code> session starts inside itself (its own Task tool); they have no id and never reach the Hub.</li>
 <li><strong>Conventions:</strong> short, lowercase, letters, digits and <code>_</code>, starting with a letter, at most 32 characters (<code>flight_search</code>, <code>helper_2</code>). A module's agent is named after its module plus <code>_agent</code>. Extra copies are <code>&lt;name&gt;_2</code>, <code>&lt;name&gt;_3</code>.</li>
-<li><strong>Reserved:</strong> <code>main_assistant</code>, <code>talker</code>, <code>core</code>, <code>hub</code>, and every module's id, since the door's caller names are agent or module ids. A module's own agent may carry its module's id (<code>main_assistant</code>). The rules are one helper, <a href="../api/infra.html#agent_names"><code>check_agent_id</code></a>.</li>
-<li><strong>The Hub holds the claims</strong> (<a href="../api/agents.html#iagentnames"><code>IAgentNames</code></a>). <code>ProfileAgent</code> claims its agent's id on start and releases it on stop, so every agent gets the check with no code of its own. A refused claim stops that agent with the reason; at launch its module fails to start and the log says why. A taken id's refusal names a free one (<code>flight_search_2</code>). The claims survive a Hub reload.</li>
+<li><strong>Reserved:</strong> <code>core</code>, <code>hub</code>, <code>talker</code>, and every module's id (so <code>main_assistant</code> too), since the door's caller names are agent or module ids. A module's own agent may carry its module's id (<code>main_assistant</code>). The rules are one helper, <a href="../api/infra.html#agent_names"><code>check_agent_id</code></a>.</li>
+<li><strong>The core holds the claims,</strong> in its Callers port (<code>core/callers.py</code>, provided as <a href="../api/agents.html#iagentnames"><code>IAgentNames</code></a>). <code>ProfileAgent</code> claims its agent's id on start and releases it on stop, so every agent gets the check with no code of its own. A refused claim stops that agent with the reason; at launch its module fails to start and the log says why. A taken id's refusal names a free one (<code>flight_search_2</code>). A Hub reload doesn't touch the claims. A released id goes back to Manual.</li>
 <li><strong>Safety net:</strong> an agent that skipped the claim and shares an id is seen once: the Hub uses the first one everywhere (<code>hub.agents</code>, <code>ListAgents</code>, routing) and logs the clash once.</li>
 </ul>
 <h3 id="launching-a-helper">Launching a helper</h3>
-<p>A helper starts only with your yes (built 2026-11-05). <code>agents.launch(name, task, kind)</code> on the <code>task_agents</code> menu only <em>proposes</em> it. The caller must be an agent with an open task, because the question hangs on that task as the usual permission card. The Talker has none, so from it the call is refused with "hand it to the Main Assistant".</p>
+<p>A helper starts only with your yes. <code>agents.launch(name, task, kind)</code> on the <code>task_agents</code> menu only <em>proposes</em> it. The caller must be an agent with an open task, because the question hangs on that task as the usual permission card. The Talker has none, so from it the call is refused with "hand it to the Main Assistant".</p>
 <pre><code class="language-mermaid">sequenceDiagram
     actor You
     participant M as Main Assistant
     participant TA as task_agents
     participant H as Hub
+    participant C as Core
     You-&gt;&gt;M: &quot;start a helper to search flights&quot;
-    M-&gt;&gt;TA: agents.launch(&quot;flight_search&quot;, task)
-    TA-&gt;&gt;H: IAgentNames.check
+    M-&gt;&gt;C: use_item agents.launch(&quot;flight_search&quot;, task) (door → gate)
+    C-&gt;&gt;TA: the menu item
+    TA-&gt;&gt;C: IAgentNames.check
     TA-&gt;&gt;M: request_approval(action, run)
     M-&gt;&gt;H: ReportTask(permission)
     H--&gt;&gt;You: the card: Allow / Deny
@@ -405,24 +470,24 @@
     M-&gt;&gt;M: next message: &quot;[App] ... flight_search started on task ...&quot;
 </code></pre>
 <ul>
-<li><strong>The card</strong> is the same one a tool permission uses (the temp UI's Allow / Deny, the Talker's ALLOW / DENY, <code>AnswerPermission</code>). A launch asks in Manual; once you switch the calling agent to Auto with its button, it launches at once with no card (decided 2026-11-13: each pair's own mode governs its own asks). Deny, or no answer before the card times out, and nothing is built.</li>
+<li><strong>The card</strong> is the same one a tool permission uses (the temp UI's Allow / Deny, the Talker's ALLOW / DENY, <code>AnswerPermission</code>). A launch asks in Manual; once you switch the calling agent to Auto with its button, it launches at once with no card: each pair's own mode governs its own asks. Deny, or no answer before the card times out, and nothing is built.</li>
 <li><strong>On Allow</strong> the helper is a <code>ProfileAgent</code> in its own sub-folder <code>&lt;kind workspace&gt;/&lt;name&gt;</code>, with its own transcript. Its task is the caller's child (<code>StartTask</code>), so the cap and the folder check apply. The outcome reaches the caller as its next message.</li>
 <li><strong>The turn waits:</strong> the caller ends its turn after <code>agents.launch</code>; while the approval is open that doesn't finish the task. An answer that comes mid-turn is sent when the turn ends.</li>
 <li><strong>Taken names:</strong> a name the Main Assistant made up: it takes the suggested free one and tells you. A name you gave: it asks you again.</li>
 <li><strong>Closing:</strong> <code>agents.close(agent_id)</code> closes a launched helper with no task, frees its name, and takes it back with <code>ctx.withdraw</code>, without stopping <code>task_agents</code>. Launched helpers end with the module.</li>
 </ul>
-<p><strong>Opening one yourself</strong> (the temp UI's <strong>+</strong>, built 2026-11-05): you pick a kind, a name (filled with a free one from <code>agents.kinds</code>) and an optional first task. <code>agents.launch</code> from <code>temp_ui</code> (you) needs no open task and no launch card: your click is the yes. The name and kind are checked at once. The kind's access card, if it has no saved grant, and the build run in the background, so the call returns at once. With no task the helper opens idle, and your first message to its tab starts one (PASS → <code>hub.send</code>). With a task it starts as your own task, with no parent. The new tab takes the focus. For now <code>task_agents</code> treats caller <code>temp_ui</code> as you; later <code>ctx.permissions.is_you(caller)</code> will read the permissions handler's one list.</p>
+<p><strong>Opening one yourself</strong> (the temp UI's <strong>+</strong>): you pick a kind, a name (filled with a free one from <code>agents.kinds</code>) and an optional first task. <code>agents.launch</code> from <code>temp_ui</code> (you) needs no open task and no launch card: your click is the yes. The name and kind are checked at once. The kind's access card, if it has no saved grant, and the build run in the background, so the call returns at once. With no task the helper opens idle, and your first message to its tab starts one (PASS → <code>hub.send</code>). With a task it starts as your own task, with no parent. The new tab takes the focus. <code>task_agents</code> asks the core whether the caller is you (<code>IAgentNames.is_you</code>, from the one list <code>[core.permissions] you</code>, today <code>temp_ui</code>).</p>
 <p><strong>Closing a tab</strong> (the temp UI's <strong>×</strong>, on every tab but the Main Assistant's): the page asks first ("Close this agent?", Close / Cancel). On Close, the agent's running task is cancelled (<code>CancelTask</code>), then a launched helper is closed with <code>agents.close</code>, and a module's agent is closed by turning its module off (<code>modules.off</code>; the job agent: <code>job_search</code>, which comes back with its saved grant when turned on). A helper <code>task_agents</code> autostarted closes only with its module. Closing the focused agent moves the focus back to the Main Assistant.</p>
 <h2 id="principles">Principles</h2>
 <ol>
-<li><strong>The Hub encompasses all agents.</strong> Talker, Main Assistant, and subagents share one coordination layer.</li>
-<li><strong>One central intelligence.</strong> The Main Assistant plans and reasons; the Talker communicates; subagents execute.</li>
+<li><strong>One coordination layer.</strong> Talker, Main Assistant, helpers and module agents share the Hub's task board and focus; the Hub holds no agent.</li>
+<li><strong>One central intelligence.</strong> The Main Assistant plans and reasons; the Talker communicates; helpers and module agents execute.</li>
 <li><strong>The Hub is not an AI.</strong> Deterministic coordination, routing, bookkeeping.</li>
 <li><strong>No direct cross-module dependencies.</strong> Only core infrastructure and shared contracts.</li>
-<li><strong>Replaceable implementations.</strong> Talker, Main Assistant, Hub, and subagents change independently.</li>
-<li><strong>Capability-based contracts.</strong> No rigid agent class hierarchy; a module may provide several contracts (the core already supports this via <code>Manifest.provides</code>).</li>
+<li><strong>Replaceable implementations.</strong> Talker, Main Assistant, Hub, helpers and module agents change independently.</li>
+<li><strong>Capability-based contracts.</strong> No rigid agent class hierarchy; a module may provide several contracts (<code>Manifest.provides</code>).</li>
 <li><strong>Logical hierarchy, flexible routing.</strong> Skip levels where it makes sense.</li>
-<li><strong>Independent execution.</strong> Subagents can eventually work in parallel without blocking the Talker.</li>
+<li><strong>Independent execution.</strong> Agents work in parallel, one task each, without blocking the Talker.</li>
 <li><strong>Authoritative task state.</strong> Status and results never depend only on events, which may be dropped.</li>
 <li><strong>Minimal first.</strong> No scheduling, queues, or distributed machinery until needed.</li>
 <li><strong>Full paths for files you should see.</strong> When an agent's reply points you to an HTML file, it writes the full absolute path, never a bare file name. The chat turns the path into an Open in viewer button, and a bare name is looked for in the app's folder and fails with "No such file". Pages agents open on their own stay in the background; only your click brings the viewer to the front (<a href="../modules/html_viewer/viewer-app.html">HTML viewer</a>).</li>
@@ -446,7 +511,7 @@
 <tr>
 <td><strong>Agent context</strong></td>
 <td>What a model needs to reason well</td>
-<td>Talker: compact summaries and status snapshots, never the full transcript. Main Assistant: relevant conversation context on assignment. Subagents: only what their task needs</td>
+<td>Talker: compact summaries and status snapshots, never the full transcript. Main Assistant: relevant conversation context on assignment. Helpers and module agents: only what their task needs</td>
 </tr>
 <tr>
 <td><strong>Transcripts</strong></td>
@@ -460,10 +525,18 @@
 </tr>
 </tbody>
 </table>
-<p>The Hub stores and serves these; deciding what's <em>relevant</em> stays with the agents. Eventually: stable task ids, parent/child tasks, cancellation, progress, and idempotent submissions so retries don't duplicate work.</p>
+<p>The Hub stores and serves task state; deciding what's <em>relevant</em> stays with the agents. Task ids, parent/child tasks, cancellation and progress are built; idempotent submissions (so retries don't duplicate work) are not.</p>
+<h2 id="good-to-know-and-known-gaps">Good to know and known gaps</h2>
+<ul>
+<li><strong>The Talker relays card answers.</strong> It may send <code>AnswerPermission</code> and <code>AnswerPermissionRequest</code> (<code>[core.permissions] relays</code>, <code>core/context.py:51-52</code>). Whether those count as your own answers is an open decision (<a href="decisions.html">decisions</a>).</li>
+<li><strong>The review is a task the Hub starts</strong> (<code>agent_hub/review.py</code>), the Hub's one job beyond coordination; with the Hub off, the card shows "not reviewed".</li>
+<li><strong>Risky steps and Auto:</strong> risky core-menu items card even in Auto, and <code>modules.off</code> without dependents gets no card (<a href="permissions.html">permissions</a>).</li>
+<li><strong>job_search reads cv's output by file path,</strong> not through a tool: the job project's <code>cv_output</code> link in <code>job_paths.json</code> points into cv's workspace. That goes past the door, so wherever cv's workspace sits, the link has to point there.</li>
+<li><strong>The CLAUDE.md exclude list covers only the repo's files</strong> (<code>infra/agent_profile.py:121-125</code>). A module agent working under an add-ons folder outside the repo would load any CLAUDE.md in a parent folder there, and the developer rules point at repo paths.</li>
+<li><strong>Which CLAUDE.md the Talker and the helpers load</strong> follows from their working folder and Claude Code's own lookup; the code sets no exclude list for them, and no test checks it.</li>
+<li><strong>The core still names agents in three spots</strong> (<a href="agents-code.html#known-limits">known limits</a>).</li>
+</ul>
 <h2 id="open-questions">Open questions</h2>
-<p>Answered by the <a href="#task-agents">task-agent design</a>: the Hub holds task state and each agent its session; agents share <code>ITaskAgent</code>; the Talker reaches a busy agent with <code>SendToTask</code> (interrupt, reply, continue); clarifications are <code>need</code> reports answered with <code>SendToTask</code>. By <a href="#working-together">working together</a>: the Main Assistant delegates through the Hub's menu (<code>hub.start</code>, <code>hub.send</code>).</p>
-<p>Still open:</p>
 <ul>
 <li>How do multiple front-ends share the same task state?</li>
 <li>How do interrupted or crashed agents recover without repeating side effects?</li>

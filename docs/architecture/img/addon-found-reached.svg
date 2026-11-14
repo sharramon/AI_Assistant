@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="760" viewBox="0 0 1100 760" aria-label="How an add-on is found, turned on and reached">
+  <style>
+    text { font-family: "Segoe UI", system-ui, sans-serif; }
+  </style>
+  <rect x="0" y="0" width="1100" height="760" fill="#fbfaf7"/>
+  <defs>
+    <marker id="bt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="bc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="bb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="bp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="bg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3d7f4f"/></marker>
+    <marker id="bi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a877c"/></marker>
+    <marker id="bhp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+    <marker id="bhc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#55534d" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <!-- you, agents, the agent's own gate, folders -->
+    <rect x="20" y="12" width="190" height="62" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="115" y="31" text-anchor="middle" font-size="15" font-weight="700">You</text>
+    <text x="115" y="49" text-anchor="middle">“I want to start recording</text>
+    <text x="115" y="65" text-anchor="middle">voice notes”</text>
+    <line x1="115" y1="74" x2="115" y2="86" stroke="#8a877c" stroke-width="2" marker-end="url(#bi)"/>
+    <rect x="20" y="88" width="190" height="80" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="32" y="108" font-size="15" font-weight="700">Talker or</text>
+    <text x="32" y="126" font-size="15" font-weight="700">Main Assistant</text>
+    <text x="32" y="146">finds it through the door's</text>
+    <text x="32" y="162">3 tools</text>
+    <rect x="20" y="200" width="190" height="100" rx="10" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="32" y="218" font-size="14" font-weight="700">Agent's own gate</text>
+    <g font-size="12">
+      <text x="32" y="235">PermissionGate, one per agent</text>
+      <text x="32" y="251">only Claude Code's own asks</text>
+      <text x="32" y="267">its own card: P3 to P6,</text>
+      <text x="32" y="283">via the Hub (not drawn)</text>
+    </g>
+    <rect x="20" y="330" width="190" height="110" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2"/>
+    <text x="32" y="350" font-size="15" font-weight="700">Module folders</text>
+    <text x="32" y="370">modules/&lt;id&gt;/: code,</text>
+    <text x="32" y="386">module.toml, its Menu</text>
+    <text x="32" y="406" font-weight="700">loader.find_modules</text>
+    <text x="32" y="424">reads them once, at launch</text>
+
+    <!-- Core -->
+    <rect x="235" y="10" width="655" height="650" rx="12" fill="#f1f0ec" stroke="#55534d" stroke-width="2.5"/>
+    <text x="520" y="650" font-size="15" font-weight="700">Core: every call and every card passes here</text>
+    <rect x="248" y="90" width="195" height="112" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="258" y="108" font-size="14" font-weight="700">Module door (core) · D1</text>
+    <text x="258" y="126">list_modules → ListModules</text>
+    <text x="258" y="142">show_menu → GetMenu</text>
+    <text x="258" y="158">use_item → InvokeTool</text>
+    <text x="258" y="176" fill="#0f7c7a" font-weight="600">✓ caller proved by the core</text>
+    <text x="258" y="193" fill="#0f7c7a" font-weight="600">✓ no module names another</text>
+    <rect x="248" y="262" width="207" height="96" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="258" y="280" font-size="14" font-weight="700">Callers (port) · D2</text>
+    <g font-size="12">
+      <text x="258" y="298">names · kinds · each caller's mode</text>
+      <text x="258" y="314">who is “you”</text>
+      <text x="258" y="332" fill="#0f7c7a" font-weight="600">✓ SetPermissionMode here:</text>
+      <text x="258" y="348" fill="#0f7c7a" font-weight="600">   Auto only from “you”</text>
+    </g>
+    <text x="250" y="380" font-size="12" fill="#6f6d66">The Agent Hub is off these paths:</text>
+    <text x="250" y="396" font-size="12" fill="#6f6d66">the door and the checks work with it off.</text>
+    <rect x="480" y="20" width="100" height="265" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <g font-size="12">
+      <text x="490" y="40" font-size="13" font-weight="700">Command</text>
+      <text x="490" y="56" font-size="13" font-weight="700">router</text>
+      <text x="490" y="80">ListModules</text>
+      <text x="490" y="97">GetMenu</text>
+      <text x="490" y="114">InvokeTool</text>
+      <text x="490" y="131">ActivateModule</text>
+      <text x="490" y="148">AddModule</text>
+      <text x="490" y="165">RemoveModule</text>
+      <text x="490" y="200" fill="#0f7c7a" font-weight="600">✓ sender</text>
+      <text x="490" y="216" fill="#0f7c7a" font-weight="600">stamped (D3)</text>
+    </g>
+    <rect x="635" y="20" width="245" height="65" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="647" y="38" font-size="14" font-weight="700">Directory (core/app.py)</text>
+    <text x="647" y="56">ListModules: every module, state</text>
+    <text x="647" y="74">GetMenu: one module's menu</text>
+    <rect x="635" y="100" width="245" height="60" rx="8" fill="#fff" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="647" y="117" font-size="14" font-weight="700">Core menu (core/directory.py)</text>
+    <text x="647" y="135" font-size="12">modules.list · menu · docs · on · off</text>
+    <text x="647" y="152" font-size="12" fill="#0f7c7a" font-weight="600">✓ add · remove · off+deps: risky items</text>
+    <rect x="635" y="190" width="245" height="72" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2.5"/>
+    <text x="647" y="208" font-size="14" font-weight="700">One gate: dispatch_tool · D4</text>
+    <text x="647" y="225" font-size="12" fill="#0f7c7a" font-weight="600">✓ caller proved · item callers</text>
+    <text x="647" y="241" font-size="12" fill="#0f7c7a" font-weight="600">✓ risky item: asks the handler (P13)</text>
+    <text x="647" y="257" font-size="12">starts an off start_on_use module</text>
+    <rect x="635" y="300" width="245" height="76" rx="8" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="647" y="318" font-size="14" font-weight="700">Permissions handler · D6</text>
+    <text x="647" y="335" font-size="12" fill="#0f7c7a" font-weight="600">✓ mode read from Callers (P8, P9)</text>
+    <text x="647" y="351" font-size="12" fill="#0f7c7a" font-weight="600">✓ answers only from “you” (P11)</text>
+    <text x="647" y="367" font-size="12">access-list card at start (P7)</text>
+    <rect x="635" y="420" width="245" height="80" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="647" y="438" font-size="14" font-weight="700">LifecycleManager (lifecycle.py)</text>
+    <text x="647" y="456" font-size="12">keeps every module class, on or off</text>
+    <text x="647" y="473" font-size="12">on: what it requires and needs first</text>
+    <text x="647" y="490" font-size="12">init · link_menu (tools) · start</text>
+    <rect x="635" y="525" width="245" height="55" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="647" y="542" font-size="14" font-weight="700">Event bus · D5</text>
+    <text x="647" y="559" font-size="12" fill="#0f7c7a" font-weight="600">✓ publishes strict, notify only</text>
+    <text x="647" y="574" font-size="12" fill="#0f7c7a" font-weight="600">✓ named events: own prefix only</text>
+    <rect x="635" y="595" width="245" height="50" rx="8" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="647" y="613" font-size="13" font-weight="700">GeneratedFiles (generated.py)</text>
+    <text x="647" y="632" font-size="12">generated/: list · directory · deps</text>
+
+    <!-- modules -->
+    <rect x="925" y="20" width="160" height="290" rx="10" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="937" y="40" font-size="15" font-weight="700">Add-ons</text>
+    <rect x="938" y="52" width="137" height="60" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="946" y="70" font-weight="700">html_viewer</text>
+    <text x="946" y="87" font-size="12">viewer.open</text>
+    <text x="946" y="103" font-size="12">· highlight · tabs</text>
+    <rect x="938" y="125" width="137" height="158" rx="8" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <g font-size="12">
+      <text x="946" y="143" font-size="13" font-weight="700">voice_notes</text>
+      <text x="946" y="161">off at launch</text>
+      <text x="946" y="177">needs voice_in</text>
+      <text x="946" y="193">requires IVoice</text>
+      <text x="946" y="209">listens VoiceState,</text>
+      <text x="946" y="225">VoiceTranscript</text>
+      <text x="946" y="245">menu: none; its own</text>
+      <text x="946" y="261">page, Record / Stop</text>
+    </g>
+    <rect x="925" y="410" width="160" height="100" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <g font-size="12">
+      <text x="937" y="428" font-size="13" font-weight="700">voice_in</text>
+      <text x="937" y="444">a core module, on</text>
+      <text x="937" y="460">provides IVoice</text>
+      <text x="937" y="476">publishes VoiceState,</text>
+      <text x="937" y="492">VoiceTranscript</text>
+    </g>
+
+    <!-- where the cards reach you -->
+    <rect x="20" y="680" width="1065" height="66" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="32" y="699" font-size="14" font-weight="700">You see the card and answer it: temp_ui and the Talker</text>
+    <text x="32" y="717" font-size="12">temp_ui shows the card with buttons; the Talker reads it to you and sends your yes or no. An agent's own card (P3 to P6) comes through the Hub's task board</text>
+    <text x="32" y="735" font-size="12">listen: PermissionRequested, PermissionChanged (closes the card) · send: AnswerPermissionRequest, the sender stamped, so only a “you” caller may answer</text>
+
+    <!-- tool calls (teal) -->
+    <g stroke="#0f7c7a" stroke-width="2.5" fill="none">
+      <line x1="210" y1="128" x2="246" y2="128" marker-end="url(#bt)"/>
+      <line x1="700" y1="188" x2="700" y2="163" marker-end="url(#bt)"/>
+      <line x1="880" y1="215" x2="936" y2="96" marker-end="url(#bt)"/>
+    </g>
+    <!-- commands (dark) -->
+    <g stroke="#55534d" stroke-width="2.5" fill="none">
+      <line x1="443" y1="150" x2="478" y2="150" marker-end="url(#bc)"/>
+      <line x1="580" y1="40" x2="633" y2="40" marker-end="url(#bc)"/>
+      <line x1="580" y1="70" x2="633" y2="70" marker-end="url(#bc)"/>
+      <line x1="580" y1="222" x2="633" y2="222" marker-end="url(#bc)"/>
+      <line x1="635" y1="135" x2="582" y2="135" marker-end="url(#bc)"/>
+      <path d="M530 285 L530 470 L633 470" marker-end="url(#bc)"/>
+    </g>
+    <!-- the core's own calls (grey dotted) -->
+    <g stroke="#8a877c" stroke-width="2.5" fill="none" stroke-dasharray="2 4">
+      <line x1="210" y1="430" x2="632" y2="430" marker-end="url(#bi)"/>
+      <line x1="880" y1="460" x2="923" y2="460" marker-end="url(#bi)"/>
+      <line x1="880" y1="435" x2="936" y2="272" marker-end="url(#bi)"/>
+      <path d="M635 490 L608 490 L608 620 L633 620" marker-end="url(#bi)"/>
+    </g>
+    <!-- questions (purple, solid): P1 the agent asks its gate, P7 a module's access list, P8 the caller's mode, P13 a risky item -->
+    <g stroke="#6b4fa0" stroke-width="2.5" fill="none">
+      <line x1="70" y1="168" x2="70" y2="198" marker-end="url(#bp)"/>
+      <line x1="700" y1="420" x2="700" y2="379" marker-end="url(#bp)"/>
+      <line x1="635" y1="312" x2="458" y2="312" marker-end="url(#bp)"/>
+      <line x1="700" y1="262" x2="700" y2="298" marker-end="url(#bp)"/>
+    </g>
+    <!-- answers (dashed, hollow head): P2, P9, P12, P14, and your answer P11 -->
+    <g stroke-width="2.5" fill="none" stroke-dasharray="6 4">
+      <line x1="150" y1="200" x2="150" y2="171" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="455" y1="340" x2="633" y2="340" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="780" y1="376" x2="780" y2="417" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="774" y1="300" x2="774" y2="265" stroke="#6b4fa0" marker-end="url(#bhp)"/>
+      <line x1="500" y1="680" x2="500" y2="288" stroke="#55534d" marker-end="url(#bhc)"/>
+      <path d="M580 275 L655 275 L655 297" stroke="#55534d" marker-end="url(#bhc)"/>
+    </g>
+    <!-- contract call (green) -->
+    <line x1="1005" y1="285" x2="1005" y2="408" stroke="#3d7f4f" stroke-width="2.5" marker-end="url(#bg)"/>
+    <!-- events (blue); P10 is the card to you -->
+    <g stroke="#2f6f9f" stroke-width="2.5" fill="none">
+      <line x1="760" y1="501" x2="760" y2="523" marker-end="url(#bb)"/>
+      <path d="M1005 510 L1005 535 L882 535" marker-end="url(#bb)"/>
+      <path d="M880 552 L1092 552 L1092 200 L1077 200" marker-end="url(#bb)"/>
+      <path d="M635 360 L622 360 L622 552 L633 552" marker-end="url(#bb)"/>
+      <path d="M880 572 L905 572 L905 678" marker-end="url(#bb)"/>
+    </g>
+    <!-- line labels -->
+    <g font-size="11" font-weight="600">
+      <text x="84" y="188" fill="#6b4fa0">use_item?</text>
+      <text x="164" y="188" fill="#6b4fa0">allow · deny</text>
+      <text x="540" y="306" fill="#6b4fa0">caller's mode?</text>
+      <text x="540" y="356" fill="#6b4fa0">Manual or Auto</text>
+      <text x="690" y="402" fill="#6b4fa0" text-anchor="end">request_set</text>
+      <text x="794" y="402" fill="#6b4fa0">grant · wait · deny</text>
+      <text x="714" y="284" fill="#6b4fa0">may it?</text>
+      <text x="788" y="284" fill="#6b4fa0">allow · deny · card</text>
+      <text x="912" y="640" fill="#2f6f9f">PermissionRequested</text>
+      <text x="508" y="660" fill="#55534d">your answer</text>
+    </g>
+
+    <!-- step numbers -->
+    <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="380" cy="430" r="12" fill="#8a877c"/><text x="380" y="434">A1</text>
+      <circle cx="228" cy="112" r="12" fill="#0f7c7a"/><text x="228" y="116">A2</text>
+      <circle cx="607" cy="28" r="12" fill="#55534d"/><text x="607" y="32">A3</text>
+      <circle cx="607" cy="57" r="12" fill="#55534d"/><text x="607" y="61">A4</text>
+      <circle cx="607" cy="208" r="12" fill="#55534d"/><text x="607" y="212">A5</text>
+      <circle cx="720" cy="175" r="12" fill="#0f7c7a"/><text x="720" y="179">A6</text>
+      <circle cx="607" cy="121" r="12" fill="#55534d"/><text x="607" y="125">A7</text>
+      <circle cx="565" cy="470" r="12" fill="#55534d"/><text x="565" y="474">A7</text>
+      <circle cx="902" cy="448" r="12" fill="#8a877c"/><text x="902" y="452">A8</text>
+      <circle cx="899" cy="380" r="12" fill="#8a877c"/><text x="899" y="384">A9</text>
+      <circle cx="780" cy="512" r="12" fill="#2f6f9f"/><text x="780" y="516">A10</text>
+      <circle cx="608" cy="590" r="12" fill="#8a877c"/><text x="608" y="594">A11</text>
+      <circle cx="1024" cy="350" r="12" fill="#3d7f4f"/><text x="1024" y="354">A12</text>
+      <circle cx="940" cy="535" r="12" fill="#2f6f9f"/><text x="940" y="539">A13</text>
+      <circle cx="1092" cy="380" r="12" fill="#2f6f9f"/><text x="1092" y="384">A13</text>
+      <circle cx="902" cy="168" r="12" fill="#0f7c7a"/><text x="902" y="172">A14</text>
+    </g>
+    <g font-size="10" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="70" cy="184" r="11" fill="#6b4fa0"/><text x="70" y="188">P1</text>
+      <circle cx="150" cy="184" r="11" fill="#6b4fa0"/><text x="150" y="188">P2</text>
+      <circle cx="700" cy="398" r="11" fill="#6b4fa0"/><text x="700" y="402">P7</text>
+      <circle cx="480" cy="312" r="11" fill="#6b4fa0"/><text x="480" y="316">P8</text>
+      <circle cx="480" cy="340" r="11" fill="#6b4fa0"/><text x="480" y="344">P9</text>
+      <circle cx="622" cy="410" r="11" fill="#2f6f9f"/><text x="622" y="414">P10</text>
+      <circle cx="905" cy="610" r="11" fill="#2f6f9f"/><text x="905" y="614">P10</text>
+      <circle cx="500" cy="590" r="11" fill="#55534d"/><text x="500" y="594">P11</text>
+      <circle cx="620" cy="275" r="11" fill="#55534d"/><text x="620" y="279">P11</text>
+      <circle cx="780" cy="398" r="11" fill="#6b4fa0"/><text x="780" y="402">P12</text>
+      <circle cx="700" cy="280" r="11" fill="#6b4fa0"/><text x="700" y="284">P13</text>
+      <circle cx="774" cy="282" r="11" fill="#6b4fa0"/><text x="774" y="286">P14</text>
+    </g>
+  </g>
+</svg>

@@ -13,11 +13,11 @@
 <main>
 <h1 id="tools">Tools</h1>
 <p>Capabilities invocable by name, by the AI or any module. All items: <code>from assistant.contracts import ...</code>. Back to the <a href="index.html">API index</a>.</p>
-<p><strong>A module offers tools with a <a href="modules.html#menu"><code>Menu</code></a></strong>, not by providing <code>IToolProvider</code> itself: the core links each running module's menu to <code>IToolProvider</code> through its adapter <a href="core.html#menutools"><code>MenuTools</code></a>, so <code>InvokeTool</code> reaches it. <code>IToolProvider</code> stays for providers whose tools change at runtime (a remote client's, later), and for tests.</p>
+<p><strong>A module offers tools with a <a href="modules.html#menu"><code>Menu</code></a></strong>, not by providing <code>IToolProvider</code> itself: the core links each running module's menu through its adapter <a href="core.html#menutools"><code>MenuTools</code></a> into its own private <a href="core.html#menutable"><code>MenuTable</code></a>, so <code>InvokeTool</code> reaches it. <strong>Menus are never in the container</strong> (G16): no module can look one up as a plain <code>IToolProvider</code> and call it with a caller of its choosing. <code>IToolProvider</code> stays for providers whose tools change at runtime (a remote client's, later), and for tests.</p>
 <h2 id="itoolprovider"><code>IToolProvider</code></h2>
-<p><strong>Reusable</strong> · Used by: the core's <code>MenuTools</code> (every module menu); the core's <code>dispatch_tool</code>, <code>talker</code>, <code>temp_ui</code> and <code>echo_orchestrator</code> call through <code>InvokeTool</code> or list the tools</p>
+<p><strong>Reusable</strong> · Used by: the core's <code>MenuTools</code> (every module menu, in the <code>MenuTable</code>); the core's <code>dispatch_tool</code>, <code>talker</code>, <code>temp_ui</code> and <code>echo_orchestrator</code> call through <code>InvokeTool</code> or list the tools (<code>echo_orchestrator</code>'s <code>/tools</code>: <code>get_all(IToolProvider)</code> plus <code>ListModules</code> / <code>GetMenu</code>)</p>
 <p><code>class IToolProvider(Contract)</code></p>
-<p>A contract for things that offer tools. Any number may be provided (<code>multiple = True</code>). A module with a fixed set of actions uses a <a href="modules.html#menu"><code>Menu</code></a> instead; providing <code>IToolProvider</code> directly means declaring it in <code>manifest.provides</code> and calling <code>ctx.provide(IToolProvider, self)</code> in <code>init</code>.</p>
+<p>A contract for things that offer tools. Any number may be provided (<code>multiple = True</code>). A module with a fixed set of actions uses a <a href="modules.html#menu"><code>Menu</code></a> instead; providing <code>IToolProvider</code> directly means declaring it in <code>manifest.provides</code> and calling <code>ctx.provide(IToolProvider, self)</code> in <code>init</code>. Such a provider is in the container, and <code>dispatch_tool</code> finds it there as well as in the menu table. It checks its own arguments: the gate's argument and <code>callers</code> checks are a menu's.</p>
 <h3 id="itoolprovidertools"><code>IToolProvider.tools</code></h3>
 <p><code>tools(self) -&gt; list[ToolSpec]</code></p>
 <p>Abstract. The tools currently offered. Called on every lookup, never cached, so the list may change at runtime.</p>
@@ -27,7 +27,7 @@
 <p><strong>Returns:</strong> a <a href="messaging.html#result"><code>Result</code></a>. Use <code>Result.invalid_arguments</code> for bad <code>args</code>.</p>
 <h3 id="itoolproviderinvoke_as"><code>IToolProvider.invoke_as</code></h3>
 <p><code>async invoke_as(self, name: str, args: dict[str, Any], caller: str) -&gt; Result</code></p>
-<p>Not abstract. <code>invoke</code> with the caller (<a href="#invoketool"><code>InvokeTool.caller</code></a>); the core's <code>dispatch_tool</code> calls this. The default ignores <code>caller</code> and calls <code>invoke</code>. <a href="core.html#menutools"><code>MenuTools</code></a> overrides it to pass the caller to <a href="modules.html#menu"><code>Menu.call</code></a>. Built 2026-11-05.</p>
+<p>Not abstract. <code>invoke</code> with the caller (<a href="#invoketool"><code>InvokeTool.caller</code></a>); the core's <code>dispatch_tool</code> calls this. The default ignores <code>caller</code> and calls <code>invoke</code>. <a href="core.html#menutools"><code>MenuTools</code></a> overrides it to pass the caller to <a href="modules.html#menu"><code>Menu.call</code></a>.</p>
 <p><strong>Example</strong></p>
 <pre><code>class Calculator(ModuleProtocol, IToolProvider):
     manifest = Manifest(id="calculator", provides=(IToolProvider,))
@@ -87,15 +87,31 @@
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/tools.py</code></p>
 <h2 id="invoketool"><code>InvokeTool</code></h2>
 <p><code>InvokeTool(name: str, args: dict[str, Any] = {}, caller: str = "")</code> (command)</p>
-<p>Run the tool called <code>name</code>. Handled by the core, which routes it to the provider currently offering that tool (<code>invoke_as</code>, with <code>caller</code>).</p>
-<p><strong>Who sets <code>caller</code>:</strong> the sender's context does. <code>ScopedContext.send</code> overwrites it with the sending module's id, so a module can't pass itself off as another. The one exception is the module that provides <a href="#imoduledoor"><code>IModuleDoor</code></a> (<code>agent_hub</code>): it passes on the caller its door proved with that session's token (an agent's id, e.g. <code>talker</code> or <code>main_assistant</code>). Menu items use it to decide who may call them (<a href="modules.html#menu"><code>Menu</code></a> <code>callers</code>).</p>
-<p><strong>Returns:</strong> the provider's <code>Result</code>, or <code>not_available</code> if no provider offers <code>name</code>, or <code>failed</code> if more than one does.</p>
+<p>Run the tool called <code>name</code>. Handled by the core, which routes it to the provider currently offering that tool (<code>invoke_as</code>, with <code>caller</code>), through <a href="#the-ask-first-gate">the ask-first gate</a>.</p>
+<p><strong>Who sets <code>caller</code>:</strong> the sender's context does. <code>ScopedContext.send</code> always overwrites it with the sending module's id, so a module can't pass itself off as another. Only the core's own <a href="#imoduledoor">door</a> passes on another: the caller its token proved (an agent's id, e.g. <code>talker</code> or <code>main_assistant</code>), sent through the router as the core's own send. Empty when sent straight to the router (tests, the core itself). Menu items use it to decide who may call them (<a href="modules.html#menu"><code>Menu</code></a> <code>callers</code>), and the gate to decide whether to ask.</p>
+<p><strong>Returns:</strong> the provider's <code>Result</code>, or <code>not_available</code> if no provider offers <code>name</code>, or <code>failed</code> if more than one does. When <code>name</code> is on the menu of a module that's off (and not started on use), the <code>not_available</code> error says so: "The <id> module isn't on, so '<name>' can't run. Ask the user whether to turn <id> on; on their yes, use modules.on with module_id '<id>', then call '<name>' again" (<code>module_off_text</code> in <code>core/tools.py</code>). Every agent's prompt (<code>BASICS_BLOCK</code>) tells it to ask the user and, on their yes, run <code>modules.on</code> itself. Any other unknown name: "No tool named '<name>'". An item that asks first returns "Asked the user on a card (<id>) to confirm …" at once (below).</p>
 <p><strong>Example</strong></p>
 <pre><code>result = await ctx.send(InvokeTool(name="add", args={"a": 1, "b": 2}), timeout=10)
 </code></pre>
 <p><strong>Defined in:</strong> <code>src/assistant/contracts/tools.py</code></p>
+<h2 id="the-ask-first-gate">The ask-first gate</h2>
+<p><strong>Reusable</strong> · Used by: the core's <code>dispatch_tool</code> (every <code>InvokeTool</code>, from a module or through the door: the Talker's <code>use_item</code> too, G14); the core's menu marks <code>modules.add</code>, <code>modules.remove</code>, <code>modules.reload</code> (<code>ask="always"</code>) and <code>modules.off</code> (<code>ask="always", ask_when="with_dependents"</code>) · decision D4</p>
+<p>One checked gate for every menu call, in <a href="core.html#dispatch_tool"><code>dispatch_tool</code></a>. A menu item may be marked <code>ask</code> (<a href="modules.html#menu"><code>Menu.item</code></a>):</p>
+<ol>
+<li>A tool nobody offers, on the menu of a module that is off and has <code>start_on_use</code>, turns that module on first. This runs before the <code>callers</code> check, so a caller the item refuses can still switch the module on.</li>
+<li>The arguments are checked against the item's schema, then its <code>callers</code>: a bad or forbidden call never reaches a card (<code>invalid_arguments</code>, <code>not_available</code>). For an item that asks, the gate checks before the card; for any other item, <code>Menu.call</code> checks the same way.</li>
+<li>The item asks only when <code>MenuItem.asks(args)</code> is true: it has an <code>ask</code> mark and, with <code>ask_when</code>, that boolean argument is true.</li>
+<li>The core's permissions handler <a href="core.html#permissionshandler"><code>confirm</code></a>s it on a <code>confirm</code> card (<a href="messaging.html#permissionrequested"><code>PermissionRequested</code></a>, <code>action="confirm"</code>, the reason naming the call: <code>modules.add (package: x)</code>). A caller that is you (<code>[core.permissions] you</code>, <code>temp_ui</code> by default) runs at once. <code>ask="always"</code>: <strong>Auto never skips it</strong>. <code>ask="risky"</code>: a caller the <a href="core.html#callers">Callers port</a> holds in Auto runs at once.</li>
+<li>The call returns <code>ok</code> at once ("Asked the user on a card (<id>) to confirm …; the answer reaches you as a note"), since the router's 30 s timeout would cut a waiting call. On Allow the handler runs the call itself and the outcome reaches the caller as an <a href="agents.html#agentnotice"><code>AgentNotice</code></a>; on Deny nothing runs.</li>
+</ol>
+<p>No module item is marked <code>risky</code> (<a href="../architecture/decisions.html">decisions</a>). The core's menu sends each control command as <code>core</code>, so the card stands in for the control-command check; <code>modules.off</code> without <code>with_dependents</code> shows no card. The agents' own Claude Code tool asks stay as they are; an agent's <code>RELOAD:</code> / <code>ADD_MODULE:</code> line keeps its own permission card, in Auto too (<a href="infra.html#permissiongate"><code>PermissionGate.ask(always=True)</code></a>).</p>
+<pre><code>@menu.item("modules.off", "Turn a module off", {"module_id": {"type": "string"}, "with_dependents": {"type": "boolean"}},
+           required=["module_id"], ask="always", ask_when="with_dependents")
+async def off(self, module_id: str, with_dependents: bool = False) -&gt; Result: ...
+</code></pre>
+<p><strong>Defined in:</strong> <code>src/assistant/core/tools.py</code> (<code>dispatch_tool</code>), <code>src/assistant/contracts/menu.py</code> (<code>MenuItem.ask</code>, <code>ask_when</code>, <code>asks</code>) · <strong>Tests:</strong> <code>tests/test_risky_steps_ask.py</code></p>
 <h2 id="imoduledoor"><code>IModuleDoor</code></h2>
-<p><strong>Reusable</strong> · Used by: <code>agent_hub</code> provides; <code>main_assistant</code> and <code>talker</code> read it at each session start · built 2026-11-05</p>
+<p><strong>Reusable</strong> · Used by: the core provides (<code>CoreDoor</code>, decision D1); <code>main_assistant</code>, <code>talker</code> and every <code>ProfileAgent</code> read it at each session start</p>
 <p><code>class IModuleDoor(Contract)</code>, single provider, in <code>assistant.contracts</code>.</p>
 <table>
 <thead>
@@ -111,7 +127,12 @@
 </tr>
 </tbody>
 </table>
-<p>The session then has three fixed tools, the same whatever modules are on: <code>mcp__modules__list_modules</code> (one line per module, plus <code>core</code>), <code>mcp__modules__show_menu(module_id)</code> (that module's <code>ToolSpec</code>s) and <code>mcp__modules__use_item(name, args)</code> (<code>InvokeTool</code>). They go through the core, so the directory, the menus' argument checks, permissions and hot swap all apply. Modules never provide or use it: MCP stays at the agents' edge.</p>
+<p><strong>A module asks only for itself or for an agent it claimed</strong> (G11): its context hands it a <a href="core.html#coredoor-moduledoor"><code>ModuleDoor</code></a> bound to its id, not the core's own door. <code>mcp_config(caller)</code> for any other caller logs a warning and returns <code>{}</code>. Claim the agent's id first with <a href="agents.html#iagentnames"><code>IAgentNames.claim</code></a>. The door opens before any module starts (<code>[core.door]</code>), so an agent's first session has it.</p>
+<pre><code>door = ctx.get_one(IModuleDoor)            # a ModuleDoor bound to this module
+config = door.mcp_config(self.agent_id)    # {} unless agent_id is this module or one it claimed
+</code></pre>
+<p>The session then has three fixed tools, the same whatever modules are on: <code>mcp__modules__list_modules</code> (one line per module, plus <code>core</code>), <code>mcp__modules__show_menu(module_id)</code> (that module's <code>ToolSpec</code>s) and <code>mcp__modules__use_item(name, args)</code> (<code>InvokeTool</code>). They go through the core (door → router → gate), so the directory, the menus' argument checks, the ask-first gate, permissions and hot swap all apply. Modules never provide it: MCP stays at the agents' edge.</p>
+<p><strong>Defined in:</strong> <code>src/assistant/contracts/door.py</code> · <strong>Tests:</strong> <code>tests/test_mcp_door.py</code></p>
 <h2 id="tools-offered-today">Tools offered today</h2>
 <p>Every item of every module's menu; the <a href="../architecture/module-library.html">module library</a> lists them per module (generated). Arguments are checked against the item's schema first: a missing or empty required one, a wrong type or an unknown one gives <code>invalid_arguments</code>.</p>
 <table>
@@ -143,16 +164,22 @@
 <td>Opens the file like <code>viewer.open</code> (including <code>front</code>) and highlights <code>text</code>, a short quote of the page's words (case and whitespace ignored), in <code>heading</code>'s section if given; scrolls to it. Highlights stay until you clear them and are never saved into the file. <code>ok({"tab", "path", "found", "matches"})</code>; <code>found</code> false means the file is open but the quote isn't on the page; <code>invalid_arguments</code> without a path or text, or for a missing file</td>
 </tr>
 <tr>
-<td><code>modules.list</code>, <code>modules.menu</code>, <code>modules.on</code>, <code>modules.off</code>, <code>modules.reload</code>, <code>modules.add</code>, <code>modules.remove</code></td>
+<td><code>modules.list</code>, <code>modules.menu</code>, <code>modules.docs</code>, <code>modules.on</code>, <code>modules.off</code>, <code>modules.reload</code>, <code>modules.add</code>, <code>modules.remove</code>; <code>permissions.grants</code>, <code>permissions.grant</code>, <code>permissions.request</code>, <code>permissions.revoke</code></td>
 <td>the core (id <code>core</code>)</td>
 <td>see <a href="control.html#the-cores-menu">the core's menu</a></td>
-<td>the matching control command's result</td>
+<td>the matching control command's result; <code>modules.add / remove / reload</code>, and <code>modules.off</code> with dependents, ask first</td>
 </tr>
 <tr>
 <td><code>hub.agents</code>, <code>hub.status</code>, <code>hub.start</code>, <code>hub.send</code>, <code>hub.cancel</code>, <code>hub.focus</code>, <code>hub.suggest_focus</code>, <code>hub.answer</code>, <code>hub.mode</code></td>
 <td><code>agent_hub</code></td>
 <td>see <a href="agents.html#the-hubs-menu">the Hub's menu</a></td>
 <td>some items are for one caller only</td>
+</tr>
+<tr>
+<td><code>talker.reset</code></td>
+<td><code>talker</code></td>
+<td><code>{"session": str}</code></td>
+<td>Starts that Talker session fresh; only for a caller that is you (<code>IAgentNames.is_you</code>), else <code>not_available</code></td>
 </tr>
 <tr>
 <td><code>viewer.tabs</code></td>

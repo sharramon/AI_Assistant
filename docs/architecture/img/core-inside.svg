@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="545" viewBox="0 0 1100 545" aria-label="The core's piping, with the module agents' start">
+  <style>
+    text { font-family: "Segoe UI", system-ui, sans-serif; }
+  </style>
+  <rect x="0" y="0" width="1100" height="545" fill="#fbfaf7"/>
+  <defs>
+    <marker id="b2t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7c7a"/></marker>
+    <marker id="b2c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#55534d"/></marker>
+    <marker id="b2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6f9f"/></marker>
+    <marker id="b2p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b4fa0"/></marker>
+    <marker id="b2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#b8660b"/></marker>
+    <marker id="b2hp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#6b4fa0" stroke-width="1.5"/></marker>
+    <marker id="b2hc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1,1 L9,5 L1,9 z" fill="#fff" stroke="#55534d" stroke-width="1.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <!-- callers -->
+    <rect x="20" y="20" width="230" height="44" rx="10" fill="#e6f0f7" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="135" y="48" text-anchor="middle" font-size="17">You</text>
+    <rect x="20" y="84" width="230" height="76" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="108" font-size="16" font-weight="700">Talker</text>
+    <text x="34" y="130" font-size="12" fill="#b8660b" font-weight="600">≠4 may answer cards too:</text>
+    <text x="34" y="148" font-size="12" fill="#b8660b" font-weight="600">G17, your open decision</text>
+    <rect x="20" y="174" width="230" height="56" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="208" font-size="16" font-weight="700">Main Assistant</text>
+    <rect x="20" y="244" width="230" height="64" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="268" font-size="16" font-weight="700">Helpers</text>
+    <text x="34" y="290" font-size="12">cv_agent · job agent · task_agents</text>
+    <rect x="20" y="322" width="230" height="84" rx="10" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2.5"/>
+    <text x="34" y="342" font-size="13" font-weight="700">Module agents (cv, job)</text>
+    <text x="34" y="360" font-size="12">start: --settings claudeMdExcludes</text>
+    <text x="34" y="377" font-size="12">+ developer rules · workspace</text>
+    <text x="34" y="395" font-size="12" fill="#0f7c7a" font-weight="600">folders asked on one card (P7)</text>
+    <rect x="20" y="420" width="230" height="64" rx="10" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="34" y="444" font-size="16" font-weight="700">temp_ui</text>
+    <text x="34" y="466">a "you" caller in Callers</text>
+
+    <!-- core -->
+    <rect x="270" y="20" width="555" height="500" rx="12" fill="#f1f0ec" stroke="#55534d" stroke-width="2.5"/>
+    <text x="285" y="44" font-size="17" font-weight="700">Core: every call and every card passes here</text>
+    <rect x="285" y="60" width="220" height="80" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="297" y="80" font-size="15" font-weight="700">Module door · D1</text>
+    <text x="297" y="98">list · menu · use, opened first</text>
+    <text x="297" y="116" font-size="12" fill="#0f7c7a" font-weight="600">✓ caller proved by its token</text>
+    <text x="297" y="132" font-size="12" fill="#0f7c7a" font-weight="600">✓ no module may name another</text>
+    <rect x="285" y="152" width="220" height="84" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="297" y="172" font-size="15" font-weight="700">Callers (port) · D2</text>
+    <text x="297" y="190">names · kinds · each mode</text>
+    <text x="297" y="207">who is "you"</text>
+    <text x="297" y="225" fill="#0f7c7a" font-weight="600">✓ Auto set only by "you"</text>
+    <rect x="520" y="60" width="295" height="170" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2.5"/>
+    <text x="532" y="80" font-size="15" font-weight="700">One gate: dispatch_tool · D4</text>
+    <text x="532" y="101" fill="#b8660b" font-weight="600">0 starts an off start_on_use module</text>
+    <text x="532" y="119">1 caller proved (token or module id)</text>
+    <text x="532" y="137">2 item callers + argument schema</text>
+    <text x="532" y="155">3 risky item: asks the handler (7)</text>
+    <text x="532" y="173">4 sender stamped on the call</text>
+    <text x="532" y="195" fill="#0f7c7a" font-weight="600">✓ same gate from code or agent</text>
+    <text x="532" y="216" font-size="12" fill="#b8660b" font-weight="600">0 runs before 1</text>
+    <rect x="640" y="240" width="175" height="42" rx="6" fill="#fff" stroke="#55534d" stroke-width="1.5"/>
+    <text x="650" y="256" font-size="12.5" font-weight="700">Core menu</text>
+    <text x="650" y="274" font-size="12">modules.on · off · add · …</text>
+    <rect x="285" y="290" width="530" height="94" rx="8" fill="#fff" stroke="#6b4fa0" stroke-width="2"/>
+    <text x="297" y="310" font-size="15" font-weight="700">Permissions handler + cards · D6</text>
+    <text x="297" y="329" fill="#0f7c7a" font-weight="600">✓ mode read from Callers (9, 10) · the agent's folder card (P7)</text>
+    <text x="330" y="350" fill="#b8660b" font-weight="600">the gate already answered; the step runs after your Allow</text>
+    <text x="330" y="372" fill="#b8660b" font-weight="600">the review is a task the Hub starts; its notes come back</text>
+    <rect x="285" y="396" width="530" height="40" rx="8" fill="#fff" stroke="#2f6f9f" stroke-width="2"/>
+    <text x="297" y="421" font-size="15" font-weight="700">Bus · D5</text>
+    <text x="372" y="421" fill="#0f7c7a" font-weight="600">✓ publishes strict · events only notify, never control</text>
+    <rect x="285" y="450" width="530" height="56" rx="8" fill="#fff" stroke="#55534d" stroke-width="2"/>
+    <text x="297" y="470" font-size="15" font-weight="700">Router · D3</text>
+    <text x="297" y="491" fill="#0f7c7a" font-weight="600">✓ sender stamped · sends strict · control commands only from "you"</text>
+
+    <!-- modules -->
+    <rect x="845" y="20" width="240" height="500" rx="12" fill="#fff" stroke="#55534d" stroke-width="2.5"/>
+    <text x="860" y="44" font-size="17" font-weight="700">Modules</text>
+    <rect x="860" y="60" width="210" height="180" rx="8" fill="#e3f4f3" stroke="#0f7c7a" stroke-width="2"/>
+    <text x="872" y="80" font-size="15" font-weight="700">Agent Hub</text>
+    <text x="872" y="98" font-weight="600">coordination only</text>
+    <text x="872" y="120">task board · status · cancel</text>
+    <text x="872" y="138">focus · held questions</text>
+    <text x="872" y="156">delivery · message hold</text>
+    <text x="872" y="174">milestones to the coordinator</text>
+    <text x="872" y="192">hub.* menu</text>
+    <text x="872" y="214" fill="#b8660b" font-weight="600">≠3 starts the review task</text>
+    <text x="872" y="232" font-size="12" fill="#6f6d66">no door, no names, no mode</text>
+    <rect x="860" y="254" width="210" height="100" rx="8" fill="#f1f0ec" stroke="#55534d" stroke-width="2"/>
+    <text x="872" y="274" font-size="15" font-weight="700">Core modules</text>
+    <text x="872" y="294">talker · main_assistant</text>
+    <text x="872" y="312">task_agents · temp_ui · usage</text>
+    <text x="872" y="330">console_io · assistant_view</text>
+    <text x="872" y="346">voice_in</text>
+    <rect x="860" y="368" width="210" height="110" rx="8" fill="#fff" stroke="#8a877c" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="872" y="388" font-size="15" font-weight="700">Add-ons (in the repo)</text>
+    <text x="872" y="408">cv · job_search</text>
+    <text x="872" y="426">html_viewer · voice_notes</text>
+    <text x="872" y="444">echo_orchestrator</text>
+    <text x="872" y="466" font-size="12" fill="#0f7c7a" font-weight="600">workspaces gitignored</text>
+
+    <!-- tool calls -->
+    <g stroke="#0f7c7a" stroke-width="2.5" fill="none">
+      <line x1="250" y1="122" x2="283" y2="90" marker-end="url(#b2t)"/>
+      <line x1="250" y1="202" x2="283" y2="100" marker-end="url(#b2t)"/>
+      <line x1="250" y1="276" x2="283" y2="112" marker-end="url(#b2t)"/>
+      <line x1="505" y1="100" x2="518" y2="100" marker-end="url(#b2t)"/>
+      <line x1="815" y1="140" x2="858" y2="140" marker-end="url(#b2t)"/>
+      <line x1="700" y1="230" x2="700" y2="238" marker-end="url(#b2t)"/>
+      <path d="M815 200 L840 200 L840 380 L858 380" marker-end="url(#b2t)"/>
+    </g>
+    <circle cx="840" cy="330" r="10" fill="#0f7c7a"/><text x="840" y="334" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+    <!-- commands -->
+    <g stroke="#55534d" stroke-width="2.5" fill="none">
+      <line x1="250" y1="462" x2="283" y2="470" marker-end="url(#b2c)"/>
+      <line x1="815" y1="494" x2="843" y2="494" marker-end="url(#b2c)" marker-start="url(#b2c)"/>
+      <path d="M250 296 L262 296 L262 488 L283 488" stroke-dasharray="6 4" marker-end="url(#b2c)"/>
+    </g>
+    <!-- events -->
+    <g stroke="#2f6f9f" stroke-width="2.5" fill="none">
+      <line x1="815" y1="416" x2="858" y2="416" marker-end="url(#b2b)" marker-start="url(#b2b)"/>
+      <line x1="760" y1="384" x2="760" y2="394" marker-end="url(#b2b)"/>
+      <line x1="285" y1="426" x2="252" y2="444" marker-end="url(#b2b)"/>
+    </g>
+    <!-- permission questions and answers -->
+    <g stroke="#6b4fa0" stroke-width="2.5" fill="none">
+      <line x1="310" y1="290" x2="310" y2="238" marker-end="url(#b2p)"/>
+      <line x1="545" y1="230" x2="545" y2="288" marker-end="url(#b2p)"/>
+      <line x1="390" y1="238" x2="390" y2="288" stroke-dasharray="6 4" marker-end="url(#b2hp)"/>
+      <line x1="590" y1="290" x2="590" y2="232" stroke-dasharray="6 4" marker-end="url(#b2hp)"/>
+      <line x1="250" y1="372" x2="283" y2="352" marker-end="url(#b2p)"/>
+    </g>
+    <path d="M815 462 L822 462 L822 372 L817 372" stroke="#55534d" stroke-width="2.5" fill="none" stroke-dasharray="6 4" marker-end="url(#b2hc)"/>
+    <!-- good-to-know paths -->
+    <g stroke="#b8660b" stroke-width="2.5" fill="none" stroke-dasharray="5 4">
+      <line x1="815" y1="300" x2="858" y2="222" marker-end="url(#b2a)"/>
+      <line x1="815" y1="318" x2="858" y2="392" marker-end="url(#b2a)"/>
+      <path d="M20 146 L10 146 L10 514 L300 514 L300 508" marker-end="url(#b2a)"/>
+    </g>
+    <text x="24" y="534" font-size="12" fill="#b8660b" font-weight="600">≠4 the Talker's card answers go in here too</text>
+    <!-- labels -->
+    <g font-size="11" font-weight="600" fill="#6b4fa0">
+      <text x="324" y="266">mode?</text>
+      <text x="404" y="266">Manual / Auto</text>
+      <text x="531" y="266" text-anchor="end">may it?</text>
+      <text x="266" y="348" font-size="12" font-weight="700">P7</text>
+    </g>
+    <!-- arrow numbers -->
+    <g font-size="12" font-weight="700" fill="#fff" text-anchor="middle">
+      <circle cx="266" cy="150" r="10" fill="#0f7c7a"/><text x="266" y="154">1</text>
+      <circle cx="836" cy="128" r="10" fill="#0f7c7a"/><text x="836" y="132">2</text>
+      <circle cx="236" cy="500" r="10" fill="#55534d"/><text x="236" y="504">3</text>
+      <circle cx="262" cy="320" r="10" fill="#55534d"/><text x="262" y="324">4</text>
+      <circle cx="834" cy="482" r="10" fill="#55534d"/><text x="834" y="486">5</text>
+      <circle cx="836" cy="404" r="10" fill="#2f6f9f"/><text x="836" y="408">6</text>
+      <circle cx="545" cy="262" r="10" fill="#6b4fa0"/><text x="545" y="266">7</text>
+      <circle cx="590" cy="262" r="10" fill="#6b4fa0"/><text x="590" y="266">8</text>
+      <circle cx="310" cy="262" r="10" fill="#6b4fa0"/><text x="310" y="266">9</text>
+      <circle cx="390" cy="262" r="10" fill="#6b4fa0"/><text x="390" y="266">10</text>
+      <circle cx="782" cy="389" r="10" fill="#2f6f9f"/><text x="782" y="393">11</text>
+      <circle cx="822" cy="445" r="10" fill="#55534d"/><text x="822" y="449">12</text>
+      <circle cx="276" cy="410" r="10" fill="#2f6f9f"/><text x="276" y="414">13</text>
+    </g>
+    <!-- good-to-know marks -->
+    <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+      <rect x="780" y="205" width="26" height="18" rx="9" fill="#b8660b"/><text x="793" y="218">≠6</text>
+      <rect x="727" y="245" width="26" height="18" rx="9" fill="#b8660b"/><text x="740" y="258">≠1</text>
+      <rect x="757" y="245" width="26" height="18" rx="9" fill="#b8660b"/><text x="770" y="258">≠5</text>
+      <rect x="602" y="253" width="26" height="18" rx="9" fill="#b8660b"/><text x="615" y="266">≠2</text>
+      <rect x="297" y="337" width="26" height="18" rx="9" fill="#b8660b"/><text x="310" y="350">≠2</text>
+      <rect x="297" y="359" width="26" height="18" rx="9" fill="#b8660b"/><text x="310" y="372">≠3</text>
+      <rect x="748" y="456" width="26" height="18" rx="9" fill="#b8660b"/><text x="761" y="469">≠4</text>
+      <rect x="780" y="456" width="26" height="18" rx="9" fill="#b8660b"/><text x="793" y="469">≠5</text>
+    </g>
+  </g>
+</svg>
