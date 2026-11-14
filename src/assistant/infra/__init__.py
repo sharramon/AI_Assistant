@@ -2,17 +2,21 @@
 
 from assistant.infra.agent_access import (
     MODULES_FOLDER,
+    REPO_FOLDER,
     access_items,
+    copy_data_once,
+    data_folder,
     granted_config,
     in_module_folder,
     module_folder,
     module_folder_of,
+    module_roots,
     request_access,
     watch_grant,
 )
 from assistant.infra.agent_kit import AGENT_LISTENS, AGENT_PUBLISHES, AGENT_SENDS, AGENT_USES, AgentKit
 from assistant.infra.agent_names import check_agent_id, free_agent_id
-from assistant.infra.agent_profile import AgentProfile, prompt_block
+from assistant.infra.agent_profile import AgentProfile, prompt_block, repo_claude_md_files
 from assistant.infra.agent_tags import LastLineTags, ShowTag, Tag, find_tags, last_line, parse_show, status_lines
 from assistant.infra.claude_session import ClaudeSession, claude_command
 from assistant.infra.config import load_config
@@ -28,12 +32,17 @@ from assistant.infra.usage_ledger import UsageLedger
 
 __all__ = [
     "AgentProfile",
+    "repo_claude_md_files",
     "MODULES_FOLDER",
+    "REPO_FOLDER",
     "access_items",
+    "copy_data_once",
+    "data_folder",
     "granted_config",
     "in_module_folder",
     "module_folder",
     "module_folder_of",
+    "module_roots",
     "watch_grant",
     "request_access",
     "check_agent_id",

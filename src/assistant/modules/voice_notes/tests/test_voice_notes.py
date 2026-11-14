@@ -23,6 +23,7 @@ from assistant.modules.voice_in.tests.test_voice_in import CHUNK, TEXT, Probe, R
 from assistant.modules.voice_notes import VoiceNotesModule
 from assistant.testkit import FakeVoiceIn, module_config, next_item, post, request, stand_in
 
+HERE = Path(__file__).resolve().parents[1]  # voice_notes' own folder, wherever it is (not the current folder)
 
 def port_of(app: App, module_id: str) -> int:
     return int(app._lifecycle._active[module_id][0].url.rsplit(":", 1)[1].strip("/"))
@@ -101,7 +102,7 @@ async def test_an_empty_final_reaches_the_page_so_it_drops_the_stretch():
 
 
 def test_the_page_keeps_the_tail_out_of_saved_and_copied_text():
-    page = Path("src/assistant/modules/voice_notes/page.html").read_text(encoding="utf-8")
+    page = (HERE / "page.html").read_text(encoding="utf-8")
     assert 'contenteditable="plaintext-only"' in page and "#notes .tail" in page
     assert "font-style: italic" in page.split("#notes .tail", 1)[1].split("}", 1)[0]
     assert "showStretch(v.text, v.settled)" in page  # the voice item's `settled` drives the split
@@ -134,18 +135,21 @@ async def test_turning_voice_notes_on_turns_voice_input_on_first():
     try:
         assert (await app.router.send(ActivateModule(module_id="voice_notes"))).is_ok
         assert {"voice_in", "voice_notes"} <= set(app._lifecycle._active)
-        # voice_in can't go while voice notes needs it
-        assert not (await app.router.send(DeactivateModule(module_id="voice_in"))).is_ok
         events, writer = await events_of(app, "voice_notes")
         assert (await post(port_of(app, "voice_notes"), "/record", {"on": True}))["ok"]
         await next_item(events, voice(lambda i: i["state"] == "listening"))
         writer.close()
+        # voice_in may go while voice notes needs it: voice notes stays on and copes with IVoice gone
+        assert (await app.router.send(DeactivateModule(module_id="voice_in"))).is_ok
+        assert "voice_notes" in app._lifecycle._active and "voice_in" not in app._lifecycle._active
+        assert (await post(port_of(app, "voice_notes"), "/record", {"on": False}))["ok"]
+        assert not (await post(port_of(app, "voice_notes"), "/record", {"on": True}))["ok"]
     finally:
         await app.stop()
 
 
 def test_voice_notes_imports_no_other_module_and_no_core():
-    tree = ast.parse(Path("src/assistant/modules/voice_notes/module.py").read_text(encoding="utf-8"))
+    tree = ast.parse((HERE / "module.py").read_text(encoding="utf-8"))
     names = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
     names |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     assert not {n for n in names if n.startswith(("assistant.modules", "assistant.core", "assistant.infra"))}

@@ -14,6 +14,7 @@ import pytest
 
 from assistant.contracts import ListModules, ModuleState
 from assistant.core import App
+from assistant.infra import REPO_FOLDER
 from assistant.modules.cv import CvModule
 from assistant.modules.cv.mcp import (
     REZI_URL,
@@ -28,7 +29,7 @@ from assistant.modules.cv.mcp import (
 from assistant.modules.cv.module import rezi_client, settings
 from assistant.modules.cv.tests.fake_rezi import FAKE_URL, browser_for, fake_rezi
 
-REPO = Path(__file__).resolve().parents[5]
+REPO = REPO_FOLDER  # the repo, wherever cv's own folder is
 DEFAULTS = tomllib.loads((Path(__file__).parents[1] / "module.toml").read_text(encoding="utf-8"))
 
 

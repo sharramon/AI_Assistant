@@ -28,9 +28,11 @@ from assistant.infra import (
     AGENT_PUBLISHES,
     AGENT_SENDS,
     AGENT_USES,
+    REPO_FOLDER,
     AgentKit,
     AgentProfile,
     ProfileAgent,
+    module_roots,
 )
 
 # Its own rules; the basics every agent is told come from the shared block (`prompt_block`).
@@ -69,7 +71,7 @@ highlights it. Never open an HTML file in the default browser (no \
 Start-Process, start, or os.startfile on it).
 - If a message starts with "[The user interrupted your task", answer it briefly and \
 stop; you'll be told when to continue.
-- After you change a module's code (a package under src/assistant/modules/) and its \
+- After you change a module's code (its package, in <the module folders>) and its \
 tests pass, load it into the running app without a restart: end your turn with the last \
 line `RELOAD: <module id>` (add ` now` to cut in on a busy module), or \
 `ADD_MODULE: <package>` for a new module. In Manual mode the user is asked first. The \
@@ -135,7 +137,7 @@ class MainAssistantModule(ModuleProtocol):
                   "capabilities": ("general", "files"), **ctx.config}  # fmt: skip
         self._kit = AgentKit(ctx)
         self._worker = self._kit.add(
-            ProfileAgent(ctx, self.manifest.id, config, WORKER_PROMPT, role_block=COORDINATOR_BLOCK,
+            ProfileAgent(ctx, self.manifest.id, config, worker_prompt(), role_block=COORDINATOR_BLOCK,
                          start_session=True)  # fmt: skip
         )
         self._session, self._agent = self._worker.session, self._worker.agent
@@ -162,4 +164,17 @@ def build_command(
     config: dict[str, Any], workspace: Path, mode: PermissionMode, door: dict | None = None
 ) -> list[str]:
     """The worker's command line and prompt for `mode` (see `AgentProfile.command`)."""
-    return _profile(config, workspace).command(WORKER_PROMPT, mode, door)
+    return _profile(config, workspace).command(worker_prompt(), mode, door)
+
+
+#: Where WORKER_PROMPT names the folders that hold modules; `worker_prompt` fills it in from code.
+MODULE_FOLDERS_MARK = "<the module folders>"
+
+
+def worker_prompt() -> str:
+    """WORKER_PROMPT with the folders holding modules named (`module_roots`: the repo's
+    `src/assistant/modules/<id>/`, then each outside folder `[core] module_folders` names), so the
+    prompt never names a fixed path."""
+    shown = [(root.relative_to(REPO_FOLDER) if root.is_relative_to(REPO_FOLDER) else root).as_posix()
+             for root in module_roots()]  # fmt: skip
+    return WORKER_PROMPT.replace(MODULE_FOLDERS_MARK, " or ".join(f"{folder}/<id>/" for folder in shown))

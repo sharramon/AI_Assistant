@@ -1,5 +1,6 @@
 """Composition root. Run with `python -m assistant`. It names no module: the core finds them
-by folder (`src/assistant/modules/<id>/`), and `modules.enabled` in config says which start.
+by folder (`src/assistant/modules/<id>/`, then the folders `[core] module_folders` names), and
+`modules.enabled` in config says which start.
 
 `python -m assistant` is a small launcher: it runs the app as a child process in the same
 console and starts it again whenever it exits with the restart code (`core.restart_exit_code`,
@@ -17,7 +18,7 @@ from collections.abc import Callable
 from typing import Any
 
 from assistant.contracts import SessionTheme
-from assistant.core import App, StartupError, find_modules
+from assistant.core import App, LoadError, StartupError, configured_module_folders, find_modules
 from assistant.infra import LogSession, load_config, setup_logging
 
 log = logging.getLogger("assistant")
@@ -56,9 +57,10 @@ def run_app() -> int:
     setup_logging(config["logging"], [logs.handler])
     app = None
     try:
-        app = App(find_modules(), config, load_config, logs)
+        # The repo's modules, then those in the folders `[core] module_folders` names (outside the repo).
+        app = App(find_modules(folders=configured_module_folders(config)), config, load_config, logs)
         asyncio.run(_run(app, logs))
-    except StartupError as exc:
+    except (StartupError, LoadError) as exc:
         log.error("Startup failed: %s", exc)
         print(f"Startup failed: {exc}", file=sys.stderr)
         return 1

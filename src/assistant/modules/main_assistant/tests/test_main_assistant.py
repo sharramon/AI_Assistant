@@ -43,3 +43,17 @@ def test_its_defaults_are_in_its_module_toml_under_the_apps_section():
     yours = {"write_dirs": ["."], "model": "opus"}
     app = App([MainAssistantModule], {"modules": {"enabled": [], "main_assistant": yours}, "core": {}})
     assert app._config_of("main_assistant") == {**defaults, **yours}  # yours wins key by key, a list whole
+
+
+def test_its_prompt_names_the_module_folders_from_code(tmp_path, monkeypatch):
+    """Module layout step 2: the reload line names every folder holding modules (the repo's, then
+    an outside one from `[core] module_folders`), never a fixed path."""
+    import importlib
+
+    from assistant.modules.main_assistant.module import MODULE_FOLDERS_MARK, WORKER_PROMPT, worker_prompt
+
+    assert MODULE_FOLDERS_MARK in WORKER_PROMPT and MODULE_FOLDERS_MARK not in worker_prompt()
+    assert "(its package, in src/assistant/modules/<id>/)" in worker_prompt()
+    package = importlib.import_module("assistant.modules")
+    monkeypatch.setattr(package, "__path__", [*package.__path__, str(tmp_path)])  # as the loader adds one
+    assert f"in src/assistant/modules/<id>/ or {tmp_path.resolve().as_posix()}/<id>/)" in worker_prompt()

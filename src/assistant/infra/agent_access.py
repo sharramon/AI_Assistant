@@ -7,14 +7,23 @@ on, and builds its agent from the config cut down to what you allowed (`granted_
 asks for it with a normal card.
 
 Every module can edit itself: a module's own agent gets, by default, a write item on its own
-module folder (`src/assistant/modules/<id>`, `module_folder`), never a parent or another
-module's folder. `task_agents` asks without it (`own_folder=False`): its helpers are generic,
+module folder (`src/assistant/modules/<id>`, or its folder outside the repo: `module_folder`
+looks in every `module_roots` folder), never a parent or another module's folder. `task_agents` asks without it (`own_folder=False`): its helpers are generic,
 several run at once, and none is that module's own agent.
+
+Your data can leave the repo (module layout step 1): a module's config names its agent's data
+folder (`data_folder` in `config/<id>.toml`, yours, outside the repo), which is then its
+workspace (`data_folder`). Unset, the agent works in its module's own `workspace/` as before. The
+first time a data folder is used, the old workspace is copied into it (`copy_data_once`), never
+moved or deleted.
 """
 
 from __future__ import annotations
 
+import logging
 import os
+import shutil
+import sys
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -23,15 +32,34 @@ from assistant.contracts import AccessDenied, AccessItem, AccessKind, ModuleCont
 
 #: Where the modules live: one folder per module, named with its id (the loader's `assistant.modules`).
 MODULES_FOLDER = Path(__file__).resolve().parents[1] / "modules"
+#: The repo (the folder holding `src/`).
+REPO_FOLDER = MODULES_FOLDER.parents[2]
+#: The config key naming a module agent's data folder (in `config/<id>.toml`).
+DATA_FOLDER_KEY = "data_folder"
+
+log = logging.getLogger(__name__)
+
+
+def module_roots() -> list[Path]:
+    """Every folder holding module folders, the repo's `MODULES_FOLDER` first, then the ones
+    `[core] module_folders` names (outside the repo). Read from the `assistant.modules` package's
+    path, which the loader extends at startup (`loader.add_module_folders`), so the two never
+    disagree; the repo's folder alone before that package is imported."""
+    package = sys.modules.get("assistant.modules")
+    roots = [MODULES_FOLDER, *(Path(p).resolve() for p in getattr(package, "__path__", ()))]
+    seen: dict[str, Path] = {}
+    for root in roots:
+        seen.setdefault(os.path.normcase(str(root)), root)
+    return list(seen.values())
 
 
 def module_folder(module_id: str) -> Path | None:
-    """Module `module_id`'s own folder (`src/assistant/modules/<id>`, resolved), or None when
-    there's no such folder (a test's stand-in, a module that lives elsewhere)."""
+    """Module `module_id`'s own folder (`src/assistant/modules/<id>`, or `<outside folder>/<id>`:
+    the first root of `module_roots` holding it), or None when there's no such folder (a test's
+    stand-in, say)."""
     if not module_id or os.sep in module_id or "/" in module_id or module_id.startswith("."):
         return None
-    folder = MODULES_FOLDER / module_id
-    return folder if folder.is_dir() else None
+    return next((root / module_id for root in module_roots() if (root / module_id).is_dir()), None)
 
 
 def in_module_folder(module_id: str, path: Any) -> Path:
@@ -45,14 +73,50 @@ def in_module_folder(module_id: str, path: Any) -> Path:
     return ((module_folder(module_id) or Path.cwd()) / folder).resolve()
 
 
-def module_folder_of(path: Any) -> Path | None:
-    """The module folder `path` is in, or is (`MODULES_FOLDER / <id>`); None for a path outside
-    every module's folder, the modules folder itself included. For the Hub's folder check."""
-    root = os.path.normcase(str(MODULES_FOLDER))
-    here = os.path.normcase(str(Path(str(path)).resolve()))
-    if not here.startswith(root + os.sep):
+def data_folder(module_id: str, config: dict[str, Any]) -> Path | None:
+    """Module `module_id`'s data folder from its config (`data_folder`, `~` expanded, resolved), or
+    None when it's unset or empty: then its agent works in its own workspace, as before. ValueError
+    if it isn't a string, or isn't an absolute folder outside the repo (your data never sits in the
+    repo tree once it's named)."""
+    value = config.get(DATA_FOLDER_KEY)
+    if value is None or value == "":
         return None
-    return MODULES_FOLDER / here[len(root) + 1 :].split(os.sep)[0]
+    if not isinstance(value, str):
+        raise ValueError(f"{module_id}: {DATA_FOLDER_KEY} must be a folder, not {value!r}")
+    folder = Path(value.strip()).expanduser()
+    if not folder.is_absolute():
+        raise ValueError(f"{module_id}: {DATA_FOLDER_KEY} must be an absolute folder, not {value!r}")
+    folder = folder.resolve()
+    if folder.is_relative_to(REPO_FOLDER.resolve()):
+        raise ValueError(f"{module_id}: {DATA_FOLDER_KEY} must be outside the repo {REPO_FOLDER}, not {folder}")
+    return folder
+
+
+def copy_data_once(source: Path, target: Path) -> bool:
+    """The first use of a data folder: copy the old workspace `source` into `target` when `target`
+    is missing or empty and `source` is a folder (`__pycache__` skipped). Never moves or deletes
+    anything: `source` stays as it was, and a `target` holding any file is used as it is. True when
+    it copied."""
+    source, target = Path(source), Path(target)
+    if target.exists() and any(target.iterdir()):
+        return False
+    if not source.is_dir() or source.resolve() == target.resolve():
+        return False
+    shutil.copytree(source, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+    log.info("Copied %s into the data folder %s (the old folder is kept)", source, target)
+    return True
+
+
+def module_folder_of(path: Any) -> Path | None:
+    """The module folder `path` is in, or is (`<root> / <id>`, a root of `module_roots`); None for
+    a path outside every module's folder, a modules folder itself included. For the Hub's folder
+    check."""
+    here = os.path.normcase(str(Path(str(path)).resolve()))
+    for root in module_roots():
+        base = os.path.normcase(str(root))
+        if here.startswith(base + os.sep):
+            return root / here[len(base) + 1 :].split(os.sep)[0]
+    return None
 
 
 def access_items(config: dict[str, Any], module_id: str = "") -> tuple[AccessItem, ...]:

@@ -2,7 +2,9 @@
 without restarting the app.
 
 Generic: knows nothing about which modules exist. A module is its folder under
-`assistant.modules`, named with its manifest id. A module's package is the package its class
+`assistant.modules`, named with its manifest id. That package's folders are the repo's
+`src/assistant/modules` and, after it, the folders `[core] module_folders` names (outside the repo,
+`add_module_folders`), so a module there keeps its import name. A module's package is the package its class
 lives in (e.g. `assistant.modules.voice_in`); on a reload everything under it is dropped from
 `sys.modules` and imported again. The shared parts every module holds (core, contracts, infra,
 app_kit) are never reloaded: their classes must stay the same objects.
@@ -13,10 +15,12 @@ from __future__ import annotations
 import dataclasses
 import importlib
 import logging
+import os
 import pkgutil
 import shutil
 import sys
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -109,6 +113,57 @@ def apply_module_toml(cls: type[ModuleProtocol]) -> type[ModuleProtocol]:
         except ValueError as exc:
             raise LoadError(str(exc)) from exc
     return cls
+
+
+#: The `[core]` key naming more folders that hold module folders, outside the repo (module layout step 2).
+MODULE_FOLDERS_KEY = "module_folders"
+
+
+def configured_module_folders(config: dict[str, Any]) -> list[Path]:
+    """The extra module folders from `[core] module_folders` (`~` expanded, resolved), [] when unset.
+    LoadError unless it's a list of absolute folder paths: the core may run on a server, so a path
+    from the current folder is never guessed."""
+    value = config.get("core", {}).get(MODULE_FOLDERS_KEY, [])
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise LoadError(f"[core] {MODULE_FOLDERS_KEY} must be a list of folders, not {value!r}")
+    folders = []
+    for text in value:
+        folder = Path(text.strip()).expanduser()
+        if not folder.is_absolute():
+            raise LoadError(f"[core] {MODULE_FOLDERS_KEY}: {text!r} must be an absolute folder")
+        folders.append(folder.resolve())
+    return folders
+
+
+def _module_names(base: Path) -> set[str]:
+    """The module folder names directly in `base` (sub-folders with an `__init__.py`, not `_...`)."""
+    return {p.name for p in base.iterdir() if (p / "__init__.py").is_file() and not p.name.startswith("_")}
+
+
+def add_module_folders(folders: Sequence[Path], root: str = MODULES_PACKAGE) -> list[Path]:
+    """Append each folder to `root`'s package path (once each, after the repo's), so the modules in
+    it import as `<root>.<id>` and every lookup by folder finds them. Returns the folders added now.
+    LoadError if one isn't a folder, or holds a module id another folder of `root` already has: a
+    module found twice is refused, never shadowed."""
+    package = importlib.import_module(root)
+    present = [Path(p).resolve() for p in package.__path__]
+    added = []
+    for folder in (Path(f).resolve() for f in folders):
+        if not folder.is_dir():
+            raise LoadError(f"[core] {MODULE_FOLDERS_KEY}: {folder} is not a folder")
+        if any(os.path.normcase(str(folder)) == os.path.normcase(str(p)) for p in present):
+            continue
+        for other in present:
+            if twice := sorted(_module_names(folder) & _module_names(other)):
+                raise LoadError(f"module {', '.join(map(repr, twice))} is in two folders, {other} and {folder}: "
+                                "keep one copy")  # fmt: skip
+        package.__path__.append(str(folder))
+        present.append(folder)
+        added.append(folder)
+    if added:
+        importlib.invalidate_caches()
+        log.info("Module folders added: %s", ", ".join(map(str, added)))
+    return added
 
 
 def app_folders(root: str = MODULES_PACKAGE) -> list[Path]:
@@ -204,14 +259,17 @@ def check_folder(cls: type[ModuleProtocol], package: str, root: str = MODULES_PA
         )
 
 
-def find_modules(root: str = MODULES_PACKAGE) -> list[type[ModuleProtocol]]:
+def find_modules(root: str = MODULES_PACKAGE, folders: Sequence[Path] = ()) -> list[type[ModuleProtocol]]:
     """Every module under `root`, sorted by folder: one per sub-folder with an `__init__.py`
     that exports exactly one `ModuleProtocol` class whose id is the folder's name.
 
+    `folders`: more folders holding modules (`[core] module_folders`, `configured_module_folders`),
+    added to `root`'s path first (`add_module_folders`; LoadError for a bad one or an id found twice).
     A folder that fails to import, has no module class (or two), or a different id is skipped
     and logged; the rest still load. Folders starting with `_` are ignored. Every module's `app/`
     folder goes on the import path first (`add_app_folders`).
     """
+    add_module_folders(list(folders), root)
     add_app_folders(root)
     found = []
     for info in sorted(pkgutil.iter_modules(importlib.import_module(root).__path__), key=lambda i: i.name):

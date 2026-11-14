@@ -55,8 +55,11 @@ from assistant.infra import (
     AGENT_PUBLISHES,
     AGENT_SENDS,
     AGENT_USES,
+    REPO_FOLDER,
     AgentKit,
     ProfileAgent,
+    copy_data_once,
+    data_folder,
     in_module_folder,
 )
 from assistant.modules.cv.build import build_cv
@@ -70,6 +73,7 @@ from assistant.modules.cv.handoff import (
     read_jd_file,
     read_request,
     read_result,
+    request_tool,
     result_view,
     task_text,
 )
@@ -92,7 +96,8 @@ from assistant.modules.cv.submit_watch import SubmitWatch
 from assistant.modules.cv.tool import MIN_PT_ADVICE, CvTool, ToolError, tool_settings
 from assistant.modules.cv.worker import worker_config, worker_prompt
 
-#: The job agent's hand-off items; `[hand_off] callers` may use them. Anyone may use OPEN_ITEMS;
+#: The job agent's hand-off items; `[hand_off] callers` (agents) and `[hand_off] modules` (a module
+#: sending `cv.task` for one of its agents, `for_agent`) may use them. Anyone may use OPEN_ITEMS;
 #: every other item is only for the worker (`agent.agent_id`).
 HAND_OFF_ITEMS = ("cv.task", "cv.read_result")
 OPEN_ITEMS = ("rezi.status",)
@@ -113,7 +118,7 @@ class CallerMenu(Menu):
 menu = CallerMenu()
 
 PAPERS = ("letter", "a4")
-REPO = Path(__file__).resolve().parents[4]  # src/assistant/modules/cv -> the repo: no token file in it
+REPO = REPO_FOLDER  # the repo (from infra, wherever cv's own folder is): no token file in it
 HERE = Path(__file__).resolve().parent  # this module's folder (a relative workspace or output_dir is from here: in_module_folder)
 #: cv_agent's own workspace (gitignored, `workspace/`): the one place in the repo its job folders may be.
 OWN_WORKSPACE = HERE / "workspace"
@@ -184,6 +189,8 @@ _TASK_ARGS = {
     "notes": {"type": "string", "description": "Anything else for the worker"},
     "tool": {"type": "string", "enum": list(TOOL_PICKS), "description": "The CV Tool's pick (unset: the user "
              "picks Internal or Rezi in its tab 2)"},
+    "for_agent": {"type": "string", "description": "Only for a module in [hand_off] modules (job_search): the "
+                  "agent the job is for, who gets cv's events (reply_to) and whose task is the parent"},
 }  # fmt: skip
 
 _JOB_ID = {"job_id": {"type": "string", "minLength": 1, "description": "The CV Tool's job id (cv.open_tool's)"}}
@@ -209,7 +216,7 @@ _REPORT_ARGS = {
     "company": {"type": "string", "minLength": 1, "description": "The job's company"},
     "role": {"type": "string", "description": "The job's title"},
     "result": {"type": "object", "description": "The job's CvResult: status, stop_reason, pdf_path, "
-               "report_path, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, "
+               "report_path, tool, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, "
                "keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, "
                "approved_by_user"},
     "rounds": {"type": "array", "items": {"type": "object"}, "description": "Each score round: score, added "
@@ -228,10 +235,10 @@ class CvModule(ModuleProtocol):
         uses=AGENT_USES,
         # cv.task starts cv_agent (the caller's open task as parent); DeliverMessage: only to cv_agent
         # (the Rezi click)
-        sends=(*AGENT_SENDS, StartTask, GetTaskStatus, DeliverMessage,),
-        # ResponseReady: the one plain reminder of a Submit pressed while cv was down (submit_watch.py);
         # AgentNotice: cv_agent's line, for its next turn, that the watch passed a Submit on
-        publishes=(*AGENT_PUBLISHES, ResponseReady, AgentNotice,),
+        sends=(*AGENT_SENDS, StartTask, GetTaskStatus, DeliverMessage, AgentNotice,),
+        # ResponseReady: the one plain reminder of a Submit pressed while cv was down (submit_watch.py)
+        publishes=(*AGENT_PUBLISHES, ResponseReady,),
         # the job's end and the user's Submit, for the asker's module (it wakes its agent)
         publishes_named=(JOB_FINISHED, JOB_SUBMITTED),
         # TaskUpdated: cv_agent's own end of a job task, published as cv.job_finished
@@ -248,6 +255,8 @@ class CvModule(ModuleProtocol):
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         self.settings = settings(with_defaults(ctx.config))  # a bad config stops the module here, with the reason
+        if self.settings["data_folder"] and self.settings["data_from"]:  # your data folder's first use: the old workspace copied in (never moved)
+            await asyncio.to_thread(copy_data_once, Path(self.settings["data_from"]), Path(self.settings["data_folder"]))
         set_cv_prefix(self.settings["cv_prefix"])
         self._export = PdfExport(self.settings["soffice"])
         self.rezi = rezi_client(self.settings, self.http_transport)  # connects only when a rezi.* item uses it
@@ -397,7 +406,13 @@ class CvModule(ModuleProtocol):
                _TASK_ARGS, required=["company", "role", "base_cv"])  # fmt: skip
     async def task(self, company: str, role: str, base_cv: str, jd_text: str = "", jd_file: str = "",
                    jd_url: str = "", degree_first: bool | None = None, target_score: int | None = None,
-                   notes: str = "", tool: str | None = None, caller: str = "") -> Result:  # fmt: skip
+                   notes: str = "", tool: str | None = None, for_agent: str = "", caller: str = "") -> Result:  # fmt: skip
+        if caller in self.settings["hand_off"]["modules"]:
+            if not for_agent:
+                return Result.invalid_arguments(f"cv.task: {caller} sends it for one of its agents; give for_agent")
+            caller = for_agent  # the asker: cv's events carry it as reply_to, its open task is the parent
+        elif for_agent:
+            return Result.invalid_arguments("cv.task: for_agent is only for the modules in [hand_off] modules")
         if bool(jd_text.strip()) == bool(jd_file):
             return Result.invalid_arguments("cv.task: give the job description as jd_text or jd_file, one of them")
         try:
@@ -514,8 +529,8 @@ class CvModule(ModuleProtocol):
             self._ctx.log.info("cv: the Submit of %s for %s: %s", job_id, to, how)
             await asyncio.to_thread(mark_replied, folder, submitted, to, how)
             if notice:
-                self._ctx.publish(AgentNotice(agent_id=self._agent_id, source="cv",
-                                              text=submit_notice(result, job_id, to)))  # fmt: skip
+                await self._ctx.send(AgentNotice(agent_id=self._agent_id, source="cv",
+                                                 text=submit_notice(result, job_id, to)))  # fmt: skip
         return f"{to} ({how})"
 
     @menu.item("cv.read_result", "Reads and checks the CV_RESULT line at the end of a cv_agent task's result: give "
@@ -533,9 +548,11 @@ class CvModule(ModuleProtocol):
             if not task.state.is_final or not task.result:
                 return Result.not_available(f"cv.read_result: task {task_id} hasn't ended with a result yet "
                                             f"({task.state})")  # fmt: skip
-            text = task.result
+            text, tool = task.result, request_tool(task.text)  # the job's pick, when the line names none
+        else:
+            tool = None
         try:
-            result = read_result(text)
+            result = read_result(text, tool)
         except ValueError as exc:
             return Result.invalid_arguments(f"cv.read_result: {exc}")
         return Result.ok(await asyncio.to_thread(result_view, result, self.settings["target_score"]))
@@ -616,10 +633,12 @@ class CvModule(ModuleProtocol):
 
     def may_call(self, name: str, caller: str) -> str | None:
         """Why `caller` may not use item `name`, or None (checked by `CallerMenu` on every call):
-        the hand-off items for `[hand_off] callers`, OPEN_ITEMS for anyone, the rest for the worker."""
+        the hand-off items for `[hand_off] callers` and `modules`, OPEN_ITEMS for anyone, the rest for
+        the worker."""
         if name in OPEN_ITEMS:
             return None
-        allowed = self.settings["hand_off"]["callers"] if name in HAND_OFF_ITEMS else (self._agent_id,)
+        hand_off = self.settings["hand_off"]
+        allowed = (*hand_off["callers"], *hand_off["modules"]) if name in HAND_OFF_ITEMS else (self._agent_id,)
         if caller in allowed:
             return None
         return f"{name} is only for: {', '.join(allowed)}"
@@ -874,8 +893,13 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
     if not (isinstance(port, int) and not isinstance(port, bool) and 1 <= port <= 65535):
         raise ValueError(f"cv: callback_port must be 1 to 65535, not {port!r}")
     section = config.get("agent", {"enabled": False})  # no table: the menu only
+    data = data_folder("cv", config)  # your data folder (config/cv.toml), outside the repo; unset: the workspace
+    data_from = ""  # the workspace it replaces, copied into it at its first use
     if isinstance(section, dict) and section.get("workspace"):
-        section = {**section, "workspace": str(in_module_folder("cv", section["workspace"]))}
+        data_from = str(in_module_folder("cv", section["workspace"]))
+        section = {**section, "workspace": str(data) if data else data_from}
+    elif isinstance(section, dict) and data:
+        section = {**section, "workspace": str(data)}
     workspace = str(section.get("workspace") or "") if isinstance(section, dict) else ""
     output_dir = config.get("output_dir")
     output_dir = str(in_module_folder("cv", output_dir)) if output_dir else str(Path(workspace) / "out") if workspace else ""
@@ -885,11 +909,14 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
     work_dir, job_skills = job_folders(config, agent, cv_dir)
     rules = Path(str(config.get("rules_dir") or "")).expanduser() if config.get("rules_dir") else None
     rules_dir = "" if rules is None else str(rules if rules.is_absolute() or not workspace else Path(workspace) / rules)
-    callers = dict(config.get("hand_off", {})).get("callers", [])  # an old `coordinator` key is ignored
+    hand_off = dict(config.get("hand_off", {}))  # an old `coordinator` key is ignored
+    callers, modules = hand_off.get("callers", []), hand_off.get("modules", [])
     if not (isinstance(callers, list) and all(isinstance(c, str) and c for c in callers)):
         raise ValueError(f"cv: hand_off.callers must be a list of agent ids, not {callers!r}")
+    if not (isinstance(modules, list) and all(isinstance(m, str) and m for m in modules)):
+        raise ValueError(f"cv: hand_off.modules must be a list of module ids, not {modules!r}")
     return {
-        "hand_off": {"callers": tuple(callers)},
+        "hand_off": {"callers": tuple(callers), "modules": tuple(modules)},
         "rules_dir": rules_dir,  # the cv module's general rules (SKILL.md + rules/*.md), loaded at every job
         "tool": tool_settings(config.get("tool", {}), cv_dir, rules_dir, workspace, prefix),
         "cv_prefix": prefix,  # the start of the PDFs made (and of the CVs the CV Tool lists); not a rule for base_cv
@@ -906,6 +933,8 @@ def settings(config: dict[str, Any]) -> dict[str, Any]:
         "token_file": str(token_file),
         "callback_port": port,
         "agent": agent,
+        "data_folder": str(data) if data else "",  # set: the worker's workspace, and everything kept in it
+        "data_from": data_from,
     }
 
 

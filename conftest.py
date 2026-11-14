@@ -14,6 +14,10 @@ test's own value for either still wins.
 
 Each module's `app/` folder (its companion app's package, like `cv/app/cv_tool`) goes on the import
 path here, the way the core does at startup (`loader.add_app_folders`).
+
+The folders `[core] module_folders` names (add-ons outside the repo, module layout step 2) go on the
+modules package's path first, as at startup, so their modules import as `assistant.modules.<id>`; a
+plain `pytest` (its `testpaths`) collects their tests too. Unset: only the repo's folders, as before.
 """
 
 import pytest
@@ -23,8 +27,16 @@ from assistant.core import loader
 from assistant.core.loader import add_app_folders
 from assistant.core.logs import SessionLogs
 from assistant.core.permissions import handler
+from assistant.infra import load_config
 
+OUTSIDE_FOLDERS = loader.add_module_folders(loader.configured_module_folders(load_config()))
 add_app_folders()
+
+
+def pytest_configure(config) -> None:
+    """With no paths given (the `testpaths` run), the outside module folders' tests run too."""
+    if OUTSIDE_FOLDERS and config.args_source == pytest.Config.ArgsSource.TESTPATHS:
+        config.args += [str(folder) for folder in OUTSIDE_FOLDERS]
 
 
 @pytest.fixture(autouse=True)

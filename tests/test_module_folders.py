@@ -6,7 +6,8 @@ own module folder only, and the Hub lets it work beside the Main Assistant's who
 while two agents on one module folder are still refused, with the folder named.
 
 Item 2: a `needs` list. cv's module.toml declares `needs`, the core puts it on the manifest, and
-the lifecycle turns needed modules on first and refuses to turn one off while a module needs it.
+the lifecycle turns needed modules on first. `needs` is start order only (manual-off-never-refused.md):
+turning a needed module off leaves the modules that need it on, and one that fails doesn't stop them.
 
 Item 3: cv's `[agent]` section is complete. cv_agent's `named_only = true` is in its own section,
 not in agent_hub's config; the Hub reads it from the agent (`AgentInfo.named_only`).
@@ -22,7 +23,7 @@ Item 6: cv's packages and ruff rule are in its folder. pyproject.toml names no m
 per-file ignore; cv's module.toml lists `packages` (on its manifest), and cv/ruff.toml extends the root.
 
 Item 7: job_search's defaults, needs and tests are in its folder. Its module.toml holds its defaults and
-`needs = ["cv"]`.
+`needs = []` (since 2026-11-13, job-cv-start-order: cv comes on only when job.tailor_cv needs it).
 
 Item 8: html_viewer's app, events and tests are in its folder. The viewer app is `html_viewer/app/html_viewer/`
 (launched by folder), its defaults and `needs` are in its module.toml, its three event types left the
@@ -52,7 +53,8 @@ named events may be heard by name, decision 9); pages open through the `IPageOpe
 
 Item 19: the rule holds for every add-on (each module whose docs/docs.toml group is "add-on"), one test per
 add-on: no `src/<app>`, no package, extra, app or ruff rule of it in pyproject.toml, no section or file of it in
-committed config/, no test of it in `tests/`, and its agent's workspace in its own folder. What items 4–10 checked
+committed config/, no test of it in `tests/`, and its agent's default workspace (module.toml) in its own folder;
+your data folder (`data_folder` in config/<id>.toml, module layout step 1) is outside the repo by its own check. What items 4–10 checked
 for one add-on each is checked there for all of them; the core group keeps its own checks here."""
 
 from __future__ import annotations
@@ -91,6 +93,7 @@ from assistant.infra import (
     in_module_folder,
     module_folder,
     module_folder_of,
+    module_roots,
     request_access,
 )
 from assistant.infra.profile_agent import named_only
@@ -108,7 +111,7 @@ def _toml(path: Path) -> dict:
 
 
 def _module_toml(module_id: str) -> dict:
-    return _toml(MODULES_FOLDER / module_id / "module.toml")
+    return _toml(module_folder(module_id) / "module.toml")
 
 
 def _module_class(module_id: str) -> type:
@@ -232,14 +235,42 @@ async def test_turning_on_a_module_turns_on_what_it_needs() -> None:
     await app.stop()
 
 
-async def test_turning_off_a_needed_module_is_refused() -> None:
+async def test_turning_off_a_needed_module_leaves_the_needer_on() -> None:
     app = App([Base, NeedsBase], make_config("needs_base"))
     await app.start()
-    refused = await app.router.send(DeactivateModule(module_id="base_part"))
-    assert refused.status is Status.FAILED and "needs_base" in refused.error
-    assert _states(app)["base_part"] is ModuleState.ACTIVE
+    off = await app.router.send(DeactivateModule(module_id="base_part"))
+    assert off.is_ok and off.value == "base_part is off; needs_base needs it and stays on"
+    assert _states(app) == {"base_part": ModuleState.INACTIVE, "needs_base": ModuleState.ACTIVE}
+    assert (await app.router.send(ActivateModule(module_id="base_part"))).is_ok
     assert (await app.router.send(DeactivateModule(module_id="base_part", with_dependents=True))).is_ok
     assert _states(app) == {"base_part": ModuleState.INACTIVE, "needs_base": ModuleState.INACTIVE}
+    await app.stop()
+
+
+class BrokenBase(Base):
+    manifest = Manifest(id="broken_part")
+
+    async def start(self) -> None:
+        raise RuntimeError("broken on purpose")
+
+
+class NeedsBroken(Base):
+    manifest = Manifest(id="needs_broken", needs=("broken_part",))
+
+
+async def test_a_needed_module_that_fails_doesnt_stop_the_needer() -> None:
+    # At startup: the needed one fails, the one that needs it still starts.
+    app = App([BrokenBase, NeedsBroken], make_config("needs_broken"))
+    await app.start()
+    assert _states(app)["needs_broken"] is ModuleState.ACTIVE
+    assert _states(app)["broken_part"] is not ModuleState.ACTIVE
+    await app.stop()
+    # At runtime (ActivateModule) too.
+    app = App([BrokenBase, NeedsBroken], make_config())
+    await app.start()
+    assert (await app.router.send(ActivateModule(module_id="needs_broken"))).is_ok
+    assert _states(app)["needs_broken"] is ModuleState.ACTIVE
+    assert _states(app)["broken_part"] is not ModuleState.ACTIVE
     await app.stop()
 
 
@@ -458,9 +489,9 @@ JOB_SEARCH = MODULES_FOLDER / "job_search"
 
 def test_job_search_has_its_module_toml() -> None:
     toml = _module_toml("job_search")
-    assert toml["needs"] == ["cv"] and toml["packages"] == []
+    assert toml["needs"] == [] and toml["packages"] == []  # cv comes on only when job.tailor_cv needs it
     assert toml["workspace"] and toml["transcript"] == "job_search_agent.jsonl"  # its defaults are here
-    assert _module_class("job_search").manifest.needs == ("cv",)
+    assert _module_class("job_search").manifest.needs == ()
     assert (JOB_SEARCH / "tests" / "test_job_search.py").is_file()
 
 
@@ -596,7 +627,9 @@ CENTRAL_ON_PURPOSE = {
 
 
 def module_folders() -> list[Path]:
-    return sorted(p for p in MODULES_FOLDER.iterdir() if (p / "__init__.py").is_file())
+    """Every module folder, in the repo and in the outside folders `[core] module_folders` names (step 2)."""
+    return sorted((p for root in module_roots() for p in root.iterdir() if (p / "__init__.py").is_file()),
+                  key=lambda p: p.name)  # fmt: skip
 
 
 @pytest.mark.parametrize("module_id", sorted(CORE_MODULE_TESTS))
@@ -889,8 +922,8 @@ def test_nothing_of_an_add_on_is_outside_its_folder(add_on: str) -> None:
     module.toml and its ruff rules in its ruff.toml, none in pyproject.toml; its defaults are in its
     module.toml, never in committed config/ (beyond the on/off list); its tests are in its tests/, none
     in the central tests/; its agent's workspace is in its own folder, never outside the repo."""
-    folder = MODULES_FOLDER / add_on
-    here = folder.relative_to(REPO).as_posix()
+    folder = module_folder(add_on)  # in the repo, or in an outside folder (module layout step 2)
+    here = folder.relative_to(REPO).as_posix() if folder.is_relative_to(REPO) else folder.as_posix()
     toml = _module_toml(add_on)
     left: list[str] = []
     # Its app, if any, in app/<its package>, found by folder; no src/<app> or src/<its id>.

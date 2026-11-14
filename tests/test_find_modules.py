@@ -3,15 +3,13 @@
 import logging
 import sys
 import uuid
-from pathlib import Path
 
 import pytest
 
 from assistant.core import App, find_modules
 from assistant.core.loader import LoadError, check_folder, find_module_class
+from assistant.infra import module_roots
 from assistant.testkit import make_config
-
-ROOT = Path(__file__).resolve().parents[1]
 
 GOOD = """
 from assistant.contracts import Manifest, ModuleProtocol
@@ -73,9 +71,8 @@ def test_a_folder_must_be_named_with_its_module_id(root):
 
 
 def test_every_real_module_folder_is_found():
-    folders = sorted(
-        p.name for p in (ROOT / "src" / "assistant" / "modules").iterdir() if (p / "__init__.py").is_file()
-    )
+    # The repo's folder and the outside ones [core] module_folders names (the conftest adds them).
+    folders = sorted(p.name for root in module_roots() for p in root.iterdir() if (p / "__init__.py").is_file())
     assert [cls.manifest.id for cls in find_modules()] == folders
 
 

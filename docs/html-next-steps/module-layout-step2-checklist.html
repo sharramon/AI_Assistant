@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module layout step 2: checklist</title>
+<!-- Generated from docs/next-steps/module-layout-step2-checklist.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-layout-step2-checklist.html"></nav>
+<main>
+<h1 id="module-layout-step-2-checklist">Module layout step 2: checklist</h1>
+<p><strong>Status:</strong> built unattended 2026-11-13 (Auto), item by item, each ticked when its tests passed. <strong>Waits for an app restart</strong> (core and infra changed). Nothing is moved and nothing is committed: the mechanism is built, the default keeps today's layout, and the move itself is a step for you (the last section).</p>
+<p>Step 2 of the <a href="module-layouts.html">module layouts</a> page ("add-ons in their own folder outside the repo", flowchart 3 and its list L, A, D, T, C, P). The order of fixing: this is item 6. Step 1 is in <a href="module-layout-step1-checklist.html">module-layout-step1-checklist.md</a>.</p>
+<p>Where the page leaves a choice open, the option taken is marked <strong>Chosen:</strong> with why.</p>
+<h2 id="items">Items</h2>
+<h3 id="1-one-config-line-core-module_folders">1. One config line: <code>[core] module_folders</code> ☑</h3>
+<ul>
+<li><code>config/default.toml</code> gets <code>module_folders = []</code> under <code>[core]</code>, with a comment: each entry an absolute folder that holds module folders directly (<code>C:/AddOns</code> holding <code>cv/</code>, <code>job_search/</code>, ...). Yours go in <code>config/local.toml</code>.</li>
+<li><strong>Chosen:</strong> absolute paths only (a relative one is refused), because the core will move to a server and a path from the current folder would change with where the app is launched. <code>~</code> is expanded.</li>
+<li><strong>Chosen:</strong> empty by default, so with nothing configured the app finds exactly today's modules from exactly today's folder.</li>
+<li>Files: <code>config/default.toml</code>.</li>
+<li>Done when: the default config loads with the key, and <code>test_boundaries</code>' rule 2 (the core's settings name no add-on) still passes.</li>
+</ul>
+<h3 id="2-the-loader-finds-modules-in-the-outside-folders">2. The loader finds modules in the outside folders ☑</h3>
+<ul>
+<li><strong>Chosen (the page's L):</strong> the outside folders are appended to <code>assistant.modules.__path__</code> at startup, so an outside module keeps its import name <code>assistant.modules.&lt;id&gt;</code>, and <code>find_modules</code>, <code>app_folders</code> / <code>add_app_folders</code>, <code>import_fresh</code>, reload, <code>modules.add</code> and <code>module_folder</code> work unchanged. The repo's folder stays first.</li>
+<li><code>loader.configured_module_folders(config)</code> reads and checks the key (a list of absolute strings; <code>LoadError</code> otherwise); <code>loader.add_module_folders(folders)</code> checks each is a folder and appends it once.</li>
+<li><strong>Chosen:</strong> a module id found in two folders (the repo's and an outside one, or two outside ones) is <strong>refused at startup</strong> (<code>LoadError</code>, "Startup failed: ..."), never silently shadowed by the first folder: the copy that runs must be the one you meant.</li>
+<li><code>find_modules(root, folders=())</code> adds the folders first; <code>__main__.run_app</code> passes the configured ones and turns a <code>LoadError</code> into a startup failure.</li>
+<li>Files: <code>src/assistant/core/loader.py</code>, <code>src/assistant/core/__init__.py</code>, <code>src/assistant/__main__.py</code>.</li>
+<li>Tests (<code>tests/test_outside_modules.py</code>, new, with <code>tmp_path</code>): a fake add-on (with an <code>app/</code> package) in an outside folder is found, its app imports, it starts in an <code>App</code>, it's reloaded with new code; <code>modules.add</code> of a second one there works; a duplicate id in two folders is refused; a relative or missing folder is refused; nothing configured leaves <code>__path__</code> as it was.</li>
+<li>Done when: those pass and <code>test_find_modules</code>, <code>test_reload</code>, <code>test_control</code> still pass.</li>
+</ul>
+<h3 id="3-agent_access-gives-the-right-folder">3. <code>agent_access</code> gives the right folder ☑</h3>
+<ul>
+<li><strong>Chosen:</strong> one lookup of where modules live, <code>module_roots()</code> in <code>infra/agent_access.py</code>, read from the <code>assistant.modules</code> package's path (the loader's list, so the two never disagree); the repo's folder when nothing else is set. <code>module_folder</code>, <code>in_module_folder</code> and <code>module_folder_of</code> (the Hub's folder check) look in every root. <code>MODULES_FOLDER</code> stays the repo's folder.</li>
+<li>Files: <code>src/assistant/infra/agent_access.py</code>, <code>src/assistant/infra/__init__.py</code>.</li>
+<li>Tests: an outside module's own folder is its write grant and its relative <code>workspace</code>'s base; <code>module_folder_of</code> finds it; the outside folder itself is no module's folder.</li>
+<li>Done when: those pass and <code>test_module_folders</code>' item 1 tests still pass.</li>
+</ul>
+<h3 id="4-the-docs-build-picks-up-outside-modules-docs">4. The docs build picks up outside modules' docs ☑</h3>
+<ul>
+<li><code>scripts/build_docs.py</code>: <code>module_dirs()</code> (the repo's modules folder, then the configured ones, added through the loader) replaces the fixed <code>MODULES_DIR</code> in <code>module_doc_folders</code>, <code>check_module_tabs</code> and <code>module_classes</code>; the library row links each module's README by its real place. Output is unchanged: a module's pages still publish to <code>docs/html/modules/&lt;id&gt;/</code>.</li>
+<li><strong>Chosen:</strong> a page outside <code>docs/</code> on another drive is named by its absolute path (no relative path exists across drives on Windows).</li>
+<li>Files: <code>scripts/build_docs.py</code>.</li>
+<li>Tests: with an outside fake add-on, its docs folder is found, its tab is in the add-ons group, <code>check_module_tabs</code> passes, its pages publish under <code>docs/html/modules/&lt;id&gt;/</code> and its library row links its folder.</li>
+<li>Done when: those pass and <code>test_module_docs</code> still passes.</li>
+</ul>
+<h3 id="5-boundary-and-module-folder-tests-cover-every-folder">5. Boundary and module-folder tests cover every folder ☑</h3>
+<ul>
+<li><code>tests/test_boundaries.py</code>: the rules run over every module root (the configured ones too), and two new rules: <strong>a module outside the repo is an add-on</strong> (the core group stays in the repo: "repo: core" in flowchart 3), and <strong>no id in two roots</strong>. Each with a planted break in <code>tmp_path</code>.</li>
+<li><code>tests/test_module_folders.py</code>, <code>tests/test_find_modules.py</code>: the module list from every root, an add-on's folder by <code>module_folder</code>, so the item 19 tripwire checks an outside add-on in its real place.</li>
+<li><code>conftest.py</code>: the configured folders added before any test imports a module; a plain <code>pytest</code> (its <code>testpaths</code>) also collects the outside folders' tests.</li>
+<li>Files: <code>tests/test_boundaries.py</code>, <code>tests/test_module_folders.py</code>, <code>tests/test_find_modules.py</code>, <code>conftest.py</code>.</li>
+<li>Done when: the planted breaks are caught and the real tree passes.</li>
+</ul>
+<h3 id="6-add-ons-dont-assume-theyre-in-the-repo-prompts-name-the-folders-from-code">6. Add-ons don't assume they're in the repo; prompts name the folders from code ☑</h3>
+<ul>
+<li>The Main Assistant's prompt names the module folders from <code>module_roots()</code> instead of the fixed <code>src/assistant/modules/</code>.</li>
+<li>cv's <code>REPO</code> (<code>parents[4]</code>, wrong, even an <code>IndexError</code>, once cv is outside) becomes infra's <code>REPO_FOLDER</code>; cv's <code>test_rezi_mcp</code> likewise; voice_notes' tests read their files from their own folder, not from the current folder.</li>
+<li>A tripwire: no add-on's code computes the repo from its own path (<code>parents[n]</code> with n ≥ 2 on <code>__file__</code>) or opens a <code>src/assistant/modules/...</code> path.</li>
+<li>Files: <code>src/assistant/modules/main_assistant/module.py</code>, <code>modules/cv/module.py</code>, <code>modules/cv/tests/test_rezi_mcp.py</code>, <code>modules/voice_notes/tests/test_voice_notes.py</code>, <code>tests/test_outside_modules.py</code>.</li>
+<li>Done when: main_assistant's, cv's and voice_notes' tests pass, and the tripwire passes on the real tree and catches a planted break.</li>
+</ul>
+<h3 id="7-docs">7. Docs ☑</h3>
+<ul>
+<li><code>docs/architecture/core.md</code> and <code>modules.md</code> (found by folder: the extra folders), <code>docs/api/core.md</code> (<code>loader</code>), <code>docs/api/infra.md</code> (<code>module_roots</code>, the lookups), <code>docs/api/reusable.md</code>; this file's As built, Left open and the how-to.</li>
+<li>Done when: <code>test_module_docs</code> passes.</li>
+</ul>
+<h2 id="as-built">As built</h2>
+<ul>
+<li><strong>Item 1:</strong> <code>config/default.toml</code> <code>[core] module_folders = []</code> with its comment. Absolute paths only; <code>~</code> expanded.</li>
+<li><strong>Item 2:</strong> <code>core/loader.py</code>: <code>MODULE_FOLDERS_KEY</code>, <code>configured_module_folders(config)</code>, <code>add_module_folders(folders)</code> (appends to <code>assistant.modules.__path__</code> once each, after the repo's; <code>LoadError</code> for a missing folder or an id in two folders), <code>find_modules(root, folders=())</code>. <code>core/__init__.py</code> exports <code>LoadError</code> and <code>configured_module_folders</code>; <code>__main__.run_app</code> passes the configured folders and reports a <code>LoadError</code> as "Startup failed". Reload, <code>AddModule</code>, <code>app/</code> folders and <code>module.toml</code> needed no change: they already follow the package's path.</li>
+<li><strong>Item 3:</strong> <code>infra/agent_access.py</code>: <code>module_roots()</code> (from the package's path, the repo's <code>MODULES_FOLDER</code> first); <code>module_folder</code> and <code>module_folder_of</code> look in every root, so <code>in_module_folder</code>, <code>access_items</code>' own-folder write and the Hub's <code>folders_clash</code> follow. Exported from <code>assistant.infra</code>.</li>
+<li><strong>Item 4:</strong> <code>scripts/build_docs.py</code>: <code>module_dirs()</code> (config through the loader, then <code>module_roots</code>), <code>module_paths()</code>, <code>rel_path</code> / <code>shown</code> / <code>readme_link</code>; <code>module_doc_folders</code>, <code>check_module_tabs</code>, <code>module_classes</code> and the library row use them. The repo's output is unchanged (the library rows still read <code>../../src/assistant/modules/&lt;id&gt;/docs/README.md</code>).</li>
+<li><strong>Item 5:</strong> <code>tests/test_boundaries.py</code>: every rule over every root (<code>ROOTS</code>), and <code>outside_core</code> / <code>ids_twice</code> with a planted tree (12 tests). <code>tests/test_module_folders.py</code> (<code>module_folders</code>, <code>_module_toml</code>, item 19's per-add-on test by <code>module_folder</code>), <code>tests/test_find_modules.py</code>, <code>tests/test_module_docs.py</code> read every root. <code>conftest.py</code> adds the configured folders at import and, on a plain <code>pytest</code>, appends them to the collected paths (<code>pytest_configure</code>).</li>
+<li><strong>Item 6:</strong> <code>main_assistant/module.py</code>: <code>worker_prompt()</code> fills <code>MODULE_FOLDERS_MARK</code> from <code>module_roots</code> (<code>src/assistant/modules/&lt;id&gt;/</code>, then each outside folder); its own test is in <code>main_assistant/tests/test_main_assistant.py</code>. cv's <code>REPO</code> is <code>REPO_FOLDER</code> (was <code>parents[4]</code>); cv's <code>test_rezi_mcp</code> likewise; voice_notes' tests read from their own folder. The tripwire <code>climbs_out</code> in <code>tests/test_outside_modules.py</code> (with a planted break).</li>
+<li><strong>New:</strong> <code>tests/test_outside_modules.py</code> (9 tests: nothing configured; bad settings; a fake add-on with an <code>app/</code> package in a <code>tmp_path</code> folder found, started, reloaded, a second one added with <code>AddModule</code>; an id twice refused; its agent's folders; its docs found, checked, tabbed, linked and in the library; the cross-drive link; the tripwire on the real add-ons and on a planted one). <code>scripts/move_add_on.py</code> (dry run by default; only run here as a dry run).</li>
+<li><strong>A check by hand:</strong> with a throwaway config dir (<code>ASSISTANT_CONFIG_DIR</code>) naming a throwaway add-on folder, a plain <code>pytest</code> collected that add-on's test and the root conftest's fixtures applied to it; both folders deleted afterwards.</li>
+<li><strong>Tests:</strong> the targeted run (boundaries, module_folders, module_docs, module_layout, control, find_modules, reload, edit_note, outside_modules, swap_every_module; main_assistant's, cv's, voice_notes', agent_hub's and job_search's own): <strong>378 passed</strong>. Ruff: <strong>All checks passed!</strong></li>
+<li><strong>Files needing a restart:</strong> <code>src/assistant/core/loader.py</code>, <code>core/__init__.py</code>, <code>src/assistant/__main__.py</code>, <code>src/assistant/infra/agent_access.py</code>, <code>infra/__init__.py</code>. No contract changed. <code>main_assistant</code> and <code>cv</code> changed too (a reload each, or the restart).</li>
+</ul>
+<h2 id="left-open">Left open</h2>
+<ul>
+<li><strong>The move itself</strong> (yours): nothing was moved. The how-to is below.</li>
+<li><strong>One CLAUDE.md per add-on</strong> and the <strong>Main Assistant's session-long write grant on the add-ons folder</strong> (flowchart 3): not built. The CLAUDE.md content is yours to write; a grant that ends with the session is a new permissions feature, which needs its own design talk. Until then, the Main Assistant asks with a card before it writes outside the repo (Manual), and the add-on agents keep their own-folder grant (built here).</li>
+<li><strong>Ruff on an outside folder:</strong> <code>ruff check</code> at the repo doesn't see it, and <code>pyproject.toml</code>'s <code>src</code> glob (<code>src/assistant/modules/*/app</code>) doesn't name it. Run <code>ruff check C:/AddOns</code> with a <code>ruff.toml</code> there that has <code>extend = "C:/.../AI_Assistant/pyproject.toml"</code> and <code>src = ["*/app"]</code>.</li>
+<li><strong>The rule "outside the repo"</strong> in cv (<code>token_file</code>, <code>work_dir</code>) and in <code>data_folder</code> still means the repo only; once cv is outside, cv's own folder isn't protected by it. Fine while the add-ons folder has no git, worth a look if it gets one.</li>
+<li><strong>Two git histories:</strong> a contract change then touches two folders with no single commit, and an add-on's tests need the matching core. Not something code fixes.</li>
+<li><strong>The extension-marketplace note</strong> (<code>docs/next-steps/extension-marketplace.md</code>, "The loader imports only from the repo's own module folder ... no configurable root, no extra path") now disagrees with what step 2 built. Not edited: yours to decide whether that note is superseded.</li>
+<li><strong>Module docs</strong> still name <code>src/assistant/modules/&lt;id&gt;/</code> in their text; after a move they're stale by path only (the build finds them by folder).</li>
+<li><strong>Docs HTML</strong> not rebuilt here (the caller runs one build).</li>
+</ul>
+<h2 id="how-to-move-an-add-on-out-for-the-user">How to move an add-on out (for the user)</h2>
+<p>Do this with the app stopped. Move <strong>cv and job_search together</strong> into the same folder: the job agent's <code>job_paths.json</code> reaches cv's output as <code>../../cv/workspace/out</code>, which holds only while they're side by side.</p>
+<ol>
+<li>Restart the app once first with this build and check it still starts as before (<code>module_folders = []</code>).</li>
+<li>Pick a folder outside the repo, e.g. <code>C:/AddOns</code>. Commit or stash the add-on's uncommitted work first: the copy takes the folder as it is on disk, its gitignored <code>workspace/</code> included.</li>
+<li>Dry run, then copy: <code>.\.venv\Scripts\python scripts\move_add_on.py cv C:/AddOns</code> (says what it would do), then the same with <code>--yes</code>. It refuses a core module, a relative or in-repo target, and a target that already has the module. Without the script: copy <code>src/assistant/modules/&lt;id&gt;</code> to <code>C:/AddOns/&lt;id&gt;</code> by hand.</li>
+<li>Delete the repo's copy (<code>git rm -r src/assistant/modules/&lt;id&gt;</code>, or the script's <code>--delete-old</code>), and commit that in the repo. While both copies exist the app refuses to start ("module 'cv' is in two folders"), on purpose.</li>
+<li>In <code>config/local.toml</code>: <code>[core]</code> then <code>module_folders = ["C:/AddOns"]</code>.</li>
+<li>Restart the app. <code>modules.list</code> shows the add-on as before; its agent's next turn-on asks with a new access card (its own folder changed).</li>
+<li>Check: <code>.\.venv\Scripts\python -m pytest</code> (a plain run collects <code>C:/AddOns</code>' tests too), and <code>.\.venv\Scripts\python scripts\build_docs.py</code> (its docs still publish under <code>docs/html/modules/&lt;id&gt;/</code>).</li>
+<li>Optional: <code>git init</code> in <code>C:/AddOns</code> with a <code>.gitignore</code> naming <code>*/workspace/</code> and <code>__pycache__/</code>; a <code>CLAUDE.md</code> per add-on; a <code>ruff.toml</code> (Left open).</li>
+</ol>
+<p>To undo: copy the folder back into <code>src/assistant/modules/</code>, empty <code>module_folders</code>, restart.</p>
+<footer>Generated from <code>docs/next-steps/module-layout-step2-checklist.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
