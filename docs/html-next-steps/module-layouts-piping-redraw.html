@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module layouts: redraw the flowcharts with the full piping</title>
+<!-- Generated from docs/next-steps/module-layouts-piping-redraw.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="module-layouts-piping-redraw.html"></nav>
+<main>
+<h1 id="module-layouts-redraw-the-flowcharts-with-the-full-piping">Module layouts: redraw the flowcharts with the full piping</h1>
+<p>Status: <strong>draft drawn 2026-11-13, waiting for the user's check.</strong> Step 3 of the <a href="restructuring-checklist.html">restructuring checklist</a> is reopened until the user approves it.</p>
+<h2 id="what-and-why">What and why</h2>
+<p><code>module-layouts.html</code> drew the core as one box ("Core: door · gate · Callers"). The piping page (<code>piping.html</code>, sections 2 and 2b) was meant to guide how the parts fit together and in what order, so the layout pictures should show it. The user asked for the full piping in each section, drawn as the code is built, so the layout work can be checked against it.</p>
+<h2 id="the-change">The change</h2>
+<ul>
+<li>Each section gets two pictures. <strong>a</strong> shows the sessions and which CLAUDE.md each loads, as before; its core box now points to <strong>b</strong>. <strong>b</strong> shows the core's piping: Module door D1, Callers D2, Router D3, one gate <code>dispatch_tool</code> D4, Bus D5, Permissions handler and cards D6, arrows 1 to 13 numbered as on <code>piping.html</code>, and the Agent Hub as coordination only.</li>
+<li><strong>1b, today:</strong> the matches are drawn plainly. The six places where the code differs from the piping diagram are marked ≠1 to ≠6, from the read-only check of 2026-11-13: (1) risky core-menu items ask even in Auto; (2) the gate answers "asked on a card" at once; (3) the review is a task the Hub starts; (4) the Talker may answer cards (G17, open); (5) <code>modules.off</code> asks only with dependents and is sent as core; (6) the gate starts an off module before it checks the caller.</li>
+<li><strong>2b, step 1:</strong> no new pipe. Shows how the module agents start and the access card for their folders (P7).</li>
+<li><strong>3b, step 2:</strong> an add-on in a <code>module_folders</code> folder is found by <code>loader.find_modules</code> (A1), started by the LifecycleManager (A9), and reached through the same door, gate and cards. Five gaps are marked !1 to !5: "you" trusted by module id; job_search reads cv's output by path; the duplicate-folder check runs only at startup; the <code>modules.add</code> card doesn't show the folder; the CLAUDE.md exclude list covers only repo files.</li>
+<li>The step 3 line in the checklist is reopened as "redrawn, waiting for the user's check".</li>
+</ul>
+<h2 id="round-2-2026-11-13-the-main-flow-and-the-bus-inside-the-core">Round 2 (2026-11-13): the main flow, and the bus inside the core</h2>
+<p>The user said 3b doesn't show the main data flow plainly (how a module calls another's tool, how events are subscribed to and triggered), and that the older pictures drew the Event bus as a box outside the core.</p>
+<ul>
+<li><strong>Picture 0, new, before 1a:</strong> the core as one container (door D1, router D3, gate D4, cards D6, bus D5) and real modules on each side. Tool call T1 to T4: job_search <code>ctx.send(InvokeTool("cv.task"))</code> → router → gate → cv's item → Result back. Command C1 to C3: job_search <code>DeliverMessage</code> → router → the Agent Hub's handler (<code>ctx.handle</code>) → Result back. Event E1, E2: voice_in <code>ctx.publish(VoiceTranscript)</code> → bus → voice_notes (<code>ctx.subscribe</code> in <code>start()</code>, <code>listens</code> in its manifest) and any other listener. Never: an import between modules.</li>
+<li><strong>1a, 2a, 3a:</strong> the Bus row moved inside the core box. The modules box says they reach each other only through the core.</li>
+<li><strong>1b, 2b, 3b:</strong> a second teal arrow 2 from the gate into the add-ons, and arrow 5 two-headed (a module's own sends come in through the router).</li>
+<li><strong>Found while drawing, marked on the page:</strong> the door sends <code>InvokeTool</code> through the router, not straight to the gate (<code>core/app.py:110,134</code>). Listening isn't strict: an undeclared subscription or named event works and is only logged (<code>core/context.py:224-231</code>).</li>
+</ul>
+<h2 id="not-changed">Not changed</h2>
+<p>No code. The page's text parts (the approve cards, the loader list L/A/D/T/C/P, the appendices) stay as they were. The loader list and the red "would need to change" box were written before step 6 built <code>module_folders</code>, so they're now stale. That's named on the page for the user to decide on.</p>
+<footer>Generated from <code>docs/next-steps/module-layouts-piping-redraw.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
