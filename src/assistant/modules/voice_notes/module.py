@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app_kit.local_guard import local_request
 from app_kit.window import close_app_windows, open_app_window, window_profile
 from assistant.contracts import (
     IVoice,
@@ -171,7 +172,9 @@ class VoiceNotesModule(ModuleProtocol):
             while (line := await reader.readline()) not in (b"\r\n", b"\n", b""):
                 name, _, value = line.decode("latin-1").partition(":")
                 headers[name.strip().lower()] = value.strip()
-            if method == "GET" and path == "/":
+            if not local_request(headers.get("host"), headers.get("origin")):  # G10: this machine's own page only
+                await self._respond(writer, 403, "text/plain", b"Forbidden")
+            elif method == "GET" and path == "/":
                 await self._respond(writer, 200, "text/html; charset=utf-8", PAGE.read_bytes())
             elif method == "GET" and path == "/events":
                 await self._stream(writer)

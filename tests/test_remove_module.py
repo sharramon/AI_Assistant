@@ -1,10 +1,17 @@
-"""`modules.remove` (module folders item 16): refused while needed; keep or purge its settings files only."""
+"""`modules.remove` (module folders item 16): never refused (the modules that need it stay on);
+keep or purge its settings files only."""
 
 from pathlib import Path
 
 from assistant.contracts import InvokeTool, ListModules, Manifest, ModuleProtocol, ModuleState, Status
 from assistant.core import App
-from assistant.testkit import make_config
+from assistant.testkit import make_config as _make_config
+
+YOU = "ui"  # you clicking: modules.remove runs at once, no confirm card (tests/test_risky_steps_ask.py)
+
+
+def make_config(*enabled):
+    return _make_config(*enabled, permissions={"you": [YOU]})
 
 
 class Base(ModuleProtocol):
@@ -30,26 +37,26 @@ def _config_dir(tmp_path: Path) -> Path:
 
 
 async def _remove(app: App, module_id: str, settings: str):
-    return await app.router.send(InvokeTool(name="modules.remove", args={"module_id": module_id, "settings": settings}))
+    return await app.router.send(InvokeTool(name="modules.remove", args={"module_id": module_id, "settings": settings},
+                                                caller=YOU))
 
 
 async def _ids(app: App) -> dict[str, ModuleState]:
     return {m.id: m.state for m in (await app.router.send(ListModules())).value}
 
 
-async def test_remove_is_refused_while_another_module_needs_it(tmp_path):
+async def test_remove_works_while_another_module_needs_it(tmp_path):
     folder = _config_dir(tmp_path)
     app = App([Base, NeedsBase], make_config("needs_base"), config_dir=folder)
     await app.start()
     try:
-        refused = await _remove(app, "base", "purge")
-        assert refused.status is Status.FAILED and "needs_base" in refused.error  # active and needs it
-        # Off but still in modules.enabled: still refused, and named.
-        assert (await app.router.send(InvokeTool(name="modules.off", args={"module_id": "needs_base"}))).is_ok
-        refused = await _remove(app, "base", "purge")
-        assert refused.status is Status.FAILED and "needs_base" in refused.error
-        assert (await _ids(app))["base"] is ModuleState.ACTIVE
-        assert (folder / "base.toml").is_file() and (folder / "base.local.toml").is_file()  # nothing deleted
+        result = await _remove(app, "base", "keep")
+        assert result.is_ok, result.error
+        assert result.value["still_on"] == ["needs_base"]
+        assert "Still on, and needing it: needs_base." in result.value["message"]
+        ids = await _ids(app)
+        assert "base" not in ids and ids["needs_base"] is ModuleState.ACTIVE
+        assert (folder / "base.toml").is_file() and (folder / "base.local.toml").is_file()  # kept
         unknown = await _remove(app, "nope", "keep")
         assert unknown.status is Status.INVALID_ARGUMENTS
     finally:

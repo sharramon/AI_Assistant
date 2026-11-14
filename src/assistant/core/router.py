@@ -53,6 +53,8 @@ class CommandRouter:
         The timeout is, in order: `timeout`, the per-type value from config,
         then the default. On timeout the handler is cancelled.
         """
+        if not command.sent_by:  # a module's send is stamped by its context; anything else is the core's own
+            command = command.model_copy(update={"sent_by": "core"})
         name = type(command).__name__
         if timeout is None:
             timeout = self._timeouts.get(name, self._default_timeout)

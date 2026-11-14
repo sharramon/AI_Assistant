@@ -73,7 +73,7 @@ class Manifest:
     #: start order: for providers that themselves use this module (the Hub's door and names,
     #: used by the agents the Hub uses), where `optional` would make a cycle.
     uses: tuple[type[Contract], ...] = ()
-    #: Module ids this module can't run without (job_search needs cv): turned on first, and
+    #: Module ids this module can't run without (voice_notes needs voice_in): turned on first, and
     #: refused off while this one is on. Read from `needs = [...]` in the module's `module.toml`
     #: when it has the key (the core puts it here), so a module declares it in one place.
     needs: tuple[str, ...] = ()
@@ -165,6 +165,17 @@ class ModulePermissions(ABC):
         """Ask you on a card whether `agent_id` may have `item` (Allow once, Always allow, Deny)
         and wait for the answer. True if allowed; Always also saves it under this module and
         the agent's kind. False on Deny or no answer in time. True at once if already granted."""
+        raise NotImplementedError
+
+    async def confirm(self, what: str, action: Any, caller: str = "", reason: str = "", wait: bool = False,
+                      risky: bool = False) -> Result:  # fmt: skip
+        """Ask you yes or no on a `confirm` card before a risky step (`what`: "reload cv"), then
+        run `action` (a `Command`, sent by the core, or an async callable returning a `Result`).
+        `caller`: who asks (an agent id; default this module). A caller that is you clicking runs
+        at once. Auto never skips the card, unless `risky` (a lesser step) and the caller is in Auto.
+        `wait=False`: returns at once ("Asked the user on a card"); the outcome reaches the caller
+        as a note. `wait=True`: awaits the answer and returns the action's `Result`, or failed on
+        Deny or no answer in time."""
         raise NotImplementedError
 
 

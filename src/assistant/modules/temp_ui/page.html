@@ -348,6 +348,7 @@ function accessCard(item) {
   card.dataset.request = item.request_id;
   const who = c.subject && c.subject !== c.module_id ? `${c.module_id} → ${c.subject}` : c.module_id;
   const head = c.action === "access" ? `${who} asks for its access`
+    : c.action === "confirm" ? `${c.caller || who} asks you to confirm`
     : c.action === "message" ? `${c.caller} wants to message ${c.items.map((i) => i.target).join(", ")}`
     : `${c.caller} asks to ${c.action} access for ${who}`;
   const title = Object.assign(document.createElement("div"), { className: "title", textContent: head });

@@ -212,11 +212,11 @@ class PermissionGate:
         self._activity(f"permission {'allowed' if allow else 'denied'}: {describe_request(request)}")
         return Result.ok()
 
-    def ask(self, action: str, run: Run) -> None:
+    def ask(self, action: str, run: Run, always: bool = False) -> None:
         """Put `action` to the user (the same card as a tool); on Allow `run` runs. In Auto
-        (this agent's own mode) there's no card: it runs at once. The one Auto check for
-        approvals (a reload, an add, a helper launch)."""
-        if self._mode() is PermissionMode.AUTO:
+        (this agent's own mode) there's no card: it runs at once, unless `always` (a reload or
+        an add of code: Auto never skips those). The one Auto check for approvals."""
+        if self._mode() is PermissionMode.AUTO and not always:
             self._activity(f"allowed in Auto: {action}")
             self.run_now(action, run)
             return

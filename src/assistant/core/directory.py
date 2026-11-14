@@ -3,8 +3,9 @@
 With `ListModules` (one line per module) and `GetMenu` (a module's menu) it makes the
 module directory: list, then open a menu, then call an item with `InvokeTool`. Each item
 sends the matching control command, so it goes through the same handlers as a control panel.
-The risky ones (turning off with dependents, adding new code, removing a module) ask through
-`permissions` first.
+The risky ones (turning off with dependents, reloading, adding new code, removing a module) are
+marked `ask="always"`: the core's gate in `dispatch_tool` shows you a confirm card first, in
+Manual and Auto alike; only a caller that is you clicking (`[core.permissions] you`) runs at once.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ menu = Menu()
 
 
 class CoreMenu:
-    """Module control as menu items. `send` is the router's; `permissions` answers the risky ones."""
+    """Module control as menu items. `send` is the router's; `permissions` is the core's port."""
 
     menu = menu
 
@@ -73,36 +74,28 @@ class CoreMenu:
         finally:
             ACTING_FOR.reset(token)
 
-    @menu.item("modules.off", "Turn a module off; with_dependents also turns off the modules that need it",
-               {**_ID, "with_dependents": {"type": "boolean"}}, required=["module_id"])
+    @menu.item("modules.off", "Turn a module off; never refused. The modules that need it stay on (the reply "
+               "names them); with_dependents turns them off too, after the user confirms on a card",
+               {**_ID, "with_dependents": {"type": "boolean"}}, required=["module_id"],
+               ask="always", ask_when="with_dependents")
     async def off(self, module_id: str, with_dependents: bool = False) -> Result:
-        if with_dependents and not await self.permissions.request(
-            "modules.off_with_dependents", f"turn off {module_id} and the modules that need it"
-        ):
-            return Result.failed(f"Not allowed: turning off {module_id!r} with its dependents")
         return await self._send(DeactivateModule(module_id=module_id, with_dependents=with_dependents))
 
-    @menu.item("modules.reload", "Swap a module's code while the app runs; now cuts in if it's busy",
-               {**_ID, "now": {"type": "boolean"}}, required=["module_id"])
+    @menu.item("modules.reload", "Swap a module's code while the app runs, after the user confirms on a card; "
+               "now cuts in if it's busy", {**_ID, "now": {"type": "boolean"}}, required=["module_id"], ask="always")
     async def reload(self, module_id: str, now: bool = False) -> Result:
         return await self._send(ReloadModule(module_id=module_id, now=now))
 
-    @menu.item("modules.add", "Load a new module from its package and turn it on",
+    @menu.item("modules.add", "Load a new module from its package and turn it on, after the user confirms on a card",
                {"package": {"type": "string", "minLength": 1}, "activate": {"type": "boolean"}},
-               required=["package"])
+               required=["package"], ask="always")
     async def add(self, package: str, activate: bool = True) -> Result:
-        if not await self.permissions.request("modules.add", f"load new code from {package}"):
-            return Result.failed(f"Not allowed: adding {package!r}")
         return await self._send(AddModule(package=package, activate=activate))
 
-    @menu.item("modules.remove", "Remove a module from this run (refused while another needs it); settings "
-               "'purge' deletes its config/<id>.toml and config/<id>.local.toml, 'keep' deletes nothing. "
-               "Never deletes its folder",
+    @menu.item("modules.remove", "Remove a module from this run (the modules that need it stay on), after the user "
+               "confirms on a card; settings 'purge' deletes its config/<id>.toml and config/<id>.local.toml, "
+               "'keep' deletes nothing. Never deletes its folder",
                {**_ID, "settings": {"type": "string", "enum": ["keep", "purge"]}},
-               required=["module_id", "settings"])
+               required=["module_id", "settings"], ask="always")
     async def remove(self, module_id: str, settings: str) -> Result:
-        purge = settings == "purge"
-        what = "delete its settings" if purge else "keep its settings"
-        if not await self.permissions.request("modules.remove", f"remove {module_id} and {what}"):
-            return Result.failed(f"Not allowed: removing {module_id!r}")
-        return await self._send(RemoveModule(module_id=module_id, purge=purge))
+        return await self._send(RemoveModule(module_id=module_id, purge=settings == "purge"))

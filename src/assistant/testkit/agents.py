@@ -102,7 +102,6 @@ class StubContext:
     def __init__(self):
         self.log = logging.getLogger("test")
         self.provided: dict = {}
-
     def publish(self, event):
         pass
 

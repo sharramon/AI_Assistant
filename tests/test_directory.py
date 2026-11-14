@@ -7,7 +7,6 @@ from assistant.contracts import (
     InvokeTool,
     ListModules,
     Manifest,
-    ModulePermissions,
     ModuleProtocol,
     ModuleState,
     Status,
@@ -15,18 +14,6 @@ from assistant.contracts import (
 from assistant.core import App
 from assistant.testkit import Speaker, make_config
 from tests.test_menu import Counter
-
-
-class Deny(ModulePermissions):
-    def __init__(self):
-        self.asked: list[str] = []
-
-    def has(self, name):
-        return False
-
-    async def request(self, name, reason=""):
-        self.asked.append(name)
-        return False
 
 
 class SpeakerImpl(ModuleProtocol, Speaker):
@@ -79,6 +66,10 @@ async def test_a_menu_is_readable_while_the_module_is_off():
         assert [s.name for s in specs] == ["counter.add", "counter.peek"]
         off = await app.router.send(InvokeTool(name="counter.add", args={"by": 1}))
         assert off.status is Status.NOT_AVAILABLE
+        # The answer names the module that's off and how to turn it on, so the agent can ask the user.
+        assert "The counter module isn't on" in off.error and "modules.on" in off.error
+        unknown = await app.router.send(InvokeTool(name="nobody.has_this"))
+        assert unknown.error == "No tool named 'nobody.has_this'"
     finally:
         await app.stop()
 
@@ -100,38 +91,11 @@ async def test_the_core_menu_controls_modules():
         states = {m.id: m.state for m in (await app.router.send(ListModules())).value}
         assert states["speaker"] is ModuleState.ACTIVE  # pulled in by requires
 
-        refused = await app.router.send(InvokeTool(name="modules.off", args={"module_id": "speaker"}))
-        assert refused.status is Status.FAILED and "needs_speaker" in refused.error
+        off = await app.router.send(InvokeTool(name="modules.off", args={"module_id": "speaker"}))
+        assert off.is_ok and "needs_speaker" in off.value  # never refused; the reply names who stays on
         bad = await app.router.send(InvokeTool(name="modules.on", args={"module_id": ""}))
         assert bad.status is Status.INVALID_ARGUMENTS
     finally:
         await app.stop()
 
-
-async def test_the_risky_core_items_ask_first():
-    app = App([SpeakerImpl, NeedsSpeaker], make_config("speaker", "needs_speaker"))
-    app.core_menu.permissions = deny = Deny()
-    await app.start()
-    try:
-        off = await app.router.send(
-            InvokeTool(name="modules.off", args={"module_id": "speaker", "with_dependents": True})
-        )
-        assert off.status is Status.FAILED and "Not allowed" in off.error
-        add = await app.router.send(InvokeTool(name="modules.add", args={"package": "assistant.modules.echo_orchestrator"}))
-        assert add.status is Status.FAILED and "Not allowed" in add.error
-        remove = await app.router.send(
-            InvokeTool(name="modules.remove", args={"module_id": "needs_speaker", "settings": "purge"})
-        )
-        assert remove.status is Status.FAILED and "Not allowed" in remove.error
-        asked = ["modules.off_with_dependents", "modules.add", "modules.remove"]
-        assert deny.asked == asked
-        states = {m.id: m.state for m in (await app.router.send(ListModules())).value}
-        assert states == {"speaker": ModuleState.ACTIVE, "needs_speaker": ModuleState.ACTIVE}
-        # Plain off (no dependents to take down) doesn't ask.
-        assert (await app.router.send(InvokeTool(name="modules.off", args={"module_id": "needs_speaker"}))).is_ok
-        assert deny.asked == asked
-        # settings must be keep or purge.
-        bad = await app.router.send(InvokeTool(name="modules.remove", args={"module_id": "speaker", "settings": "x"}))
-        assert bad.status is Status.INVALID_ARGUMENTS and deny.asked == asked
-    finally:
-        await app.stop()
+# The risky items' ask-first gate: tests/test_risky_steps_ask.py.

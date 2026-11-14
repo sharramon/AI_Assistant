@@ -1,7 +1,8 @@
 """`ctx.permissions`: one module's port to the core's permissions handler.
 
-Access lists (`request_set`) go to the handler with this module's id. Single names (`has`,
-`request`) aren't checked yet (the handler's next piece): they are allowed, and the first use of
+Access lists (`request_set`) and confirm cards (`confirm`, the risky steps) go to the handler with
+this module's id. Single names (`has`, `request`: the mic) aren't checked yet (the handler's next
+piece): they are allowed, and the first use of
 each is logged as a warning naming the module (later ones at debug, so a loop doesn't flood the
 log). A port built without a handler (a bare context in a test) allows access lists the same way.
 """
@@ -10,9 +11,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from assistant.contracts import AccessItem, ModulePermissions
+from assistant.contracts import AccessItem, ModulePermissions, Result
 
 if TYPE_CHECKING:
     from assistant.core.permissions.handler import PermissionsHandler
@@ -57,6 +58,15 @@ class PermissionsPort(ModulePermissions):
             self._allow(f"{item.label} for {agent_id}", reason)
             return True
         return await self._handler.ask(self.module_id, agent_id, item, reason)
+
+    async def confirm(self, what: str, action: Any, caller: str = "", reason: str = "", wait: bool = False,
+                      risky: bool = False) -> Result:  # fmt: skip
+        """A confirm card in this module's name (`caller`: the agent asking, default this module).
+        With no handler (a bare context in a test) it logs and runs the step."""
+        if self._handler is None:
+            self._allow(f"confirm {what}", reason)
+            return await (action() if callable(action) else Result.not_available("no router here"))
+        return await self._handler.confirm(self.module_id, caller or self.module_id, what, action, reason, wait, risky)
 
     def _allow(self, name: str, reason: str) -> None:
         level = logging.DEBUG if name in self._warned else logging.WARNING

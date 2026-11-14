@@ -52,6 +52,15 @@ class MenuItem:
     method: str
     callers: tuple[str, ...] = ()
     takes_caller: bool = False
+    ask: str | None = None  # "always" or "risky": the core asks you on a confirm card first
+    ask_when: str = ""  # only when this boolean argument is true (empty: every call)
+
+    def asks(self, args: Mapping[str, Any]) -> bool:
+        """Whether this call goes through the core's ask-first gate."""
+        return self.ask is not None and (not self.ask_when or bool(args.get(self.ask_when)))
+
+
+ASK_MARKS = ("always", "risky")
 
 
 class Menu:
@@ -67,13 +76,22 @@ class Menu:
         properties: Mapping[str, dict[str, Any]] | None = None,
         required: Iterable[str] = (),
         callers: Iterable[str] = (),
+        ask: str | None = None,
+        ask_when: str = "",
     ) -> Callable[[Callable], Callable]:
         """Decorate an async module method that returns a `Result`; its keyword arguments are
         the item's `properties` (JSON Schema per argument), `required` the ones it must get.
-        `callers`: the only callers allowed (module or agent ids); empty means anyone."""
+        `callers`: the only callers allowed (module or agent ids); empty means anyone.
+        `ask`: the core asks you on a confirm card before the call runs: `"always"` (Auto too),
+        or `"risky"` (skipped when the caller is in Auto); a caller that is you runs at once.
+        `ask_when`: a boolean property; the card only when that argument is true."""
         properties = dict(properties or {})
         required = list(required)
         callers = tuple(callers)
+        if ask is not None and ask not in ASK_MARKS:
+            raise ValueError(f"menu item {name!r}: ask must be one of {ASK_MARKS}")
+        if ask_when and properties.get(ask_when, {}).get("type") != "boolean":
+            raise ValueError(f"menu item {name!r}: ask_when must name a boolean property")
         if name in self._items:
             raise ValueError(f"menu item {name!r} is declared twice")
         if "\n" in description or not description.strip():
@@ -90,13 +108,16 @@ class Menu:
         def mark(method: Callable) -> Callable:
             takes_caller = "caller" in inspect.signature(method).parameters
             spec = ToolSpec(name=name, description=description, input_schema=schema)
-            self._items[name] = MenuItem(spec, method.__name__, callers, takes_caller)
+            self._items[name] = MenuItem(spec, method.__name__, callers, takes_caller, ask, ask_when)
             return method
 
         return mark
 
     def items(self) -> list[MenuItem]:
         return list(self._items.values())
+
+    def get(self, name: str) -> MenuItem | None:
+        return self._items.get(name)
 
     def specs(self) -> list[ToolSpec]:
         """Every item as a `ToolSpec`, in the order they were declared."""
