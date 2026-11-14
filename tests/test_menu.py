@@ -76,7 +76,7 @@ async def test_the_core_links_the_menu_to_the_running_copy_and_unlinks_it_on_sto
     assert (await app.router.send(InvokeTool(name="counter.peek"))).value == 2
     bad = await app.router.send(InvokeTool(name="counter.add", args={"by": "lots"}))
     assert bad.status is Status.INVALID_ARGUMENTS
-    offered = [s.name for p in app.container.get_all(IToolProvider) for s in p.tools()]
+    offered = [s.name for p in app.menus.all() for s in p.tools()]
     assert [n for n in offered if not n.startswith(("modules.", "permissions."))] == Counter.menu.names()
 
     assert (await app.router.send(DeactivateModule(module_id="counter"))).is_ok

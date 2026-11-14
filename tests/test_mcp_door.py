@@ -1,6 +1,7 @@
 """The agents' one MCP door: the relay claude starts, the hub's endpoint, the core behind it."""
 
 import asyncio
+import dataclasses
 import json
 import os
 import sys
@@ -8,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from assistant.contracts import IModuleDoor, PermissionMode, ReloadModule
+from assistant.contracts import IModuleDoor, InvokeTool, IToolProvider, ListModules, PermissionMode, ReloadModule
 from assistant.core import App
 from assistant.infra import ClaudeSession, claude_command
 from assistant.infra.mcp_door import CALLER_HEADER, READ_ONLY, TOKEN_HEADER, TOOL_NAMES
@@ -132,9 +133,9 @@ def test_the_worker_session_gets_the_door(tmp_path):
     assert "--mcp-config" not in build_command({}, tmp_path, PermissionMode.MANUAL)
 
 
-async def test_the_worker_restarts_once_to_pick_up_the_door(tmp_path, monkeypatch):
-    """At launch the worker starts before the Hub, whose door has no address yet: once the Hub
-    is on, the idle worker restarts its session once, now with the door."""
+async def test_the_worker_s_first_session_has_the_door(tmp_path, monkeypatch):
+    """The core opens the door before any module starts (R4), so the worker's first session has
+    it and never restarts to pick it up."""
     started: list[list[str]] = []
     original = ClaudeSession.start
 
@@ -146,14 +147,40 @@ async def test_the_worker_restarts_once_to_pick_up_the_door(tmp_path, monkeypatc
     monkeypatch.setattr(ClaudeSession, "start", recording)
     app, _ = await start_hub(tmp_path)
     try:
-        await wait_until(lambda: len(started) >= 2)
-        assert "--mcp-config" not in started[0] and "--mcp-config" in started[1]
-        session = app._lifecycle._active["main_assistant"][0]._session
-        await wait_until(lambda: session.running)  # the recording is made as the start begins
+        await wait_until(lambda: len(started) >= 1)
+        assert "--mcp-config" in started[0]
         await asyncio.sleep(0.2)
-        assert len(started) == 2  # once only
+        assert len(started) == 1
     finally:
         await app.stop()
+
+
+async def test_the_door_is_the_core_s_and_a_module_asks_only_for_itself_or_its_claims(app):
+    """D1: the core provides the door; a module's context gives it a door bound to its id."""
+    assert "agent_hub" not in {m.id for m in (await app.router.send(ListModules())).value if m.provides}
+    echo_ctx = app._lifecycle._active["echo_orchestrator"][1]
+    door = echo_ctx.get_one(IModuleDoor)
+    assert door.mcp_config("echo_orchestrator")  # itself
+    assert door.mcp_config("main_assistant") == {}  # not its own, not claimed by it
+    assert (await app.callers.claim("scout", "echo_orchestrator")).is_ok
+    assert door.mcp_config("scout")  # an agent id it claimed
+    hub_ctx = app._lifecycle._active["agent_hub"][1]
+    assert hub_ctx.get_one(IModuleDoor).mcp_config("scout") == {}  # claimed by another module
+
+
+async def test_menus_are_not_in_the_container(app):
+    """G16: a module can't reach another's menu as a plain IToolProvider with a caller it picks."""
+    echo_ctx = app._lifecycle._active["echo_orchestrator"][1]
+    assert echo_ctx.get_all(IToolProvider) == []
+    assert {"echo.say", "hub.agents", "modules.list"} <= {s.name for t in app.menus.all() for s in t.tools()}
+
+
+async def test_a_module_can_t_name_another_caller(app):
+    """R4: InvokeTool's caller is always the sending module; only the core's door passes another."""
+    hub_ctx = app._lifecycle._active["agent_hub"][1]
+    hub_ctx._manifest = dataclasses.replace(hub_ctx._manifest, sends=(*hub_ctx._manifest.sends, InvokeTool))
+    focused = await hub_ctx.send(InvokeTool(name="hub.focus", args={"agent_id": ""}, caller="talker"))
+    assert focused.status == "not_available"  # sent as agent_hub, not the Talker
 
 
 async def test_the_talker_session_gets_the_door():

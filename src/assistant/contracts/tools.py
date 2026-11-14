@@ -25,9 +25,8 @@ class InvokeTool(Command):
     """Run the tool called `name`. Routed by the core to whichever provider offers it.
 
     `caller`: who uses it (a module id, or an agent's id through the module door). The core
-    fills in the sending module's id; only the door's host (the module providing
-    `IModuleDoor`) may pass another, the one its token proved. Empty when sent straight to
-    the router (tests, the core itself)."""
+    always fills in the sending module's id; only the core's own door passes another, the one
+    its token proved. Empty when sent straight to the router (tests, the core itself)."""
 
     name: str
     args: dict[str, Any] = Field(default_factory=dict)

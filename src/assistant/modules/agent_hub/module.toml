@@ -13,4 +13,4 @@ max_extra_agents = 3      # big agents besides the coordinator that may work at 
 # `named_only = true` (in its [agent] section); it's started only when named.
 # named_only = []         # optional fallback: more agent ids a free pick skips (e.g. in config/local.toml)
 # start_only_by = { agent_id = ["caller", ...] }  # optional: only these callers may hub.start that agent
-# door = true             # the agents' MCP door to the module menus (door_host, door_port = 0: any free port)
+# The agents' MCP door to the module menus is the core's now: [core.door] in config/default.toml.

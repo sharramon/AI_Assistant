@@ -6,7 +6,7 @@ Two halves, both here so they share the tool names:
   starts itself from its `--mcp-config`. It offers three fixed tools and passes every call to
   the app over local HTTP. Standard library only. It never changes when modules are swapped,
   turned on or off: the menus are read through the core at call time.
-- **`DoorServer`** (in the app, hosted by `agent_hub`): the local HTTP endpoint the relay calls.
+- **`DoorServer`** (in the app, hosted by the core: `core/door.py`): the local HTTP endpoint the relay calls.
   Each call becomes a core command (`ListModules`, `GetMenu`, `InvokeTool`), so the directory,
   permissions and hot swap all still apply. Each session's config names its caller and
   carries a token made from the door's secret and that name (`token_for`, an HMAC), so the
@@ -93,7 +93,7 @@ def plain(value: Any) -> Any:
 class DoorServer:
     """The local HTTP endpoint behind the relay: `POST /tool` with `{"tool", "arguments"}`.
 
-    `send` is a module's `ctx.send`; `commands` builds the core commands (passed in, so this
+    `send` is the core router's `send`; `commands` builds the core commands (passed in, so this
     file needs nothing from the contracts and the relay stays light).
     """
 
