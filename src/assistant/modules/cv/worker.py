@@ -72,11 +72,13 @@ the cv module sends their Submit to the asking agent by itself, and you hear of 
 at the start of your next task. Their Submit writes {cv_prefix}<Company>_final.pdf in the CV Tool's \
 job folder. If small_text still lists text under 10 pt, say so in your summary: a warning, never a \
 reason to hold it back. End with the summary and, as the very last line, `CV_RESULT: <json>` on one \
-line (a CvResult: status "ready", pdf_path (the last cv.tool_round's pdf), rezi_resume, target_score, \
+line (a CvResult: status "ready", pdf_path (the last cv.tool_round's pdf), tool (the pick: Internal or Rezi), \
+rezi_resume (the name and id of the Rezi resume you made: needed with Rezi, left out with Internal), target_score, \
 rounds (each: score, added, missing, note), missing_keywords, keywords_left_out, recommendations, \
 one_page, section_order (section ids in lowercase: summary, skills, …), order_reason). "ready" needs one_page true and the pdf_path; leave \
 approved_by_user out. The asking agent checks the line with cv.read_result. A job you can't finish \
-ends the same way, with status "stopped" and the stop_reason.
+ends the same way, with status "stopped" and the stop_reason. Leave tool out when nothing was \
+picked (a job stopped before step 2); never write an empty string.
 
 The truth gate (you are it):
 - Keep only wording backed by facts already on the user's CVs (the {cv_prefix}*.pdf in {cv_dir}: \

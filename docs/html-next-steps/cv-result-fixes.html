@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cv result fixes: an empty tool pick, and a clearer &quot;no valid CV_RESULT&quot;</title>
+<!-- Generated from docs/next-steps/cv-result-fixes.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="cv-result-fixes.html"></nav>
+<main>
+<h1 id="cv-result-fixes-an-empty-tool-pick-and-a-clearer-no-valid-cv_result">cv result fixes: an empty tool pick, and a clearer "no valid CV_RESULT"</h1>
+<p><strong>Status:</strong> built (waiting on you), 2026-11-14. Approved and built: all four fixes, with the tests below (cv 168 passed; full suite 1004 passed; ruff clean). Left: the <code>cv</code> reload (asked first) and the hand checks at the end. Built as planned, with one wording change: the messages say "CV_RESULT line", without the marker's colon. The module's tools page (<code>cv/docs/tools.md</code>) describes the new refusals and summaries.</p>
+<h2 id="what-happened">What happened</h2>
+<p>In the job and cv smoke test (fake job NonexistentTestCo / Smoke Test Engineer, cv task <code>6d360b37</code>), the job agent heard "No valid CV_RESULT line in its last message" in <code>cv.job_finished</code>, and <code>cv.read_result task_id=6d360b37</code> failed with:</p>
+<pre><code>1 validation error for CvResult
+tool
+  Input should be 'Internal' or 'Rezi' [type=literal_error, input_value='', input_type=str]
+</code></pre>
+<p>The job folder held only the base CV copy, the JD and <code>job_start.json</code>. That part is right: the request's notes told cv_agent to stop at once, with no CV Tool, so no CV was meant to come out.</p>
+<h2 id="the-cause-one-bug-not-two">The cause: one bug, not two</h2>
+<p>cv_agent <strong>did</strong> end with a CV_RESULT line (<code>logs/2026-11-13_23-52-50_run-the-check/cv_agent.jsonl</code>, its only reply):</p>
+<pre><code>CV_RESULT: {&quot;status&quot;: &quot;stopped&quot;, &quot;stop_reason&quot;: &quot;Smoke test (fake job): ...&quot;, &quot;tool&quot;: &quot;&quot;, &quot;target_score&quot;: null, &quot;rounds&quot;: [], ..., &quot;one_page&quot;: false, &quot;section_order&quot;: [&quot;summary&quot;, &quot;skills&quot;, &quot;experience&quot;, &quot;education&quot;, &quot;awards&quot;, &quot;publications&quot;], ...}
+</code></pre>
+<p>The line is well formed, and everything in it is valid except <code>"tool": ""</code>. The two symptoms come from that one field:</p>
+<ol>
+<li><strong><code>CvResult.tool</code></strong> (<code>data.py</code>) accepts only <code>"Internal"</code>, <code>"Rezi"</code> or null. An empty string is refused. The fallback in <code>handoff.read_result</code> (use the request's pick when the line names none) didn't help, because this request named no pick.</li>
+<li><strong>"No valid CV_RESULT line"</strong> comes from <code>handoff.job_finished</code>. It catches the same <code>ValueError</code> and reports it as if the line were missing. So the job agent was told the line wasn't there, when it was there and only one field was wrong.</li>
+</ol>
+<p><strong>Why cv_agent wrote <code>""</code>:</strong> its instructions (<code>worker.py</code>) describe the line for a <code>ready</code> result: "tool (the pick: Internal or Rezi)". For a stopped job they only say "ends the same way". Nothing was picked, so it wrote an empty pick. The CV Tool does the same: its own job file and <code>cv.tool_status</code> use <code>""</code> for "not picked yet" (<code>cvlib.py</code>). This is the same kind of bug as the 13th's <code>rezi_resume: ""</code>, which was fixed for that one field only.</p>
+<h2 id="the-fixes-recommended">The fixes (recommended)</h2>
+<ol>
+<li><strong>Read an empty pick as no pick (<code>data.py</code>).</strong> A <code>mode="before"</code> validator on <code>tool</code>, like <code>_no_resume</code>: <code>""</code> or whitespace becomes None. A <code>ready</code> Internal result still needs nothing from Rezi. A Rezi pick still needs its <code>rezi_resume</code>. The request's pick still fills in a missing one.</li>
+<li><strong>A clear refusal for a wrong pick.</strong> Any other value (<code>"rezi"</code>, <code>"Both"</code>) is refused with one plain line: <code>tool must be "Internal" or "Rezi", or left out when nothing was picked (got "Both")</code>. Today it's pydantic's three-line dump. For the other fields, <code>read_result</code> turns a <code>ValidationError</code> into one short line per field (<code>field: message</code>).</li>
+<li><strong>Say which failure it was (<code>handoff.job_finished</code> / <code>finish_summary</code>).</strong> If there's no line: "No CV_RESULT line in its last message." If there's a line that isn't valid: "Its CV_RESULT line isn't valid: \&lt;the reason&gt;. cv.read_result task_id=… shows it." The job agent then knows the line is there and what to report.</li>
+<li><strong>cv_agent's instructions (<code>worker.py</code>).</strong> One added sentence: "Leave tool out when nothing was picked (a job stopped before step 2); never write an empty string." The code fix (1) makes this a nice-to-have. It keeps the lines tidy without relying on the agent.</li>
+</ol>
+<p>The answer to "end check or instructions?" is both, with the code doing the work. Fixes 1 to 3 make the reader tolerant and clear, so a slip like this can't hide a result again. Fix 4 makes the slip less likely.</p>
+<p><strong>Not changed:</strong> <code>ToolPick</code> stays <code>Internal | Rezi</code>, and the CV Tool's <code>""</code> convention stays.</p>
+<h2 id="tests-automated">Tests (automated)</h2>
+<p>In <code>src/assistant/modules/cv/tests/test_handoff.py</code>:</p>
+<ul>
+<li>the smoke test's exact line reads as <code>stopped</code> with <code>tool</code> None;</li>
+<li><code>"tool": ""</code> with the request's pick <code>Rezi</code> takes <code>Rezi</code>;</li>
+<li><code>"tool": "Both"</code> is refused with the one-line message;</li>
+<li><code>job_finished</code>'s summary says "No CV_RESULT line" for a text without one, and "isn't valid: …" for the smoke test's line with a bad field.</li>
+</ul>
+<p>In <code>test_worker.py</code>: the prompt has the "leave tool out" sentence. Then the full <code>pytest</code> and <code>ruff</code>.</p>
+<h2 id="loading-it-and-your-hand-checks">Loading it, and your hand checks</h2>
+<ul>
+<li><strong>Load:</strong> a <code>cv</code> module reload (<code>RELOAD: cv</code>). No core, contract or infra code changes, so no app restart is needed. cv_agent's instructions are read when its session starts, so the reload must restart cv_agent's session (cv_agent is idle now). I'll ask before the reload.</li>
+<li><strong>Hand checks:</strong>
+  1. Run the job and cv smoke test again (the same fake job, cv told to stop at once). <code>cv.job_finished</code>'s summary should read <code>CV_RESULT status stopped (...)</code>, and the job agent's <code>cv.read_result task_id=…</code> should return the view with <code>"tool": null</code>.
+  2. Check cv_agent's CV_RESULT line in <code>cv_agent.jsonl</code>: it should leave <code>tool</code> out (fix 4).
+  3. Afterwards, the fake NonexistentTestCo work folder in <code>modules/cv/workspace/work/</code> can be deleted, on your go.</li>
+</ul>
+<p>A real job (#9 at GM) isn't needed for these checks. Its results always carry a real pick.</p>
+<footer>Generated from <code>docs/next-steps/cv-result-fixes.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

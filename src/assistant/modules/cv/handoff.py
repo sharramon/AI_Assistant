@@ -22,7 +22,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from assistant.modules.cv.data import CvJob, CvRequest, CvResult
 
@@ -62,9 +62,32 @@ def read_job(text: str) -> CvJob:
     return CvJob.model_validate(_last(text, JOB))
 
 
-def read_result(text: str) -> CvResult:
-    """The result in a task's result text. ValueError if there's none or it isn't a valid `CvResult`."""
-    return CvResult.model_validate(_last(text, RESULT))
+def read_result(text: str, tool: str | None = None) -> CvResult:
+    """The result in a task's result text. ValueError if there's none or it isn't a valid `CvResult`.
+    `tool`: the job's pick (its request's), used when the line doesn't name one."""
+    value = _last(text, RESULT)
+    if tool and not str(value.get("tool") or "").strip():
+        value = dict(value, tool=tool)
+    try:
+        return CvResult.model_validate(value)
+    except ValidationError as exc:  # one short line per field, not pydantic's dump
+        raise ValueError(f"the {RESULT.rstrip(':')} line isn't a valid CvResult: "
+                         + "; ".join(_why(error) for error in exc.errors())) from None  # fmt: skip
+
+
+def _why(error: Any) -> str:
+    """One pydantic error as `field: message`."""
+    where = ".".join(str(part) for part in error.get("loc", ()))
+    message = str(error.get("msg", "")).removeprefix("Value error, ")
+    return f"{where}: {message}" if where else message
+
+
+def request_tool(text: str) -> str | None:
+    """The pick in a job task's `CV_REQUEST` line, or None (no valid line, or no pick named)."""
+    try:
+        return read_request(text).tool
+    except ValueError:
+        return None
 
 
 JOB_FINISHED = "cv.job_finished"  # the named event cv publishes when cv_agent's job task ends
@@ -76,20 +99,28 @@ def job_finished(agent_id: str, task_id: str, state: str, parent_task_id: str | 
     `record`), the task, the job, the parsed `CV_RESULT` (None if the text has no valid one) and a
     one-line `summary` of it."""
     request = record.get("request") or {}
+    result: CvResult | None = None
+    why = ""
     try:
-        result: CvResult | None = read_result(text)
-    except ValueError:
-        result = None
+        result = read_result(text, request.get("tool"))
+    except ValueError as exc:
+        why = str(exc) if _has(text, RESULT) else ""  # a line that isn't valid, not a missing one
     return {"reply_to": str(request.get("reply_to") or ""), "agent_id": agent_id, "task_id": task_id,
             "parent_task_id": parent_task_id, "state": state, "job_dir": folder,
             "company": request.get("company") or "", "role": request.get("role") or "",
-            "cv_result": result.model_dump(mode="json") if result else None, "summary": finish_summary(result)}  # fmt: skip
+            "cv_result": result.model_dump(mode="json") if result else None,
+            "summary": finish_summary(result, why, task_id)}  # fmt: skip
 
 
-def finish_summary(result: CvResult | None) -> str:
-    """One line on a job's result: its status (and why it stopped), the PDF and the last score."""
+def finish_summary(result: CvResult | None, why: str = "", task_id: str = "") -> str:
+    """One line on a job's result: its status (and why it stopped), the PDF and the last score.
+    With no result: `why` is the reason its line isn't valid (empty: the text has no line)."""
     if result is None:
-        return f"No valid {RESULT} line in its last message."
+        name = RESULT.rstrip(":")
+        if not why:
+            return f"No {name} line in its last message."
+        show = f" cv.read_result task_id={task_id} shows it." if task_id else ""
+        return f"Its {name} line isn't valid: {why.removeprefix(f'the {name} line ')}.{show}"
     why = f" ({result.stop_reason})" if result.stop_reason else ""
     score = result.score if result.score is not None else "(none)"
     return f"{RESULT} status {result.status}{why}; PDF: {result.pdf_path or '(none)'}; last score: {score}."
@@ -162,6 +193,7 @@ def result_view(result: CvResult, target_score: int) -> dict[str, Any]:
             "pdf_path": result.pdf_path, "pdf_exists": exists(result.pdf_path),
             "report_path": result.report_path, "report_exists": exists(result.report_path),
         },
+        "tool": result.tool,
         "rezi": {
             "resume": result.rezi_resume.model_dump() if result.rezi_resume else None,
             "check_copy": result.check_copy.model_dump() if result.check_copy else None,

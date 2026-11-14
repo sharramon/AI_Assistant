@@ -7,6 +7,7 @@
       "href": "architecture/index.html",
       "home": [
         "architecture/index.html",
+        "architecture/short-overview.html",
         "architecture/principles.html",
         "architecture/reusable-parts.html",
         "architecture/code-map.html",
@@ -43,6 +44,10 @@
             {
               "name": "Overview",
               "href": "architecture/index.html"
+            },
+            {
+              "name": "Short overview",
+              "href": "architecture/short-overview.html"
             },
             {
               "name": "Principles",

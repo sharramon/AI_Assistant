@@ -289,6 +289,12 @@
 <td>no</td>
 <td>The CV Tool's pick (unset: the user picks Internal or Rezi in its tab 2)</td>
 </tr>
+<tr>
+<td><code>for_agent</code></td>
+<td>string</td>
+<td>no</td>
+<td>Only for a module in [hand_off] modules (job_search): the agent the job is for, who gets cv's events (reply_to) and whose task is the parent</td>
+</tr>
 </tbody>
 </table>
 <h2 id="cvread_result"><code>cv.read_result</code></h2>
@@ -701,7 +707,7 @@
 <td><code>result</code></td>
 <td>object</td>
 <td>yes</td>
-<td>The job's CvResult: status, stop_reason, pdf_path, report_path, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user</td>
+<td>The job's CvResult: status, stop_reason, pdf_path, report_path, tool, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user</td>
 </tr>
 <tr>
 <td><code>rounds</code></td>
@@ -761,8 +767,12 @@
 <td><code>pdf_path</code> and <code>report_path</code>, each with <code>…_exists</code> (the file is there now); no <code>.odt</code> comes out</td>
 </tr>
 <tr>
+<td><code>tool</code></td>
+<td>The job's pick (<code>Internal</code> or <code>Rezi</code>; null: not known)</td>
+</tr>
+<tr>
 <td><code>rezi</code></td>
-<td><code>resume</code> and <code>check_copy</code>: the new Rezi resume and its check copy, name and id each</td>
+<td><code>resume</code> and <code>check_copy</code>: the new Rezi resume and its check copy, name and id each (null with Internal)</td>
 </tr>
 <tr>
 <td><code>score</code></td>
@@ -786,7 +796,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>cv.read_result</code> refuses (<code>invalid_arguments</code>) a text with no line starting <code>CV_RESULT:</code>, or one whose line isn't a JSON object or a valid <code>CvResult</code>. A result that contradicts itself is not valid: <code>ready</code> without one page and the PDF, or with <code>approved_by_user</code>; <code>approved</code> without your yes, one page and the PDF; scores that aren't the rounds' scores; or <code>match_ok</code> with a compare that found issues.</p>
+<p><code>cv.read_result</code> refuses (<code>invalid_arguments</code>) a text with no line starting <code>CV_RESULT:</code>, or one whose line isn't a JSON object or a valid <code>CvResult</code>. A result that contradicts itself is not valid: <code>ready</code> without one page and the PDF, or with <code>approved_by_user</code>; <code>ready</code> or <code>approved</code> with the pick <code>Rezi</code> but no <code>rezi_resume</code> (an Internal result needs none); <code>approved</code> without your yes, one page and the PDF; scores that aren't the rounds' scores; or <code>match_ok</code> with a compare that found issues. An empty <code>tool</code> (<code>""</code>) means nothing was picked, like null; any other value but <code>Internal</code> or <code>Rezi</code> is refused. Each refusal is one line, <code>field: reason</code>. <code>cv.job_finished</code>'s summary says "No CV_RESULT line" when the line is missing, and "Its CV_RESULT line isn't valid: …" with the reason when it's there but wrong.</p>
 <p><strong>Tested end to end through the real Hub</strong> (<code>tests/test_handoff.py</code>), with a fake <code>claude</code> standing in for the worker. The caller sends <code>cv.task</code> with a JD file and the CV's path, which starts <code>cv_agent</code> (no coordinator in between). The job arrives intact, and <code>cv.read_result</code> on the task's result gives the files, the rounds against the target, the keywords, the recommendations, the one-page check and the compare. The real run with Rezi comes in chunk 9, with your yes.</p>
 <h3 id="the-rezi-items">The <code>rezi.*</code> items</h3>
 <ul>
@@ -962,8 +972,12 @@
 <td><code>cv.report</code>'s <code>report.md</code></td>
 </tr>
 <tr>
+<td><code>tool</code></td>
+<td>The job's pick, <code>Internal</code> or <code>Rezi</code>. Unset in the line: <code>cv.read_result</code> (by task_id) and <code>cv.job_finished</code> take the job request's pick</td>
+</tr>
+<tr>
 <td><code>rezi_resume</code>, <code>check_copy</code></td>
-<td>The new Rezi resume and its check copy: name and id each</td>
+<td>The new Rezi resume and its check copy: name and id each. Optional: an empty string, <code>{}</code> or null means none (Internal makes none)</td>
 </tr>
 <tr>
 <td><code>target_score</code></td>
@@ -1007,7 +1021,7 @@
 </tr>
 </tbody>
 </table>
-<p>Scores that aren't the rounds' scores, and <code>match_ok</code> with a compare that found issues, are refused. <code>ready</code> is refused unless <code>one_page</code> and <code>pdf_path</code> are set, and with <code>approved_by_user</code>. <code>approved</code> is refused unless <code>approved_by_user</code>, <code>one_page</code> and <code>pdf_path</code> are all set. Rezi's match (<code>match_ok</code>) is no longer needed: the CV Tool's own page is the final PDF, with no Rezi import check.</p>
+<p>Scores that aren't the rounds' scores, and <code>match_ok</code> with a compare that found issues, are refused. <code>ready</code> is refused unless <code>one_page</code> and <code>pdf_path</code> are set, and with <code>approved_by_user</code>. With the pick <code>Rezi</code>, <code>ready</code> and <code>approved</code> also need <code>rezi_resume</code>; with <code>Internal</code> (or no pick known) it isn't needed. <code>approved</code> is refused unless <code>approved_by_user</code>, <code>one_page</code> and <code>pdf_path</code> are all set. Rezi's match (<code>match_ok</code>) is no longer needed: the CV Tool's own page is the final PDF, with no Rezi import check.</p>
 <footer>Generated from <code>src/assistant/modules/cv/docs/tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>
 </div>

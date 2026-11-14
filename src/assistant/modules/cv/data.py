@@ -127,7 +127,8 @@ class CvResult(BaseModel):
     stop_reason: str = ""
     pdf_path: str | None = None  # the exact PDF that passed Rezi's check, in the job's folder (no .odt comes out)
     report_path: str | None = None  # cv.report's report.md
-    rezi_resume: ResumeRef | None = None
+    tool: ToolPick | None = None  # the job's pick; None: not named (then nothing Rezi's is required)
+    rezi_resume: ResumeRef | None = None  # the Rezi resume cv made; required when the pick is Rezi
     check_copy: ResumeRef | None = None  # "<Company> – check", the PDF imported back into Rezi
     target_score: int | None = Field(default=None, ge=1, le=100)  # None: the config's
     rounds: list[Round] = Field(default_factory=list)  # each score round, in order
@@ -150,6 +151,28 @@ class CvResult(BaseModel):
             value = dict(value, scores=[r.score if isinstance(r, Round) else r.get("score") for r in rounds
                                         if isinstance(r, (Round, dict))])  # fmt: skip
         return value
+
+    @field_validator("tool", mode="before")
+    @classmethod
+    def _no_pick(cls, value: Any) -> Any:
+        """An empty pick means nothing was picked, like null (the CV Tool's own "" for "not picked yet");
+        any other value but Internal or Rezi is refused with one plain line."""
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            if value not in TOOL_PICKS:
+                raise ValueError(f'tool must be "Internal" or "Rezi", or left out when nothing was picked '
+                                 f'(got "{value}")')  # fmt: skip
+        return value
+
+    @field_validator("rezi_resume", "check_copy", mode="before")
+    @classmethod
+    def _no_resume(cls, value: Any) -> Any:
+        """An empty string or object means no Rezi resume (Internal has none), like null."""
+        if isinstance(value, str):
+            value = value.strip()
+        return None if value in ("", {}) else value
 
     @field_validator("compare")
     @classmethod
@@ -181,6 +204,8 @@ class CvResult(BaseModel):
         if self.status in ("ready", "approved"):
             # Rezi's match is no longer needed: the CV Tool's own page is the final PDF (no Rezi import check)
             needs = (("one page", self.one_page), ("the PDF", bool(self.pdf_path)))
+            if self.tool == "Rezi":  # Internal makes no Rezi resume, so only a Rezi pick needs one
+                needs = (*needs, ("the Rezi resume (rezi_resume)", self.rezi_resume is not None))
             if self.status == "approved":
                 needs = (("your yes", self.approved_by_user), *needs)
             elif self.approved_by_user:

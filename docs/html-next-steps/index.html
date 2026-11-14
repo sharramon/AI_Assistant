@@ -40,6 +40,7 @@
 </ul>
 <h2 id="pending-changes">Pending changes</h2>
 <p>Changes you asked for, each with a note written before anything is built (<a href="../../.claude/skills/app-update/SKILL.md"><code>app-update</code></a> skill). Statuses: <strong>proposed</strong> · <strong>approved</strong> · <strong>building</strong> · <strong>built (waiting on you)</strong> (a restart or your check is left) · <strong>done</strong>. A note that is done with nothing waiting on you moves to the <a href="archive/index.html">archive</a>.</p>
+<p><strong>Waiting for one restart (2026-11-13 batch):</strong> the two notes below load together with one app restart, which the app asks you for first. The same batch also needs a <code>job_search</code> reload and a <code>task_agents</code> reload (the audit fixes' items 5, 7 and 8); a restart loads those too.</p>
 <table>
 <thead>
 <tr>
@@ -49,6 +50,56 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><a href="cv-result-fixes.html">cv result fixes: an empty tool pick, and a clearer "no valid CV_RESULT"</a></td>
+<td>built (waiting on you): tests pass; the <code>cv</code> reload (asked first) and a smoke test rerun are left. One cause for both smoke-test errors (cv_agent's stopped line had <code>"tool": ""</code>); read an empty pick as none, one-line refusals, <code>cv.job_finished</code> says "invalid" rather than "missing", one line in cv_agent's instructions; <code>cv</code> reload only</td>
+<td>2026-11-14</td>
+</tr>
+<tr>
+<td><a href="outside-config-protected.html">A config folder outside the repo is protected like the repo's config/</a></td>
+<td><strong>built, waiting for the restart</strong> (the 2026-11-13 batch): the handler adds the config folder in use (<code>ASSISTANT_CONFIG_DIR</code>) to its protected zone (writes refused, reads allowed); <code>protected_paths</code>, <code>PermissionsHandler</code>, <code>App</code>; decision 1 approved (same way as <code>config/</code>)</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="audit-code-fixes.html">Small code fixes from the architecture docs audit</a></td>
+<td><strong>built, waiting for the restart</strong> (the 2026-11-13 batch, plus a <code>job_search</code> and a <code>task_agents</code> reload): the core's one-line summary, the handler comment, two docstrings, job_search's doubled event, the rezi helper's prompt, and the module library's core row generated from <code>App.offers()</code> with a tripwire test</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="job-cv-start-order.html">job_search turns cv on only when its agent needs a CV</a></td>
+<td>built (waiting on you): reloaded (2026-11-13); your smoke test is left. job_search's <code>needs = []</code>; <code>job.tailor_cv</code> (job agent only) turns cv on at the CV step (its card asked then), sends <code>cv.task</code> for the agent (cv's <code>[hand_off] modules</code>, <code>for_agent</code>), and on a Deny, failure or timeout the agent asks you about the base PDF untailored. The rule rewritten: <code>needs</code> only for "can't run without"; on-demand chaining allowed (modules.md, principle 17, decisions). Not built: <code>modules.off</code> on a failed module (a separate core change)</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="job-cv-smoke-test-skill.html">A skill for the job and cv smoke test</a></td>
+<td>proposed: <code>job-cv-smoke-test</code> skill pointing at the smoke test page, its six steps in your order, never cv by hand; a CLAUDE.md Workflow line after your check</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="smoke-test-job-cv.html">Smoke test: job_search brings up cv when it needs a CV</a></td>
+<td>proposed: a written test, nothing run; the fix it checks is built (run it after the reload). The six-step flow, a first check that cv is still off after job_search turns on, the cards in Manual mode, pass and fail per step, a Deny check for the fallback; known problem (a) fixed, (b) a separate core change</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="manual-off-never-refused.html">Turning a module off by hand is never refused</a></td>
+<td>built (waiting on you): app restart. A manual off and <code>modules.remove</code> are never refused, the modules that need it stay on; <code>needs</code> is start order only (a needed module that fails no longer stops them); taking a grant back turns off only that module; a call to a module that's off answers "isn't on", and every agent asks you before turning it on (the job agent: cv, else your chosen PDF untailored). Tests pass apart from one docs-link test from the Restructuring section</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="module-layouts.html">How modules should be laid out: CLAUDE.md contexts and call flows</a></td>
+<td>discussion page (nothing changed): today, step 1 (add-ons stay in the repo, the line made hard, CLAUDE.md trimmed, data outside), step 2 later (add-ons in their own folder); an approve line per step; the four layouts, core-line rules and base context in the appendix</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="module-flow-and-piping.html">Module flow and piping: only the flowcharts</a></td>
+<td>draft (waiting on you, <a href="module-flow-and-piping-note.html">note</a>): every picture from module-layouts and piping on one page, copied as drawn, with its legend, numbered-arrow list and ≠/! marks; the long text dropped; the two originals unchanged</td>
+<td>2026-11-13</td>
+</tr>
+<tr>
+<td><a href="core-and-hub-definition.html">Core, Agent Hub and modules: a definition to approve</a></td>
+<td>approved 2026-11-13 (D1 to D7, the recommended answers, in the unattended run); step 1, the piping (R1 to R8), built and documented, waiting for the one restart at the end of the run. Progress and the later steps: <a href="restructuring-checklist.html">the restructuring checklist</a>. The proposal: every Agent Hub responsibility marked stays (coordination) or moves to the core (door, agent names, permission mode), the other holders of power, seven ports (new: Callers), core modules and add-ons, the three boundary rules with their tests, decisions D1 to D7, restructure sketch R1 to R8. Pages: <a href="core-and-hub-proposal.html">the definition</a> and <a href="piping.html">the piping</a> (every call flow today and suggested, checks present and missing), <a href="module-layouts.html">module layouts</a> (where modules live), <a href="agent-claude-md-options.html">agents and CLAUDE.md</a> (the CLAUDE.md cost). The verification pass found 20 gaps; step 1 closes them except the mic's single-name request, which still logs and allows (G13), and the Talker's ALLOW / DENY tags, which still act on any turn (G17: the Talker relays card answers only, never Auto). G19 and G20 are notes, not gaps</td>
+<td>2026-11-13</td>
+</tr>
 <tr>
 <td><a href="module-folders-checklist.html">Module folders: the checklist (what, why, how, and each item's check)</a></td>
 <td>built (overnight, 2026-11-13): 20 of 20 done, each checked against the code; needs an app restart and hand checks; the morning report is at the top of the page</td>
@@ -77,11 +128,6 @@
 <tr>
 <td><a href="job-cv-finish-event.html">Job ↔ cv: module-to-module through named events</a></td>
 <td>fake-job check run 2026-11-12: the event path works (2.1–2.4 pass, 2.5 fail on a Hub race). Fixes for the race and the <code>section_order</code> case are on disk but <strong>not verified</strong> (suite stopped mid-run). Next, on your go: tests, restart, smoke test 4, the lost-events gap, the design-notes skill. The job agent calls <code>cv.task</code>; cv publishes <code>cv.job_finished</code> and <code>cv.job_submitted</code>; job_search wakes its agent; one path only</td>
-<td>2026-11-12</td>
-</tr>
-<tr>
-<td><a href="job-cv-result-via-tools.html">Job ↔ cv through tools and the Hub's child-result message</a></td>
-<td>replaced by <a href="job-cv-finish-event.html">job-cv-finish-event</a>: its result path (<code>parent_note</code>, the brief quote) is removed; <code>cv.read_result task_id</code> kept</td>
 <td>2026-11-12</td>
 </tr>
 <tr>
@@ -115,11 +161,6 @@
 <td>2026-11-10</td>
 </tr>
 <tr>
-<td><a href="hub-folder-check-parent.html">The Hub's folder check skips the starting task</a></td>
-<td>cancelled, never built: replaced by agent-talk-and-questions</td>
-<td>2026-11-09</td>
-</tr>
-<tr>
 <td><a href="permissions-handler.html">Permissions handler</a></td>
 <td>proposed; its first piece (access lists, in the core) is built by agent-permissions</td>
 <td>2026-10-26</td>
@@ -142,11 +183,6 @@
 <tr>
 <td><a href="cv-pdf-only.html">cv module: PDF in, PDF out</a></td>
 <td>built (waiting on you): a <code>cv</code> reload, and your yes for the job agent's 3 files</td>
-<td>2026-11-09</td>
-</tr>
-<tr>
-<td><a href="handoff-b31b8901.html">Handoff: CV Tool as the cv module's UI</a></td>
-<td>superseded by handoff-2389decf</td>
 <td>2026-11-09</td>
 </tr>
 <tr>
@@ -203,11 +239,6 @@
 <td><a href="voice-two-pass.html">Voice: two passes (live text while you talk, whisper cleans it piece by piece)</a></td>
 <td>built (waiting on you): real check passed, loaded; your check (step 3.5)</td>
 <td>2026-11-03</td>
-</tr>
-<tr>
-<td><a href="module-shape-refactor.html">Module shape: directory, menus, and clean boundaries</a></td>
-<td>superseded by the module system note below; kept for its docs table</td>
-<td>2026-11-04</td>
 </tr>
 <tr>
 <td><a href="module-system.html">Module system: one interface, a directory, menus everywhere</a></td>
@@ -268,11 +299,6 @@
 <td><a href="plus-agent-tab.html">Temp UI: a plus button to open your own agent tab</a></td>
 <td>built (waiting on you): <code>RELOAD: task_agents</code> and <code>RELOAD: temp_ui</code>, then press + and try ×; later <code>ctx.permissions.is_you</code></td>
 <td>2026-11-05</td>
-</tr>
-<tr>
-<td><a href="rezi-module.html">Rezi: a module for its MCP, the job agent tailoring through it, a PDF viewer</a></td>
-<td>approved, building: replaced by one <code>cv</code> module with its worker; its three docs pages are in, chunk 1 (code) next</td>
-<td>2026-11-06</td>
 </tr>
 <tr>
 <td><a href="agent-talkers.html">Agent talkers: every tab a pair, its own Talker and worker</a></td>
@@ -348,11 +374,6 @@
 <td><a href="temp-ui-box-resize.html">Temp UI: drag the typing box taller or shorter</a></td>
 <td>built, waiting on the batched restart (a <code>RELOAD: temp_ui</code> would also do): a drag handle on the box's top edge, one size for every tab, kept after sending; six hand checks</td>
 <td>2026-11-08</td>
-</tr>
-<tr>
-<td><a href="two-agent-states.html">Agents and tasks: only two states, active and idle</a></td>
-<td>built as part of <a href="agent-talk-and-questions.html">agent-talk-and-questions</a> (step 3), waiting on the restart</td>
-<td>2026-11-10</td>
 </tr>
 <tr>
 <td><a href="chrome-tab-after-reset.html">A Chrome agent keeps its tab across a context reset</a></td>

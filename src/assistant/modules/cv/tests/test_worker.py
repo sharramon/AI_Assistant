@@ -78,7 +78,8 @@ def test_the_prompt_holds_the_steps_the_truth_gate_and_the_config():
                    "end your task", 'status "ready"', "[cv] line", 'end as "approved"',
                    "C:/Jobs/CV", "CV_JOB:", "base_cv_copy",
                    "Work only in work_dir", "never run a script or command on a file in C:/Jobs/CV",
-                   "CV_Test_*.pdf", "the job description (JD) as text", "PDFs only", "confirmed facts"):  # fmt: skip
+                   "CV_Test_*.pdf", "the job description (JD) as text", "PDFs only", "confirmed facts",
+                   "Leave tool out when nothing was picked"):  # fmt: skip
         assert needed in prompt, needed
     assert "odt_path" not in prompt and "CV_Test_*.odt" not in prompt
     # design A: no NEED for the Submit, no cv.tool_result check (the cv module delivers the Submit itself)

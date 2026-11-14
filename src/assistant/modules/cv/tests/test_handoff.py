@@ -8,7 +8,15 @@ import pytest
 
 from assistant.contracts import GetTaskStatus, InvokeTool, Status
 from assistant.modules.cv.data import CvRequest, CvResult, ResumeRef, Round
-from assistant.modules.cv.handoff import read_jd_file, read_request, read_result, result_line, result_view, task_text
+from assistant.modules.cv.handoff import (
+    job_finished,
+    read_jd_file,
+    read_request,
+    read_result,
+    result_line,
+    result_view,
+    task_text,
+)
 from assistant.modules.cv.odt import OdtWriter
 from assistant.modules.cv.order import SectionOrder
 from assistant.modules.cv.report import ReportWriter
@@ -91,6 +99,54 @@ def test_a_result_that_contradicts_itself_is_refused():
             "issues": [{"kind": "missing", "section": "skills", "line": "Python"}]})  # fmt: skip
     with pytest.raises(ValueError):
         CvResult(status="stopped", stop_reason="x", compare={"issues": [{"kind": "lost", "section": "skills"}]})
+
+
+def test_an_internal_result_needs_no_rezi_resume_but_a_rezi_one_does():
+    ready = '"status": "ready", "pdf_path": "out/CV.pdf", "one_page": true'
+    for empty in ('""', "null", "{}"):  # Internal makes no Rezi resume: empty or null is no resume
+        line = f'CV_RESULT: {{{ready}, "tool": "Internal", "rezi_resume": {empty}, "check_copy": {empty}}}'
+        internal = read_result(line)
+        assert internal.rezi_resume is None and internal.check_copy is None and internal.tool == "Internal"
+    assert read_result(f'CV_RESULT: {{{ready}, "rezi_resume": ""}}', tool="Internal").tool == "Internal"
+    with pytest.raises(ValueError, match="rezi_resume"):  # a Rezi pick without its resume is refused
+        read_result(f'CV_RESULT: {{{ready}, "tool": "Rezi", "rezi_resume": ""}}')
+    with pytest.raises(ValueError, match="rezi_resume"):  # the pick from the job's request counts too
+        read_result(f'CV_RESULT: {{{ready}}}', tool="Rezi")
+    rezi = read_result(f'CV_RESULT: {{{ready}, "rezi_resume": {{"name": "Acme – Engineer", "id": "r1"}}}}', "Rezi")
+    assert rezi.tool == "Rezi" and rezi.rezi_resume == ResumeRef(name="Acme – Engineer", id="r1")
+    assert result_view(rezi, 90)["tool"] == "Rezi"
+    # a stopped Rezi job may have made no resume yet
+    assert read_result('CV_RESULT: {"status": "stopped", "stop_reason": "x"}', tool="Rezi").rezi_resume is None
+
+
+# the smoke test's own line (2026-11-14, cv task 6d360b37): a stopped job with nothing picked wrote "tool": ""
+SMOKE = ('CV_RESULT: {"status": "stopped", "stop_reason": "Smoke test (fake job)", "tool": "", "target_score": null, '
+         '"rounds": [], "missing_keywords": [], "keywords_left_out": [], "recommendations": [], "one_page": false, '
+         '"section_order": ["summary", "skills", "experience", "education", "awards", "publications"], '
+         '"order_reason": "Default order"}')  # fmt: skip
+
+
+def test_an_empty_pick_is_no_pick_and_a_wrong_one_is_refused_in_one_line():
+    stopped = read_result(SMOKE)
+    assert stopped.status == "stopped" and stopped.tool is None
+    assert read_result(SMOKE.replace('"tool": ""', '"tool": "  "')).tool is None
+    assert read_result(SMOKE, tool="Rezi").tool == "Rezi"  # the job's request fills an empty pick
+    with pytest.raises(ValueError) as refused:
+        read_result(SMOKE.replace('"tool": ""', '"tool": "Both"'))
+    assert str(refused.value) == ('the CV_RESULT line isn\'t a valid CvResult: tool: tool must be "Internal" or '
+                                  '"Rezi", or left out when nothing was picked (got "Both")')  # fmt: skip
+    assert "\n" not in str(refused.value)
+
+
+def test_the_finish_summary_tells_a_missing_line_from_an_invalid_one():
+    def summary(text: str) -> str:
+        return job_finished("cv_agent", "t1", "done", None, "work/x", {"request": {}}, text)["summary"]
+
+    assert summary("all done") == "No CV_RESULT line in its last message."
+    bad = summary(SMOKE.replace('"tool": ""', '"tool": "Both"'))
+    assert bad.startswith("Its CV_RESULT line isn't valid: isn't a valid CvResult: tool: ")
+    assert bad.endswith("cv.read_result task_id=t1 shows it.")
+    assert summary(SMOKE).startswith("CV_RESULT: status stopped (Smoke test (fake job))")
 
 
 def test_a_jd_file_is_read_as_text_md_or_html(tmp_path):

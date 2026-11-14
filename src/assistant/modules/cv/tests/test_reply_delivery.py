@@ -108,7 +108,7 @@ async def test_cv_reports_the_end_and_the_submit_as_events_and_messages_no_one(t
         assert (data["reply_to"], data["task_id"], data["parent_task_id"], data["job_dir"]) == (
             JOB_AGENT, child.id, parent, folder)
         assert (data["company"], data["role"], data["state"]) == ("Acme", "Senior Engineer", "done")
-        assert data["cv_result"] is None and "No valid CV_RESULT" in data["summary"]  # the fake worker has none
+        assert data["cv_result"] is None and "No CV_RESULT line" in data["summary"]  # the fake worker has none
         await asyncio.sleep(0.2)
         assert AGENT.messages == [] and AGENT.assigned == ["apply to Acme"]  # no Hub child-result message
 

@@ -100,6 +100,7 @@ Checks one job (the JD as text, the base CV as any .pdf) and starts cv_agent on 
 | `target_score` | integer | no | Overrides the config's target |
 | `notes` | string | no | Anything else for the worker |
 | `tool` | string | no | The CV Tool's pick (unset: the user picks Internal or Rezi in its tab 2) |
+| `for_agent` | string | no | Only for a module in [hand_off] modules (job_search): the agent the job is for, who gets cv's events (reply_to) and whose task is the parent |
 
 ## `cv.read_result`
 
@@ -224,7 +225,7 @@ Writes report.md next to the job's PDF: result, score rounds, keywords left out,
 |---|---|---|---|
 | `company` | string | yes | The job's company |
 | `role` | string | no | The job's title |
-| `result` | object | yes | The job's CvResult: status, stop_reason, pdf_path, report_path, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user |
+| `result` | object | yes | The job's CvResult: status, stop_reason, pdf_path, report_path, tool, rezi_resume, check_copy, target_score, rounds, scores, missing_keywords, keywords_left_out, recommendations, match_ok, compare, one_page, section_order, order_reason, approved_by_user |
 | `rounds` | array | no | Each score round: score, added (keywords added), missing (still missing), note; else the result's rounds |
 | `compare` | object | no | cv.compare's value from step 6; else the result's compare |
 | `notes` | string | no | Anything else for the job agent |
@@ -255,14 +256,15 @@ The module stands alone: a caller in `hand_off.callers` (the job agent, the Main
 |------|--------------|
 | `status`, `stop_reason`, `approved_by_user` | `ready` (everything but your Submit, which reaches the caller as the cv module's message), `approved` (older results: your yes) or `stopped`, and why |
 | `files` | `pdf_path` and `report_path`, each with `…_exists` (the file is there now); no `.odt` comes out |
-| `rezi` | `resume` and `check_copy`: the new Rezi resume and its check copy, name and id each |
+| `tool` | The job's pick (`Internal` or `Rezi`; null: not known) |
+| `rezi` | `resume` and `check_copy`: the new Rezi resume and its check copy, name and id each (null with Internal) |
 | `score` | `target` (the job's, else the config's), `last`, `reached`, and `rounds`: each `{round, score, vs_target, added, missing, note}` |
 | `keywords` | `missing`: Rezi's missing keywords at the end; `left_out`: JD terms that aren't on your CVs, so not added |
 | `recommendations` | What Rezi or the worker suggests that wasn't done, for example a fact to confirm |
 | `page` | `one_page`, `section_order`, `order_reason` |
 | `compare` | `cv.compare`'s value from step 6: `match_ok`, `mode`, `checked`, `summary`, `issues` (just `match_ok` if the worker sent none) |
 
-`cv.read_result` refuses (`invalid_arguments`) a text with no line starting `CV_RESULT:`, or one whose line isn't a JSON object or a valid `CvResult`. A result that contradicts itself is not valid: `ready` without one page and the PDF, or with `approved_by_user`; `approved` without your yes, one page and the PDF; scores that aren't the rounds' scores; or `match_ok` with a compare that found issues.
+`cv.read_result` refuses (`invalid_arguments`) a text with no line starting `CV_RESULT:`, or one whose line isn't a JSON object or a valid `CvResult`. A result that contradicts itself is not valid: `ready` without one page and the PDF, or with `approved_by_user`; `ready` or `approved` with the pick `Rezi` but no `rezi_resume` (an Internal result needs none); `approved` without your yes, one page and the PDF; scores that aren't the rounds' scores; or `match_ok` with a compare that found issues. An empty `tool` (`""`) means nothing was picked, like null; any other value but `Internal` or `Rezi` is refused. Each refusal is one line, `field: reason`. `cv.job_finished`'s summary says "No CV_RESULT line" when the line is missing, and "Its CV_RESULT line isn't valid: …" with the reason when it's there but wrong.
 
 **Tested end to end through the real Hub** (`tests/test_handoff.py`), with a fake `claude` standing in for the worker. The caller sends `cv.task` with a JD file and the CV's path, which starts `cv_agent` (no coordinator in between). The job arrives intact, and `cv.read_result` on the task's result gives the files, the rounds against the target, the keywords, the recommendations, the one-page check and the compare. The real run with Rezi comes in chunk 9, with your yes.
 
@@ -357,7 +359,8 @@ The module's link to its UI half, the CV Tool app (`cv/app/cv_tool`, `python -m 
 | `status`, `stop_reason` | `ready` (cv_agent's end: everything but your Submit), `approved` (older results) or `stopped`, and why it stopped (required when stopped) |
 | `pdf_path` | With `ready`, the last local PDF from `cv.tool_round` (your Submit copies it to `CV_Test_<Company>_final.pdf`, named in the cv module's message); on the old path, the one `cv.build` exported (there's no `odt_path`: a result with one is refused) |
 | `report_path` | `cv.report`'s `report.md` |
-| `rezi_resume`, `check_copy` | The new Rezi resume and its check copy: name and id each |
+| `tool` | The job's pick, `Internal` or `Rezi`. Unset in the line: `cv.read_result` (by task_id) and `cv.job_finished` take the job request's pick |
+| `rezi_resume`, `check_copy` | The new Rezi resume and its check copy: name and id each. Optional: an empty string, `{}` or null means none (Internal makes none) |
 | `target_score` | The score aimed at (1 to 100); unset: the config's |
 | `rounds` | Each score round: `score`, `added` (true keywords added), `missing` (still missing), `note` |
 | `scores` | The Rezi Score after each round (0 to 100), filled from `rounds` when left out; `score` is the last one |
@@ -369,4 +372,4 @@ The module's link to its UI half, the CV Tool app (`cv/app/cv_tool`, `python -m 
 | `section_order`, `order_reason` | The order used, and why |
 | `approved_by_user` | Your yes on the old path (step 7); false with `ready`, since your Submit comes after |
 
-Scores that aren't the rounds' scores, and `match_ok` with a compare that found issues, are refused. `ready` is refused unless `one_page` and `pdf_path` are set, and with `approved_by_user`. `approved` is refused unless `approved_by_user`, `one_page` and `pdf_path` are all set. Rezi's match (`match_ok`) is no longer needed: the CV Tool's own page is the final PDF, with no Rezi import check.
+Scores that aren't the rounds' scores, and `match_ok` with a compare that found issues, are refused. `ready` is refused unless `one_page` and `pdf_path` are set, and with `approved_by_user`. With the pick `Rezi`, `ready` and `approved` also need `rezi_resume`; with `Internal` (or no pick known) it isn't needed. `approved` is refused unless `approved_by_user`, `one_page` and `pdf_path` are all set. Rezi's match (`match_ok`) is no longer needed: the CV Tool's own page is the final PDF, with no Rezi import check.

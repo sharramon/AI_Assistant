@@ -7,6 +7,7 @@
       "href": "../html/architecture/index.html",
       "home": [
         "../html/architecture/index.html",
+        "../html/architecture/short-overview.html",
         "../html/architecture/principles.html",
         "../html/architecture/reusable-parts.html",
         "../html/architecture/code-map.html",
@@ -43,6 +44,10 @@
             {
               "name": "Overview",
               "href": "../html/architecture/index.html"
+            },
+            {
+              "name": "Short overview",
+              "href": "../html/architecture/short-overview.html"
             },
             {
               "name": "Principles",
@@ -789,26 +794,32 @@
       "href": "index.html",
       "home": [
         "index.html",
+        "cv-result-fixes.html",
+        "outside-config-protected.html",
+        "audit-code-fixes.html",
+        "job-cv-start-order.html",
+        "job-cv-smoke-test-skill.html",
+        "smoke-test-job-cv.html",
+        "manual-off-never-refused.html",
+        "core-and-hub-definition.html",
+        "restructuring-checklist.html",
+        "agent-claude-md-options.html",
         "module-folders-checklist.html",
         "module-folders-launch-check.html",
-        "agent-claude-md-options.html",
         "module-folders-audit.html",
         "auto-skips-cards.html",
         "job-cv-finish-event.html",
-        "job-cv-result-via-tools.html",
         "named-module-events.html",
         "you-means-the-pair.html",
         "agent-talk-and-questions.html",
         "cv-submit-delivers.html",
         "cv-submit-notice.html",
         "cv-rezi-click-signal.html",
-        "hub-folder-check-parent.html",
         "permissions-handler.html",
         "markdown-write-back.html",
         "voice-in.html",
         "handoff-repeat-fix.html",
         "cv-pdf-only.html",
-        "handoff-b31b8901.html",
         "cv-uses-cv-tool.html",
         "cv-agent-folders.html",
         "handoff-2389decf.html",
@@ -819,7 +830,6 @@
         "voice-text-cleanup.html",
         "voice-layers-whisper.html",
         "voice-two-pass.html",
-        "module-shape-refactor.html",
         "module-system.html",
         "voice-notes.html",
         "job-agent.html",
@@ -832,7 +842,6 @@
         "agent-names.html",
         "temp-ui-snip-send.html",
         "plus-agent-tab.html",
-        "rezi-module.html",
         "agent-talkers.html",
         "close-tab-ends-talker.html",
         "code-review.html",
@@ -848,28 +857,24 @@
         "helper-context-reset.html",
         "restart-note-complete.html",
         "temp-ui-box-resize.html",
-        "two-agent-states.html",
         "chrome-tab-after-reset.html",
         "chrome-tabs-close.html",
         "taskbar-flash.html",
         "usage-tokens-only.html",
+        "architecture-docs-audit.html",
         "cv-base-copy-name.html",
-        "handoff-0873d2c8.html",
-        "handoff-20c1d08e.html",
         "handoff-3720fc90.html",
-        "handoff-4dca192a.html",
-        "handoff-5eff4e83.html",
-        "handoff-73fc479c.html",
-        "handoff-8c52a851.html",
         "handoff-93bcbd29.html",
         "handoff-99c9ff7c.html",
-        "handoff-9bc35422.html",
         "handoff-cv-tool-build.html",
         "handoff-d729a7ef.html",
-        "handoff-e519644c.html",
         "handoff-privacy-cleanup.html",
         "job-cv-flow.html",
         "live-permission-mode.html",
+        "module-flow-and-piping-note.html",
+        "module-layout-step1-checklist.html",
+        "module-layout-step2-checklist.html",
+        "module-layouts-piping-redraw.html",
         "archive/index.html",
         "archive/logs-button.html",
         "archive/session-logs.html",
@@ -912,16 +917,52 @@
               "href": "index.html"
             },
             {
+              "name": "cv result fixes: an empty tool pick, and a clearer \"no valid CV_RESULT\"",
+              "href": "cv-result-fixes.html"
+            },
+            {
+              "name": "A config folder outside the repo is protected like the repo's config/",
+              "href": "outside-config-protected.html"
+            },
+            {
+              "name": "Small code fixes from the architecture docs audit",
+              "href": "audit-code-fixes.html"
+            },
+            {
+              "name": "job_search turns cv on only when its agent needs a CV",
+              "href": "job-cv-start-order.html"
+            },
+            {
+              "name": "A skill for the job and cv smoke test",
+              "href": "job-cv-smoke-test-skill.html"
+            },
+            {
+              "name": "Smoke test: job_search brings up cv when it needs a CV",
+              "href": "smoke-test-job-cv.html"
+            },
+            {
+              "name": "Turning a module off by hand is never refused",
+              "href": "manual-off-never-refused.html"
+            },
+            {
+              "name": "Core, Agent Hub and modules: a definition to approve",
+              "href": "core-and-hub-definition.html"
+            },
+            {
+              "name": "Restructuring rebuild: checklist and change note",
+              "href": "restructuring-checklist.html"
+            },
+            {
+              "name": "Agents and the repo's CLAUDE.md: options",
+              "href": "agent-claude-md-options.html"
+            },
+            {
               "name": "Module folders: every module in its own folder, checked item by item",
               "href": "module-folders-checklist.html"
             },
             {
               "name": "Module folders: where each module and agent lives, before and after the restart",
               "href": "module-folders-launch-check.html"
-            },
-            {
-              "name": "Agents and the repo's CLAUDE.md: options",
-              "href": "agent-claude-md-options.html"
             },
             {
               "name": "Module folders: what was promised, what was done, and why it was called done",
@@ -934,10 +975,6 @@
             {
               "name": "Job ↔ cv: module-to-module through named events",
               "href": "job-cv-finish-event.html"
-            },
-            {
-              "name": "Job ↔ cv through tools and the Hub's child-result message, not the named event",
-              "href": "job-cv-result-via-tools.html"
             },
             {
               "name": "Named module events: any module raises and hears custom events, reload only",
@@ -964,10 +1001,6 @@
               "href": "cv-rezi-click-signal.html"
             },
             {
-              "name": "The Hub's folder check skips the starting task",
-              "href": "hub-folder-check-parent.html"
-            },
-            {
               "name": "Permissions handler",
               "href": "permissions-handler.html"
             },
@@ -986,10 +1019,6 @@
             {
               "name": "cv module: PDF in, PDF out",
               "href": "cv-pdf-only.html"
-            },
-            {
-              "name": "Handoff: CV Tool as the cv module's UI (task b31b8901)",
-              "href": "handoff-b31b8901.html"
             },
             {
               "name": "cv module: the CV Tool is its UI",
@@ -1030,10 +1059,6 @@
             {
               "name": "Voice: two passes (live text while you talk, whisper cleans it piece by piece)",
               "href": "voice-two-pass.html"
-            },
-            {
-              "name": "Module shape: directory, menus, and clean boundaries",
-              "href": "module-shape-refactor.html"
             },
             {
               "name": "Module system: one interface, a directory, menus everywhere",
@@ -1082,10 +1107,6 @@
             {
               "name": "Temp UI: a plus button to open your own agent tab",
               "href": "plus-agent-tab.html"
-            },
-            {
-              "name": "Rezi: a module for Rezi's MCP, the job agent tailoring through it, and a PDF viewer",
-              "href": "rezi-module.html"
             },
             {
               "name": "Agent talkers: every tab a pair, its own Talker and its own worker",
@@ -1148,10 +1169,6 @@
               "href": "temp-ui-box-resize.html"
             },
             {
-              "name": "Agents and tasks: only two states, active and idle",
-              "href": "two-agent-states.html"
-            },
-            {
               "name": "Keep a worker's Chrome tab across a reset",
               "href": "chrome-tab-after-reset.html"
             },
@@ -1168,36 +1185,16 @@
               "href": "usage-tokens-only.html"
             },
             {
+              "name": "Architecture docs audit",
+              "href": "architecture-docs-audit.html"
+            },
+            {
               "name": "The base CV's copy in a job folder is named `base_…`",
               "href": "cv-base-copy-name.html"
             },
             {
-              "name": "Handoff: the overnight module-folders run (task 0873d2c8)",
-              "href": "handoff-0873d2c8.html"
-            },
-            {
-              "name": "Handoff 20c1d08e: cv module, PDF in and PDF out (build)",
-              "href": "handoff-20c1d08e.html"
-            },
-            {
               "name": "Handoff: hand checks 1, 2, 4 of agent-talk-and-questions (task 3720fc90)",
               "href": "handoff-3720fc90.html"
-            },
-            {
-              "name": "Handoff: cv → job_search through the `cv.job_finished` named event only (task 4dca192a)",
-              "href": "handoff-4dca192a.html"
-            },
-            {
-              "name": "Handoff: smoke test of the job and CV agents, the Hub child-result fix, named module events (task 5eff4e83)",
-              "href": "handoff-5eff4e83.html"
-            },
-            {
-              "name": "Handoff: the agent-permissions build (task 73fc479c)",
-              "href": "handoff-73fc479c.html"
-            },
-            {
-              "name": "Handoff: prepare the helpers for the batched restart (task 9, after the code-review cleanup)",
-              "href": "handoff-8c52a851.html"
             },
             {
               "name": "Handoff: job UI output folder, privacy paths, cv packages, voice_in note, CLAUDE.md options",
@@ -1208,20 +1205,12 @@
               "href": "handoff-99c9ff7c.html"
             },
             {
-              "name": "Handoff: building agent-talk-and-questions (task 9bc35422)",
-              "href": "handoff-9bc35422.html"
-            },
-            {
               "name": "Handoff: build the CV Tool into the cv module, then run ExampleCorp to First Draft",
               "href": "handoff-cv-tool-build.html"
             },
             {
               "name": "Handoff: multi-agent build, docs and final checks (task d729a7ef)",
               "href": "handoff-d729a7ef.html"
-            },
-            {
-              "name": "Handoff e519644c: CV page layout settings, read per print (cv_agent, 2026-11-10)",
-              "href": "handoff-e519644c.html"
             },
             {
               "name": "Handoff: personal-data cleanup and module docs into modules",
@@ -1234,6 +1223,22 @@
             {
               "name": "Auto / Manual applies at once",
               "href": "live-permission-mode.html"
+            },
+            {
+              "name": "Module flow and piping: one page with only the flowcharts",
+              "href": "module-flow-and-piping-note.html"
+            },
+            {
+              "name": "Module layout step 1: checklist",
+              "href": "module-layout-step1-checklist.html"
+            },
+            {
+              "name": "Module layout step 2: checklist",
+              "href": "module-layout-step2-checklist.html"
+            },
+            {
+              "name": "Module layouts: redraw the flowcharts with the full piping",
+              "href": "module-layouts-piping-redraw.html"
             },
             {
               "name": "Archive",
