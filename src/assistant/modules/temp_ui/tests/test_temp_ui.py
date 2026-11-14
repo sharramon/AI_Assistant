@@ -58,21 +58,40 @@ def test_reset_buttons_reset_the_pair_of_the_tab_you_are_in():
     assert reset_target("other", "cv_agent", "main_assistant") is None
 
 
-async def test_reset_post_publishes_for_the_helper_tab():
-    from assistant.contracts import ResetRequested
+async def test_reset_post_calls_the_talkers_reset_item_for_the_helper_tab():
+    from assistant.contracts import Manifest, Menu, ModuleProtocol, ResetRequested, Result
 
-    config = {"modules": {"enabled": ["temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
-    app = App([TempUIModule], config)
-    await app.start()
     resets: asyncio.Queue = asyncio.Queue()
-    app.bus.subscribe(ResetRequested, resets.put)
+    talker_menu = Menu()
+
+    class TalkerStandIn(ModuleProtocol):  # offers talker.reset, as the real Talker's menu does
+        manifest = Manifest(id="talker")
+        menu = talker_menu
+
+        async def init(self, ctx):
+            pass
+
+        @talker_menu.item("talker.reset", "Reset a Talker session", {"session": {"type": "string"}}, required=["session"])
+        async def reset_item(self, session: str) -> Result:
+            resets.put_nowait(session)
+            return Result.ok()
+
+    async def worker_reset(command: ResetRequested) -> Result:  # the Hub's stand-in
+        resets.put_nowait(command.agent_id)
+        return Result.ok()
+
+    config = {"modules": {"enabled": ["talker", "temp_ui"], "temp_ui": {"port": 0, "window": "none"}}, "core": {}}
+    app = App([TalkerStandIn, TempUIModule], config)
+    await app.start()
+    app.router.register(ResetRequested, worker_reset)
     try:
-        body = json.dumps({"agent": "talker", "tab": "cv_agent"}).encode()
-        reader, writer = await request(ui_port(app), b"POST /reset HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
-        await reader.read()
-        writer.close()
+        for target, tab in (("talker", "cv_agent"), ("worker", "cv_agent")):
+            body = json.dumps({"agent": target, "tab": tab}).encode()
+            reader, writer = await request(ui_port(app), b"POST /reset HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
+            await reader.read()
+            writer.close()
         async with asyncio.timeout(2):
-            assert (await resets.get()).agent_id == "talker:cv_agent"
+            assert [await resets.get(), await resets.get()] == ["talker:cv_agent", "cv_agent"]
     finally:
         await app.stop()
 
@@ -101,7 +120,7 @@ async def test_page_input_and_events():
     await app.start()
     port = int(app._lifecycle._active["temp_ui"][0].url.rsplit(":", 1)[1].strip("/"))
     try:
-        reader, writer = await request(port, b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+        reader, writer = await request(port, b"GET / HTTP/1.1\r\n\r\n")
         page = await reader.read()
         assert b"200 OK" in page and b"Main Assistant" in page
         writer.close()

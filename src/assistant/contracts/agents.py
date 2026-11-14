@@ -206,6 +206,11 @@ class ITaskAgent(Contract):
         Agents without modes keep this default, which refuses."""
         return Result.not_available("This agent has no permission modes")
 
+    async def reset(self) -> Result:
+        """Start the agent's session fresh (`ResetRequested`, through the Hub): at once when
+        idle, a handoff when it has a task. The default can't."""
+        return Result.not_available("This agent can't be reset")
+
     def note(self, text: str) -> None:
         """A background line for the agent's next turn (a milestone of another agent, a
         module's callback). Never interrupts and never starts work. The default drops it."""
@@ -219,10 +224,20 @@ class ITaskAgent(Contract):
 
 
 class IAgentNames(Contract):
-    """The agent ids in use, so no two agents share one. One provider (the Agent Hub).
+    """The agent ids in use, so no two agents share one, and what the core knows of each caller.
+    One provider: the core's Callers port (`core/callers.py`), always there when the app runs.
 
     `owner` is the module that runs the agent. Rules: `check_agent_id` (infra); a module's
-    own agent may carry its module's id. A refusal names a free id."""
+    own agent may carry its module's id. A refusal names a free id. `mode` and `is_you` are
+    read-only here: only the core sets a mode (its `SetPermissionMode` handler)."""
+
+    def mode(self, agent_id: str) -> PermissionMode:
+        """The agent's permission mode as the core set it (Manual unless you switched it to Auto)."""
+        return PermissionMode.MANUAL
+
+    def is_you(self, caller: str) -> bool:
+        """Whether `caller` is you clicking in a UI (`[core.permissions] you`)."""
+        return False
 
     @abstractmethod
     async def check(self, agent_id: str, owner: str) -> str | None:
@@ -314,9 +329,10 @@ class AnswerPermission(Command):
 
 
 class SetPermissionMode(Command):
-    """Switch a task agent between Manual and Auto. Handled by the Agent Hub (later by the
-    permissions handler). Only you switch to Auto (the UI button); the Talker may only
-    switch to Manual. `invalid_arguments` for an unknown agent."""
+    """Switch a task agent between Manual and Auto. Handled by the core (its Callers port
+    records the mode, then the agent applies it). Auto only from you (the UI button, checked
+    on the stamped sender: `not_available` otherwise); Manual from anyone (the Talker's
+    `hub.mode`). `invalid_arguments` for an unknown agent."""
 
     agent_id: str
     mode: PermissionMode
@@ -379,9 +395,11 @@ class FocusSuggested(Event):
     by: str = ""
 
 
-class AgentNotice(Event):
+class AgentNotice(Command):
     """A module's callback for an agent, e.g. a slow menu item's result (`agent_id` is the
-    item's caller). The Hub passes it to that agent with `ITaskAgent.note`, for its next turn."""
+    item's caller). A command the Hub handles (D5): it passes it to that agent with
+    `ITaskAgent.note`, for its next turn, labelled with the stamped sender (`sent_by`); only the
+    core's own notices (the permissions handler's) keep their `source`."""
 
     agent_id: str
     text: str
@@ -399,11 +417,13 @@ class AgentStateChanged(Event):
 
 class PermissionModeChanged(Event):
     """A task agent's permission mode was set. `applies`: `now` (mid-task too), or
-    `next_task` when a live switch to Manual failed."""
+    `next_task` when a live switch to Manual failed. `answered`: the switch to Auto answered
+    the agent's open permission request (the Hub closes its card)."""
 
     agent_id: str
     mode: PermissionMode
     applies: Literal["now", "next_task"] = "now"
+    answered: bool = False
 
 
 class AgentActivity(Event):
@@ -447,8 +467,9 @@ class SessionUsage(Event):
         return self.input_tokens + self.cache_write_tokens + self.cache_read_tokens + self.output_tokens
 
 
-class ResetRequested(Event):
-    """Asks the session behind `agent_id` to start fresh. The Talker keeps its last few
-    exchanges; a task agent resets at once when idle, and hands off when it has a task."""
+class ResetRequested(Command):
+    """Asks task agent `agent_id`'s session to start fresh: at once when idle, a handoff when it
+    has a task. A command the Hub handles (D5), through `ITaskAgent.reset`. A Talker session's
+    reset is the Talker's own (its RESET tag, or its `talker.reset` item for you)."""
 
     agent_id: str

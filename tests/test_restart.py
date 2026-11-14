@@ -4,13 +4,18 @@ import asyncio
 import subprocess
 
 from assistant import __main__ as entry
-from assistant.contracts import InputReceived, ResponseReady, ShutdownRequested
+from assistant.contracts import (
+    AnswerPermissionRequest,
+    InputReceived,
+    PermissionRequested,
+    ResponseReady,
+)
 from assistant.core import App
 from assistant.modules.agent_hub import AgentHubModule
 from assistant.modules.main_assistant import MainAssistantModule
 from assistant.modules.talker import TalkerModule
 from assistant.modules.talker.module import AFTER_RESTART, APP_STATE_HEAD
-from assistant.testkit import FAKE, TIMEOUT, next_matching
+from assistant.testkit import FAKE, TIMEOUT, next_matching, wait_until
 
 
 def _app(tmp_path, with_worker: bool = True) -> App:
@@ -26,23 +31,26 @@ def _app(tmp_path, with_worker: bool = True) -> App:
     return App(modules, config)
 
 
-def _queues(app: App) -> tuple[asyncio.Queue, asyncio.Queue]:
+def _queues(app: App) -> tuple[asyncio.Queue, None]:
     replies: asyncio.Queue[ResponseReady] = asyncio.Queue()
-    shutdowns: asyncio.Queue[ShutdownRequested] = asyncio.Queue()
     app.bus.subscribe(ResponseReady, replies.put)
-    app.bus.subscribe(ShutdownRequested, shutdowns.put)
-    return replies, shutdowns
+
+    async def allow(card: PermissionRequested) -> None:  # the restart's confirm card (Auto never skips it)
+        if card.action == "confirm" and "restart" in card.reason:
+            await app.router.send(AnswerPermissionRequest(request_id=card.request_id, allow=True))
+
+    app.bus.subscribe(PermissionRequested, allow)
+    return replies, None  # a restart is read off app.restart_requested (ShutdownRequested is a command)
 
 
 async def test_restart_with_an_idle_worker_saves_its_note_and_keeps_it(tmp_path):
     app = _app(tmp_path)
-    replies, shutdowns = _queues(app)
+    replies, _ = _queues(app)
     await app.start()
     try:
         # The fake Talker repeats what it's sent, so the input is its reply.
         app.bus.publish(InputReceived(text="Restarting, back in a moment. <<RESTART>>", source="test"))
-        event = await asyncio.wait_for(shutdowns.get(), TIMEOUT)
-        assert event.restart and app.restart_requested
+        await wait_until(lambda: app.restart_requested, TIMEOUT)
     finally:
         await app.stop()
     # A restart keeps the note, without its RESTART_READY line, and the app's state section under it.
@@ -56,7 +64,7 @@ async def test_restart_with_an_idle_worker_saves_its_note_and_keeps_it(tmp_path)
 
 async def test_restart_note_lists_a_task_waiting_on_the_user(tmp_path):
     app = _app(tmp_path)
-    replies, shutdowns = _queues(app)
+    replies, _ = _queues(app)
     await app.start()
     try:
         app.bus.publish(InputReceived(text="<<WORK: poems ASKME>>", source="test"))
@@ -69,13 +77,13 @@ async def test_restart_note_lists_a_task_waiting_on_the_user(tmp_path):
 
 async def test_the_restart_goes_ahead_and_the_question_stays_open(tmp_path):
     app = _app(tmp_path)
-    replies, shutdowns = _queues(app)
+    replies, _ = _queues(app)
     await app.start()
     try:
         app.bus.publish(InputReceived(text="<<WORK: poems ASKME>>", source="test"))
         await next_matching(replies, lambda e: e.text.startswith("[Task update: need]"))
         app.bus.publish(InputReceived(text="<<RESTART>>", source="test"))
-        assert (await asyncio.wait_for(shutdowns.get(), TIMEOUT)).restart  # no refusal, no "anyway"
+        await wait_until(lambda: app.restart_requested, TIMEOUT)  # no refusal, no "anyway"
     finally:
         await app.stop()
     note = (tmp_path / "state" / "reset.md").read_text(encoding="utf-8")
@@ -85,13 +93,13 @@ async def test_the_restart_goes_ahead_and_the_question_stays_open(tmp_path):
 
 async def test_restart_without_a_worker_writes_its_own_note(tmp_path):
     app = _app(tmp_path, with_worker=False)
-    replies, shutdowns = _queues(app)
+    replies, _ = _queues(app)
     await app.start()
     try:
         app.bus.publish(InputReceived(text="we were on the logs", source="test"))
         await next_matching(replies, lambda e: e.text == "we were on the logs")
         app.bus.publish(InputReceived(text="<<RESTART>>", source="test"))
-        assert (await asyncio.wait_for(shutdowns.get(), TIMEOUT)).restart
+        await wait_until(lambda: app.restart_requested, TIMEOUT)
     finally:
         await app.stop()
     note = (tmp_path / "state" / "reset.md").read_text(encoding="utf-8")

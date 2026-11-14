@@ -7,7 +7,7 @@ import tomllib
 
 import pytest
 
-from assistant.contracts import InputReceived, ResetRequested, ResponseReady, SessionTheme, SessionUsage
+from assistant.contracts import InputReceived, ResponseReady, SessionTheme, SessionUsage
 from assistant.core import App, loader
 from assistant.modules.talker import TalkerModule
 from assistant.modules.talker.module import split_tags
@@ -143,7 +143,8 @@ async def test_talker_reset_keeps_recent_exchanges():
         app.bus.publish(InputReceived(text="hello there", source="test"))
         await next_matching(replies, lambda e: e.text == "hello there")
 
-        app.bus.publish(ResetRequested(agent_id="talker"))
+        # The reset is the Talker's own call now (its `talker.reset` item, for you, reaches it).
+        assert app._lifecycle._active["talker"][0].reset_session("talker").is_ok
         app.bus.publish(InputReceived(text="still there?", source="test"))
         after = await next_matching(replies, lambda e: "still there?" in e.text)
         assert after.text.startswith("[Context] Your session was just reset")

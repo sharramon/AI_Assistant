@@ -23,7 +23,7 @@ from assistant.testkit import Calculator, Speaker, make_config
 class ShoutOrchestrator(ModuleProtocol):
     """A second, unrelated orchestrator implementation."""
 
-    manifest = Manifest(id="shout_orchestrator")
+    manifest = Manifest(id="shout_orchestrator", listens=(InputReceived,), publishes=(ResponseReady,))
 
     async def init(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
@@ -122,11 +122,11 @@ async def test_stop_removes_all_registrations_and_cancels_commands():
     assert app.container._providers == {}
 
 
-async def test_shutdown_requested_event_ends_run():
+async def test_shutdown_requested_command_ends_run():
     app = App([EchoOrchestrator], make_config("echo_orchestrator"))
     run = asyncio.create_task(app.run())
     await asyncio.sleep(0.01)
-    app.bus.publish(ShutdownRequested(reason="test"))
+    assert (await app.router.send(ShutdownRequested(reason="test"))).is_ok
     await asyncio.wait_for(run, 1)
 
 

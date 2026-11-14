@@ -46,8 +46,9 @@ Serves `page.html` on http://127.0.0.1:<port>/ (standard library only):
   parent. Both come from the `usage` module's menu (`usage.total`,
   `usage.agents`), asked again shortly after each `SessionUsage` (the `tally` SSE item); with
   `usage` off the total says so. Each pane's Reset button sends
-  `POST /reset` `{"agent": "worker" | "talker", "tab"}`, which publishes `ResetRequested` for
-  the pair of the tab it was pressed in (`reset_target`): its worker, or its Talker
+  `POST /reset` `{"agent": "worker" | "talker", "tab"}`, which resets one of the pair of the
+  tab it was pressed in (`reset_target`): its worker (`ResetRequested`, a command the Hub
+  handles), or its Talker (the Talker's `talker.reset` item, only for you)
   (`talker`, `talker:<agent>` in a helper's tab); with no `tab`, the main pair
 - the mic button: `POST /mic` `{"on": true | false, "agent"}` sends `StartListening` /
   `StopListening(agent_id=<the tab you stopped in>)` (handled by `voice_in`; the final text goes
@@ -104,6 +105,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app_kit.local_guard import local_request
 from app_kit.window import close_app_windows, flash_window, open_app_window, window_profile
 from assistant.contracts import (
     MAX_SNIPS,
@@ -214,8 +216,8 @@ class TempUIModule(ModuleProtocol):
         description="Temporary two-pane page: worker and Talker, mic, usage, permissions",
         optional=(IAgentNames,),
         uses=(IPageOpener,),  # the Open in viewer button: whichever add-on opens pages
-        sends=(ListModules, ListAgents, SetFocus, StartListening, StopListening, AnswerPermission, AnswerPermissionRequest, SetPermissionMode, InvokeTool, StartProvider, GetTaskStatus, CancelTask,),
-        publishes=(InputReceived, ResetRequested,),
+        sends=(ListModules, ListAgents, SetFocus, StartListening, StopListening, AnswerPermission, AnswerPermissionRequest, SetPermissionMode, InvokeTool, StartProvider, GetTaskStatus, CancelTask, ResetRequested,),
+        publishes=(InputReceived,),
         listens=(InputReceived, ResponseReady, TaskUpdated, AgentActivity, AgentStateChanged, FocusChanged, PermissionModeChanged, SessionUsage, VoiceState, VoiceTranscript, ModuleStateChanged, PermissionRequested, PermissionChanged,),
         publishes_named=(PASTED_CLIP, CLIP_DROPPED),
         listens_named=(VIEWER_CLIP, PASTED_CLIP),
@@ -667,7 +669,9 @@ class TempUIModule(ModuleProtocol):
             while (line := await reader.readline()) not in (b"\r\n", b"\n", b""):
                 name, _, value = line.decode("latin-1").partition(":")
                 headers[name.strip().lower()] = value.strip()
-            if method == "GET" and path == "/":
+            if not local_request(headers.get("host"), headers.get("origin")):  # G10: this machine's own page only
+                await self._respond(writer, 403, "text/plain", b"Forbidden")
+            elif method == "GET" and path == "/":
                 await self._respond(writer, 200, "text/html; charset=utf-8", PAGE.read_bytes())
             elif method == "GET" and path == "/events":
                 await self._stream(writer)
@@ -718,8 +722,12 @@ class TempUIModule(ModuleProtocol):
             elif method == "POST" and path == "/reset":
                 body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")
                 agent = reset_target(str(body.get("agent")), str(body.get("tab") or ""), self._agents["worker"])
-                if agent:
-                    self._ctx.publish(ResetRequested(agent_id=agent))
+                if agent and agent.startswith("talker"):  # a Talker session: the Talker's own item
+                    result = await self._ctx.send(InvokeTool(name="talker.reset", args={"session": agent}))
+                elif agent:  # a task agent: the Hub resets it
+                    result = await self._ctx.send(ResetRequested(agent_id=agent))
+                if agent and not result.is_ok:
+                    self._ctx.log.warning("Reset of %s: %s", agent, result.error)
                 await self._respond(writer, 204, "text/plain", b"")
             elif method == "POST" and path == "/mic":
                 body = json.loads(await reader.readexactly(int(headers.get("content-length", 0))) or b"{}")

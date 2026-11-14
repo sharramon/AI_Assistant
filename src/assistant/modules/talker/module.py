@@ -35,12 +35,14 @@ from assistant.contracts import (
     AnswerPermissionRequest,
     FocusChanged,
     FocusSuggested,
+    IAgentNames,
     IModuleDoor,
     InputReceived,
     InvokeTool,
     IPageOpener,
     ListAgents,
     Manifest,
+    Menu,
     ModuleContext,
     ModuleEvent,
     ModuleProtocol,
@@ -97,18 +99,24 @@ def snip_of(data: dict[str, Any]) -> dict[str, Any]:
             "file": str(data.get("file", "")), "heading": data.get("heading") or None}  # fmt: skip
 
 
+menu = Menu()
+
+
 class TalkerModule(ModuleProtocol):
     manifest = Manifest(
         id="talker",
         description="Talks with you, one Talker per agent tab; hands work to the Agent Hub",
-        optional=(IModuleDoor,),  # the agents' door to the module menus, from the Agent Hub
-        uses=(IPageOpener,),  # SHOW: whichever add-on opens pages, looked up at each tag
-        sends=(InvokeTool, AnswerPermissionRequest, ListAgents, StartProvider,),  # the Hub through its menu (hub.*), one road
-        publishes=(ResponseReady, SessionUsage, SessionTheme, ResetRequested, ShutdownRequested,),
-        listens=(InputReceived, TaskUpdated, FocusChanged, FocusSuggested, SessionUsage, ResetRequested,
+        optional=(IModuleDoor,),  # the agents' door to the module menus, from the core
+        uses=(IPageOpener, IAgentNames),  # SHOW: whichever add-on opens pages; talker.reset: who is you
+        # the Hub through its menu (hub.*), one road; ResetRequested: a RESET of this tab's agent (the Hub
+        # handles it); ShutdownRequested: the restart, after your Allow on its card (the core handles it)
+        sends=(InvokeTool, AnswerPermissionRequest, ListAgents, StartProvider, ResetRequested, ShutdownRequested,),
+        publishes=(ResponseReady, SessionUsage, SessionTheme,),
+        listens=(InputReceived, TaskUpdated, FocusChanged, FocusSuggested, SessionUsage,
                  PermissionModeChanged, PermissionRequested, PermissionChanged, AgentStateChanged, ModuleStateChanged,),
         listens_named=(VIEWER_TABS, *SNIP_EVENTS, SNIP_DROPPED),
     )  # fmt: skip
+    menu = menu
 
     async def init(self, ctx: ModuleContext) -> None:
         self.ctx = ctx
@@ -132,7 +140,7 @@ class TalkerModule(ModuleProtocol):
                                    ctx.config.get("restart_timeout", 120.0))  # fmt: skip
         self._main = self._new_session(self.worker_id)
         for event_type, handler in (
-            (InputReceived, self._on_input), (SessionUsage, self._on_usage), (ResetRequested, self._on_reset),
+            (InputReceived, self._on_input), (SessionUsage, self._on_usage),
             (TaskUpdated, self._on_task_updated), (FocusChanged, self._on_focus), (FocusSuggested, self._on_suggestion),
             (PermissionModeChanged, self._on_mode),
             (PermissionRequested, self._on_access_card), (PermissionChanged, self._on_access_changed),
@@ -387,15 +395,27 @@ class TalkerModule(ModuleProtocol):
         if (session := self._sessions.get(event.agent_id)) is not None:
             self.check_size(event.agent_id, event.context_tokens, session)
 
-    async def _on_reset(self, event: ResetRequested) -> None:
-        if event.agent_id == TALKER_ID:
+    @menu.item("talker.reset", "Start a Talker session fresh (it keeps its last few exchanges): 'talker' for the "
+               "main tab's, 'talker:<agent>' for a helper tab's. Only for the user (the app's Reset button)",
+               {"session": {"type": "string", "minLength": 1}}, required=["session"])  # fmt: skip
+    async def reset_item(self, session: str, caller: str = "") -> Result:
+        names = self.ctx.get_one(IAgentNames)
+        if names is None or not names.is_you(caller):
+            return Result.not_available("talker.reset is only for the user (the app's Reset button)")
+        return self.reset_session(session)
+
+    def reset_session(self, session_id: str) -> Result:
+        """Start Talker session `session_id` fresh, after the turn in progress (not mid-turn)."""
+        if session_id == TALKER_ID:
             session = self._main
-        elif event.agent_id.startswith(TALKER_ID + ":"):
-            session = self._sessions.get(event.agent_id.removeprefix(TALKER_ID + ":"))
+        elif session_id.startswith(TALKER_ID + ":"):
+            session = self._sessions.get(session_id.removeprefix(TALKER_ID + ":"))
         else:
-            return
-        if session is not None:
-            session.put(Item("", reset=True))  # not mid-turn: after the turn in progress
+            return Result.invalid_arguments(f"{session_id!r} isn't a Talker session ('talker' or 'talker:<agent>')")
+        if session is None:
+            return Result.not_available(f"No Talker session {session_id!r}")
+        session.put(Item("", reset=True))
+        return Result.ok(f"{session_id} resets after its turn")
 
     async def _on_snip(self, event: ModuleEvent) -> None:
         # html_viewer.clip or temp_ui.clip (a pasted image). Like the tabs note: it waits for your

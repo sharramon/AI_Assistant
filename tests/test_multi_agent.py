@@ -168,7 +168,8 @@ async def test_milestones_ends_and_notices_reach_the_coordinator(tmp_path):
         await app.router.send(ReportTask(task_id=own, kind=ReportKind.MILESTONE, text="mine"))
         assert "[main_assistant] mine" not in main.notes  # never its own
 
-        app.bus.publish(AgentNotice(agent_id="main_assistant", text="search finished", source="job_search"))
+        notice = AgentNotice(agent_id="main_assistant", text="search finished", source="job_search")
+        assert (await app.router.send(notice)).is_ok  # a command the Hub handles; a core send keeps `source`
         await wait_until(lambda: "[job_search] search finished" in main.notes)
         assert not helper.notes
     finally:

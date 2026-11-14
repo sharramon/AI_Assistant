@@ -2,8 +2,8 @@
 
 An agent module (the Main Assistant, `task_agents`, `job_search`, `cv`) owns one or more
 `ProfileAgent`s. Each used to write its own reset handler, grant handler and start sequence;
-the kit holds them: it provides each agent as `ITaskAgent`, resets the one a `ResetRequested`
-names, hands a changed grant to the agent that holds it, and opens an agent from its access
+the kit holds them: it provides each agent as `ITaskAgent` (the Hub resets one through
+`ITaskAgent.reset` on a `ResetRequested`), hands a changed grant to the agent that holds it, and opens an agent from its access
 list (ask, build, provide, start). The module keeps only what is its own.
 
 The module still declares what the kit and its agents use (principle 17), from the names below:
@@ -18,6 +18,7 @@ from typing import Any
 from assistant.contracts import (
     AccessDenied,
     AccessItem,
+    AddModule,
     AgentActivity,
     AgentStateChanged,
     IAgentNames,
@@ -27,8 +28,8 @@ from assistant.contracts import (
     ModuleContext,
     ModuleStateChanged,
     PermissionModeChanged,
+    ReloadModule,
     ReportTask,
-    ResetRequested,
     SessionUsage,
     StartProvider,
 )
@@ -40,10 +41,11 @@ from assistant.infra.profile_agent import ProfileAgent
 #: the door at each session start, the names at start and stop; and the page opener, at each SHOW.
 AGENT_USES = (IModuleDoor, IAgentNames, IPageOpener)
 #: Reports to the Hub; SHOW asks the core to start the page opener's module if none is on.
-AGENT_SENDS = (ReportTask, StartProvider)
+#: A RELOAD: / ADD_MODULE: last line sends ReloadModule / AddModule once you allow its card.
+AGENT_SENDS = (ReportTask, StartProvider, ReloadModule, AddModule)
 AGENT_PUBLISHES = (AgentActivity, AgentStateChanged, SessionUsage, PermissionModeChanged)
-#: The kit's resets; a ProfileAgent that starts before the door waits for a module to turn on.
-AGENT_LISTENS = (ResetRequested, ModuleStateChanged)
+#: Resets come through the Hub (`ResetRequested`, a command, calls `ITaskAgent.reset`).
+AGENT_LISTENS = (ModuleStateChanged,)
 
 
 class AgentKit:
@@ -52,7 +54,6 @@ class AgentKit:
     def __init__(self, ctx: ModuleContext) -> None:
         self._ctx = ctx
         self._agents: dict[str, ProfileAgent] = {}
-        ctx.subscribe(ResetRequested, self._on_reset)
 
     def add(self, agent: ProfileAgent) -> ProfileAgent:
         """Provide `agent` as `ITaskAgent` and keep it (for resets, grants, `busy` and `stop`)."""
@@ -112,8 +113,3 @@ class AgentKit:
         agents, self._agents = list(self._agents.values()), {}
         for agent in agents:
             await agent.stop()
-
-    async def _on_reset(self, event: ResetRequested) -> None:
-        agent = self._agents.get(event.agent_id or "")
-        if agent is not None and not (result := await agent.agent.reset()).is_ok:
-            self._ctx.log.warning("Couldn't reset %s: %s", agent.agent_id, result.error)

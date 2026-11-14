@@ -27,6 +27,11 @@ class Message(BaseModel):
 class Command(Message):
     """A request for exactly one handler to do something. Sent with `ModuleContext.send`."""
 
+    #: The sending module's id, stamped by the core on every send (a module never sets it);
+    #: `"core"` for the core's own. Handlers may trust it. (Not `sender`: `DeliverMessage`'s
+    #: `sender` is the agent a message is from.)
+    sent_by: str = ""
+
 
 class Event(Message):
     """A notification that something happened. Published with `ModuleContext.publish`."""
@@ -99,8 +104,11 @@ class ResponseReady(Event):
     agent_id: str | None = None
 
 
-class ShutdownRequested(Event):
-    """Asks the host to shut down cleanly. With `restart`, the launcher starts the app again."""
+class ShutdownRequested(Command):
+    """Asks the host to shut down cleanly. With `restart`, the launcher starts the app again.
+    A command the core handles (D5: events never control), so only a module that lists it in
+    `manifest.sends` can send it (today `console_io`'s exit words and the Talker's restart,
+    after your Allow on its confirm card); the stamped `sent_by` is logged."""
 
     reason: str = ""
     restart: bool = False

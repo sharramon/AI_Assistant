@@ -7,7 +7,7 @@ import logging
 
 import pytest
 
-from assistant.contracts import AccessDenied, ITaskAgent, ResetRequested, Result
+from assistant.contracts import AccessDenied, ITaskAgent, Result
 from assistant.infra import agent_kit
 from assistant.infra.agent_kit import AgentKit
 
@@ -58,14 +58,11 @@ class _Agent:
         self.access = config
 
 
-def test_add_provides_and_reset_reaches_only_its_agent():
+def test_add_provides_each_agent_and_reports_busy():
     ctx = _Ctx()
     kit = AgentKit(ctx)
     a, b = kit.add(_Agent("a")), kit.add(_Agent("b", busy="b is working on a task"))
     assert ctx.provided == [(ITaskAgent, a.agent), (ITaskAgent, b.agent)]
-    asyncio.run(ctx.subs[ResetRequested](ResetRequested(agent_id="b")))
-    asyncio.run(ctx.subs[ResetRequested](ResetRequested(agent_id="other")))
-    assert (a.agent.resets, b.agent.resets) == (0, 1)
     assert kit.get("a") is a and kit.busy() == "b is working on a task"
 
 

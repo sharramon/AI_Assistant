@@ -279,10 +279,14 @@ async def test_unanswered_permission_is_denied(tmp_path):
 RELOAD_GHOST = "[App] Reload the ghost module with its new code: "
 
 
-async def test_reload_request_in_auto_runs_at_once_and_reports_back(hub):
+async def test_reload_request_in_auto_still_asks_and_reports_back(hub):
+    """Auto never skips a reload or an add of code (restructuring item 0)."""
     app, updates = hub
     assert (await app.router.send(SetPermissionMode(agent_id="main_assistant", mode=PermissionMode.AUTO))).is_ok
-    await app.router.send(StartTask(text="RELOADME ghost"))
+    task_id = (await app.router.send(StartTask(text="RELOADME ghost"))).value
+    asked = await next_matching(updates, report(ReportKind.PERMISSION))
+    assert asked.text == "Reload the ghost module with its new code"
+    assert (await app.router.send(AnswerPermission(task_id=task_id, allow=True))).is_ok
     done = await next_matching(updates, report(ReportKind.DONE))
     assert done.text.startswith(RELOAD_GHOST + "failed: No module called 'ghost'") and "Continue the task" in done.text
 
@@ -476,7 +480,7 @@ async def test_reset_mid_task_hands_off(hub):
     app, updates = hub
     task_id = (await app.router.send(StartTask(text="SLOW job"))).value
     await next_matching(updates, lambda e: e.text == "started")
-    app.bus.publish(ResetRequested(agent_id="main_assistant"))
+    assert (await app.router.send(ResetRequested(agent_id="main_assistant"))).is_ok
     handed = await next_matching(updates, lambda e: e.text.startswith("Handed off"))
     assert handed.text.endswith("docs/next-steps/reset.md") and handed.task_id == task_id
     await app.router.send(CancelTask(task_id=task_id))
@@ -489,7 +493,7 @@ async def test_reset_when_idle_closes_the_session(hub):
     await app.router.send(StartTask(text="quick"))
     await next_matching(updates, report(ReportKind.DONE))
     await next_matching(sizes, lambda e: e.context_tokens > 0)
-    app.bus.publish(ResetRequested(agent_id="main_assistant"))
+    assert (await app.router.send(ResetRequested(agent_id="main_assistant"))).is_ok
     after = await next_matching(sizes, lambda e: e.context_tokens == 0)
     assert after.used_tokens == 1025  # usage isn't reset
     assert (await app.router.send(StartTask(text="after the reset"))).is_ok  # starts a new session

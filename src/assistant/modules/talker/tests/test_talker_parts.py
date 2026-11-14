@@ -13,12 +13,14 @@ from assistant.modules.talker.session import TAG_NAMES, TalkerSession
 class FakeCtx:
     def __init__(self) -> None:
         self.published: list = []
+        self.sent: list = []
         self.log = logging.getLogger("talker-parts")
 
     def publish(self, event) -> None:
         self.published.append(event)
 
     async def send(self, command) -> Result:
+        self.sent.append(command)
         return Result.ok([])
 
 
@@ -63,7 +65,8 @@ async def test_the_workers_ready_reply_saves_the_note_and_restarts(tmp_path) -> 
     text = note.read_text(encoding="utf-8")
     assert text.startswith("Do the docs next.") and APP_STATE_HEAD in text and RESTART_READY not in text
     assert flow.restarting and not flow.waiting
-    assert [type(e) for e in talker.ctx.published] == [ShutdownRequested]
+    assert [type(c) for c in talker.ctx.sent if isinstance(c, ShutdownRequested)] == [ShutdownRequested]  # a command now
+    assert talker.ctx.published == []
     await flow.close()
     assert note.exists()  # kept for the next launch
 

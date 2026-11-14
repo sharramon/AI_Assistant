@@ -73,7 +73,8 @@ class ConsoleIO(ModuleProtocol):
     manifest = Manifest(
         id="console_io",
         description="Terminal 1: type and read replies",
-        publishes=(InputReceived, ShutdownRequested,),
+        sends=(ShutdownRequested,),  # the exit words: a command the core handles
+        publishes=(InputReceived,),
         listens=(ResponseReady,),
     )
 
@@ -81,6 +82,7 @@ class ConsoleIO(ModuleProtocol):
         self._ctx = ctx
         self._prompt = ctx.config.get("prompt", "> ")
         self._awaiting: set[str] = set()  # ids of inputs we sent and haven't seen a reply to
+        self._sending: set[asyncio.Task] = set()  # a ShutdownRequested on its way
         ctx.subscribe(ResponseReady, self._on_response)
 
     async def start(self) -> None:
@@ -92,7 +94,10 @@ class ConsoleIO(ModuleProtocol):
 
     def _submit(self, text: str) -> None:
         if text in EXIT_WORDS:
-            self._ctx.publish(ShutdownRequested(reason="console exit"))
+            # _submit runs on the loop (stdin's callback); the send is a task, kept until it ends.
+            task = asyncio.get_running_loop().create_task(self._ctx.send(ShutdownRequested(reason="console exit")))
+            self._sending.add(task)
+            task.add_done_callback(self._sending.discard)
         elif not text:
             print(self._prompt, end="", flush=True)
         else:

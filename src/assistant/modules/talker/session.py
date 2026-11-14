@@ -25,6 +25,7 @@ from assistant.contracts import (
     PermissionRequested,
     ResetRequested,
     ResponseReady,
+    Result,
     TaskInfo,
 )
 from assistant.infra import (
@@ -60,6 +61,8 @@ def access_card_text(event: PermissionRequested) -> str:
     name = event.module_id if event.subject in ("", event.module_id) else f"{event.module_id} → {event.subject}"
     if event.action == "access":
         head = f"{name} asks for its access list"
+    elif event.action == "confirm":  # a risky step: ALLOW runs it, DENY runs nothing
+        return f"{event.caller or name} asks you to confirm: {event.reason}. ALLOW runs it; DENY runs nothing."
     elif event.action == "message":  # ALLOW sends it once; "Always allow" is the card's button
         head = f"{event.caller} wants to message {', '.join(i.target for i in event.items)} (ALLOW: this once)"
         return head + (f". {event.reason}" if event.reason else ".")
@@ -243,8 +246,10 @@ class TalkerSession:
             return await asyncio.wait_for(self._turn, 10)
 
     def command(self) -> list[str]:
-        """This tab's command line, with the module door when the Hub offers it. All three door
-        tools are allowed (the Talker has no permission cards); risky items still ask first."""
+        """This tab's command line, with the module door when the core offers it. All three door
+        tools are allowed (the Talker has no Claude Code prompts); every `use_item` still passes
+        the core's one gate in `dispatch_tool`: items marked `ask` show you a confirm card first
+        (the Talker is never in Auto, so `ask="risky"` items card too)."""
         ctx, talker = self.talker.ctx, self.talker
         door = ctx.get_one(IModuleDoor) if ctx.config.get("door", True) else None
         mcp = door.mcp_config(talker.manifest.id) if door is not None else {}
@@ -373,14 +378,25 @@ class TalkerSession:
             self.status(f"Couldn't pass that to {self.talker.name(self.partner)}: {result.error}")
 
     async def _tag_reset(self, tag: str, argument: str, item: Item) -> None:
-        target = self.id if argument.lower().startswith("talker") else self.partner
-        self.talker.ctx.publish(ResetRequested(agent_id=target))
+        if argument.lower().startswith("talker"):  # this Talker's own session: its own code
+            self.talker.reset_session(self.id)
+            return
+        result = await self.talker.ctx.send(ResetRequested(agent_id=self.partner))  # the Hub handles it
+        if not result.is_ok:
+            self.status(f"Couldn't reset {self.talker.name(self.partner)}: {result.error}")
 
     async def _tag_restart(self, tag: str, argument: str, item: Item) -> None:
         if not self.main:
             self.status(RESTART_HERE)
             return
-        await self.talker.restart.ask()
+
+        async def restart() -> Result:
+            await self.talker.restart.ask()
+            return Result.ok("the Main Assistant writes the reset note, then the app restarts")
+
+        # Never without your yes on a confirm card, in Auto too; the card's answer runs it.
+        result = await self.talker.ctx.permissions.confirm("restart the app", restart, caller=self.id)
+        self.status(result.value if result.is_ok else f"Couldn't ask to restart: {result.error}")
 
     async def _tag_answer(self, tag: str, argument: str, item: Item) -> None:
         """ALLOW / DENY: answer one open permission card."""

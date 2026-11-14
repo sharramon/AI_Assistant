@@ -277,7 +277,12 @@ async def test_the_submit_watch_delivers_live_submits_and_only_reminds_missed_on
     notices: asyncio.Queue[ResponseReady] = asyncio.Queue()
     app.bus.subscribe(ResponseReady, notices.put)
     agent_notes: asyncio.Queue[AgentNotice] = asyncio.Queue()
-    app.bus.subscribe(AgentNotice, agent_notes.put)
+
+    async def hub_stand_in(notice: AgentNotice) -> Result:  # AgentNotice is a command the Hub handles
+        agent_notes.put_nowait(notice)
+        return Result.ok()
+
+    app.router.register(AgentNotice, hub_stand_in)
     await app.start()
     seen = tmp_path / "cv_tool" / "submits_seen.json"
     try:
