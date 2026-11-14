@@ -25,6 +25,7 @@ from assistant.contracts import (
     PermissionRequested,
     ReportKind,
     ReportTask,
+    Result,
     StartTask,
     Status,
 )
@@ -113,6 +114,43 @@ def test_protected_zone_is_refused_and_the_three_warnings(tmp_path):
     assert rule_warnings([ws, outside]) == []
 
 
+def test_an_outside_config_folder_is_protected_like_config(tmp_path):
+    outside = tmp_path / "outside_config"
+    zone = protected_paths(tmp_path / "permissions.toml", outside)
+    assert protected_paths(tmp_path / "permissions.toml") == zone[:-1]  # None: the zone as before
+    assert protected_paths(tmp_path / "permissions.toml", REPO / "config") == zone[:-1]  # the repo's: no duplicate
+    write = lambda p: AccessItem(kind=AccessKind.WRITE, target=str(p))  # noqa: E731
+    inside, parent, sibling = write(outside / "x"), write(tmp_path), write(tmp_path / "other")
+    read = AccessItem(kind=AccessKind.READ, target=str(outside))
+    refused = refusals([inside, parent, sibling, read], zone)
+    assert set(refused) == {inside.key, parent.key}  # reading it and a sibling folder stay allowed
+    assert "outside_config" in refused[inside.key]
+
+
+async def test_the_app_refuses_a_write_into_its_outside_config_folder(tmp_path):
+    folder, holder = tmp_path / "cfg", {}
+    items = [AccessItem(kind=AccessKind.WORKSPACE, target=str(tmp_path / "ws")),
+             AccessItem(kind=AccessKind.WRITE, target=str(folder)),
+             AccessItem(kind=AccessKind.READ, target=str(folder))]  # fmt: skip
+    config = {"modules": {"enabled": ["jobs"], "jobs": {"items": [i.key for i in items]}},
+              "core": {"permissions": {"grants_file": str(tmp_path / "permissions.toml"), "reviewer": "", "you": ["temp_ui"]}}}  # fmt: skip
+    app = App([jobs_module(holder)], config, config_dir=folder)
+    events: list = []
+
+    async def record(event):
+        events.append(event)
+
+    app.bus.subscribe(PermissionRequested, record)
+    await app.start()
+    try:
+        await wait_until(lambda: cards(events))
+        card = cards(events)[0]
+        assert [i.key for i in card.items] == [items[0].key, items[2].key]  # the write is taken off; the read stays
+        assert [n.items for n in card.notes if n.source == "refused"] == [(items[1].key,)]
+    finally:
+        await app.stop()
+
+
 # --- the access card, through the app ---
 
 
@@ -155,7 +193,7 @@ async def start(modules: list[type], tmp_path: Path, items: list[AccessItem], **
     async def record(event):
         events.append(event)
 
-    for kind in (PermissionRequested, PermissionChanged, AgentNotice):
+    for kind in (PermissionRequested, PermissionChanged):
         app.bus.subscribe(kind, record)
     await app.start()
     return app, events
@@ -293,6 +331,12 @@ async def test_grant_and_revoke_from_you(tmp_path):
 async def test_an_agents_grant_or_revoke_waits_for_your_card(tmp_path):
     holder: dict = {}
     app, events = await allowed_app(tmp_path, holder)
+
+    async def hub_stand_in(notice: AgentNotice) -> Result:  # AgentNotice is a command the Hub handles
+        events.append(notice)
+        return Result.ok()
+
+    app.router.register(AgentNotice, hub_stand_in)
     try:
         chrome = AccessItem(kind=AccessKind.CHROME).key
         asked = await call(app, "permissions.grant", "main_assistant", module_id="jobs", items=[chrome])

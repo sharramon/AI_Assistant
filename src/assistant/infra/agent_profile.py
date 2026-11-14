@@ -4,6 +4,10 @@ Every task agent (the Main Assistant today, the `task_agents` profiles next) dif
 config, so the folder and access code lives here once. `AgentProfile.command` builds the
 session's command for a permission mode; `prompt_block` is the part of every agent's prompt
 that explains the two kinds of message (`STATUS:` for the coordinator, `NEED:` for you).
+
+A module's own agent (`repo_claude_md = false`: cv's, the job agent) skips the repo's CLAUDE.md
+(`claudeMdExcludes`, passed with `--settings`) and gets the short developer rules in its prompt
+instead (`developer_rules.md`, beside this file), with its module's folder and docs named.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from assistant.contracts import PermissionMode
+from assistant.infra.agent_access import REPO_FOLDER
 from assistant.infra.claude_session import claude_command, path_rule
 from assistant.infra.mcp_door import READ_ONLY as DOOR_READ_TOOLS
 
@@ -53,6 +58,9 @@ fresh session, reopen the note's URLs in your own tab group; don't look for the 
 still need it, while a question to the user is about it, and across a handoff. Before your \
 final reply, close each tab of yours you don't need any more (`tabs_context_mcp` lists them), \
 except one the user should act on (a filled form for them to submit): name that one in the reply.
+- If a call answers that a module isn't on, tell the user which module and ask whether to turn \
+it on (a NEED line). Never turn it on without their yes; on yes, turn it on yourself \
+(`modules.on` with its id) and carry on.
 - When you're finished, end with a short summary of what you did."""
 
 # The two kinds of message (multi-agent, section 8), for a helper agent.
@@ -85,8 +93,8 @@ Before a very risky step, stop and ask first: end your turn with \
 `NEED: Risky: <what you want to do and why>`. Continue once the user answers. Very risky means:
 - deleting data or files beyond what the task needs
 - rewriting git history (`reset --hard`, `rebase`, force anything, deleting branches)
-- changing secrets, credentials, or settings (`config/`, `.env`, `.claude/settings*`, \
-system or account settings)
+- changing secrets, credentials, or settings (the app's config folder: `config/`, or the one \
+`ASSISTANT_CONFIG_DIR` names; `.env`, `.claude/settings*`, system or account settings)
 - installing, upgrading, or removing packages or programs
 - spending money, or calling a paid service
 - sending anything outside this machine (email, posts, uploads)
@@ -104,7 +112,29 @@ AUTO_CLAUDE_MODE = "bypassPermissions"
 MANUAL_CLAUDE_MODES = ("default", "acceptEdits", "plan")
 MANUAL_FALLBACK = "acceptEdits"
 
+# The short developer rules a module's own agent gets instead of the repo's CLAUDE.md.
+DEVELOPER_RULES = Path(__file__).with_name("developer_rules.md")
+
 log = logging.getLogger(__name__)
+
+
+def repo_claude_md_files(repo: Path = REPO_FOLDER) -> list[str]:
+    """The repo's own CLAUDE.md files (absolute, forward slashes, the form checked live with claude
+    2.1.325 on 2026-11-13), for `claudeMdExcludes`. A workspace's own CLAUDE.md (the job project's)
+    is not among them, so it still loads."""
+    return [(repo / name).as_posix() for name in ("CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md")]
+
+
+def developer_rules(module_folder: str | None) -> str:
+    """The short developer rules (`developer_rules.md`) for a module's own agent, with its module's
+    folder, its docs page, the reusable parts index and the repo's Python filled in."""
+    folder = Path(module_folder) if module_folder else None
+    return DEVELOPER_RULES.read_text(encoding="utf-8").format(
+        module_folder=folder or "(none)",
+        module_docs=folder / "docs" / "README.md" if folder else "(none)",
+        reusable=REPO_FOLDER / "docs" / "api" / "reusable.md",
+        python=REPO_FOLDER / ".venv" / "Scripts" / "python" if os.name == "nt" else REPO_FOLDER / ".venv" / "bin" / "python",
+    )
 
 
 def manual_claude_mode(value: Any) -> str:
@@ -138,14 +168,21 @@ class AgentProfile:
     chrome: bool = False  # the Claude in Chrome tools (`--chrome`)
     python: str | None = None  # a Python it may run, with any arguments
     requests: bool = False  # it holds an access list and may ask for more (`permissions.request`)
+    repo_claude_md: bool = True  # false: a module's own agent, which skips the repo's CLAUDE.md
+    module_folder: str | None = None  # its module's own folder, named in its developer rules
 
     @classmethod
     def from_config(cls, agent_id: str, config: dict[str, Any], role_block: str = HELPER_BLOCK) -> AgentProfile:
         """From a config section: `workspace`, `read_dirs`, `write_dirs`, `allowed_commands`,
         `python`, `tools`, `model`, `permission_mode` (a Manual claude mode only:
         `manual_claude_mode`), `permission_prompts`, `program`, `chrome`, `permission_requests`
-        (its prompt says how to ask for more access). A task-agent module passes the granted
-        config (`agent_access.granted_config`)."""
+        (its prompt says how to ask for more access), `repo_claude_md` (true or false; false: skip
+        the repo's CLAUDE.md for the developer rules) and `module_folder`. A task-agent module
+        passes the granted config (`agent_access.granted_config`). ValueError if `repo_claude_md`
+        isn't true or false."""
+        repo_claude_md = config.get("repo_claude_md", True)
+        if not isinstance(repo_claude_md, bool):
+            raise ValueError(f"{agent_id}: repo_claude_md must be true or false, not {repo_claude_md!r}")
         return cls(
             agent_id=agent_id,
             workspace=Path(config.get("workspace", "workspace")).resolve(),
@@ -161,6 +198,8 @@ class AgentProfile:
             role_block=role_block,
             chrome=bool(config.get("chrome", False)),
             requests=bool(config.get("permission_requests", False)),
+            repo_claude_md=repo_claude_md,
+            module_folder=str(config.get("module_folder") or "") or None,
         )
 
     def write_folders(self) -> tuple[str, ...]:
@@ -179,6 +218,9 @@ class AgentProfile:
         `bypassPermissions`, the `git push` block, and the risky-step rule in the prompt.
         With the door, its two read-only tools are allowed; `use_item` asks with a card in
         Manual, like any tool outside the rules.
+
+        Without `repo_claude_md` (a module's own agent), `--settings` excludes the repo's CLAUDE.md
+        files (`claudeMdExcludes`) and the prompt ends with the developer rules instead.
         """
         allowed = [path_rule("Read", d) for d in self.read_dirs] + [path_rule("Edit", d) for d in self.write_dirs]
         if snips:
@@ -190,7 +232,7 @@ class AgentProfile:
             allowed += list(DOOR_READ_TOOLS)
         if self.chrome:
             allowed += list(CHROME_TAB_TOOLS)  # listing and closing its own tabs asks no card
-        auto =mode is PermissionMode.AUTO
+        auto = mode is PermissionMode.AUTO
         return claude_command(
             model=self.model,
             tools=self.tools,
@@ -199,10 +241,12 @@ class AgentProfile:
             disallowed=AUTO_BLOCKED if auto else (),
             permission_prompts=self.permission_prompts,
             system_prompt=prompt + prompt_block(self.role_block) + self.access(mode, snips)
-            + (REQUEST_PROMPT if self.requests and door else "") + (DOOR_PROMPT if door else ""),
+            + (REQUEST_PROMPT if self.requests and door else "") + (DOOR_PROMPT if door else "")
+            + ("" if self.repo_claude_md else developer_rules(self.module_folder)),
             program=list(self.program),
             mcp_config=door or None,
             chrome=self.chrome,
+            settings=None if self.repo_claude_md else {"claudeMdExcludes": repo_claude_md_files()},
         )
 
     def access(self, mode: PermissionMode, snips: str | None = None) -> str:

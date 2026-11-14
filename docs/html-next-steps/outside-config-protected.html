@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A config folder outside the repo is protected like the repo&#x27;s config/</title>
+<!-- Generated from docs/next-steps/outside-config-protected.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="outside-config-protected.html"></nav>
+<main>
+<h1 id="a-config-folder-outside-the-repo-is-protected-like-the-repos-config">A config folder outside the repo is protected like the repo's config/</h1>
+<p>Status: <strong>built, waiting for the app restart</strong> (batched with the other pending changes; not restarted). 2026-11-13. Decision 1 approved: same way as <code>config/</code>. Built as the recommended fix below; tests <code>test_an_outside_config_folder_is_protected_like_config</code> and <code>test_the_app_refuses_a_write_into_its_outside_config_folder</code> in <code>tests/test_permissions_handler.py</code>. Audit question 4 (<a href="architecture-docs-audit.html#for-the-user-to-decide">architecture docs audit</a>).</p>
+<h2 id="the-problem">The problem</h2>
+<p>Your settings can live outside the repo: <code>ASSISTANT_CONFIG_DIR</code> (or <code>App(config_dir=...)</code>) points the app at another folder, for example on a server. The rule that no agent is ever granted a write to <code>config/</code> only knows the repo's <code>config/</code>. An outside config folder holds the same files (<code>default.toml</code>, <code>local.toml</code>, <code>&lt;id&gt;.toml</code>), including <code>[core.permissions] you</code>, <code>relays</code> and <code>reviewer</code>, so an agent with a write grant there could make itself "you" at the next launch.</p>
+<p><strong>What the docs say now:</strong> permissions.md, Known gaps: "the protected zone is the repo's <code>config/</code>. A folder set by <code>ASSISTANT_CONFIG_DIR</code> isn't in it (to confirm with you)". The audit lists it at <code>rules.py:21-27</code>, and decisions.md has it under Known gaps.</p>
+<h2 id="what-the-code-does-today">What the code does today</h2>
+<ul>
+<li><strong>Where the config folder comes from:</strong> <code>config_folder()</code> in <code>src/assistant/infra/config.py:40-42</code> (<code>config_dir</code>, else <code>ASSISTANT_CONFIG_DIR</code>, else <code>./config</code>). <code>App.__init__</code> keeps it as <code>self._config_dir</code> (<code>core/app.py:81</code>), used only for <code>RemoveModule</code>'s purge.</li>
+<li><strong>How the repo's config/ is protected:</strong> <code>PROTECTED</code> in <code>core/permissions/rules.py:21-27</code> holds paths <em>relative to the repo</em> (<code>"config"</code> among them). <code>protected_paths(grants_file)</code> (<code>rules.py:39-41</code>) turns them into <code>REPO / p</code> and adds the grants file in use. <code>PermissionsHandler.__init__</code> stores that as <code>self._protected</code> (<code>handler.py:173</code>). <code>refusals()</code> (<code>rules.py:52-64</code>) takes a write off any access list when the folder is in the zone or holds part of it, in all four places it's used (<code>handler.py:224</code> Auto, <code>:352</code>, <code>:383</code>, <code>:481</code>).</li>
+<li><strong>What's missing:</strong> <code>PermissionsHandler.from_config</code> (<code>handler.py:194-207</code>) is never told the config folder, so <code>protected_paths</code> never adds it. App builds the handler (<code>app.py:102-105</code>) right after it has <code>self._config_dir</code>, but doesn't pass it.</li>
+<li><strong>The grants file isn't affected:</strong> <code>GRANTS_FILE</code> is <code>REPO / "config" / "permissions.toml"</code> (<code>handler.py:76</code>), whatever <code>ASSISTANT_CONFIG_DIR</code> says, and a custom <code>grants_file</code> is protected already (<code>protected_paths</code> adds it).</li>
+<li><strong>Not involved:</strong> <code>infra/agent_access.py</code> (builds the lists; refusing is the handler's job) and the Hub's folder check (<code>agent_hub/tasks.py:515-534</code>, <code>folders_clash</code>: two agents writing the same folder, nothing about protection).</li>
+<li><strong>Text only, not enforced:</strong> the fixed card warning (<code>rules.py:32</code>) and the Auto risky-step rule (<code>infra/agent_profile.py:96</code>, <code>AUTO_ACCESS</code>) both say <code>config/</code>. Neither names an outside folder.</li>
+<li><strong>Same limit as today:</strong> the protection holds for access lists (task agents). The Main Assistant isn't on an access list; in Auto it has full permissions, so for it the risky-step text is the only guard, for the repo's <code>config/</code> too.</li>
+</ul>
+<h2 id="options">Options</h2>
+<ol>
+<li><strong>Protect the outside folder by the same rule (recommended).</strong> The handler adds the config folder in use to its protected zone. A write into it, or into a folder holding it, is refused on every list, in Manual and Auto. Reading stays allowed, as for the repo's <code>config/</code>.</li>
+<li><strong>Refuse agents any access to it</strong>, reads too. Stricter than the repo's own <code>config/</code>, and it would break an agent that reads its module's choices file. No need found.</li>
+<li><strong>Both:</strong> option 1, plus refusing reads. Same cost as 2.</li>
+</ol>
+<h2 id="recommended-fix-option-1">Recommended fix (option 1)</h2>
+<ul>
+<li><strong><code>core/permissions/rules.py</code>:</strong> <code>protected_paths(grants_file, config_dir=None)</code> adds the resolved <code>config_dir</code> when given (deduplicated, as now). Update its docstring and the module docstring. Change <code>FIXED_RULES[1]</code> from "config/" to "the config folder (config/, or the one ASSISTANT_CONFIG_DIR names)".</li>
+<li><strong><code>core/permissions/handler.py</code>:</strong> <code>PermissionsHandler.__init__</code> takes <code>config_dir: Path | None = None</code> and passes it to <code>protected_paths</code>. <code>from_config(..., config_dir=None)</code> passes it on. Docstrings say so.</li>
+<li><strong><code>core/app.py</code>:</strong> pass <code>config_dir=self._config_dir</code> in the <code>PermissionsHandler.from_config</code> call (<code>app.py:102-105</code>).</li>
+<li><strong><code>infra/agent_profile.py</code>:</strong> <code>AUTO_ACCESS</code>'s risky-step line names "the app's config folder (<code>config/</code>, or the one <code>ASSISTANT_CONFIG_DIR</code> names)". Kept as text: the prompt doesn't need the path filled in.</li>
+</ul>
+<p><strong>Tests:</strong></p>
+<ul>
+<li><code>tests/test_permissions_handler.py</code>: extend <code>test_protected_zone_is_refused_and_the_three_warnings</code> (or add one beside it). With <code>protected_paths(tmp_path / "permissions.toml", tmp_path / "outside_config")</code>, a write to <code>outside_config/x</code> and a write to its parent are refused; a read of it is not; a sibling folder is not.</li>
+<li>One through the app: an <code>App(config_dir=tmp)</code> whose fake agent module asks for a write on <code>tmp</code> gets it refused (reuse <code>jobs_module</code> in the same file).</li>
+<li>Check that the existing tests still pass with <code>config_dir</code> defaulting to None.</li>
+</ul>
+<p><strong>Docs:</strong></p>
+<ul>
+<li><code>docs/architecture/permissions.md</code>: the Protected row of the repo-zones table adds "or the config folder <code>ASSISTANT_CONFIG_DIR</code> names"; drop the Known gaps bullet.</li>
+<li><code>docs/architecture/decisions.md</code>: drop the gap from Known gaps.</li>
+<li><code>docs/api/core.md</code> (<code>App</code> <code>config_dir</code> row): add that the permissions handler protects it.</li>
+<li><code>docs/next-steps/architecture-docs-audit.md</code>: question 4 marked answered, with a link here.</li>
+<li>Rebuild the docs.</li>
+</ul>
+<p><strong>Restart:</strong> an <strong>app restart</strong> (core and infra code). No module reload.</p>
+<h2 id="decisions-for-the-user">Decisions for the user</h2>
+<ol>
+<li>Protect an outside config folder the same way as the repo's <code>config/</code> (writes refused, reads allowed), or also refuse reads? <strong>Recommended: same way as <code>config/</code>, writes refused only.</strong></li>
+</ol>
+<footer>Generated from <code>docs/next-steps/outside-config-protected.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

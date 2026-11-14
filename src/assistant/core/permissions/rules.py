@@ -1,7 +1,9 @@
 """The handler's guardrails, kept in the protected zone so no agent can edit them.
 
 `PROTECTED`: the paths no agent is ever granted to write (the repo-zones table in
-docs/architecture/permissions.md mirrors it; if they disagree, this code wins). `refusals` takes
+docs/architecture/permissions.md mirrors it; if they disagree, this code wins). `protected_paths`
+adds the grants file in use and the app's config folder (a folder ASSISTANT_CONFIG_DIR names is
+protected like the repo's config/). `refusals` takes
 them off a list; `rule_warnings` gives the fixed, predictable warnings shown on every card.
 """
 
@@ -29,16 +31,20 @@ PROTECTED = (
 FIXED_RULES = (
     "Never submit or send anything: a rule in its prompt that you can't trim. Chrome can't be limited "
     "to some actions, so this depends on the model following it; it isn't enforced in code.",
-    "Protected paths (the permissions handler, its grants, config/, .claude/settings*) are never granted.",
+    "Protected paths (the permissions handler, its grants, the config folder (config/, or the one "
+    "ASSISTANT_CONFIG_DIR names), .claude/settings*) are never granted.",
     "Sessions start in Manual: anything outside this list asks you with a card; Auto stays your button.",
 )
 
 WRITES = (AccessKind.WORKSPACE, AccessKind.WRITE)
 
 
-def protected_paths(grants_file: Path) -> tuple[Path, ...]:
-    """The protected paths, resolved, with the grants file actually in use."""
-    return tuple(dict.fromkeys([*(REPO / p for p in PROTECTED), grants_file]).keys())
+def protected_paths(grants_file: Path, config_dir: Path | None = None) -> tuple[Path, ...]:
+    """The protected paths, resolved, with the grants file actually in use and, when given, the
+    config folder in use (`App._config_dir`: an ASSISTANT_CONFIG_DIR folder outside the repo is
+    protected like `config/`; writes refused, reads allowed). Duplicates are dropped."""
+    extra = [Path(config_dir).resolve()] if config_dir is not None else []
+    return tuple(dict.fromkeys([*(REPO / p for p in PROTECTED), grants_file, *extra]).keys())
 
 
 def _norm(path: str | Path) -> PurePath:
