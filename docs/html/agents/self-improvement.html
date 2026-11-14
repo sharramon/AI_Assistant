@@ -39,7 +39,7 @@
 <li><strong>Every change is on its own branch.</strong> The Main Assistant never edits <code>main</code>.</li>
 <li><strong>Tests run on the new version</strong> before you're asked to approve: <code>pytest</code>, <code>ruff</code>, and the docs check, the same as CI.</li>
 <li><strong>You approve each merge.</strong> Nothing lands until you say so.</li>
-<li><strong>Reload to run new code.</strong> Reload the changed module, or add a new one (<a href="../architecture/core.html#reloading-a-modules-code">core</a>): the Main Assistant ends its turn with <code>RELOAD: &lt;id&gt;</code> or <code>ADD_MODULE: &lt;package&gt;</code>, sent at once in Auto, asked as an Allow / Deny card in Manual (<a href="runtime.html#loading-new-code">runtime</a>). Restart only for changes to the core, contracts or shared helpers, including a new contract or port type.</li>
+<li><strong>Reload to run new code.</strong> Reload the changed module, or add a new one (<a href="../architecture/core.html#reloading-a-modules-code">core</a>): the Main Assistant ends its turn with <code>RELOAD: &lt;id&gt;</code> or <code>ADD_MODULE: &lt;package&gt;</code>, asked as an Allow / Deny card in Manual and in Auto (<a href="runtime.html#loading-new-code">runtime</a>). Restart only for changes to the core, contracts or shared helpers, including a new contract or port type.</li>
 <li><strong>Later:</strong> CI/CD on the branch, and trying the new version side by side before merging.</li>
 </ul>
 <h2 id="permissions">Permissions</h2>

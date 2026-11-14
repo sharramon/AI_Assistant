@@ -10,7 +10,7 @@ Replies with the input text; `/tools` lists the available tools. It exists to pr
 |-------|-------|
 | id | `echo_orchestrator` |
 | provides / requires | nothing |
-| optional | [`IToolProvider`](../../../../../docs/api/tools.md#itoolprovider) (to list tools) |
+| optional | [`IToolProvider`](../../../../../docs/api/tools.md#itoolprovider) (a module that provides it itself; menus are listed through `ListModules` / `GetMenu`) |
 | menu | a [`Menu`](../../../../../docs/api/modules.md#menu) with one item, `echo.say` ([Tools](tools.md)) |
 | permissions | none |
 | needs | none ([`Manifest.needs`](../../../../../docs/api/modules.md#manifest), from its `module.toml`) |

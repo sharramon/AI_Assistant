@@ -31,7 +31,7 @@
 </tr>
 <tr>
 <td>Calls</td>
-<td><a href="../../api/messaging.html#startlistening"><code>StartListening</code></a> with <code>send_as_input=False</code>, <a href="../../api/messaging.html#stoplistening"><code>StopListening</code></a> (<code>discard=True</code> when the module stops mid-recording)</td>
+<td>the voice contract <a href="../../api/messaging.html#ivoice"><code>IVoice</code></a>: <code>listen(session_id, VoiceDestination.CALLER)</code> (the words go to this page only, not the Talker), <code>finish(session_id)</code> (<code>discard=True</code> when the module stops mid-recording); it sends no commands</td>
 </tr>
 <tr>
 <td>Publishes</td>
@@ -49,7 +49,7 @@
 </table>
 <h2 id="owns-and-launches">Owns and launches</h2>
 <ul>
-<li><strong>A page server</strong> on <code>127.0.0.1:8770</code> (standard library; cut down from the temp UI's).</li>
+<li><strong>A page server</strong> on <code>127.0.0.1:8770</code> (standard library; cut down from the temp UI's). It answers 403 to a request from another host or another origin (<a href="../../api/app_kit.html#local_guard"><code>local_request</code></a>), so only a page on this machine drives it.</li>
 <li><strong>An Edge app window</strong> for the page (<code>window = "app"</code>), closed when the module stops.</li>
 <li><strong>The notes themselves</strong> live in the page's local storage, not in the app.</li>
 <li>It launches nothing else; <code>voice_in</code> launches the voice service.</li>

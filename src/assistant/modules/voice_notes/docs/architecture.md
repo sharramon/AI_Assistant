@@ -6,14 +6,14 @@
 |---|---|
 | Tools | none |
 | Handles | nothing |
-| Calls | [`StartListening`](../../../../../docs/api/messaging.md#startlistening) with `send_as_input=False`, [`StopListening`](../../../../../docs/api/messaging.md#stoplistening) (`discard=True` when the module stops mid-recording) |
+| Calls | the voice contract [`IVoice`](../../../../../docs/api/messaging.md#ivoice): `listen(session_id, VoiceDestination.CALLER)` (the words go to this page only, not the Talker), `finish(session_id)` (`discard=True` when the module stops mid-recording); it sends no commands |
 | Publishes | nothing |
 | Listens to | [`VoiceState`](../../../../../docs/api/messaging.md#voicestate), [`VoiceTranscript`](../../../../../docs/api/messaging.md#voicetranscript): only sessions it started |
 | Its page | `GET /` the page, `GET /events` (Server-Sent Events: a `voice` item with state, detail, live text and `settled`; a `final` item with each recording's text), `POST /record` `{"on": true \| false}` |
 
 ## Owns and launches
 
-- **A page server** on `127.0.0.1:8770` (standard library; cut down from the temp UI's).
+- **A page server** on `127.0.0.1:8770` (standard library; cut down from the temp UI's). It answers 403 to a request from another host or another origin ([`local_request`](../../../../../docs/api/app_kit.md#local_guard)), so only a page on this machine drives it.
 - **An Edge app window** for the page (`window = "app"`), closed when the module stops.
 - **The notes themselves** live in the page's local storage, not in the app.
 - It launches nothing else; `voice_in` launches the voice service.

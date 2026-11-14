@@ -29,7 +29,11 @@
 </tr>
 <tr>
 <td>provides / requires / optional</td>
-<td>optional <code>IModuleDoor</code> (the module door, from the Agent Hub)</td>
+<td>optional <code>IModuleDoor</code> (the module door, from the core); uses <code>IAgentNames</code> (the core's Callers, for <code>talker.reset</code>) and <code>IPageOpener</code></td>
+</tr>
+<tr>
+<td>menu</td>
+<td><code>talker.reset(session)</code>, only for you (<a href="tools.html">Tools</a>)</td>
 </tr>
 <tr>
 <td>permissions</td>
@@ -49,7 +53,7 @@
 <p>Defaults in <code>module.toml</code> in this module's folder, with their comments; your <code>config/talker.toml</code> (top-level keys, gitignored; <code>[modules.talker]</code> in <code>config/local.toml</code> still works, last) only overrides them, key by key (<a href="../../api/core.html#app">how a module's config is built</a>). <code>config/default.toml</code> has no section for it. The keys: <code>model</code> (every tab's), <code>turn_timeout</code>, <code>context_exchanges</code>, <code>context_warning</code>, <code>transcript</code> (the main tab's name; a helper's gets <code>-&lt;agent&gt;</code>), <code>restart_note</code>, <code>restart_timeout</code>, <code>door</code>.</p>
 <h2 id="code-and-tests">Code and tests</h2>
 <ul>
-<li><code>src/assistant/modules/talker/module.py</code> (the router), <code>session.py</code> (<code>TalkerSession</code>), <code>prompt.py</code> (<code>talker_prompt</code>), <code>restart.py</code> (<code>RestartFlow</code>), <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>)</li>
+<li><code>src/assistant/modules/talker/module.py</code> (the router), <code>session.py</code> (<code>TalkerSession</code>), <code>prompt.py</code> (<code>talker_prompt</code>), <code>restart.py</code> (<code>RestartFlow</code>: the restart after your Allow on its confirm card, sent as the <code>ShutdownRequested</code> command), <code>module.toml</code> (defaults, <code>needs</code>, <code>packages</code>)</li>
 <li>In this folder's <code>tests/</code> (on the <a href="../../api/testkit.html">test kit</a>): <code>test_talker.py</code> (tags, the session theme, the context warnings, a reset, spoken input, its defaults under <code>module.toml</code>), <code>test_talker_snips.py</code> (snips, a pasted image, the viewer's open tabs), <code>test_talker_parts.py</code>, <code>test_talker_prompt.py</code></li>
 <li>Centrally, with the Hub and a worker or temp_ui: <code>tests/test_agents.py</code>, <code>test_agent_tags.py</code>, <code>test_restart.py</code>, <code>test_talker_agents.py</code>, <code>test_mcp_door.py</code>, <code>test_permission_mode.py</code>, <code>test_usage.py</code> (its <code>[Usage]</code> line)</li>
 <li><code>docs/</code>: this overview, <a href="architecture.html">Architecture</a>, <a href="tools.html">Tools</a> (generated from its menu), and <code>docs.toml</code> (its docs tab and group)</li>

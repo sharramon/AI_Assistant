@@ -14,7 +14,27 @@
 <h1 id="talker-tools">talker: tools</h1>
 <!-- tools:start (generated from the module's menu by scripts/build_docs.py; don't edit) -->
 
-<p>No menu: the agents can't call this module as a tool.</p>
+<p>Its menu, as the main AI sees it (<code>modules.menu</code>). Every item is called with <code>modules.use_item</code>.</p>
+<h2 id="talkerreset"><code>talker.reset</code></h2>
+<p>Start a Talker session fresh (it keeps its last few exchanges): 'talker' for the main tab's, 'talker:<agent>' for a helper tab's. Only for the user (the app's Reset button)</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>session</code></td>
+<td>string</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <!-- tools:end -->
 <footer>Generated from <code>src/assistant/modules/talker/docs/tools.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
 </main>

@@ -10,7 +10,7 @@ Builds the helper agents beside the Main Assistant from *kinds* of helper in con
 |-------|-------|
 | id | `task_agents` |
 | provides | [`ITaskAgent`](../../../../../docs/api/agents.md#itaskagent), once per helper (only the Hub calls them) |
-| requires / optional | none (uses [`IAgentNames`](../../../../../docs/api/agents.md#iagentnames) when the Hub runs) |
+| requires / optional | none (uses [`IAgentNames`](../../../../../docs/api/agents.md#iagentnames), the core's Callers: the names, and `is_you` for who is you) |
 | needs | none ([`Manifest.needs`](../../../../../docs/api/modules.md#manifest), from its `module.toml`): a core module, it needs no other module by id; launching a helper goes through the Hub (`StartTask`) |
 | packages | none |
 | permissions | `agent.access`: each kind's access list is asked for on one card ([access lists](../../../../../docs/architecture/permissions.md#access-lists-built)) |

@@ -27,11 +27,11 @@
 </tr>
 <tr>
 <td>Handles</td>
-<td>nothing: it is called through <code>ITaskAgent</code> (<code>assign</code>, <code>message</code>, <code>cancel</code>, <code>answer_permission</code>, <code>set_permission_mode</code>, <code>note</code>)</td>
+<td>nothing: it is called through <code>ITaskAgent</code> (<code>assign</code>, <code>message</code>, <code>cancel</code>, <code>answer_permission</code>, <code>set_permission_mode</code>, <code>note</code>, <code>reset</code>). The Hub calls <code>note</code> for an <a href="../../api/agents.html#agentnotice"><code>AgentNotice</code></a> and <code>reset</code> for a <a href="../../api/agents.html#resetrequested"><code>ResetRequested</code></a>, both commands it handles; the core calls <code>set_permission_mode</code> for a <code>SetPermissionMode</code> (Auto only from you)</td>
 </tr>
 <tr>
 <td>Calls</td>
-<td><a href="../../api/agents.html#reporttask"><code>ReportTask</code></a> (<code>progress</code>, <code>milestone</code> from its <code>STATUS:</code> lines, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code>); the <a href="../../api/agents.html#the-hubs-menu">Hub's menu</a> through the door</td>
+<td><a href="../../api/agents.html#reporttask"><code>ReportTask</code></a> (<code>progress</code>, <code>milestone</code> from its <code>STATUS:</code> lines, <code>reply</code>, <code>need</code>, <code>permission</code>, <code>done</code>, <code>failed</code>); the <a href="../../api/agents.html#the-hubs-menu">Hub's menu</a> through the core's door. As the reviewer (<code>[core.permissions] reviewer</code>), it gets the access-list review as a normal task from the Hub</td>
 </tr>
 <tr>
 <td>Publishes</td>
@@ -39,7 +39,7 @@
 </tr>
 <tr>
 <td>Listens to</td>
-<td><a href="../../api/agents.html#resetrequested"><code>ResetRequested</code></a></td>
+<td><a href="../../api/control.html#modulestatechanged"><code>ModuleStateChanged</code></a> (<code>AGENT_LISTENS</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -47,9 +47,9 @@
 <ul>
 <li><strong>A <code>claude -p</code> process</strong> per task (<code>fresh_sessions</code>), through the shared <a href="../../api/infra.html#sessiontaskagent"><code>SessionTaskAgent</code></a> and <a href="../../api/infra.html#claudesession"><code>ClaudeSession</code></a>. It starts with the module and stops with it.</li>
 <li><strong>Its transcript</strong> in the launch's log folder.</li>
-<li><strong>Its setup</strong> through the shared <a href="../../api/infra.html#profileagent"><code>ProfileAgent</code></a> (like every big agent) and its <a href="../../api/infra.html#agentprofile"><code>AgentProfile</code></a> (<code>coordinator=True</code>): folders (<code>write_folders</code>, for the Hub's folder check), rules, command line, and the prompt with the shared block on <code>STATUS:</code> and <code>NEED:</code>. Its id <code>main_assistant</code> is claimed from the Hub on start (<a href="../../architecture/agents.html#agent-names">agent names</a>); as its module's own id, it's allowed.</li>
+<li><strong>Its setup</strong> through the shared <a href="../../api/infra.html#profileagent"><code>ProfileAgent</code></a> (like every big agent) and its <a href="../../api/infra.html#agentprofile"><code>AgentProfile</code></a> (<code>coordinator=True</code>): folders (<code>write_folders</code>, for the Hub's folder check), rules, command line, and the prompt with the shared block on <code>STATUS:</code> and <code>NEED:</code>. Its id <code>main_assistant</code> is claimed from the core's Callers (<code>IAgentNames</code>) on start (<a href="../../architecture/agents.html#agent-names">agent names</a>); as its module's own id, it's allowed.</li>
 <li><strong>Launching helpers</strong> (built 2026-11-05): the coordinator's block tells it to use <code>agents.kinds</code> / <code>agents.launch</code> / <code>agents.close</code> on <code>task_agents</code>' menu, only when you asked for a helper, naming it from the task. <code>agents.launch</code> puts the question to you as the permission card on its task (<code>request_approval</code>); it ends its turn and gets the outcome as its next message (<a href="../../architecture/agents.html#launching-a-helper">launching a helper</a>).</li>
-<li><strong>The module door</strong> in each new session (built 2026-11-05): <code>IModuleDoor.mcp_config("main_assistant")</code>, read at each session start, becomes <code>--mcp-config</code>. Its tools <code>list_modules</code> and <code>show_menu</code> are allowed; <code>use_item</code> asks with the card in Manual. The prompt tells it to use them. <code>door = false</code> in its config turns it off. It doesn't list <code>IModuleDoor</code> as <code>optional</code> (the Hub lists <code>ITaskAgent</code>, and the two would be circular), so its first session may start before the door is up; the next task's fresh session has it.</li>
+<li><strong>The module door</strong> in each new session (built 2026-11-05): <code>IModuleDoor.mcp_config("main_assistant")</code>, read at each session start, becomes <code>--mcp-config</code>. Its tools <code>list_modules</code> and <code>show_menu</code> are allowed; <code>use_item</code> asks with the card in Manual. The prompt tells it to use them. <code>door = false</code> in its config turns it off. The door is the core's, opened before any module starts, so its first session has it too.</li>
 </ul>
 <h2 id="inner-workings">Inner workings</h2>
 <pre><code class="language-mermaid">flowchart LR

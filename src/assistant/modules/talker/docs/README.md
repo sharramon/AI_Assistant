@@ -9,7 +9,8 @@ Fast `claude` sessions that talk with you and hand work to the Agent Hub, **one 
 | Field | Value |
 |-------|-------|
 | id | `talker` |
-| provides / requires / optional | optional `IModuleDoor` (the module door, from the Agent Hub) |
+| provides / requires / optional | optional `IModuleDoor` (the module door, from the core); uses `IAgentNames` (the core's Callers, for `talker.reset`) and `IPageOpener` |
+| menu | `talker.reset(session)`, only for you ([Tools](tools.md)) |
 | permissions | none declared |
 | needs | none ([`Manifest.needs`](../../../../../docs/api/modules.md#manifest), from its `module.toml`): a core module, it needs no other module by id |
 | packages | none |
@@ -20,7 +21,7 @@ Defaults in `module.toml` in this module's folder, with their comments; your `co
 
 ## Code and tests
 
-- `src/assistant/modules/talker/module.py` (the router), `session.py` (`TalkerSession`), `prompt.py` (`talker_prompt`), `restart.py` (`RestartFlow`), `module.toml` (defaults, `needs`, `packages`)
+- `src/assistant/modules/talker/module.py` (the router), `session.py` (`TalkerSession`), `prompt.py` (`talker_prompt`), `restart.py` (`RestartFlow`: the restart after your Allow on its confirm card, sent as the `ShutdownRequested` command), `module.toml` (defaults, `needs`, `packages`)
 - In this folder's `tests/` (on the [test kit](../../../../../docs/api/testkit.md)): `test_talker.py` (tags, the session theme, the context warnings, a reset, spoken input, its defaults under `module.toml`), `test_talker_snips.py` (snips, a pasted image, the viewer's open tabs), `test_talker_parts.py`, `test_talker_prompt.py`
 - Centrally, with the Hub and a worker or temp_ui: `tests/test_agents.py`, `test_agent_tags.py`, `test_restart.py`, `test_talker_agents.py`, `test_mcp_door.py`, `test_permission_mode.py`, `test_usage.py` (its `[Usage]` line)
 - `docs/`: this overview, [Architecture](architecture.md), [Tools](tools.md) (generated from its menu), and `docs.toml` (its docs tab and group)

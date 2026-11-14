@@ -26,8 +26,12 @@
 <td><code>echo.say(text)</code>: <code>ok("Echo: &lt;text&gt;")</code>, the smallest example of a menu (<a href="tools.html">Tools</a>)</td>
 </tr>
 <tr>
-<td>Handles · Calls</td>
-<td>none</td>
+<td>Handles</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>Calls</td>
+<td><a href="../../api/control.html#listmodules"><code>ListModules</code></a> and <a href="../../api/control.html#getmenu"><code>GetMenu</code></a> for <code>/tools</code>: every active module's menu and the core's (<code>core</code>), plus any module that provides <code>IToolProvider</code> itself (<code>get_all</code>). Menus aren't in the container since 2026-11-13, so the directory is the way to list them</td>
 </tr>
 <tr>
 <td>Publishes</td>

@@ -4,8 +4,9 @@
 
 | | |
 |---|---|
-| Tools · Handles · Calls | none |
-| Publishes | [`InputReceived`](../../../../../docs/api/messaging.md#inputreceived), [`ShutdownRequested`](../../../../../docs/api/messaging.md#shutdownrequested) (`reason="console exit"`) |
+| Tools · Handles | none |
+| Calls | [`ShutdownRequested`](../../../../../docs/api/messaging.md#shutdownrequested) (`reason="console exit"`): a command the core handles, sent on the exit words |
+| Publishes | [`InputReceived`](../../../../../docs/api/messaging.md#inputreceived) |
 | Listens to | [`ResponseReady`](../../../../../docs/api/messaging.md#responseready): replies to its inputs, and uncorrelated ones |
 
 ## Owns and launches

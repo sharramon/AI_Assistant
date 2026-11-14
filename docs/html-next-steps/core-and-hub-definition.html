@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core, Agent Hub and modules: a definition to approve</title>
+<!-- Generated from docs/next-steps/core-and-hub-definition.md by scripts/build_docs.py. Edit the Markdown, not this file. -->
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="layout">
+<nav data-root="" data-page="core-and-hub-definition.html"></nav>
+<main>
+<h1 id="core-agent-hub-and-modules-a-definition-to-approve">Core, Agent Hub and modules: a definition to approve</h1>
+<p><strong>Status:</strong> <strong>approved 2026-11-13</strong> with the recommended answer on every card (D1 to D7), in the unattended run the user authorized. Step 1 (R1 to R8) is built; the as-built notes and the later steps are in <a href="restructuring-checklist.html">the restructuring checklist</a>. Sections below are the proposal as written (sections marked "not started" were written before the build). Groundwork for a second full restructure. Pages: <a href="core-and-hub-proposal.html">the definition</a> (diagrams, ports, rules, decision cards, checklist) and <a href="piping.html">the piping</a> (every call flow today and suggested). Their sources are hand-written HTML in <code>docs/next-steps/</code>; the definition page isn't named <code>core-and-hub-definition.html</code> because this note builds to that name.</p>
+<p><strong>The principle applied:</strong> tools (the one door), events and contracts exist to harden how data gets in and out of the app. Every call and every card passes the core's checks (router, permissions, the caller's mode). The Agent Hub is a module that does agent coordination only. Each gap and decision is tagged with the part it serves: <em>calls</em> (every call passes the core's checks), <em>cards</em> (every card does), <em>Hub</em> (the Hub does coordination only).</p>
+<p>Each finding below was written as soon as it was checked against the code. "Checked" means I read the code at the line named. Anything not read is marked <strong>not verified</strong>.</p>
+<h2 id="verification-pass-2026-11-13-second-session">Verification pass (2026-11-13, second session)</h2>
+<p><strong>Fourth session:</strong> <code>core-and-hub-proposal.html</code> done (Verification section, §3 rows incl. two new, rule 3, D1 to D5 "Added", R6, bottom list). <code>piping.html</code> done too: Verification section; rows 1, 2, 3, 7, 10, A6, A9, A12, P1, use cases 2, 4, 5 and the 2b rows A12, P1/P2, P11, P13 corrected (the earlier "✓ a card" for <code>modules.add / remove / off</code> was wrong, V8; the mic row A12 was wrong, V8; P1 didn't hold for the Talker, V7); the 1b core-menu label now ✗ (G13); D1 to D5 "Added"; bottom list replaced. Rebuilt (both built copies carry the Verification section). <strong>The verification pass is finished</strong>; waiting for the user's review. Nothing committed.</p>
+<p><strong>Handoff (context reset, 2026-11-13, third session):</strong> all 11 checks done (V1 to V11 below), and step (c) done (the note's own sections corrected, G10 to G20 added; D1 to D5 extended in §5). <strong>Next session starts at (d), the pages; neither page is edited yet.</strong> For <code>docs/next-steps/core-and-hub-proposal.html</code> (253 lines, read <code>:50-63</code> and <code>:136-252</code>): add <code>&lt;h2&gt;Verification&lt;/h2&gt;</code> after the intro div (<code>:51</code>, before the legend), listing verified V1 to V11 in a line each, the corrections (G1 second half, G5 Talker, single-name asks only log, contract roads G12/G16, temp_ui unguarded G10, Talker tags G17), and "still not verified" (copy the note's "What I could not verify"). Fix §3 rows <code>:161</code> Lifecycle, <code>:162</code> Talker, <code>:164</code> task_agents, <code>:165</code> temp_ui, <code>:166</code> three events (traced, V1) using the note's §2 text; add a row "Every menu as a contract" (G16). Rule 3 row <code>:192</code>: the registry already refuses cycles (V3). D1 to D5 rec lines <code>:201-217</code>: add the "Added" text from the note's §5 (D5's "Not every subscriber was traced yet" is now wrong). R6 <code>:238</code> "first trace every subscriber": done (V1). Replace the bottom "Not verified" list <code>:243-249</code>. Then the same on <code>docs/next-steps/piping.html</code> (~97 KB: grep for <code>D[1-7]</code>, <code>Not verified</code>, <code>&lt;h2</code> and read only those parts). Then (e) rebuild, (f) report and SHOW. Old plan text, kept: (was c) Correct the old sections of this note (§2 Talker/temp_ui rows, §3 G1/G2/G5/G6, the "core's menu" line under "The core's side of a call", "What I could not verify"), add new gaps found: G10 temp_ui/voice_notes pages have no Host/Origin check (V2, V8); G11 any module can get a door config for any caller name (V6); G12 contract road to <code>ITaskAgent</code> skips the Hub (V2, V10); G13 single-name <code>permissions.request</code> always allows, so the core menu's "asks" don't ask (V8); G14 the Talker's <code>use_item</code> is allowed by rule (V7); G15 a <code>ModuleEvent</code> can be forged with <code>ctx.publish</code> (V5). (d) Update D1 to D7 here and on both pages (<code>docs/next-steps/piping.html</code>, <code>docs/next-steps/core-and-hub-proposal.html</code>): D3 must also cover the contract road and card ids on events; D4 must note single-name asks don't ask yet and the Talker has no gate; D5 must note the handler publishes <code>AgentNotice</code> and that any module can stop the app; D1 must add "mcp_config checks the name against the caller". Add a short "Verification" section at the top of each page (verified / still not verified). (e) Rebuild with <code>.\.venv\Scripts\python scripts\build_docs.py</code>. (f) Report plainly; end with <code>&lt;&lt;SHOW: C:\Chang\Git_projects\AI_Assistant\docs\html-next-steps\core-and-hub-proposal.html&gt;&gt;</code>. No code change, restart, module on/off, commit or push. No Chrome tabs open. Read the pages in parts (piping.html is ~97 KB) to keep context small.</p>
+<p>Each item checked by reading the code, one at a time, written here as soon as found. <strong>V</strong> = verified, <strong>D</strong> = found different, <strong>N</strong> = still not verifiable. Progress: items done are marked [x]; after all 11, the note's sections, both pages and D1 to D7 are corrected.</p>
+<ul>
+<li>[x] <strong>V1. The three control events: every publisher and listener.</strong> <strong>V</strong> (with one addition).</li>
+<li><code>ShutdownRequested</code> (<code>contracts/messages.py:102</code>). Publishers: <code>console_io</code> (<code>console_io/module.py:95</code>, on console exit), the Talker (<code>talker/restart.py:147</code>, <code>restart=True</code>, after its restart flow). Listener: <strong>only the core</strong>, <code>App</code> subscribes on its own bus (<code>core/app.py:128</code>) and <code>_on_shutdown_requested</code> (<code>app.py:150-153</code>) stops the app with no check of who sent it. Any module may publish it (publish isn't checked, see V10), so <strong>any module can stop or restart the app</strong>.</li>
+<li><code>ResetRequested</code> (<code>contracts/agents.py:450</code>). Publishers: the Talker (<code>talker/session.py:377</code>, its <code>RESET</code> tag), temp_ui (<code>temp_ui/module.py:722</code>, the Reset buttons). Listeners: <code>AgentKit._on_reset</code> (<code>infra/agent_kit.py:55, 116-119</code>), used by <code>main_assistant</code> (<code>module.py:136</code>), <code>task_agents</code> (<code>:118</code>), <code>job_search</code> (<code>:162</code>), <code>cv</code> (<code>:277</code>): it resets that agent's session (<code>agent.reset()</code>); the Talker (<code>talker/module.py:135, 390-398</code>): restarts its tab's session after the turn. No check of the sender anywhere, so <strong>any module can reset any agent's or Talker's session</strong>.</li>
+<li><code>AgentNotice</code> (<code>contracts/agents.py:382</code>). Publishers: <code>job_search</code> (<code>module.py:222</code>, as <code>agent_id=caller</code>), <code>cv</code> (<code>module.py:517</code>, to its own agent), <strong>and the core's permissions handler</strong> (<code>core/permissions/handler.py:541</code>, telling the agent a grant/revoke card's outcome). Listener: only the Hub (<code>agent_hub/module.py:146, 315-320</code>), which puts <code>[source] text</code> into that agent's next turn (<code>agent.note</code>). The <code>source</code> is whatever the publisher wrote, so <strong>any module can put a line into any agent's next turn under any source label</strong>, for example <code>[permissions]</code>.</li>
+<li>Not in the earlier text: the core's handler itself <strong>publishes</strong> <code>AgentNotice</code>, so making it a command (D5a) also changes the core's handler. The earlier "didn't trace every subscriber" is now closed.</li>
+<li>[x] <strong>V2. Every place that switches an agent's permission mode.</strong> <strong>V</strong>, with two roads the earlier text missed (<strong>D</strong>).</li>
+<li>The mode is held per agent: <code>SessionTaskAgent._permission_mode</code>, Manual at every start (<code>infra/session_agent.py:208</code>), set in <code>set_permission_mode</code> (<code>:352-375</code>), which also answers an open tool request in Auto (<code>:374-375</code>). <code>ClaudeSession.set_permission_mode</code> (<code>infra/claude_session.py:215-219</code>) is the live switch of a running <code>claude</code> process; only <code>SessionTaskAgent</code> calls it (<code>:365</code>). <code>cv/job_start.py:288</code> only forwards to the cv agent.</li>
+<li>Road 1, the command: <code>SetPermissionMode</code> (<code>contracts/agents.py:316</code>) has one handler, the Hub (<code>agent_hub/module.py:142</code> → <code>tasks.py:402-413</code>), which <strong>doesn't check the sender</strong>: it calls the agent, then marks an open card answered. One sender in code: temp_ui (<code>temp_ui/module.py:706-712</code>, <code>POST /permission-mode</code>, Manual or Auto, for the agent named in the body).</li>
+<li>Road 2, the menu: <code>hub.mode</code> (<code>agent_hub/module.py:265-272</code>), <code>callers=(TALKER,)</code>, refuses Auto (<code>:270-271</code>). The Talker uses it to switch to Manual (<code>talker/session.py:341</code>).</li>
+<li><strong>Road 3, missed before:</strong> the contract. Any module can look up <code>ITaskAgent</code> (<code>ctx.get_all</code>) and call <code>set_permission_mode(AUTO)</code> on an agent directly, with no Hub and no command (<code>contracts/agents.py:203</code>; contract lookups only log when undeclared, see V10).</li>
+<li><strong>Road 4, missed before:</strong> temp_ui's page server has <strong>no Host or Origin check</strong> (<code>temp_ui/module.py:660-670</code>; no <code>local_guard</code>, unlike html_viewer, cv_tool and voice_service), and it reads any POST body as JSON without checking its content type. Its host comes from config (<code>:226</code>, default <code>127.0.0.1</code>, no <code>require_loopback</code>). So a request from another local program, or possibly from a web page in a browser, could press the Auto button (<code>POST /permission-mode</code>), answer cards or reset agents. <strong>Not tested</strong>; whether a browser lets a site reach it depends on the browser's local-network rules.</li>
+<li>"Who may send it": in code, temp_ui only; by the rules nobody else is stopped.</li>
+<li>[x] <strong>V3. The lifecycle in full</strong> (<code>core/lifecycle.py</code>, 423 lines; <code>core/registry.py</code>, 85 lines). <strong>V</strong>, with details the docs didn't give.</li>
+<li><strong>Cycle check: two places.</strong> At launch, <code>resolve_modules</code> sorts by <code>requires</code>, <code>optional</code> and <code>needs</code> and raises <code>StartupError("Circular dependency …")</code> when no module is ready (<code>registry.py:65-81</code>). At runtime, <code>_activate</code> carries the chain and refuses a module already in it (<code>lifecycle.py:274-275</code>), over <code>requires</code> and <code>needs</code> only (<code>:286-305</code>; <code>optional</code> isn't followed at runtime).</li>
+<li><strong>Start order:</strong> at launch, every module is <code>init</code>ed in dependency order first, then every one is <code>start</code>ed in the same order (<code>lifecycle.py:56-79</code>). A module that fails is skipped, unless it is the only provider of a contract another healthy module requires: then the whole start fails (<code>_skip</code>, <code>:400-410</code>). At runtime, <code>_activate</code> turns on the sole provider of each required contract and each <code>needs</code> module first, then inits and starts the one asked for (<code>:268-320</code>).</li>
+<li><strong>Stop order:</strong> reverse activation order (<code>:81-88</code>; <code>_active</code> is insertion-ordered, <code>:45-46</code>). Turning one off refuses while an active module needs it, unless <code>with_dependents</code>, which stops them in reverse first (<code>:336-353</code>). Each stop has a timeout, then the context is closed whatever happened (<code>_stop_one</code>, <code>:384-393</code>), which undoes the module's registrations.</li>
+<li><strong>Reload path</strong> (<code>:121-170</code>): wait until <code>busy()</code> is None (up to <code>reload_idle_timeout</code>, default 300 s; <code>now</code> skips it, <code>:125-128</code>); refuse shared code (<code>loader.check_reloadable</code>, <code>loader.py:135-141</code>); stop the modules that depend on it (reverse), <code>export_state</code>, stop it; drop its package from <code>sys.modules</code>, import it fresh; start the new class with the exported state as the handover; on any failure, put the old modules back and start the old code with the same state (<code>_roll_back</code>, <code>:226-237</code>); then restart the dependents that were stopped (<code>_restart</code>, <code>:262-266</code>). An inactive module only gets its class swapped.</li>
+<li><strong>No permission check anywhere in the lifecycle.</strong> Every ask is in the core's menu (<code>core/directory.py</code>): <code>modules.add</code>, <code>modules.remove</code> and <code>modules.off</code> with dependents call <code>permissions.request</code> (<code>directory.py:79, 94, 106</code>); <code>modules.on</code> only sets <code>ACTING_FOR</code> (<code>:67-74</code>); <strong><code>modules.reload</code> asks nothing</strong> (<code>:85-88</code>). The commands <code>ReloadModule</code>, <code>AddModule</code>, <code>RemoveModule</code>, <code>ActivateModule</code>, <code>DeactivateModule</code> are handled by the core (<code>app.py:92-101, 207-216</code>) with no ask, so a module that sends them itself (not through the menu) skips even the menu's asks (see V10).</li>
+<li>[x] <strong>V4. Does a module added with <code>modules.add</code> start again at the next launch?</strong> <strong>V: no, nothing records it.</strong></li>
+<li><code>LifecycleManager.add</code> (<code>lifecycle.py:172-195</code>) only adds the class to this run's list; <code>App._add_module</code> (<code>app.py:212-213</code>) writes no config. The launch builds the module list from the folders (<code>__main__.py:59</code>, <code>find_modules</code>, <code>loader.py:207-219</code>) and turns on only <code>config/modules.toml</code>'s <code>enabled</code> list (<code>app.py:83</code>; today <code>console_io, agent_hub, main_assistant, talker, temp_ui, voice_in, usage</code>).</li>
+<li>So at the next launch: a module added from a folder under <code>src/assistant/modules/</code> is <strong>listed again but off</strong> (found by folder, not in <code>enabled</code>); one added from a package elsewhere <strong>isn't there at all</strong> (<code>check_folder</code> only checks folders under the modules package, <code>loader.py:198-204</code>; <code>add</code> takes any importable package that isn't shared code). Neither is turned on again unless you add it to <code>enabled</code> (or <code>modules.local.toml</code>) yourself. <code>modules.remove</code> likewise leaves <code>enabled</code> alone and says so (<code>app.py:218-261</code>).</li>
+<li>[x] <strong>V5. The event bus internals</strong> (<code>core/bus.py</code>, 89 lines). <strong>V.</strong></li>
+<li><strong>Bounded subscribers:</strong> every subscription has its own queue (<code>maxsize</code> = <code>core.event_queue_size</code>, default 100, <code>app.py:79</code>) and exactly one worker task (<code>bus.py:16-36</code>). <code>publish</code> never waits: it offers the event to each matching queue, and <strong>a full queue drops that event for that subscriber only</strong>, with a warning (<code>bus.py:78-82</code>). Each handler run has a timeout (<code>core.event_handler_timeout</code>, default 10 s), after which it is cancelled and logged; an exception is logged; the worker carries on (<code>bus.py:45-57</code>). Matching is by <code>isinstance</code>, so a subscription to <code>Event</code> gets everything (<code>:66-67</code>).</li>
+<li><strong>A module that is turned off, reloaded or removed:</strong> <code>_stop_one</code> calls the module's <code>stop()</code> first, then <code>ctx.close()</code> (<code>lifecycle.py:384-393</code>). So events keep arriving while it stops. <code>close</code> unsubscribes every subscription (<code>context.py:166-175</code>), and <code>unsubscribe</code> cancels the worker (<code>bus.py:72-76</code>): <strong>events still queued for it are dropped, and a handler in the middle of a run is cancelled.</strong> Nothing is redelivered to the reloaded copy; only what <code>export_state</code> handed over survives. After close, its <code>publish</code> is dropped silently and its <code>send</code> is refused (<code>context.py:103-108, 119-121</code>).</li>
+<li><strong>No sender on an event:</strong> <code>Message</code> has only <code>id</code>, <code>correlation_id</code>, <code>timestamp</code> (<code>contracts/messages.py:17-24</code>); <code>Event</code> adds nothing (<code>:31</code>). The one exception is the named event: <code>publish_named</code> stamps <code>source</code> with the module's id and refuses a name not starting with it (<code>context.py:67-76</code>). <strong>But</strong> <code>ctx.publish</code> takes any <code>Event</code>, so a module can build a <code>ModuleEvent(name="cv.job_submitted", source="cv")</code> by hand and publish it: the stamp is a convention, not a check (<code>ModuleEvent</code> says "never built by hand", <code>messages.py:115-127</code>).</li>
+<li>[x] <strong>V10. "Commands carry no sender; any module could send any command, such as answering a card or switching a mode."</strong> <strong>V</strong> (done out of order, it needed <code>context.py</code> too).</li>
+<li><code>Command</code> adds nothing to <code>Message</code> (<code>contracts/messages.py:27-28</code>): no sender field. <code>ScopedContext.send</code> (<code>core/context.py:119-125</code>) checks only that the module is still on; it never compares the command with the manifest's <code>sends</code>; the router's <code>send</code> takes only the command and a timeout (<code>core/router.py:50</code>). The one exception is <code>InvokeTool.caller</code>, stamped with the module's id unless the module provides <code>IModuleDoor</code> (<code>context.py:122-124</code>).</li>
+<li>The other roads: <code>handle</code> strict (<code>context.py:111-117</code>), <code>provide</code> strict (<code>:130-134</code>), <code>publish</code> unchecked (<code>:103-109</code>), <code>subscribe</code>, named events and contract lookups only log once (<code>:62-65, 149-164</code>).</li>
+<li><strong>The answer handlers check the card, not the sender.</strong> <code>PermissionsHandler.answer</code> (<code>core/permissions/handler.py:275-287</code>) needs only an open, shown card id; <code>TaskBoard.answer</code> (<code>agent_hub/tasks.py:383-399</code>) needs only an open task id. Both ids are on events any module may subscribe to (<code>PermissionRequested</code>, <code>TaskUpdated</code>). So a module can hear a card and allow it, and <code>SetPermissionMode</code> is the same (V2).</li>
+<li>Senders of control commands in code today: the core's menu and the handler (<code>ActivateModule</code>, <code>DeactivateModule</code>, <code>ReloadModule</code>, <code>AddModule</code>, <code>RemoveModule</code>, <code>StartTask</code>, <code>CancelTask</code>; <code>directory.py:72-108</code>, <code>handler.py:564-664</code>), <code>task_agents</code> and <code>cv</code> (<code>StartTask</code>, <code>task_agents/module.py:260</code>, <code>cv/module.py:422</code>), temp_ui (<code>AnswerPermission</code>, <code>temp_ui/module.py:683</code>; <code>CancelTask</code>, <code>agent_tabs.py:89</code>; <code>SetPermissionMode</code>, <code>:710</code>), the Talker (<code>AnswerPermissionRequest</code>, <code>talker/session.py:394</code>). None is refused for who it is.</li>
+<li>Added by this check: the same holds for the contracts. A module that looks up <code>ITaskAgent</code> can call <code>answer_permission</code>, <code>set_permission_mode</code> or <code>cancel</code> on any agent directly (<code>contracts/agents.py:203</code>), skipping even the Hub. D3 alone (sender on commands) doesn't close that road.</li>
+<li>[x] <strong>V6. The Hub's side of the door: how <code>mcp_config(caller)</code> proves the caller, and what stops the door's host naming another caller.</strong> <strong>V</strong> for the token; <strong>D</strong>: the proof is weaker than "a caller the session can't fake" suggests.</li>
+<li><strong>The proof:</strong> <code>DoorServer</code> makes a random secret per launch (<code>infra/mcp_door.py:112</code>, kept over a reload through <code>export_state</code>, <code>agent_hub/module.py:162-169</code>). <code>token_for(caller)</code> is an HMAC-SHA256 of the secret and the name (<code>mcp_door.py:117-119</code>). <code>mcp_config(caller)</code> puts the URL, that token and the name into the relay's environment (<code>:121-130</code>); the relay sends both as headers (<code>:196-208</code>); <code>_serve</code> refuses any request whose token doesn't match the HMAC of the header's name (<code>:173-175</code>), then passes that name as <code>InvokeTool.caller</code> (<code>:158, 181</code>). The listening address is loopback by default (<code>door_host</code>, <code>agent_hub/module.py:105</code>). So a session can't claim another name, and a local program without a token is refused. <strong>V.</strong></li>
+<li><strong>What checks the name asked for: nothing.</strong> The Hub's <code>_Door.mcp_config(caller)</code> passes any string straight through (<code>agent_hub/module.py:69-76</code>), and <code>IModuleDoor</code> is a contract any module can look up (<code>ctx.get_one</code>, only logged when undeclared, <code>core/context.py:153-155</code>). So <strong>any module can get a valid door config for <code>talker</code> or <code>main_assistant</code></strong> and speak as them on every menu (for example <code>hub.answer</code>, <code>hub.mode</code> Manual, items limited by <code>callers</code>). The callers in code are <code>ProfileAgent</code> (its own <code>agent_id</code>, <code>infra/profile_agent.py:108</code>) and the Talker (its module id, <code>talker/session.py:250</code>); the agent ids come through <code>IAgentNames</code> (reserved ids and module ids refused, <code>agent_hub/names.py:14-17</code>).</li>
+<li><strong>What stops the door's host naming another caller: nothing in the core.</strong> <code>ScopedContext.send</code> keeps any non-empty <code>InvokeTool.caller</code> from a module whose manifest <strong>lists</strong> <code>IModuleDoor</code> in <code>provides</code> (<code>core/context.py:122-124</code>); it doesn't check that the caller came through a token. The only fence is the single-provider rule: <code>IModuleDoor</code> allows one provider (<code>contracts/module.py:52</code>, <code>multiple</code> false by default; <code>core/container.py:18-21</code>), so while the Hub is on no other module listing it can be turned on (<code>lifecycle.py:281-284</code>). <strong>With the Hub off, any module that lists <code>IModuleDoor</code> could be turned on and send <code>InvokeTool</code> under any caller name.</strong></li>
+<li>So G1 stands, and it has a second half: the door's config is handed out for any name on request.</li>
+<li>Also seen: the config, token included, is passed to <code>claude</code> inline on its command line (<code>infra/claude_session.py:62-63</code>, <code>--mcp-config &lt;json&gt;</code>), so a program running as you can read a session's token from the process list. It only proves that session's own name. <strong>Not tested.</strong></li>
+<li>[x] <strong>V7. May agents use the door's tools without being asked first?</strong> <strong>V, it depends on who.</strong></li>
+<li><strong>Task agents</strong> (<code>AgentProfile.command</code>, <code>infra/agent_profile.py:171-206</code>): with the door, only the two read-only tools are allowed by rule, <code>list_modules</code> and <code>show_menu</code> (<code>:189-190</code>; <code>READ_ONLY = TOOL_NAMES[:2]</code>, <code>infra/mcp_door.py:69-70</code>). <code>use_item</code> isn't on the allowed list, so <strong>in Manual</strong> (claude mode <code>acceptEdits</code> for all four agent modules, <code>main_assistant/module.toml:15</code>, <code>task_agents/module.toml:22</code>, <code>job_search/module.toml:27</code>, <code>cv/module.toml:73</code>; <code>permission_prompts</code> true by default, <code>agent_profile.py:135, 159</code>) it comes back as a <code>can_use_tool</code> request and the gate puts it to you on a card (<code>infra/permission_gate.py:159-173</code>). <strong>In Auto</strong> the session runs <code>bypassPermissions</code> (<code>agent_profile.py:101, 197</code>) with only <code>git push</code> refused (<code>:100, 199</code>), so <code>use_item</code> runs with no ask; if Auto was switched on live, the gate allows it itself (<code>permission_gate.py:168-182</code>). No config file adds a door rule (grep of <code>config/*.toml</code> and every <code>module.toml</code>: none).</li>
+<li><strong>The Talker</strong> (<code>talker/session.py:245-259</code>): <strong>all three door tools are allowed by rule</strong> (<code>allowed=list(DOOR_TOOLS)</code>, <code>:255</code>; <code>TOOL_NAMES</code>, <code>mcp_door.py:69</code>), no permission mode, no prompts. So the Talker calls any menu item without a card; its docstring says "risky items still ask first", which means only the items that ask in their own code (the core's <code>modules.add / remove / off with dependents</code>, V3). <code>modules.reload</code> and every other item run at once.</li>
+<li>So "the Manual ask on <code>use_item</code> happens on the agent's side" (G5) is right for task agents and <strong>doesn't apply to the Talker at all</strong>.</li>
+<li>[x] <strong>V8. The voice modules beyond <code>module.py</code>, and the mic permission.</strong> <strong>V</strong>, with a correction that reaches V3 and V7 (<strong>D</strong>).</li>
+<li>Files: <code>voice_in</code>: <code>__init__.py</code> (3 lines), <code>cleanup.py</code> (53, sentence case and terms), <code>line.py</code> (70, <code>LiveLine</code>), <code>module.py</code> (430), <code>module.toml</code> (defaults, <code>needs = []</code>, pip <code>packages</code>); its service app in <code>app/voice_service/</code> (already listed in the earlier pass). <code>voice_notes</code>: <code>__init__.py</code> (3), <code>module.py</code> (216), <code>module.toml</code> (<code>needs = ["voice_in"]</code>).</li>
+<li><strong>The mic ask:</strong> <code>voice_in</code> lists <code>optional_permissions=("microphone",)</code> (<code>voice_in/module.py:114</code>) and calls <code>ctx.permissions.request("microphone", reason="You clicked the mic")</code> before every session (<code>:242-243</code>). <strong>That call never asks anyone and always says yes:</strong> <code>PermissionsPort.request</code> and <code>has</code> only log "not checked yet: allowing …" (a warning the first time) and return True (<code>core/permissions/port.py:3-6, 29-35, 61-65</code>). The service itself only refuses other hosts and origins (<code>app/voice_service/server.py:55-57</code>).</li>
+<li><code>voice_notes</code> asks for nothing: it requires <code>IVoice</code>, looks it up at each call and calls <code>listen(session_id, VoiceDestination.CALLER)</code> (<code>voice_notes/module.py:59, 136-148</code>). Its page server, like temp_ui's, has no Host/Origin check (<code>:83</code>, no <code>local_guard</code>); <strong>not tested</strong>.</li>
+<li><strong>Correction to V3:</strong> the core's menu items that "ask first" go through the same port: <code>CoreMenu</code> gets <code>PermissionsPort("core", handler)</code> (<code>core/app.py:105</code>), so <code>modules.add</code>, <code>modules.remove</code> and <code>modules.off</code> with dependents (<code>directory.py:79, 94, 106</code>) <strong>are allowed and logged, never asked</strong>. Every single-name <code>permissions.request</code> in the app is a log line today; only access lists (<code>request_set</code>), agent grant requests and message cards reach a card. This is what the overview means by "single names (the mic) are still allowed and logged".</li>
+<li>[x] <strong>V9. The Talker, Main Assistant, task_agents and temp_ui in full: powers that may belong elsewhere.</strong> <strong>V</strong> for the Main Assistant; <strong>D</strong> for the other three (more power than §2 said).</li>
+<li><strong>Main Assistant</strong> (<code>main_assistant/module.py</code>, 165 lines, read in full): <strong>V</strong>, nothing to move. All it does is build one <code>ProfileAgent</code> through <code>AgentKit</code> (<code>:136-141</code>) and provide it as <code>ITaskAgent</code> (<code>:121</code>). It holds no check and sends nothing itself; its manifest is the shared <code>AGENT_*</code> set (<code>:122-125</code>). Two things in the code that are coordination knowledge, not powers: its prompt names the Hub's and task_agents' menus (<code>COORDINATOR_BLOCK</code>, <code>:82-114</code>), and "Manual at every launch, Auto only from the UI button" is a docstring claim (<code>:8-9</code>) held elsewhere (V2). Being the reviewer is set in config, not here.</li>
+<li><strong>task_agents</strong> (<code>task_agents/module.py</code>, 351 lines, read in full): <strong>V</strong>, with two things the earlier text missed (<strong>D</strong>).<ul>
+<li><strong>Its own copy of "who is you":</strong> <code>YOU = ("temp_ui",)</code> (<code>:83</code>), hard-coded, with a comment that it should become <code>ctx.permissions.is_you(caller)</code> later. A caller in <code>YOU</code> gets a helper <strong>with no approval card and no open task</strong> (<code>:184-185</code>, <code>_open_for_you</code>, <code>:220-236</code>); only the kind's access card can still show. So the "you" rule lives in two places today (the handler's <code>you</code> config and this constant), and it trusts the <code>caller</code> string, which is safe only as far as the caller is proved (V6: a module hosting the door, or holding a door config for <code>temp_ui</code>, could pass it).</li>
+<li><strong>It reaches another module's agent through the contract:</strong> for an agent caller it finds the asking agent among every <code>ITaskAgent</code> (<code>_agent_of</code>, <code>:300-301</code>) and calls its <code>request_approval</code> (<code>:197</code>), and it reads the Hub's task list (<code>GetTaskStatus</code>, <code>:295-298</code>) to find the parent task. That is the contract road of V2/V10, used for a good reason, but it shows the road is real.</li>
+<li>It also: claims helper names through <code>IAgentNames</code> (<code>:179-181</code>, falls back to <code>check_agent_id</code> with <code>TRUSTED_CALLERS</code> when the Hub is off), asks each kind's access list (<code>request_access</code>, <code>:132, 245</code>), sends <code>StartTask</code> (<code>:260</code>), publishes <code>AgentStateChanged</code> opened/closed (<code>:214, 255</code>). These fit where they are; the name claim moves with H2 if D2 is chosen.</li>
+</ul>
+</li>
+<li><strong>Talker</strong> (<code>talker/module.py</code> 414 lines and <code>restart.py</code> 179 read in full; <code>session.py</code> read in full except lines 121-159, its constructor and close, checked by grep for every send, publish and lookup; <code>prompt.py</code> not read, it is prompt text): <strong>V</strong>, and it holds more power than §2 said (<strong>D</strong>).<ul>
+<li><strong>It answers cards for you on its model's word.</strong> Its <code>ALLOW</code> / <code>DENY</code> tags (<code>session.py:385-403</code>) send <code>AnswerPermissionRequest</code> straight to the router for an access card (<code>:394-396</code>) or <code>hub.answer</code> for a task's card (<code>:398</code>). The tags are read from the model's reply on <strong>every</strong> turn, not only turns that answer your own message (<code>_handle</code>, <code>:202-226</code>; only <code>PASS</code> checks <code>item.input_id</code>, <code>:368</code>). A turn can be started by an agent's task update (<code>module.py:315</code>), a suggestion (<code>:345</code>) or an access card (<code>:355</code>), all carrying text written by an agent or a module. So whether "you said yes" rests on the Talker model reading your words right, and a card could be answered in a turn you didn't start. <strong>Not tested</strong> whether an agent's text can lead the Talker to <code>ALLOW</code>; the prompt tells it to answer only on your word (not read here).</li>
+<li><strong>It restarts the app</strong> (<code>RESTART</code> tag, main tab only, <code>session.py:379-383</code> → <code>restart.py:89-147</code>): it asks the worker for a note, then publishes <code>ShutdownRequested(restart=True)</code> (<code>restart.py:147</code>) with no card. Same "every turn" reading applies.</li>
+<li><strong>It resets any session by name</strong> (<code>RESET</code> tag, <code>session.py:375-377</code>): its own or its tab's agent, through the <code>ResetRequested</code> event (V1).</li>
+<li><strong>Mode:</strong> only to Manual, through <code>hub.mode</code> (<code>session.py:335-343</code>); Auto is refused in its own code (<code>:338-340</code>) and in the Hub's item (V2).</li>
+<li><strong>Its door tools are allowed by rule</strong> (<code>session.py:245-259</code>, V7), and it reaches the Hub only through <code>InvokeTool</code> as caller <code>talker</code> (<code>module.py:237-239</code>), plus <code>ListAgents</code> (<code>:196</code>, <code>restart.py:156</code>) and <code>usage.*</code> (<code>session.py:283, 297</code>).</li>
+<li>It keeps its own copy of the open tasks and cards from <code>TaskUpdated</code> (<code>module.py:291-315</code>), a second record beside the Hub's task board; it hears html_viewer's and temp_ui's named events by name (<code>:89-91, 142-145</code>). These are coordination it needs for talking, not checks.</li>
+<li>So beyond §2: the card answer, the restart and the reset all come from <strong>tags in a model's reply</strong>, with no check in the core that you asked. That is the strongest case for D3's "only <code>you</code> callers answer cards", and it also asks whether the Talker counts as <code>you</code> at all (today it does in effect: the handler doesn't check, V10).</li>
+</ul>
+</li>
+<li><strong>temp_ui</strong> (<code>temp_ui/module.py</code>: the HTTP handler <code>:660-768</code> and the grants and tabs code <code>:575-657</code> read in full, the rest checked by grep for every send, publish and subscribe; <code>agent_tabs.py</code> 111 lines read in full): <strong>D</strong>, it is the widest door to your authority in the app.<ul>
+<li><strong>Every power is one HTTP POST away, with no Host or Origin check</strong> (<code>_serve</code>, <code>:660-768</code>, see V2): <code>/say</code> types to any tab (<code>InputReceived</code>, <code>:674-680</code>); <code>/permission</code> answers a task's card (<code>AnswerPermission</code>, <code>:681-685</code>); <code>/access-answer</code> answers a core card, with <code>keep</code> and <code>remember</code> (<code>:686-693</code>); <code>/permission-mode</code> switches any named agent to <strong>Auto</strong> (<code>:706-712</code>); <code>/reset</code> resets any session (<code>ResetRequested</code>, <code>:718-723</code>); <code>/focus</code> (<code>:713-717</code>); <code>/mic</code> turns the mic on (<code>:724-729</code>); <code>/grants</code> revokes grants (<code>:696-699, 580-589</code>); <code>/agent-tabs</code> opens helpers, turns <code>task_agents</code> on, and closes agents, which cancels their task and can turn their <strong>module off</strong> (<code>agent_tabs.py:47-83</code>, <code>modules.on</code> / <code>modules.off</code> as <code>temp_ui</code>); <code>/open-logs</code> opens the log folder (<code>:730-732</code>).</li>
+<li><strong>Being in the handler's <code>you</code> list</strong> (<code>handler.py:174, 204</code>, config <code>you</code>, default <code>YOU</code>) means: a grant or revoke from <code>temp_ui</code> is <strong>done with no card</strong> (<code>handler.py:331-332, 385-386</code>), and <code>temp_ui</code> is never "in Auto" (<code>:413</code>). task_agents gives it the same trust with its own copy of the list (above).</li>
+<li>So "you" in this app is "a request that reached temp_ui's local port", not a proved person. The fix in D3 (only <code>you</code> callers answer cards and set Auto) <strong>isn't enough alone</strong>: temp_ui's page also needs the <code>local_guard</code> checks the other local pages have (Host, Origin, content type). Added as G10 and to D3.</li>
+</ul>
+</li>
+<li><strong>Summary of V9 for §2 (V11 follows):</strong> the Main Assistant holds nothing to move. task_agents keeps a second "you" list and reaches other modules' agents through the contract. The Talker answers cards, restarts the app and resets sessions from tags in its model's reply, on any turn. temp_ui carries "you" on an unguarded local port.</li>
+<li>[x] <strong>V11. "A tool call from a module's own code is never asked about."</strong> <strong>V</strong>, and the road is wider than the claim (<strong>D</strong>).</li>
+<li><strong>Through the router:</strong> <code>ScopedContext.send</code> stamps <code>InvokeTool.caller</code> with the module's id (V10); the core's handler <code>dispatch_tool</code> (<code>core/tools.py:33-59</code>) finds the one provider (starting an off module on use, <code>:49-54</code>) and calls <code>invoke_as</code> with the caller. <strong>No permission, mode or card check</strong> in it. <code>Menu.call</code> (<code>contracts/menu.py:134-144</code>) checks only the item's <code>callers</code> list (<code>:108-111, 137-138</code>) and the argument schema (<code>:113-132</code>), then runs the method. The only asks are inside an item's own code, and the single-name ones don't ask (V8). So a module's own <code>InvokeTool</code> is never put to you, unless the item it calls opens a card itself (for example <code>agents.launch</code> for an agent caller, or <code>permissions.grant</code> / <code>revoke</code> from a caller that isn't <code>you</code> and isn't in Auto, <code>handler.py:331-336, 385-396</code>). <strong>V.</strong></li>
+<li><strong>Missed before: the menus are also a contract, so the router can be skipped.</strong> The core provides every menu in the container as <code>IToolProvider</code> (<code>MenuTools</code>, <code>core/context.py:147</code>; the core's and permissions menus, <code>core/app.py:106-108, 126-127</code>). Any module can look them up with <code>ctx.get_all(IToolProvider)</code> (only logged when undeclared, V10; <code>echo_orchestrator</code> does it to list tools, <code>echo_orchestrator/module.py:43</code>) and call <strong><code>invoke_as(name, args, caller=...)</code> with any caller it likes</strong> (<code>core/tools.py:29-30</code>). With <code>caller="temp_ui"</code> that is <code>permissions.grant</code> or <code>revoke</code> <strong>with no card</strong> (<code>core/permissions/menu.py:37-38, 64-65</code> → <code>handler.py:331-332, 385-386</code>), <code>agents.launch</code> with no approval card (V9), and every <code>callers=(TALKER,)</code> item of the Hub as <code>talker</code>. <strong>Not tested</strong>, read from the code only.</li>
+<li>So G5 is right and incomplete: besides "no core check on <code>InvokeTool</code>", the caller stamp itself can be skipped through the contract road. D4's gate in <code>dispatch_tool</code> alone wouldn't close it; <code>MenuTools</code> must not be reachable as a plain contract (or <code>invoke_as</code> must not take the caller from a module). Added as G16 and to D1 and D4.</li>
+</ul>
+<h2 id="handoff-2026-11-13-first-session-done-kept-for-the-record">Handoff (2026-11-13, first session; done, kept for the record)</h2>
+<p><strong>Done:</strong> every check, written below (§1 to §6 and "What I could not verify"). The note is the source for both pages. No code changed, nothing committed. No Chrome tabs open.</p>
+<p><strong>Next, in order:</strong></p>
+<ol>
+<li>Find out how a hand-written next-steps page is built: <code>docs/next-steps/module-layouts.html</code> (untracked) sits beside <code>docs/html-next-steps/module-layouts.html</code>; read <code>scripts/build_docs.py</code> (grep <code>html-next-steps</code> / <code>.html</code>) to see if sources in <code>docs/next-steps/*.html</code> are copied. Write the new pages where the source of module-layouts lives.</li>
+<li>Read the top of <code>module-layouts.html</code> once (CSS, header, a flowchart block, a decision card with its approve line) and reuse that look. <strong>Do not edit module-layouts.html.</strong></li>
+<li>Write <code>piping.html</code>: plain-words summary at top; <strong>Today</strong> few-box flow (you, Talker, Main Assistant, helpers, Agent Hub with the door inside it, core: router, bus, InvokeTool/dispatch_tool, permissions handler + cards, modules) with every arrow labelled by path (tool call via the door; command through the router; event on the bus; STATUS line → Hub report → milestone), sender and receiver, and check marks: present (menu <code>callers</code>, door HMAC token, handler Auto check, <code>handles</code> strict, agent-side PermissionGate) and missing (G1 to G7 in §3). Then <strong>Suggestion</strong> flow (door + Callers in the core, Hub coordination only, one checked gate for calls and cards, sender stamped, events notify only; rules 1 and 2 placed), a short "what changes" list, and decision cards D1 to D7 (§5) each with options, recommendation and an approve line.</li>
+<li>Write <code>core-and-hub-definition.html</code>: today vs proposal few-box diagrams, the seven ports table, core / core modules / add-ons, the three rules with tests today and to add, decision cards D1 to D7, and the R1 to R8 checklist marked not started.</li>
+<li>Link both pages and this note from <code>docs/next-steps/README.md</code>; run <code>.\.venv\Scripts\python scripts\build_docs.py</code> (docs-html / next-steps-html skills).</li>
+<li>Report (plain, nothing called done or settled, list "What I could not verify"), then <code>&lt;&lt;SHOW: C:\Chang\Git_projects\AI_Assistant\docs\html-next-steps\piping.html&gt;&gt;</code> and mention the definition page. No restart, no module on/off, no commit, no push.</li>
+</ol>
+<h2 id="progress-for-a-context-reset">Progress (for a context reset)</h2>
+<ul>
+<li>[x] Hub <code>module.py</code>, <code>gate.py</code>, <code>names.py</code> read</li>
+<li>[x] Hub <code>tasks.py</code> (set_mode, answer, _settle), <code>delivery.py</code>, <code>focus.py</code> (signatures)</li>
+<li>[x] <code>infra/mcp_door.py</code> (DoorServer: who checks the caller)</li>
+<li>[x] core: <code>directory.py</code>, <code>context.py</code>, <code>tools.py</code>, <code>permissions/handler.py</code> (Auto, grants, review); <code>app.py</code> by grep</li>
+<li>[x] Talker, Main Assistant, task_agents, temp_ui (manifests and the lines named)</li>
+<li>[x] boundary tests that exist today</li>
+<li>[x] proposal, decisions, checklist (§4 to §6)</li>
+<li>[x] build path checked: hand-written pages live in <code>docs/next-steps/*.html</code> and <code>build_docs.py</code> (<code>:365</code>) copies them into <code>docs/html-next-steps/</code>. So both pages are written as <code>docs/next-steps/piping.html</code> and <code>docs/next-steps/core-and-hub-definition.html</code></li>
+<li>[x] <code>docs/next-steps/piping.html</code> written (today and suggested flows, arrow tables, what changes, D1 to D7 cards)</li>
+<li>[x] <code>docs/next-steps/core-and-hub-proposal.html</code> written (renamed from <code>core-and-hub-definition.html</code>: this note builds to that name)</li>
+<li>[x] README row added</li>
+<li>[x] rebuilt (<code>build_docs.py</code>: piping.html, core-and-hub-proposal.html and this note's page all in <code>docs/html-next-steps/</code>; <code>tests/test_module_docs.py</code> 11 passed). Waiting for the user's decisions D1 to D7; nothing approved</li>
+<li>[ ] <strong>Added by the user (2026-11-13):</strong> a second, focused page <code>docs/html-next-steps/piping.html</code> (same look as module-layouts.html; <strong>do not edit module-layouts.html</strong>). Today: Hub, door (list/menu/call), InvokeTool, router, bus, permissions handler + cards, Talker, Main Assistant, helpers, modules; each arrow labelled with its path, sender and receiver; checks present and missing marked. Then the suggestion (rules 1 and 2, door and agent names as core ports, Hub coordination only, one checked gate for every call and card, events for notifications only, never control), plain-words summary at top, a short "what changes" list, decision cards with approve lines. Report only when the note and both pages exist.</li>
+</ul>
+<h3 id="the-cores-side-of-a-call-checked">The core's side of a call (checked)</h3>
+<ul>
+<li><strong>Who the caller is:</strong> <code>ScopedContext.send</code> (<code>core/context.py:122</code>) sets <code>InvokeTool.caller</code> to the sending module's id, <strong>except</strong> for a module whose manifest provides <code>IModuleDoor</code>: that module may pass any caller. So the core hands the agents' identity to whichever module hosts the door, today the Hub. <strong>A missing hardening:</strong> a module that declares <code>IModuleDoor</code> can speak as any agent.</li>
+<li><strong>The tool call itself:</strong> <code>dispatch_tool</code> (<code>core/tools.py:33</code>) finds the one provider and calls <code>invoke_as</code>; it starts an off module on use. <strong>No permission or mode check in the router or in <code>dispatch_tool</code>.</strong> The only checks on a call are: the menu item's <code>callers</code> list and its argument schema (<code>contracts/menu.py:108, 134</code>), the item's own code (the Hub's <code>may_steer</code>, <code>start_only_by</code>), and on the agent side, Claude Code's allowed tools (<code>use_item</code> asks in Manual through <code>PermissionGate</code>, see auto-skips-cards #1, #2).</li>
+<li><strong>The core's menu</strong> (<code>core/directory.py</code>): <code>modules.on</code> sets <code>ACTING_FOR</code> (<code>:70</code>); <code>modules.off</code> with dependents, <code>modules.add</code>, <code>modules.remove</code> call <code>permissions.request(name)</code>, <strong>which today allows and logs, never asks</strong> (single names, V8); <code>modules.reload</code> asks nothing at the core (asked on the agent side for <code>RELOAD:</code> lines only). <em>(Corrected by V8.)</em></li>
+<li><strong>Added by V11:</strong> every menu is also in the container as <code>IToolProvider</code> (<code>core/context.py:147</code>), so a module can call <code>invoke_as</code> with any caller and skip the router's stamp altogether.</li>
+<li><strong>The handler reaches up into agent coordination:</strong> <code>_in_auto</code> sends <code>ListAgents</code> (<code>handler.py:410</code>), the review sends <code>StartTask</code> to <code>reviewer</code> and <code>CancelTask</code> and listens to <code>TaskUpdated</code> (<code>handler.py:575, 588</code>; <code>app.py:129</code>), and <code>request</code> uses <code>IAgentNames</code> (<code>handler.py:347</code>). All through contracts, so no import of the Hub, but the core's own check <strong>depends on a module being on</strong>: with the Hub off, every Auto check reads "not Auto" (card shown, the safe side) and the review is skipped.</li>
+<li><strong>The Auto check (rule 1) today:</strong> in the core handler's <code>request_set</code>, <code>ask</code>, <code>grant</code>, <code>request</code>, <code>revoke</code> (<code>handler.py:220, 331, 364, 385</code>) and on the agent side in <code>PermissionGate.ask</code> / <code>on_tool_request</code> (<code>infra/permission_gate.py</code>). Two places, one per card path; the mode itself is held by each agent and read back through the Hub's <code>ListAgents</code>.</li>
+<li><strong>Rule 2 (a waiting task ends with a note) today:</strong> <code>TaskBoard._settle</code> (<code>agent_hub/tasks.py:417</code>) decides, the agent's <code>SessionTaskAgent._settle</code> / <code>_drop_waiting</code> follows. This is coordination: it stays in the Hub.</li>
+</ul>
+<h3 id="found-so-far-door">Found so far (door)</h3>
+<ul>
+<li><code>DoorServer</code> (<code>infra/mcp_door.py:93</code>): loopback HTTP, caller proved by an HMAC token per caller name (<code>token_for</code>, <code>:117</code>; checked <code>:174</code>). <code>list_modules</code>/<code>show_menu</code> → <code>ListModules</code>/<code>GetMenu</code>, <code>use_item</code> → <code>InvokeTool(name, args, caller)</code> (<code>:158</code>). So the door itself is generic plumbing; only its hosting (<code>agent_hub/module.py:102</code>) and the <code>CORE_LINE</code> sit in the Hub.</li>
+<li><code>TaskBoard.set_mode</code> (<code>tasks.py:402</code>) passes <code>SetPermissionMode</code> to the agent and, if Auto answered an open card, marks the record active: the mode change is routed by the Hub, the mode is held by each agent (<code>AgentInfo.permission_mode</code>), and the core handler reads it back through <code>ListAgents</code> (the Hub's handler).</li>
+</ul>
+<h3 id="what-the-core-checks-on-each-road-checked-in-corecontextpy">What the core checks on each road (checked in <code>core/context.py</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Road</th>
+<th>Checked against the manifest?</th>
+<th>Who the sender is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx.handle</code> (a command's one handler)</td>
+<td><strong>Strict</strong>: refused if not in <code>handles</code> (<code>context.py:113</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ctx.send</code> (a command)</td>
+<td><strong>Not checked</strong> against <code>sends</code></td>
+<td><strong>The router isn't told.</strong> Only <code>InvokeTool</code> carries a caller (<code>context.py:122</code>)</td>
+</tr>
+<tr>
+<td><code>ctx.publish</code> (an event)</td>
+<td><strong>Not checked</strong> against <code>publishes</code> (<code>context.py:103</code>)</td>
+<td>not carried</td>
+</tr>
+<tr>
+<td><code>ctx.subscribe</code>, named events, contract lookups</td>
+<td>Logged once if undeclared, still works (<code>context.py:157</code>)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>So <strong>any module can send any command</strong>, for example <code>SetPermissionMode(mode=AUTO)</code>, <code>AnswerPermission</code> or <code>AnswerPermissionRequest</code>. Today only the temp UI sends <code>SetPermissionMode</code> (<code>temp_ui/module.py:710</code>, your Auto button) and the Hub's handler (<code>tasks.py:402</code>) doesn't ask who sent it. "Only you switch to Auto" is held by the <code>hub.mode</code> menu item refusing Auto (<code>agent_hub/module.py:270</code>) and by agents having no road to the router except the door. A module's code could still switch an agent to Auto. Same for answering cards: the Talker (<code>talker/session.py:394</code>) and the temp UI (<code>temp_ui/module.py:683, 689</code>) send the answers straight to the router.</p>
+<h2 id="1b-each-hub-responsibility-stays-or-moves">1b. Each Hub responsibility: stays or moves</h2>
+<p>The test: does it decide <strong>who does what among the agents</strong> (coordination, stays), or does it decide <strong>whether data may get in or out, and who is asking</strong> (a check, belongs in the core)?</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Verdict</th>
+<th>Why (hardening)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H1 the door</td>
+<td><strong>Move to the core</strong> as the Tools port's agent entrance</td>
+<td>It is how every agent reaches every module. Today the core trusts the door's host to name the caller (<code>context.py:122</code>), so the Hub holds the app's identity check. If the Hub is off or reloading, no agent reaches any module. A gate belongs to the house, not to a tenant</td>
+</tr>
+<tr>
+<td>H2 agent names</td>
+<td><strong>Move to the core</strong> (a Callers port: who is calling)</td>
+<td>The core handler already reads it (<code>handler.py:347</code>) to check "an agent can only ask for itself". Identity is checked data, not coordination</td>
+</tr>
+<tr>
+<td>H3 finding agents</td>
+<td>Stays</td>
+<td>Coordination</td>
+</tr>
+<tr>
+<td>H4 <code>ListAgents</code></td>
+<td>Stays as the Hub's list for UIs; <strong>the core stops needing it</strong> for the mode (see H12)</td>
+<td>Today the core's Auto check fails safe to Manual when the Hub is off, so a core check depends on a module</td>
+</tr>
+<tr>
+<td>H5 task board (start, status, cancel, report, rule 2 <code>_settle</code>)</td>
+<td><strong>Stays</strong></td>
+<td>Coordination. Rule 2 is coordination and stays here</td>
+</tr>
+<tr>
+<td>H6 focus, held questions</td>
+<td>Stays</td>
+<td>Coordination of your attention</td>
+</tr>
+<tr>
+<td>H7 delivery</td>
+<td>Stays</td>
+<td>Coordination: when a message may go in</td>
+</tr>
+<tr>
+<td>H8 message gate</td>
+<td><strong>Split:</strong> the card is already the core's (<code>ctx.permissions.ask</code>); the Hub keeps holding and delivering</td>
+<td>The check is in the core already. What changes: the Auto check for it moves with the mode (H12)</td>
+</tr>
+<tr>
+<td>H9 milestones, <code>AgentNotice</code></td>
+<td>Milestones stay. <code>AgentNotice</code> <strong>should become a command</strong> (<code>NoteAgent</code>) or stay an event but only as a notification</td>
+<td>An event that makes an agent act is control on the bus (see §2, events)</td>
+</tr>
+<tr>
+<td>H10 <code>hub.*</code> menu</td>
+<td>Stays, but its <strong>caller is proved by the core</strong>, and its policy checks (<code>start_only_by</code>, <code>may_steer</code>) stay</td>
+<td>Coordination policy over a proved caller</td>
+</tr>
+<tr>
+<td>H11 coordinator, caps, named_only</td>
+<td>Stays</td>
+<td>Coordination policy</td>
+</tr>
+<tr>
+<td>H12 permission mode</td>
+<td><strong>Move to the core</strong> (held in the Callers port; <code>SetPermissionMode</code> handled by the core; only "you" callers may set Auto, checked by the core)</td>
+<td>The mode decides whether a card shows. It is the most powerful switch in the app and today any module can send it</td>
+</tr>
+<tr>
+<td>H13 reload hand-over</td>
+<td>Stays for its own parts; the door's port/token and the claims go with H1/H2</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-the-other-big-holders-of-power-checked">2. The other big holders of power (checked)</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it holds today</th>
+<th>Belongs elsewhere?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Core permissions handler</strong> (<code>core/permissions/handler.py</code>)</td>
+<td>Saved grants, access-list cards, message cards, grant/request/revoke, protected zone, rule 1's Auto check, the review</td>
+<td><strong>It reaches up into agent coordination</strong>: <code>_in_auto</code> via <code>ListAgents</code>, the review via <code>StartTask</code>/<code>CancelTask</code>/<code>TaskUpdated</code> to <code>reviewer = "main_assistant"</code> (<code>config/default.toml:32</code>). Proposal: the mode lives in the core (Callers), so <code>_in_auto</code> is a local read; the review becomes an <strong>optional listener</strong> (the reviewer module sees <code>PermissionRequested</code> and adds notes through a command), so the core never starts an agent task</td>
+</tr>
+<tr>
+<td><strong>Lifecycle</strong> (<code>core/lifecycle.py</code>)</td>
+<td>on/off/reload/add/remove, start on use (<code>dispatch_tool</code> → <code>_start_for_tool</code>)</td>
+<td>Right place (V3: no permission check anywhere in the lifecycle; the asks are in the core's menu). Gaps: <code>modules.reload</code> asks nothing at the core; only an agent's <code>RELOAD:</code> line asks (agent side); and the menu's "asks" for add, remove and off with dependents are single names, so they <strong>allow and log</strong> today (V8). A module sending <code>ReloadModule</code> / <code>AddModule</code> / <code>RemoveModule</code> itself skips even those (V3, V10). An added module isn't recorded for the next launch (V4). Proposal: these items ask through the one gate (D4) when the caller is in Manual, and the commands only from the core's menu (D3)</td>
+</tr>
+<tr>
+<td><strong>Talker</strong> (<code>talker/</code>)</td>
+<td>Talks with you; reaches the Hub only through <code>InvokeTool</code> as caller <code>talker</code> (its module id, proved by the core); answers access cards by sending <code>AnswerPermissionRequest</code> straight to the router (<code>session.py:394</code>)</td>
+<td>Fine as a core module, but (V9) it holds more: its <code>ALLOW</code> / <code>DENY</code>, <code>RESTART</code> and <code>RESET</code> tags answer cards, restart the app and reset sessions from <strong>any</strong> turn's reply, including turns started by an agent's text (<code>session.py:202-226, 375-403</code>), and all its door tools are allowed by rule (V7). The card answer should carry "you answered" as a proved fact: the core should accept card answers only from callers listed as <code>you</code> (today any sender), and decide whether the Talker is one</td>
+</tr>
+<tr>
+<td><strong>Main Assistant</strong> (<code>main_assistant/module.py</code>, 145 lines)</td>
+<td>A <code>ProfileAgent</code> (provides <code>ITaskAgent</code>); the coordinator id comes from the Hub's config; the core names it as <code>reviewer</code></td>
+<td>Fine. Nothing to move. It's an agent, not a gate</td>
+</tr>
+<tr>
+<td><strong>task_agents</strong> (<code>task_agents/module.py</code>)</td>
+<td>Launches helpers by name (<code>agents.launch</code> → <code>request_approval</code> card), claims names through <code>IAgentNames</code> (<code>:162, :179</code>), <code>agents.close</code></td>
+<td>The <strong>launch</strong> is coordination-adjacent (it makes new agents) and fits as a core module. The name claim goes to the core with H2. Also (V9): its own hard-coded <code>YOU = ("temp_ui",)</code> (<code>:83</code>) skips the approval card for that caller, a second copy of the handler's <code>you</code> list; and it calls another agent's <code>request_approval</code> through the <code>ITaskAgent</code> contract (<code>:197, 300-301</code>). The <code>you</code> list should live in one place (Callers, D2)</td>
+</tr>
+<tr>
+<td><strong>temp_ui</strong> (<code>temp_ui/</code>)</td>
+<td>Is "you" to the handler (<code>you = ["temp_ui"]</code>); the <strong>only</strong> sender of <code>SetPermissionMode</code> (Auto button); answers cards and permissions straight to the router; calls <code>permissions.revoke</code> as <code>temp_ui</code></td>
+<td>It holds your authority by being named in config. That's right for a UI, but the core should <strong>check</strong> it: Auto and card answers only from <code>you</code> callers. And (V2, V9) its page server has <strong>no Host or Origin check</strong>: one local POST can switch an agent to Auto, answer a card, revoke a grant, reset a session, type to a tab or close an agent's module (<code>module.py:660-768</code>). As <code>you</code>, its grants and revokes need no card (<code>handler.py:331, 385</code>). It needs <code>local_guard</code> like the other local pages (G10)</td>
+</tr>
+<tr>
+<td><strong>Events used as control</strong> (by name, from the contracts)</td>
+<td><code>ResetRequested</code> (resets a session, <code>contracts/agents.py:450</code>), <code>ShutdownRequested</code> (stops the app, <code>messages.py:102</code>), <code>AgentNotice</code> (puts a line in an agent's next turn, <code>agents.py:382</code>)</td>
+<td>Events can be published by any module with no check (<code>context.py:103</code>), so these are unchecked controls. <strong>Proposal:</strong> commands with a single handler, checked by the core. Every publisher and listener traced in V1: <code>ShutdownRequested</code> → only the core stops the app (<code>app.py:150-153</code>); <code>ResetRequested</code> → every agent module through <code>AgentKit</code> and the Talker; <code>AgentNotice</code> → only the Hub, and the core's permissions handler is one of its publishers (<code>handler.py:541</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-gaps-against-the-principle-all-checked-above">3. Gaps against the principle (all checked above)</h2>
+<ol>
+<li><strong>G1</strong> <em>(calls · Hub)</em> The agents' identity is proved by a module (the door's host may set any caller; <code>context.py:122</code>). <em>Verified (V6), with a second half:</em> the Hub's <code>mcp_config(caller)</code> hands a valid token for <strong>any name asked</strong> (<code>agent_hub/module.py:69-76</code>), so any module that looks up <code>IModuleDoor</code> can speak as <code>talker</code> or <code>main_assistant</code>; and with the Hub off, any module listing <code>IModuleDoor</code> may set any caller.</li>
+<li><strong>G2</strong> <em>(calls · cards)</em> Commands carry no sender, and <code>sends</code> isn't enforced, so control commands (<code>SetPermissionMode</code>, <code>AnswerPermission</code>, <code>AnswerPermissionRequest</code>, <code>CancelTask</code>, and the module-control commands <code>ReloadModule</code>, <code>AddModule</code>, <code>RemoveModule</code>, <code>ActivateModule</code>, <code>DeactivateModule</code>) can come from any module. <em>Verified (V10, V3).</em> The answer handlers check only that the card or task id is open, and those ids are on events any module hears.</li>
+<li><strong>G3</strong> <em>(calls)</em> <code>publishes</code> isn't enforced; <code>listens</code>/<code>uses</code> only log. <em>Verified (V10).</em></li>
+<li><strong>G4</strong> <em>(cards · Hub)</em> The core's Auto check depends on the Hub being on (<code>ListAgents</code>).</li>
+<li><strong>G5</strong> <em>(calls · cards)</em> <code>InvokeTool</code> has no core check beyond the item's <code>callers</code> list. The Manual ask on <code>use_item</code> happens on the <strong>agent's</strong> side (Claude Code's allowed tools), so a module calling <code>InvokeTool</code> from code is never asked. <em>Verified (V11); corrected (V7):</em> the agent-side ask holds for task agents in Manual only; <strong>the Talker has all three door tools allowed by rule</strong>, so its <code>use_item</code> is never asked either.</li>
+<li><strong>G6</strong> <em>(calls)</em> Three events act as controls (<code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code>). <em>Verified (V1):</em> any module can stop or restart the app, reset any session, or put a line under any source label into any agent's next turn.</li>
+<li><strong>G7</strong> <em>(cards · Hub: coordination stays out of the core)</em> The core starts agent tasks for the review.</li>
+<li><strong>G8</strong> <em>(calls: modules talk only through the checked roads)</em> No general test that modules never import each other (only <code>voice_notes</code>' own, <code>voice_notes/tests/test_voice_notes.py:147</code>). A grep today finds no cross-module import in <code>src/assistant/modules/*</code> outside tests, and none from <code>core</code>, <code>infra</code> or <code>contracts</code> into a module.</li>
+<li><strong>G9</strong> <em>(none directly: the core / add-on boundary that fences the rest)</em> No test for "arrows point one way" in <code>needs</code>: today every core module has <code>needs = []</code> and only add-ons need (<code>voice_notes</code> → <code>voice_in</code>, <code>job_search</code> → <code>cv</code>), but nothing enforces it.</li>
+</ol>
+<p>Added by the verification pass:</p>
+<ol start="10">
+<li><strong>G10</strong> <em>(calls · cards)</em> temp_ui's and voice_notes' local pages have <strong>no Host or Origin check</strong> and read any POST body as JSON (<code>temp_ui/module.py:660-768</code>, <code>voice_notes/module.py:83</code>); html_viewer, cv_tool and voice_service have <code>local_guard</code>. On temp_ui that one POST switches an agent to Auto, answers cards, revokes grants or resets sessions (V2, V8, V9). Not tested from a browser.</li>
+<li><strong>G11</strong> <em>(calls · Hub)</em> The door's config is given for any caller name asked, to any module that looks up <code>IModuleDoor</code> (V6).</li>
+<li><strong>G12</strong> <em>(calls · cards)</em> The contract road skips the Hub: a module that looks up <code>ITaskAgent</code> can call <code>set_permission_mode(AUTO)</code>, <code>answer_permission</code> or <code>cancel</code> on any agent directly (V2, V10).</li>
+<li><strong>G13</strong> <em>(cards)</em> Single-name <code>permissions.request</code> always allows and logs (<code>core/permissions/port.py:29-35, 61-65</code>), so the mic and the core menu's "ask first" items (<code>modules.add</code>, <code>modules.remove</code>, <code>modules.off</code> with dependents) don't ask today (V8).</li>
+<li><strong>G14</strong> <em>(calls · cards)</em> The Talker's <code>use_item</code> is allowed by rule, with no mode and no gate (V7).</li>
+<li><strong>G15</strong> <em>(calls)</em> A <code>ModuleEvent</code> can be forged with <code>ctx.publish</code>: the <code>source</code> stamp is only in <code>publish_named</code> (V5).</li>
+<li><strong>G16</strong> <em>(calls · cards)</em> Every menu is also an <code>IToolProvider</code> contract, so a module can call <code>invoke_as</code> with <strong>any caller</strong>, skipping the router's stamp: for example <code>permissions.grant</code> as <code>temp_ui</code>, which needs no card (V11).</li>
+<li><strong>G17</strong> <em>(cards · calls)</em> The Talker acts on tags in its model's reply on <strong>every</strong> turn, including turns started by an agent's text: <code>ALLOW</code> / <code>DENY</code> (card answers), <code>RESTART</code> (the app) and <code>RESET</code> (V9).</li>
+<li><strong>G18</strong> <em>(cards)</em> "You" is a list of module ids kept in two places (the handler's <code>you</code> config and task_agents' <code>YOU</code>), and a <code>you</code> caller's grants and revokes need no card (V9).</li>
+<li><strong>G19</strong> <em>(none)</em> A module added with <code>modules.add</code> isn't recorded: at the next launch it is off (found by folder) or gone (from elsewhere) (V4). Not a hardening gap, but the proposal should say it.</li>
+<li><strong>G20</strong> <em>(none)</em> On turn-off, reload or remove, events still queued for the module are dropped and a running handler is cancelled; nothing is redelivered (V5). Not a hardening gap; worth a line in the docs.</li>
+</ol>
+<h2 id="4-the-proposed-definition">4. The proposed definition</h2>
+<p><strong>Core</strong> = what the app can't start without, plus the ports. In <code>src/assistant/core</code> (and <code>contracts</code>, <code>infra</code>, <code>app_kit</code> as shared code): the host (<code>App</code>), the registry and loader, the lifecycle, the router, the bus, the container, config and logs, the directory with the core's menu, generated files, the permissions handler, <strong>and, new: the door and the callers registry</strong>.</p>
+<p><strong>Seven ports</strong> (what a module's <code>ModuleContext</code> gives it; today there are six roads, the seventh is new):</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Port</th>
+<th>Road</th>
+<th>Checked by the core (proposed)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Commands</strong></td>
+<td><code>send</code> / <code>handle</code> through the router</td>
+<td>handler strict (today); <code>sends</code> strict and the <strong>sender stamped</strong> on every command (new); control commands list who may send them (new)</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Events</strong></td>
+<td><code>publish</code> / <code>subscribe</code> on the bus</td>
+<td><code>publishes</code> strict (new); events only notify, never control (rule)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Contracts</strong></td>
+<td><code>provide</code> / <code>get</code> through the container</td>
+<td>as today, <code>uses</code> strict after a warning period</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Tools</strong></td>
+<td>menus, <code>InvokeTool</code>, <strong>the door</strong> for agents</td>
+<td>caller proved by the core's own door (new); one gate in <code>dispatch_tool</code>: item <code>callers</code>, then a <code>risky</code> item asks through Permissions unless the caller is in Auto (new)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Permissions</strong></td>
+<td><code>ctx.permissions</code>, cards</td>
+<td>as today, with the mode read from Callers (no <code>ListAgents</code>)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Callers</strong> (new)</td>
+<td>agent names, each caller's kind and mode, who is "you"</td>
+<td><code>SetPermissionMode</code> handled here; Auto only from a <code>you</code> caller; card answers only from <code>you</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Config and logs</strong></td>
+<td><code>ctx.config</code>, <code>ctx.logs</code></td>
+<td>as today</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Core modules:</strong> in the repo, on at launch, part of the assistant itself, may depend only on the core: <code>agent_hub</code> (coordination only), <code>talker</code>, <code>main_assistant</code>, <code>task_agents</code>, <code>temp_ui</code>, <code>console_io</code>, <code>usage</code>, <code>assistant_view</code>, <code>voice_in</code> (grouped <code>core</code> in their <code>docs/docs.toml</code>, checked).</p>
+<p><strong>Add-ons:</strong> anything the assistant runs without: <code>html_viewer</code>, <code>voice_notes</code>, <code>cv</code>, <code>job_search</code>, <code>echo_orchestrator</code> (grouped <code>add-on</code>, checked).</p>
+<p><strong>The three boundary rules and their tests</strong></p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Test today</th>
+<th>Test to add</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Modules talk only through tools, events and contracts, never import each other's code</td>
+<td><code>voice_notes</code> only (<code>test_voice_notes_imports_no_other_module_and_no_core</code>); <code>test_every_module_app_never_imports_assistant</code>; <code>test_module_tests_use_only_the_testkit</code></td>
+<td>One AST test over every module: imports only <code>assistant.contracts</code>, <code>assistant.infra</code>, <code>app_kit</code> and its own package. Plus: <code>sends</code> / <code>publishes</code> enforced at run time (G2, G3)</td>
+</tr>
+<tr>
+<td>2. The core never names an add-on</td>
+<td><strong>Exists:</strong> <code>test_no_core_code_names_an_add_on</code> (<code>tests/test_module_folders.py:771</code>) covers the core group and shared code</td>
+<td>Extend to <code>config/default.toml</code> and every core module's <code>module.toml</code></td>
+</tr>
+<tr>
+<td>3. Arrows point one way (an add-on may need the core or another add-on; the core and core modules never need an add-on)</td>
+<td><strong>None</strong></td>
+<td>A test over every <code>module.toml</code>: a core module's <code>needs</code> names only core modules; plus no cycle (verified, V3: the registry refuses a cycle at launch, <code>registry.py:65-81</code>, and <code>_activate</code> at runtime over <code>requires</code> and <code>needs</code>, <code>lifecycle.py:274-305</code>; only a test is missing)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-decisions-for-you-also-as-cards-on-the-pages">5. Decisions for you (also as cards on the pages)</h2>
+<ul>
+<li><strong>D1. Where the door lives.</strong> <em>(calls · Hub)</em> (a) Core hosts it, as part of the Tools port (<strong>recommended</strong>: the identity check belongs to the house); (b) keep it in the Hub, but the core stamps the caller itself; (c) leave as is. <em>Whichever is chosen (V6, V11):</em> <code>mcp_config(caller)</code> must check the name against the module asking (a module gets a config only for itself or the agents it claimed), and the menus must not be reachable as a plain <code>IToolProvider</code> contract with a free <code>caller</code> (G11, G16).</li>
+<li><strong>D2. Agent names and the permission mode.</strong> <em>(cards · Hub)</em> (a) A new Callers port in the core holds names, kinds, modes and "you" (<strong>recommended</strong>: removes G4 and lets the core check Auto); (b) names to the core, mode stays in the agents; (c) leave both in the Hub. <em>Added (V9):</em> "you" is in two lists today (the handler's config and task_agents' <code>YOU</code>); (a) makes it one.</li>
+<li><strong>D3. Sender on every command, <code>sends</code> and <code>publishes</code> strict.</strong> <em>(calls · cards)</em> (a) Yes, with a list of control commands only <code>you</code> may send (<strong>recommended</strong>); (b) stamp the sender but only log; (c) leave. <em>Added (V2, V9, V10):</em> the sender alone doesn't cover the <strong>contract road</strong> (<code>ITaskAgent.set_permission_mode</code>, <code>answer_permission</code>, <code>cancel</code> called directly, G12), nor <strong>card ids on events</strong> (any module hears <code>PermissionRequested</code> and <code>TaskUpdated</code> and can answer with the id), nor <strong>temp_ui's unguarded page</strong> (G10), nor the <strong>Talker answering on its model's word</strong> (G17). So (a) also needs: the control methods off the public contract or checked, the answer handlers checking the sender, and <code>local_guard</code> on temp_ui's page.</li>
+<li><strong>D4. One checked gate on <code>InvokeTool</code>.</strong> <em>(calls · cards)</em> (a) <code>dispatch_tool</code> checks callers, then asks for items marked <code>risky</code> unless the caller is in Auto; the agent side keeps Claude's own tool asks (<strong>recommended</strong>); (b) keep the ask on the agent side only. <em>Added (V7, V8, V11):</em> single-name asks don't ask yet (G13), so today the "risky" core items only log; the Talker has no gate at all (G14); and the gate must sit where the contract road can't skip it (G16).</li>
+<li><strong>D5. Events never control.</strong> <em>(calls)</em> (a) <code>ResetRequested</code>, <code>ShutdownRequested</code> and <code>AgentNotice</code> become commands (<strong>recommended</strong>); (b) keep them as events, with a list of who may publish them. <em>Added (V1):</em> the core's permissions handler itself publishes <code>AgentNotice</code> (<code>handler.py:541</code>), so (a) changes the core too; and today <strong>any module can stop or restart the app</strong> (<code>app.py:150-153</code>).</li>
+<li><strong>D6. The review.</strong> <em>(cards · Hub: coordination stays out of the core)</em> (a) The reviewer becomes a listener that adds notes to a card; the core never starts a task (<strong>recommended</strong>); (b) leave as is.</li>
+<li><strong>D7. The boundary tests.</strong> <em>(calls: they fence the checked roads)</em> (a) Add the rule 1 and rule 3 tests and extend rule 2 before any move (<strong>recommended</strong>: they fence the restructure); (b) add them after.</li>
+</ul>
+<h2 id="6-restructure-sketch-not-started">6. Restructure sketch (not started)</h2>
+<p>Pattern: what, why, how, done when. <strong>Nothing here is started or approved.</strong></p>
+<ul>
+<li>[ ] <strong>R1. Boundary tests first.</strong> <em>What:</em> the rule 1 import test, rule 2 extended to config and <code>module.toml</code>, rule 3 <code>needs</code> test. <em>Why:</em> they fence every later step. <em>How:</em> AST and TOML reads in <code>tests/test_boundaries.py</code>. <em>Done when:</em> they pass on today's code and fail on a planted bad import.</li>
+<li>[ ] <strong>R2. Sender stamped, <code>sends</code>/<code>publishes</code> strict.</strong> <em>What:</em> <code>Command.sender</code> filled by <code>ScopedContext.send</code>; manifests enforced. <em>Why:</em> G2, G3. <em>How:</em> first log-only for one run, then strict. <em>Done when:</em> an undeclared send is refused in a test; full suite green.</li>
+<li>[ ] <strong>R3. Callers port.</strong> <em>What:</em> agent names, kinds, modes and <code>you</code> move into the core; <code>SetPermissionMode</code> handled by the core; Auto and card answers only from <code>you</code>. <em>Why:</em> G4, H2, H12. <em>How:</em> <code>core/callers.py</code>; <code>IAgentNames</code> provided by the core; the Hub's <code>set_mode</code> becomes a listener for its open-card update. <em>Done when:</em> the handler has no <code>ListAgents</code>; a module sending Auto is refused in a test.</li>
+<li>[ ] <strong>R4. The door in the core.</strong> <em>What:</em> <code>DoorServer</code> hosted by <code>App</code>; <code>IModuleDoor</code> provided by the core; the "door host may set any caller" exception removed. <em>Why:</em> G1, H1. <em>How:</em> move the hosting code out of <code>agent_hub/module.py</code>. <em>Done when:</em> agents reach modules with the Hub off; a module can't set another caller.</li>
+<li>[ ] <strong>R5. One gate on <code>InvokeTool</code>.</strong> <em>What:</em> <code>risky=True</code> on menu items; <code>dispatch_tool</code> asks through Permissions unless Auto. <em>Why:</em> G5. <em>Done when:</em> a module calling a risky item from code gets a card in Manual.</li>
+<li>[ ] <strong>R6. Events never control.</strong> <em>What:</em> <code>ResetRequested</code>, <code>ShutdownRequested</code>, <code>AgentNotice</code> → commands. <em>Why:</em> G6. <em>Done when:</em> no subscriber of an event changes another part's state on command (a review of every subscriber).</li>
+<li>[ ] <strong>R7. Review as a listener.</strong> <em>Why:</em> G7. <em>Done when:</em> the handler sends no <code>StartTask</code>.</li>
+<li>[ ] <strong>R8. Docs and the overview diagram.</strong> <em>Done when:</em> the architecture README shows seven ports and a Hub with coordination only.</li>
+</ul>
+<p>Every step from R2 on changes the core or contracts: <strong>an app restart each</strong>, asked first.</p>
+<h2 id="what-i-could-not-verify">What I could not verify</h2>
+<p>The four gaps the first session listed here are now closed by the verification pass (V1, V3, V9, V2). What is still not verified:</p>
+<ul>
+<li><strong>Nothing was tested by running it.</strong> Every finding is read from the code. In particular: whether a web page in a browser can reach temp_ui's or voice_notes' unguarded page (depends on the browser's local-network rules, G10); whether an agent's text can lead the Talker to an <code>ALLOW</code> (G17); whether a module calling <code>invoke_as</code> with another caller works end to end (G16); reading a door token from the process list (V6).</li>
+<li><code>talker/prompt.py</code> (prompt text, what the Talker is told about answering cards) and <code>talker/session.py:121-159</code> (constructor and close) were not read line by line; the rest of <code>session.py</code> was, and every send, publish and lookup in it was found by grep.</li>
+<li><code>temp_ui/module.py</code> outside <code>:575-768</code> was checked by grep for sends, publishes and subscribes, not read line by line.</li>
+<li>Other add-ons (<code>cv</code>, <code>job_search</code>, <code>html_viewer</code>, <code>usage</code>, <code>assistant_view</code>, <code>console_io</code>) were checked only where a grep named them; their own powers weren't reviewed in full.</li>
+</ul>
+<h2 id="1-what-the-agent-hub-does-today">1. What the Agent Hub does today</h2>
+<p>Source: <code>src/assistant/modules/agent_hub/</code>. Manifest (<code>module.py:83</code>): provides <code>IModuleDoor</code>, <code>IAgentNames</code>; handles <code>ListAgents, StartTask, GetTaskStatus, SendToTask, CancelTask, ReportTask, AnswerPermission, SetPermissionMode, SetFocus, DeliverMessage</code>; sends <code>ListModules, GetMenu, InvokeTool</code>; publishes <code>TaskUpdated, FocusChanged, FocusSuggested</code>; listens <code>AgentActivity, AgentNotice, AgentStateChanged, ModuleStateChanged</code>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Responsibility</th>
+<th>Where (checked)</th>
+<th>Kind</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H1</td>
+<td><strong>Hosts the module door</strong> for every agent: builds a <code>DoorServer</code> (HTTP, loopback, a token) mapping list/menu/call to <code>ListModules</code> / <code>GetMenu</code> / <code>InvokeTool</code>, provides <code>IModuleDoor</code>, keeps port and token over a reload, adds a fixed <code>CORE_LINE</code></td>
+<td><code>module.py:102-110, 151-156, 167-168</code>; <code>_Door</code> <code>module.py:69</code></td>
+<td>plumbing</td>
+</tr>
+<tr>
+<td>H2</td>
+<td><strong>Agent names</strong> (<code>IAgentNames</code>): one claim per id, reserved ids <code>core</code>, <code>hub</code>, <code>talker</code> + the coordinator, every module id refused</td>
+<td><code>names.py:17</code> <code>AgentNames</code>; <code>RESERVED_AGENT_IDS</code> <code>names.py:14</code></td>
+<td>plumbing (identity)</td>
+</tr>
+<tr>
+<td>H3</td>
+<td><strong>Finding the agents</strong>: <code>ctx.get_all(ITaskAgent)</code>, one per id, clash logged</td>
+<td><code>module.py:339</code> <code>_agents</code></td>
+<td>coordination</td>
+</tr>
+<tr>
+<td>H4</td>
+<td><strong><code>ListAgents</code> handler</strong>: every agent's <code>AgentInfo</code> (incl. <code>permission_mode</code>)</td>
+<td><code>module.py:322</code></td>
+<td>coordination, but the core handler depends on it for the Auto check (see H12)</td>
+</tr>
+<tr>
+<td>H5</td>
+<td><strong>Task board</strong>: <code>StartTask</code>, <code>GetTaskStatus</code>, <code>CancelTask</code>, <code>ReportTask</code>, <code>AnswerPermission</code>, <code>SetPermissionMode</code>, activity</td>
+<td><code>tasks.py</code> <code>TaskBoard</code> (wired <code>module.py:116-145</code>)</td>
+<td>see §1b</td>
+</tr>
+<tr>
+<td>H6</td>
+<td><strong>Focus</strong>: <code>SetFocus</code>, <code>FocusChanged</code>, held questions released</td>
+<td><code>focus.py</code> <code>Focus</code> (wired <code>module.py:129</code>)</td>
+<td>coordination</td>
+</tr>
+<tr>
+<td>H7</td>
+<td><strong>Delivery</strong>: <code>DeliverMessage</code>, never into a turn, <code>pending</code> until free; parent ← child end</td>
+<td><code>delivery.py</code> <code>Delivery</code> (<code>module.py:127, 144</code>)</td>
+<td>coordination</td>
+</tr>
+<tr>
+<td>H8</td>
+<td><strong>Message gate</strong>: agent → non-child agent asks you on a card via <code>ctx.permissions.ask(message:&lt;B&gt;)</code>; holds the messages; Deny note</td>
+<td><code>gate.py:28</code> <code>MessageGate</code></td>
+<td>the card raising is already in the core handler; the hold-and-deliver is coordination</td>
+</tr>
+<tr>
+<td>H9</td>
+<td><strong>Milestone feed to the coordinator</strong>: <code>_feed</code> → coordinator's <code>note</code>; <code>AgentNotice</code> → <code>agent.note</code></td>
+<td><code>module.py:315, 333</code></td>
+<td>coordination (<code>AgentNotice</code> routing is general: a module's callback to an agent)</td>
+</tr>
+<tr>
+<td>H10</td>
+<td><strong><code>hub.*</code> menu</strong> with caller checks: <code>start_only_by</code>, <code>may_steer</code>, <code>callers=(TALKER,)</code>, <code>suggest_focus</code> only for the coordinator, <code>hub.mode</code> Manual-only</td>
+<td><code>module.py:180-289</code></td>
+<td>coordination; the caller <strong>identity</strong> comes from the door (H1)</td>
+</tr>
+<tr>
+<td>H11</td>
+<td><strong>Config policy</strong>: <code>coordinator</code>, <code>max_extra_agents</code>, <code>named_only</code>, <code>start_only_by</code></td>
+<td><code>module.py:99, 114-121, 356-375</code></td>
+<td>coordination policy</td>
+</tr>
+<tr>
+<td>H12</td>
+<td><strong>Permission mode routing</strong>: <code>SetPermissionMode</code> handled by the Hub and passed to the agent ("until the permissions handler takes that over", <code>module.py:7</code>)</td>
+<td><code>module.py:142</code> → <code>tasks.set_mode</code></td>
+<td>plumbing: the mode is a permission fact</td>
+</tr>
+<tr>
+<td>H13</td>
+<td><strong>Reload hand-over</strong>: focus, claims, waiting messages, questions, door port/token</td>
+<td><code>module.py:162</code> <code>export_state</code></td>
+<td>both (door/claims parts are plumbing)</td>
+</tr>
+</tbody>
+</table>
+<footer>Generated from <code>docs/next-steps/core-and-hub-definition.md</code>. Edit the Markdown, then run <code>python scripts/build_docs.py</code>.</footer>
+</main>
+</div>
+<script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

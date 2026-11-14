@@ -5,18 +5,18 @@
 | | |
 |---|---|
 | Tools | none |
-| Handles | nothing: it is called through `ITaskAgent` (`assign`, `message`, `cancel`, `answer_permission`, `set_permission_mode`, `note`) |
-| Calls | [`ReportTask`](../../../../../docs/api/agents.md#reporttask) (`progress`, `milestone` from its `STATUS:` lines, `reply`, `need`, `permission`, `done`, `failed`); the [Hub's menu](../../../../../docs/api/agents.md#the-hubs-menu) through the door |
+| Handles | nothing: it is called through `ITaskAgent` (`assign`, `message`, `cancel`, `answer_permission`, `set_permission_mode`, `note`, `reset`). The Hub calls `note` for an [`AgentNotice`](../../../../../docs/api/agents.md#agentnotice) and `reset` for a [`ResetRequested`](../../../../../docs/api/agents.md#resetrequested), both commands it handles; the core calls `set_permission_mode` for a `SetPermissionMode` (Auto only from you) |
+| Calls | [`ReportTask`](../../../../../docs/api/agents.md#reporttask) (`progress`, `milestone` from its `STATUS:` lines, `reply`, `need`, `permission`, `done`, `failed`); the [Hub's menu](../../../../../docs/api/agents.md#the-hubs-menu) through the core's door. As the reviewer (`[core.permissions] reviewer`), it gets the access-list review as a normal task from the Hub |
 | Publishes | [`AgentActivity`](../../../../../docs/api/agents.md#agentactivity), [`AgentStateChanged`](../../../../../docs/api/agents.md#agentstatechanged), [`SessionUsage`](../../../../../docs/api/agents.md#sessionusage), [`PermissionModeChanged`](../../../../../docs/api/agents.md#permissionmodechanged) |
-| Listens to | [`ResetRequested`](../../../../../docs/api/agents.md#resetrequested) |
+| Listens to | [`ModuleStateChanged`](../../../../../docs/api/control.md#modulestatechanged) (`AGENT_LISTENS`) |
 
 ## Owns and launches
 
 - **A `claude -p` process** per task (`fresh_sessions`), through the shared [`SessionTaskAgent`](../../../../../docs/api/infra.md#sessiontaskagent) and [`ClaudeSession`](../../../../../docs/api/infra.md#claudesession). It starts with the module and stops with it.
 - **Its transcript** in the launch's log folder.
-- **Its setup** through the shared [`ProfileAgent`](../../../../../docs/api/infra.md#profileagent) (like every big agent) and its [`AgentProfile`](../../../../../docs/api/infra.md#agentprofile) (`coordinator=True`): folders (`write_folders`, for the Hub's folder check), rules, command line, and the prompt with the shared block on `STATUS:` and `NEED:`. Its id `main_assistant` is claimed from the Hub on start ([agent names](../../../../../docs/architecture/agents.md#agent-names)); as its module's own id, it's allowed.
+- **Its setup** through the shared [`ProfileAgent`](../../../../../docs/api/infra.md#profileagent) (like every big agent) and its [`AgentProfile`](../../../../../docs/api/infra.md#agentprofile) (`coordinator=True`): folders (`write_folders`, for the Hub's folder check), rules, command line, and the prompt with the shared block on `STATUS:` and `NEED:`. Its id `main_assistant` is claimed from the core's Callers (`IAgentNames`) on start ([agent names](../../../../../docs/architecture/agents.md#agent-names)); as its module's own id, it's allowed.
 - **Launching helpers** (built 2026-11-05): the coordinator's block tells it to use `agents.kinds` / `agents.launch` / `agents.close` on `task_agents`' menu, only when you asked for a helper, naming it from the task. `agents.launch` puts the question to you as the permission card on its task (`request_approval`); it ends its turn and gets the outcome as its next message ([launching a helper](../../../../../docs/architecture/agents.md#launching-a-helper)).
-- **The module door** in each new session (built 2026-11-05): `IModuleDoor.mcp_config("main_assistant")`, read at each session start, becomes `--mcp-config`. Its tools `list_modules` and `show_menu` are allowed; `use_item` asks with the card in Manual. The prompt tells it to use them. `door = false` in its config turns it off. It doesn't list `IModuleDoor` as `optional` (the Hub lists `ITaskAgent`, and the two would be circular), so its first session may start before the door is up; the next task's fresh session has it.
+- **The module door** in each new session (built 2026-11-05): `IModuleDoor.mcp_config("main_assistant")`, read at each session start, becomes `--mcp-config`. Its tools `list_modules` and `show_menu` are allowed; `use_item` asks with the card in Manual. The prompt tells it to use them. `door = false` in its config turns it off. The door is the core's, opened before any module starts, so its first session has it too.
 
 ## Inner workings
 

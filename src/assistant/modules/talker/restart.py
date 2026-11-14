@@ -3,7 +3,8 @@
 A `<<RESTART>>` (main tab only) asks the worker for reset instructions (a reply ending
 `RESTART_READY`), saves them to `restart_note` with the app's own state section under them (the
 tab you were in, every agent and its mode, the open tasks and their questions, what a restart
-does), and publishes `ShutdownRequested(restart=True)`; the launcher starts the app again. At the
+does), and sends the `ShutdownRequested(restart=True)` command (after your Allow on its confirm
+card); the launcher starts the app again. At the
 next start the note is the main tab's first input, then it's deleted. Any stop that isn't a
 restart deletes it too.
 """
@@ -144,7 +145,9 @@ class RestartFlow:
             self.note.parent.mkdir(parents=True, exist_ok=True)
             self.note.write_text(text + "\n", encoding="utf-8")
         ctx.log.info("Restarting; reset instructions saved to %s", self.note)
-        ctx.publish(ShutdownRequested(reason="restart", restart=True))
+        result = await ctx.send(ShutdownRequested(reason="restart", restart=True))
+        if not result.is_ok:
+            ctx.log.warning("The restart wasn't taken: %s", result.error)
 
     async def app_state(self) -> str:
         """Facts for the next launch: the tab you were in, every agent with its mode, each open
